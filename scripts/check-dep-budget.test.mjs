@@ -20,13 +20,16 @@ describe("countDirectRuntimeDeps", () => {
 });
 
 describe("countTransitiveRuntimeDeps", () => {
-  it("excludes the root entry and dev-only packages", () => {
+  it("excludes the root entry, workspace source dirs, and dev-only packages", () => {
     const lockfile = {
       packages: {
         "": { name: "capdelta" },
         "node_modules/acorn": {},
         "node_modules/vitest": { dev: true },
         "node_modules/nested/node_modules/acorn": { dev: false },
+        // Workspace source dir: the repo's own code, not a dependency —
+        // same path rule as isDependencyPath in src/core/npm/lockfile-differ.ts.
+        "packages/local": {},
       },
     };
     expect(countTransitiveRuntimeDeps(lockfile)).toBe(2);

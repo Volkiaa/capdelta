@@ -19,13 +19,18 @@ export function countDirectRuntimeDeps(manifest) {
 
 /**
  * Counts installed runtime packages in an npm lockfile v2/v3 `packages` map:
- * every entry except the root ("") that is not marked dev-only.
+ * every entry under node_modules/ that is not marked dev-only. The path rule
+ * (must contain "node_modules/") matches isDependencyPath in
+ * src/core/npm/lockfile-differ.ts, so the root entry ("") and workspace
+ * source dirs are excluded by both. Intentional difference: the differ also
+ * analyzes dev entries (their install scripts run on `npm install` too),
+ * while this budget counts runtime-only.
  * @param {{ packages?: Record<string, { dev?: boolean }> }} lockfile
  */
 export function countTransitiveRuntimeDeps(lockfile) {
   const packages = lockfile.packages ?? {};
   return Object.entries(packages).filter(
-    ([path, meta]) => path !== "" && meta.dev !== true,
+    ([path, meta]) => path.includes("node_modules/") && meta.dev !== true,
   ).length;
 }
 
