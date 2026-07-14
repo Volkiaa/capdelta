@@ -1,0 +1,21 @@
+{
+  "name": "fixture-app",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "name": "fixture-app",
+      "version": "1.0.0",
+      "dependencies": {
+        "pad-alias": "npm:left-pad@^1.0.0"
+      }
+    },
+    "node_modules/pad-alias": {
+      "name": "left-pad",
+      "version": "1.0.0",
+      "resolved": "https://registry.npmjs.org/left-pad/-/left-pad-1.0.0.tgz",
+      "integrity": "sha512-FAKEleftpadOldAAAA=="
+    }
+  }
+}

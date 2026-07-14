@@ -1,0 +1,20 @@
+{
+  "name": "fixture-app",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "name": "fixture-app",
+      "version": "1.0.0",
+      "dependencies": {
+        "roll": "^2.0.0"
+      }
+    },
+    "node_modules/roll": {
+      "version": "2.0.0",
+      "resolved": "https://registry.npmjs.org/roll/-/roll-2.0.0.tgz",
+      "integrity": "sha512-FAKEroll200AAAA=="
+    }
+  }
+}

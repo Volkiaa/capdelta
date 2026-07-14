@@ -1,0 +1,26 @@
+{
+  "name": "fixture-app",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "name": "fixture-app",
+      "version": "1.0.0",
+      "dependencies": {
+        "badpkg": "^1.0.0",
+        "goodpkg": "^1.0.0"
+      }
+    },
+    "node_modules/badpkg": {
+      "version": "1.0.0",
+      "resolved": "https://registry.npmjs.org/badpkg/-/badpkg-1.0.0.tgz",
+      "integrity": "sha512-FAKEbadpkgOldAAAA=="
+    },
+    "node_modules/goodpkg": {
+      "version": "1.0.0",
+      "resolved": "https://registry.npmjs.org/goodpkg/-/goodpkg-1.0.0.tgz",
+      "integrity": "sha512-FAKEgoodpkgOldAAAA=="
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "name": "fixture-app",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "name": "fixture-app",
+      "version": "1.0.0",
+      "dependencies": {
+        "gitdep": "github:example/gitdep",
+        "gitstable": "github:example/gitstable"
+      }
+    },
+    "node_modules/gitdep": {
+      "version": "1.0.0",
+      "resolved": "git+ssh://git@github.com/example/gitdep.git#aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "node_modules/gitstable": {
+      "version": "1.0.0",
+      "resolved": "git+ssh://git@github.com/example/gitstable.git#cccccccccccccccccccccccccccccccccccccccc"
+    }
+  }
+}
