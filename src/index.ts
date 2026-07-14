@@ -22,6 +22,17 @@ export {
   type VerifiedTarball,
 } from "./core/npm/fetcher.js";
 export {
+  ExtractorConfigurationError,
+  ExtractorError,
+  extractVerifiedTarball,
+  type ExtractedTarball,
+  type ExtractionFailure,
+  type ExtractionFailureKind,
+  type ExtractionResult,
+  type ExtractorOptions,
+  type RejectedExtraction,
+} from "./core/npm/safe-extractor.js";
+export {
   LockfileError,
   MalformedLockfileError,
   UnsupportedLockfileVersionError,
