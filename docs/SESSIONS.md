@@ -119,3 +119,72 @@ escapes; worth considering a CI grep for control characters in source files.
    requiring the CI check.
 6. **Control-character CI check:** want a tiny grep-based CI step rejecting
    control characters in source, given the NUL incident?
+
+## 2026-07-14 — M1 Fetcher and Safe Extractor
+
+### 1. Completed and verified
+
+- **M1 LockfileDiffer is on `main`:** PR #2 merged as `c8cb62a`. Its contract
+  exposes both old and new tarball locations (`src/core/contract/lockfile-diff.ts:17-29`),
+  allowing downstream code to fetch without reconstructing registry URLs.
+- **M1 Fetcher is implemented:** `fetchChangedPackages` returns either verified
+  inert bytes or a package-local, typed failure (`src/core/npm/fetcher.ts:13-28,
+126-165`). It enforces declared and streamed tarball size caps
+  (`src/core/npm/fetcher.ts:265-296,342-367`) and verifies SHA-512 SRI before
+  returning bytes (`src/core/npm/fetcher.ts:298-308`). The targeted tests cover
+  old/new fetching, integrity mismatch, timeout, size limits, cache recovery,
+  and concurrency (`src/core/npm/fetcher.test.ts:36-331`). PR #3 merged into
+  `feat/lockfile-differ` as `ae99043`.
+- **M1 Safe Extractor is implemented:** `extractVerifiedTarball` returns an
+  extracted private root with cleanup or a structured rejection
+  (`src/core/npm/safe-extractor.ts:19-47,92-140`). It strictly preflights the
+  opaque verified archive before extraction (`src/core/npm/safe-extractor.ts:143-193`),
+  then extracts only the validated npm `package/` layout (`src/core/npm/safe-extractor.ts:195-216`).
+  Unsafe paths, links, unsupported entry types, and resource limits are rejected
+  (`src/core/npm/safe-extractor.ts:218-264`). Its inert handcrafted-archive
+  tests exercise the success and attack paths (`src/core/npm/safe-extractor.test.ts:18-203`).
+- **Dependency decision is implemented:** the approved `tar` runtime parser is
+  the only direct runtime dependency (`package.json:29-31`), within PLAN §10's
+  budget. The public barrel exposes all three completed components
+  (`src/index.ts:2-40`).
+- **Verification:** local `lint`, `format:check`, strict `typecheck`, `test`
+  (63 tests), and `check:deps` passed using the scripts in `package.json:11-17`.
+  PR #4 is currently open against `feat/lockfile-differ`, mergeable/clean, and
+  its Node 20 and Node 22 CI checks passed. The extractor implementation is
+  commit `95290ac`.
+
+### 2. Half-done and exact resume point
+
+- **Integration branch promotion is pending:** `main` contains PR #2 only.
+  PR #3 was merged into `feat/lockfile-differ`; PR #4 is stacked on that same
+  branch. Merge PR #4, then open or retarget a PR from `feat/lockfile-differ`
+  to `main` so the Fetcher and Extractor reach the default branch together.
+- **M1 remains incomplete:** the manifest-only capability extractor, old-vs-new
+  manifest diff/reporting, no-op fast path, and golden fixtures are still
+  required by PLAN §6. Resume with a design proposal for one component:
+  `ManifestCapabilityExtractor`, taking an `ExtractedTarball` and returning
+  normalized `package.json` behavior facts. Do not add orchestration or package
+  retrieval in that change.
+- The extractor has adversarial unit coverage, but has not yet been fuzzed;
+  fuzzing belongs to the later quality/security work rather than this scoped M1
+  component.
+
+### 3. Decisions promoted to ADRs this session
+
+- **ADR-010** records the preflight-before-extract boundary and rejection of all
+  link entries, implementing PLAN §3's safe-extraction requirement.
+- **ADR-011** records the initial entry, expanded-size, compression-ratio, and
+  metadata limits, plus the package-local failure behavior.
+
+### 4. Open questions for you
+
+1. After PR #4 merges, should I open the promotion PR from
+   `feat/lockfile-differ` to `main`, or do you prefer to manage that branch
+   transition yourself?
+2. Confirm the recommended next scoped chunk: a manifest-only capability
+   extractor (no Fetcher/Extractor orchestration yet).
+3. Do you want to enable GitHub Private Vulnerability Reporting and branch
+   protection requiring the Node 20/22 checks? This requires repository-admin
+   settings rather than a code change.
+4. Should we add the previously noted control-character CI check before M1
+   finishes, or keep it listed as an adjacent hardening task?
