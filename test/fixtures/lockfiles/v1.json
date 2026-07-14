@@ -1,0 +1,13 @@
+{
+  "name": "fixture-app",
+  "version": "1.0.0",
+  "lockfileVersion": 1,
+  "requires": true,
+  "dependencies": {
+    "foo": {
+      "version": "1.0.0",
+      "resolved": "https://registry.npmjs.org/foo/-/foo-1.0.0.tgz",
+      "integrity": "sha512-FAKEfooAAAA=="
+    }
+  }
+}

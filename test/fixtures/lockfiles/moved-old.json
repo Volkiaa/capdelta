@@ -1,0 +1,41 @@
+{
+  "name": "fixture-app",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "name": "fixture-app",
+      "version": "1.0.0",
+      "dependencies": {
+        "ambig": "^1.0.0",
+        "host": "^1.0.0"
+      }
+    },
+    "node_modules/ambig": {
+      "version": "1.0.0",
+      "resolved": "https://registry.npmjs.org/ambig/-/ambig-1.0.0.tgz",
+      "integrity": "sha512-FAKEambig100AAAA=="
+    },
+    "node_modules/host": {
+      "version": "1.0.0",
+      "resolved": "https://registry.npmjs.org/host/-/host-1.0.0.tgz",
+      "integrity": "sha512-FAKEhostAAAA=="
+    },
+    "node_modules/host/node_modules/ambig": {
+      "version": "1.5.0",
+      "resolved": "https://registry.npmjs.org/ambig/-/ambig-1.5.0.tgz",
+      "integrity": "sha512-FAKEambig150AAAA=="
+    },
+    "node_modules/host/node_modules/movedbump": {
+      "version": "1.0.0",
+      "resolved": "https://registry.npmjs.org/movedbump/-/movedbump-1.0.0.tgz",
+      "integrity": "sha512-FAKEmovedbumpOldAAAA=="
+    },
+    "node_modules/host/node_modules/movedsame": {
+      "version": "1.0.0",
+      "resolved": "https://registry.npmjs.org/movedsame/-/movedsame-1.0.0.tgz",
+      "integrity": "sha512-FAKEmovedsameAAAA=="
+    }
+  }
+}

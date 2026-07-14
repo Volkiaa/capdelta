@@ -1,0 +1,39 @@
+{
+  "name": "fixture-app",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "name": "fixture-app",
+      "version": "1.0.0",
+      "dependencies": {
+        "filedep": "file:../filedep-1.0.0.tgz",
+        "gitdep": "github:example/gitdep",
+        "gitstable": "github:example/gitstable",
+        "linked": "^1.0.0"
+      }
+    },
+    "node_modules/filedep": {
+      "version": "1.0.0",
+      "resolved": "file:../filedep-1.0.0.tgz",
+      "integrity": "sha512-FAKEfiledepAAAA=="
+    },
+    "node_modules/gitdep": {
+      "version": "1.1.0",
+      "resolved": "git+ssh://git@github.com/example/gitdep.git#bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "node_modules/gitstable": {
+      "version": "1.0.0",
+      "resolved": "git+ssh://git@github.com/example/gitstable.git#cccccccccccccccccccccccccccccccccccccccc"
+    },
+    "node_modules/linked": {
+      "resolved": "packages/linked",
+      "link": true
+    },
+    "packages/linked": {
+      "name": "linked",
+      "version": "1.0.0"
+    }
+  }
+}

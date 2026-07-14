@@ -1,0 +1,29 @@
+{
+  "name": "fixture-app",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "name": "fixture-app",
+      "version": "1.0.0",
+      "dependencies": {
+        "corp-pkg": "^2.0.0",
+        "nointegrity": "^1.0.0",
+        "noresolved": "^1.0.0"
+      }
+    },
+    "node_modules/corp-pkg": {
+      "version": "2.0.0",
+      "resolved": "https://npm.corp.example.com/corp-pkg/-/corp-pkg-2.0.0.tgz",
+      "integrity": "sha512-FAKEcorpNewAAAA=="
+    },
+    "node_modules/nointegrity": {
+      "version": "1.0.0",
+      "resolved": "https://registry.npmjs.org/nointegrity/-/nointegrity-1.0.0.tgz"
+    },
+    "node_modules/noresolved": {
+      "version": "1.0.0"
+    }
+  }
+}

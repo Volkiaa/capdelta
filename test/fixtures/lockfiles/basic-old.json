@@ -1,0 +1,32 @@
+{
+  "name": "fixture-app",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "name": "fixture-app",
+      "version": "1.0.0",
+      "dependencies": {
+        "bumped": "^1.0.0",
+        "removed-pkg": "^1.0.0",
+        "stable": "^2.0.0"
+      }
+    },
+    "node_modules/bumped": {
+      "version": "1.0.0",
+      "resolved": "https://registry.npmjs.org/bumped/-/bumped-1.0.0.tgz",
+      "integrity": "sha512-FAKEbumpedOldAAAA=="
+    },
+    "node_modules/removed-pkg": {
+      "version": "1.0.0",
+      "resolved": "https://registry.npmjs.org/removed-pkg/-/removed-pkg-1.0.0.tgz",
+      "integrity": "sha512-FAKEremovedAAAA=="
+    },
+    "node_modules/stable": {
+      "version": "2.0.0",
+      "resolved": "https://registry.npmjs.org/stable/-/stable-2.0.0.tgz",
+      "integrity": "sha512-FAKEstableAAAA=="
+    }
+  }
+}
