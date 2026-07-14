@@ -5,7 +5,15 @@
  * knowing the ecosystem.
  */
 
-/** PLAN §4.1: one analyzable package whose resolved version changed. */
+/**
+ * PLAN §4.1: one analyzable package whose resolved version changed.
+ *
+ * The old-side fields are null as a unit: either the old version existed AND
+ * is itself fetchable (registry-hosted, integrity present), or the package
+ * gets the newly-added full-report treatment (ADR-006) and all three are
+ * null. The Fetcher can rely on oldResolvedUrl being present whenever
+ * oldVersion is.
+ */
 export interface ChangedPackage {
   /** Real registry name (alias-resolved). */
   name: string;
@@ -14,6 +22,8 @@ export interface ChangedPackage {
   newVersion: string;
   oldIntegrity: string | null;
   newIntegrity: string;
+  /** Tarball URL of the old version (ADR-006: amends the PLAN §4.1 tuple so the Fetcher never reconstructs registry URLs). */
+  oldResolvedUrl: string | null;
   /** Tarball URL of the new version. */
   resolvedUrl: string;
 }

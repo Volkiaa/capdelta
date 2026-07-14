@@ -28,6 +28,7 @@ describe("basic diff", () => {
       newVersion: "1.2.0",
       oldIntegrity: "sha512-FAKEbumpedOldAAAA==",
       newIntegrity: "sha512-FAKEbumpedNewAAAA==",
+      oldResolvedUrl: "https://registry.npmjs.org/bumped/-/bumped-1.0.0.tgz",
       resolvedUrl: "https://registry.npmjs.org/bumped/-/bumped-1.2.0.tgz",
     });
   });
@@ -39,6 +40,7 @@ describe("basic diff", () => {
       newVersion: "3.1.0",
       oldIntegrity: null,
       newIntegrity: "sha512-FAKEaddedAAAA==",
+      oldResolvedUrl: null,
       resolvedUrl:
         "https://registry.npmjs.org/@scope/added-pkg/-/added-pkg-3.1.0.tgz",
     });
@@ -203,6 +205,8 @@ describe("moved packages (re-hoisting)", () => {
       newVersion: "2.0.0",
       oldIntegrity: "sha512-FAKEmovedbumpOldAAAA==",
       newIntegrity: "sha512-FAKEmovedbumpNewAAAA==",
+      oldResolvedUrl:
+        "https://registry.npmjs.org/movedbump/-/movedbump-1.0.0.tgz",
       resolvedUrl: "https://registry.npmjs.org/movedbump/-/movedbump-2.0.0.tgz",
     });
   });
@@ -237,7 +241,10 @@ describe("first run (lockfile added)", () => {
     expect(result.changed).toHaveLength(3); // bumped, stable, @scope/added-pkg
     expect(
       result.changed.every(
-        (c) => c.oldVersion === null && c.oldIntegrity === null,
+        (c) =>
+          c.oldVersion === null &&
+          c.oldIntegrity === null &&
+          c.oldResolvedUrl === null,
       ),
     ).toBe(true);
   });
@@ -273,5 +280,174 @@ describe("untrustworthy lockfiles throw", () => {
     expect(() =>
       diffNpmLockfiles(fixture("basic-old.json"), { lockfileVersion: 3 }),
     ).toThrow(MalformedLockfileError);
+  });
+});
+
+describe("review regressions", () => {
+  const REG = "https://registry.npmjs.org";
+  /** Minimal inline lockfile for regression cases too adversarial to keep as fixture files. */
+  const lockfileWith = (packages: Record<string, unknown>): unknown => ({
+    lockfileVersion: 3,
+    packages: { "": { name: "fixture-app" }, ...packages },
+  });
+
+  it("does not silently drop a moved copy whose resolved URL was re-pointed", () => {
+    const oldLf = lockfileWith({
+      "node_modules/foo": {
+        version: "1.0.0",
+        resolved: `${REG}/foo/-/foo-1.0.0.tgz`,
+        integrity: "sha512-FOO==",
+      },
+    });
+    const newLf = lockfileWith({
+      "node_modules/host/node_modules/foo": {
+        version: "1.0.0",
+        resolved: "https://evil.example.com/foo-1.0.0.tgz",
+        integrity: "sha512-FOO==",
+      },
+    });
+    const result = diffNpmLockfiles(oldLf, newLf);
+    // Same version+integrity, different tarball host: must surface (here as a
+    // private-registry skip), never vanish as "pure re-hoisting".
+    expect(result.skipped).toContainEqual(
+      expect.objectContaining({ name: "foo", reason: "private-registry" }),
+    );
+  });
+
+  it("keeps distinct changed packages whose dedup tuples collide under a separator join", () => {
+    // Field values contain embedded NUL characters (reachable from real
+    // lockfile JSON via \u0000 escapes). Under the previous NUL-separator
+    // join, both positions produced the same dedup key and one distinct
+    // change was silently dropped; JSON.stringify keys them apart.
+    const oldLf = lockfileWith({
+      "node_modules/col": {
+        version: "1.0",
+        resolved: `${REG}/col/-/col-old.tgz`,
+        integrity: "OI",
+      },
+      "node_modules/h/node_modules/col": {
+        version: "1.0",
+        resolved: `${REG}/col/-/col-old.tgz`,
+        integrity: "Z\u0000OI",
+      },
+    });
+    const newLf = lockfileWith({
+      "node_modules/col": {
+        version: "2.0\u0000Z",
+        resolved: `${REG}/col/-/col-new.tgz`,
+        integrity: "NI",
+      },
+      "node_modules/h/node_modules/col": {
+        version: "2.0",
+        resolved: `${REG}/col/-/col-new.tgz`,
+        integrity: "NI",
+      },
+    });
+    expect(diffNpmLockfiles(oldLf, newLf).changed).toHaveLength(2);
+  });
+
+  it("emits no integrity-changed finding when the old entry merely lacked integrity", () => {
+    const oldLf = lockfileWith({
+      "node_modules/legacy": {
+        version: "1.0.0",
+        resolved: `${REG}/legacy/-/legacy-1.0.0.tgz`,
+      },
+    });
+    const newLf = lockfileWith({
+      "node_modules/legacy": {
+        version: "1.0.0",
+        resolved: `${REG}/legacy/-/legacy-1.0.0.tgz`,
+        integrity: "sha512-NOWPRESENT==",
+      },
+    });
+    const result = diffNpmLockfiles(oldLf, newLf);
+    expect(result.findings).toHaveLength(0);
+    // The unverifiable baseline gets the newly-added treatment (ADR-006).
+    expect(result.changed).toHaveLength(1);
+    expect(result.changed[0]?.oldVersion).toBeNull();
+    expect(result.changed[0]?.oldIntegrity).toBeNull();
+    expect(result.changed[0]?.oldResolvedUrl).toBeNull();
+  });
+
+  it("treats a moved package with one old version but two integrities as newly added, not an arbitrary baseline", () => {
+    const oldLf = lockfileWith({
+      "node_modules/amb": {
+        version: "1.0.0",
+        resolved: `${REG}/amb/-/amb-1.0.0.tgz`,
+        integrity: "sha512-I1==",
+      },
+      "node_modules/h/node_modules/amb": {
+        version: "1.0.0",
+        resolved: `${REG}/amb/-/amb-1.0.0.tgz`,
+        integrity: "sha512-I2==",
+      },
+    });
+    const newLf = lockfileWith({
+      "node_modules/newhost/node_modules/amb": {
+        version: "1.0.0",
+        resolved: `${REG}/amb/-/amb-1.0.0.tgz`,
+        integrity: "sha512-I3==",
+      },
+    });
+    const result = diffNpmLockfiles(oldLf, newLf);
+    expect(result.changed).toHaveLength(1);
+    expect(result.changed[0]?.oldVersion).toBeNull();
+  });
+
+  it("flags a malformed old-side entry instead of dropping it silently", () => {
+    const oldLf = lockfileWith({
+      "node_modules/badold": { version: 42 },
+    });
+    const newLf = lockfileWith({
+      "node_modules/badold": {
+        version: "1.1.0",
+        resolved: `${REG}/badold/-/badold-1.1.0.tgz`,
+        integrity: "sha512-NEW==",
+      },
+    });
+    const result = diffNpmLockfiles(oldLf, newLf);
+    const flagged = result.skipped.find((s) => s.name === "badold");
+    expect(flagged?.reason).toBe("malformed-entry");
+    expect(flagged?.detail).toContain("old lockfile:");
+    expect(result.changed).toContainEqual(
+      expect.objectContaining({ name: "badold", oldVersion: null }),
+    );
+  });
+
+  it("gives newly-added treatment when the old side is not a fetchable registry baseline", () => {
+    const oldLf = lockfileWith({
+      "node_modules/corp": {
+        version: "1.0.0",
+        resolved: "https://npm.corp.example.com/corp/-/corp-1.0.0.tgz",
+        integrity: "sha512-OLD==",
+      },
+    });
+    const newLf = lockfileWith({
+      "node_modules/corp": {
+        version: "2.0.0",
+        resolved: `${REG}/corp/-/corp-2.0.0.tgz`,
+        integrity: "sha512-NEW==",
+      },
+    });
+    const result = diffNpmLockfiles(oldLf, newLf);
+    expect(result.changed).toContainEqual(
+      expect.objectContaining({
+        name: "corp",
+        oldVersion: null,
+        oldResolvedUrl: null,
+        newVersion: "2.0.0",
+      }),
+    );
+    expect(result.skipped).toHaveLength(0);
+  });
+
+  it("upholds the oldResolvedUrl invariant: non-null exactly when oldVersion is", () => {
+    const result = diffNpmLockfiles(
+      fixture("basic-old.json"),
+      fixture("basic-new.json"),
+    );
+    for (const c of result.changed) {
+      expect(c.oldResolvedUrl === null).toBe(c.oldVersion === null);
+    }
   });
 });
