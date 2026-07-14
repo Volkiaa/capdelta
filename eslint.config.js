@@ -39,7 +39,10 @@ export default tseslint.config(
         {
           patterns: [
             {
-              group: ["**/cli/**", "**/action/**"],
+              // Bare "**/cli" is required in addition to "**/cli/**":
+              // gitignore-style matching does not let "**/cli/**" match a
+              // barrel import like "../../cli" (review finding).
+              group: ["**/cli", "**/cli/**", "**/action", "**/action/**"],
               message: "src/core must not import from cli or action (ADR-004).",
             },
           ],
