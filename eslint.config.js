@@ -29,5 +29,23 @@ export default tseslint.config(
       globals: { console: "readonly", process: "readonly" },
     },
   },
+  {
+    // ADR-004: src/core is the ecosystem-agnostic library; it must never
+    // depend on the CLI or Action layers.
+    files: ["src/core/**/*.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["**/cli/**", "**/action/**"],
+              message: "src/core must not import from cli or action (ADR-004).",
+            },
+          ],
+        },
+      ],
+    },
+  },
   prettier,
 );
