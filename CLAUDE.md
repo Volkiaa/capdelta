@@ -6,6 +6,7 @@ conflict, the plan wins; if you believe the plan is wrong, say so and stop —
 deviations require my approval and an ADR in docs/adr/.
 
 Rules:
+
 - Design before code. For any new component, propose the interface, data types,
   and error-handling strategy first, in prose. Wait for my approval before
   implementing.
