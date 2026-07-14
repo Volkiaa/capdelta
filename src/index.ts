@@ -9,6 +9,19 @@ export type {
 } from "./core/contract/lockfile-diff.js";
 export { diffNpmLockfiles } from "./core/npm/lockfile-differ.js";
 export {
+  FetcherConfigurationError,
+  FetcherContractError,
+  FetcherError,
+  MemoryTarballCache,
+  fetchChangedPackages,
+  type FetchFailure,
+  type FetchFailureKind,
+  type FetchPackageResult,
+  type FetcherOptions,
+  type TarballSide,
+  type VerifiedTarball,
+} from "./core/npm/fetcher.js";
+export {
   LockfileError,
   MalformedLockfileError,
   UnsupportedLockfileVersionError,
