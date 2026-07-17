@@ -4,16 +4,34 @@
   "description": "npm dependency behavioral diff: what can the new version do that the old one couldn't?",
   "private": true,
   "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "capdelta": "dist/cli.js"
+  },
+  "files": [
+    "dist/",
+    "LICENSE",
+    "SECURITY.md"
+  ],
   "license": "Apache-2.0",
   "engines": {
     "node": ">=20"
   },
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "npm run build && vitest run",
+    "prepack": "npm run build",
     "check:deps": "node scripts/check-dep-budget.mjs"
   },
   "devDependencies": {
