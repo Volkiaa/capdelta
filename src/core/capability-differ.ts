@@ -35,6 +35,8 @@ export interface CapabilityDiffDiagnostic {
 }
 
 export interface CapabilityDiffResult {
+  /** Baseline identity for report labels; null for a newly added package. */
+  baseline: PackageSubject | null;
   subject: PackageSubject;
   /** No baseline means every new-side capability is gained (PLAN §4.4). */
   newPackage: boolean;
@@ -122,6 +124,7 @@ export function diffManifestCapabilities(
   diagnostics.sort(compareDiagnostics);
 
   return {
+    baseline: oldSet?.subject ?? null,
     subject: newSet.subject,
     newPackage: oldSet === null,
     findings,

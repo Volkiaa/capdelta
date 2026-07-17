@@ -112,6 +112,8 @@ describe("diffManifestCapabilities", () => {
 
     const result = diffManifestCapabilities(old, newest);
 
+    expect(result.baseline).toEqual(old.subject);
+    expect(result.subject).toEqual(newest.subject);
     expect(result.newPackage).toBe(false);
     expect(
       result.findings.map((finding) => [
@@ -154,6 +156,7 @@ describe("diffManifestCapabilities", () => {
 
     const result = diffManifestCapabilities(null, newest);
 
+    expect(result.baseline).toBeNull();
     expect(result.newPackage).toBe(true);
     expect(result.findings).toHaveLength(5);
     expect(result.findings.every((finding) => finding.change === "added")).toBe(
