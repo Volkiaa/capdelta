@@ -27,6 +27,7 @@
     "vitest": "^4.1.10"
   },
   "dependencies": {
+    "jsonc-parser": "^3.3.1",
     "tar": "^7.5.19"
   }
 }

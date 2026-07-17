@@ -1,4 +1,24 @@
 /** Public library surface. Grows one component per milestone (PLAN §6). */
+export {
+  CAPABILITY_SET_SCHEMA_VERSION,
+  type AnalysisDiagnostic,
+  type AnalysisDiagnosticKind,
+  type Capability,
+  type CapabilityLocation,
+  type CapabilitySet,
+  type CodeCapability,
+  type CodeCapabilityKind,
+  type CommandEntrypointCapability,
+  type ContentDigest,
+  type DependencyCapability,
+  type Evidence,
+  type EvidenceList,
+  type InstallHook,
+  type InstallHookCapability,
+  type InstallScriptLocation,
+  type PackageSubject,
+  type RuntimeConstraintCapability,
+} from "./core/contract/capability-set.js";
 export type {
   ChangedPackage,
   LockfileDiffResult,
@@ -21,6 +41,18 @@ export {
   type TarballSide,
   type VerifiedTarball,
 } from "./core/npm/fetcher.js";
+export {
+  ManifestCapabilityExtractorConfigurationError,
+  ManifestCapabilityExtractorContractError,
+  ManifestCapabilityExtractorError,
+  extractNpmManifestCapabilities,
+  type AnalyzedManifestCapabilities,
+  type ManifestCapabilityExtractorOptions,
+  type ManifestCapabilityFailure,
+  type ManifestCapabilityFailureKind,
+  type ManifestCapabilityResult,
+  type UnavailableManifestCapabilities,
+} from "./core/npm/manifest-capability-extractor.js";
 export {
   ExtractorConfigurationError,
   ExtractorError,
