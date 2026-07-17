@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "package": {
+    "ecosystem": "npm",
+    "name": "golden-fixture",
+    "oldVersion": "1.0.0",
+    "newVersion": "2.0.0",
+    "newPackage": false
+  },
+  "summary": {
+    "findings": 1,
+    "diagnostics": 0,
+    "bySeverity": {
+      "CRITICAL": 1,
+      "HIGH": 0,
+      "MEDIUM": 0,
+      "LOW": 0,
+      "INFO": 0
+    }
+  },
+  "findings": [
+    {
+      "severity": "CRITICAL",
+      "change": "added",
+      "capability": {
+        "kind": "INSTALL_HOOK",
+        "hook": "postinstall",
+        "applicability": "registry-install",
+        "contentDigest": {
+          "algorithm": "sha256",
+          "value": "d960c2eba2b5400c91a09fdec42dabef3cfd2c19a92591a5b2e5437a99a5a91d"
+        },
+        "evidence": [
+          {
+            "file": "package.json",
+            "line": 5,
+            "snippet": "\"postinstall\": \"echo test\""
+          }
+        ]
+      },
+      "previous": null
+    }
+  ],
+  "diagnostics": []
+}

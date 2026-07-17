@@ -64,6 +64,24 @@ export {
   type UnavailableManifestCapabilities,
 } from "./core/npm/manifest-capability-extractor.js";
 export {
+  REPORT_SCHEMA_VERSION,
+  ReporterContractError,
+  ReporterError,
+  renderJsonReport,
+  renderTextReport,
+  type JsonReport,
+  type JsonReportDiagnostic,
+  type JsonReportFinding,
+  type ReportCapability,
+  type ReportCommandEntrypointCapability,
+  type ReportDependencyCapability,
+  type ReportEvidence,
+  type ReportInstallHookCapability,
+  type ReportPackage,
+  type ReportRuntimeConstraintCapability,
+  type SeverityCounts,
+} from "./core/reporter.js";
+export {
   ExtractorConfigurationError,
   ExtractorError,
   extractVerifiedTarball,
