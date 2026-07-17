@@ -1,5 +1,15 @@
 /** Public library surface. Grows one component per milestone (PLAN §6). */
 export {
+  CapabilityDifferContractError,
+  CapabilityDifferError,
+  diffManifestCapabilities,
+  type CapabilityChange,
+  type CapabilityDiffDiagnostic,
+  type CapabilityDiffResult,
+  type CapabilityFinding,
+  type FindingSeverity,
+} from "./core/capability-differ.js";
+export {
   CAPABILITY_SET_SCHEMA_VERSION,
   type AnalysisDiagnostic,
   type AnalysisDiagnosticKind,
