@@ -10,6 +10,19 @@ export {
   type FindingSeverity,
 } from "./core/capability-differ.js";
 export {
+  ManifestAnalysisPipelineConfigurationError,
+  ManifestAnalysisPipelineContractError,
+  ManifestAnalysisPipelineError,
+  analyzeManifestPackages,
+  type AnalysisSide,
+  type AnalyzedPackage,
+  type ManifestAnalysisOptions,
+  type ManifestAnalysisRun,
+  type PackageAnalysisFailure,
+  type PackageAnalysisResult,
+  type UnavailablePackage,
+} from "./core/manifest-analysis-pipeline.js";
+export {
   CAPABILITY_SET_SCHEMA_VERSION,
   type AnalysisDiagnostic,
   type AnalysisDiagnosticKind,
