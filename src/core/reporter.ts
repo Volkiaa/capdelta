@@ -10,6 +10,18 @@ import type {
   CapabilityDiffResult,
   FindingSeverity,
 } from "./capability-differ.js";
+import type {
+  ManifestAnalysisRun,
+  PackageAnalysisFailure,
+} from "./manifest-analysis-pipeline.js";
+import type {
+  ChangedPackage,
+  LockfileFindingKind,
+  SkipReason,
+} from "./contract/lockfile-diff.js";
+import type { FetchFailureKind } from "./npm/fetcher.js";
+import type { ManifestCapabilityFailureKind } from "./npm/manifest-capability-extractor.js";
+import type { ExtractionFailureKind } from "./npm/safe-extractor.js";
 
 export const REPORT_SCHEMA_VERSION = 1 as const;
 
@@ -96,6 +108,70 @@ export interface SeverityCounts {
   INFO: number;
 }
 
+export type ReportAnalysisIssueKind =
+  | FetchFailureKind
+  | ExtractionFailureKind
+  | ManifestCapabilityFailureKind
+  | "cleanup-failed";
+
+export interface JsonReportAnalysisIssue {
+  stage: PackageAnalysisFailure["stage"];
+  side: "old" | "new";
+  kind: ReportAnalysisIssueKind;
+  detail: string;
+  url: string | null;
+  evidence: ReportEvidence | null;
+}
+
+export interface JsonReportLockfileFinding {
+  kind: LockfileFindingKind;
+  name: string;
+  path: string;
+  oldVersion: string | null;
+  newVersion: string;
+}
+
+export interface JsonReportSkippedPackage {
+  name: string;
+  path: string;
+  reason: SkipReason;
+  detail: string;
+}
+
+export type JsonRunPackage =
+  | {
+      status: "analyzed";
+      report: JsonReport;
+      issues: readonly JsonReportAnalysisIssue[];
+    }
+  | {
+      status: "unavailable";
+      package: ReportPackage;
+      failures: readonly [
+        JsonReportAnalysisIssue,
+        ...JsonReportAnalysisIssue[],
+      ];
+    };
+
+export interface JsonRunReport {
+  schemaVersion: typeof REPORT_SCHEMA_VERSION;
+  firstRun: boolean;
+  summary: {
+    changedPackages: number;
+    analyzedPackages: number;
+    unavailablePackages: number;
+    skippedLockfileEntries: number;
+    manifestFindings: number;
+    manifestDiagnostics: number;
+    analysisIssues: number;
+    lockfileFindings: number;
+    bySeverity: SeverityCounts;
+  };
+  packages: readonly JsonRunPackage[];
+  lockfileFindings: readonly JsonReportLockfileFinding[];
+  skipped: readonly JsonReportSkippedPackage[];
+}
+
 export interface JsonReport {
   schemaVersion: typeof REPORT_SCHEMA_VERSION;
   package: ReportPackage;
@@ -126,6 +202,10 @@ export function renderJsonReport(result: CapabilityDiffResult): string {
 /** Escaped deterministic terminal text; no colors, timestamps, or links. */
 export function renderTextReport(result: CapabilityDiffResult): string {
   const report = buildReport(result);
+  return `${renderTextReportFromBuilt(report).join("\n")}\n`;
+}
+
+function renderTextReportFromBuilt(report: JsonReport): string[] {
   const baseline =
     report.package.oldVersion === null
       ? "<new package>"
@@ -160,7 +240,259 @@ export function renderTextReport(result: CapabilityDiffResult): string {
     }
   }
 
+  return lines;
+}
+
+/** Stable machine-readable report for one complete M1 analysis run. */
+export function renderJsonRunReport(run: ManifestAnalysisRun): string {
+  return `${JSON.stringify(buildRunReport(run), null, 2)}\n`;
+}
+
+/**
+ * Deterministic terminal report. First-run mode stays aggregate-only in text;
+ * JSON retains every package detail (PLAN §4.1).
+ */
+export function renderTextRunReport(run: ManifestAnalysisRun): string {
+  const report = buildRunReport(run);
+  const severitySummary = severityCountsText(report.summary.bySeverity);
+  const lines = [
+    "capdelta manifest analysis report",
+    report.firstRun
+      ? "Mode: first run (aggregate text; full details are in JSON)"
+      : "Mode: comparison",
+    `Packages: ${String(report.summary.changedPackages)} changed; ${String(report.summary.analyzedPackages)} analyzed; ${String(report.summary.unavailablePackages)} unavailable; ${count(report.summary.skippedLockfileEntries, "lockfile skip")}.`,
+    `Signals: ${count(report.summary.manifestFindings, "manifest finding")}${severitySummary.length === 0 ? "" : ` (${severitySummary})`}; ${count(report.summary.lockfileFindings, "lockfile finding")}; ${count(report.summary.analysisIssues, "analysis issue")}; ${count(report.summary.manifestDiagnostics, "manifest diagnostic")}.`,
+  ];
+
+  if (report.firstRun) return `${lines.join("\n")}\n`;
+
+  for (const item of report.packages) {
+    if (item.status === "analyzed") {
+      lines.push("", ...renderTextReportFromBuilt(item.report));
+      if (item.issues.length > 0) {
+        lines.push(
+          "Analysis issues:",
+          ...item.issues.map((issue) => `- ${analysisIssueText(issue)}`),
+        );
+      }
+      continue;
+    }
+
+    lines.push(
+      "",
+      `Unavailable package: ${reportPackageIdentity(item.package)}`,
+      ...item.failures.map((failure) => `- ${analysisIssueText(failure)}`),
+    );
+  }
+
+  if (report.lockfileFindings.length > 0) {
+    lines.push(
+      "",
+      "Lockfile findings:",
+      ...report.lockfileFindings.map(
+        (finding) =>
+          `- [${finding.kind}] ${quote(finding.name)} at ${quote(finding.path)}: ${finding.oldVersion === null ? "<new package>" : quote(finding.oldVersion)} -> ${quote(finding.newVersion)}`,
+      ),
+    );
+  }
+
+  if (report.skipped.length > 0) {
+    lines.push(
+      "",
+      "Skipped lockfile entries:",
+      ...report.skipped.map(
+        (skipped) =>
+          `- [${skipped.reason}] ${quote(skipped.name)} at ${quote(skipped.path)}: ${quote(skipped.detail)}`,
+      ),
+    );
+  }
+
   return `${lines.join("\n")}\n`;
+}
+
+function buildRunReport(run: ManifestAnalysisRun): JsonRunReport {
+  validateRun(run);
+  const bySeverity = emptySeverityCounts();
+  let manifestFindings = 0;
+  let manifestDiagnostics = 0;
+  let analysisIssues = 0;
+  const packages = run.packages.map((item): JsonRunPackage => {
+    if (item.status === "analyzed") {
+      const report = buildReport(item.diff);
+      manifestFindings += report.summary.findings;
+      manifestDiagnostics += report.summary.diagnostics;
+      for (const severity of SEVERITIES) {
+        bySeverity[severity] += report.summary.bySeverity[severity];
+      }
+      const issues = item.issues.map(reportAnalysisIssue);
+      analysisIssues += issues.length;
+      return { status: "analyzed", report, issues };
+    }
+
+    const failures = reportAnalysisFailures(item.failures);
+    analysisIssues += failures.length;
+    return {
+      status: "unavailable",
+      package: reportChangedPackage(item.changedPackage),
+      failures,
+    };
+  });
+
+  return {
+    schemaVersion: REPORT_SCHEMA_VERSION,
+    firstRun: run.firstRun,
+    summary: {
+      changedPackages: run.summary.changed,
+      analyzedPackages: run.summary.analyzed,
+      unavailablePackages: run.summary.unavailable,
+      skippedLockfileEntries: run.summary.skipped,
+      manifestFindings,
+      manifestDiagnostics,
+      analysisIssues,
+      lockfileFindings: run.lockfileFindings.length,
+      bySeverity,
+    },
+    packages,
+    lockfileFindings: run.lockfileFindings.map((finding) => ({
+      kind: finding.kind,
+      name: truncate(finding.name, MAX_IDENTITY_CHARS),
+      path: truncate(finding.path, MAX_EVIDENCE_FILE_CHARS),
+      oldVersion:
+        finding.oldVersion === null
+          ? null
+          : truncate(finding.oldVersion, MAX_IDENTITY_CHARS),
+      newVersion: truncate(finding.newVersion, MAX_IDENTITY_CHARS),
+    })),
+    skipped: run.skipped.map((skipped) => ({
+      name: truncate(skipped.name, MAX_IDENTITY_CHARS),
+      path: truncate(skipped.path, MAX_EVIDENCE_FILE_CHARS),
+      reason: skipped.reason,
+      detail: truncate(skipped.detail, MAX_VALUE_CHARS),
+    })),
+  };
+}
+
+function validateRun(run: ManifestAnalysisRun): void {
+  const analyzed = run.packages.filter(
+    (item) => item.status === "analyzed",
+  ).length;
+  const unavailable = run.packages.length - analyzed;
+  if (
+    run.summary.changed !== run.packages.length ||
+    run.summary.analyzed !== analyzed ||
+    run.summary.unavailable !== unavailable ||
+    run.summary.skipped !== run.skipped.length
+  ) {
+    throw new ReporterContractError(
+      "analysis-run summary does not match its package and skip records",
+    );
+  }
+
+  for (const item of run.packages) {
+    validateChangedPackage(item.changedPackage);
+    if (item.status === "unavailable") continue;
+    const expected = item.changedPackage;
+    if (
+      item.diff.subject.ecosystem !== "npm" ||
+      item.diff.subject.name !== expected.name ||
+      item.diff.subject.version !== expected.newVersion ||
+      item.diff.newPackage !== (expected.oldVersion === null) ||
+      (expected.oldVersion === null
+        ? item.diff.baseline !== null
+        : item.diff.baseline?.version !== expected.oldVersion)
+    ) {
+      throw new ReporterContractError(
+        "analyzed package identity does not match its capability diff",
+      );
+    }
+  }
+}
+
+function validateChangedPackage(changedPackage: ChangedPackage): void {
+  if (
+    changedPackage.name.length === 0 ||
+    changedPackage.newVersion.length === 0 ||
+    changedPackage.newIntegrity.length === 0 ||
+    changedPackage.resolvedUrl.length === 0
+  ) {
+    throw new ReporterContractError(
+      "changed package requires non-empty new-side fields",
+    );
+  }
+  const oldFields = [
+    changedPackage.oldVersion,
+    changedPackage.oldIntegrity,
+    changedPackage.oldResolvedUrl,
+  ];
+  const nullOldFields = oldFields.filter((field) => field === null).length;
+  if (nullOldFields !== 0 && nullOldFields !== oldFields.length) {
+    throw new ReporterContractError(
+      "changed package old-side fields must be null as a unit",
+    );
+  }
+}
+
+function reportChangedPackage(changedPackage: ChangedPackage): ReportPackage {
+  return {
+    ecosystem: "npm",
+    name: truncate(changedPackage.name, MAX_IDENTITY_CHARS),
+    oldVersion:
+      changedPackage.oldVersion === null
+        ? null
+        : truncate(changedPackage.oldVersion, MAX_IDENTITY_CHARS),
+    newVersion: truncate(changedPackage.newVersion, MAX_IDENTITY_CHARS),
+    newPackage: changedPackage.oldVersion === null,
+  };
+}
+
+function reportAnalysisFailures(
+  failures: readonly [PackageAnalysisFailure, ...PackageAnalysisFailure[]],
+): [JsonReportAnalysisIssue, ...JsonReportAnalysisIssue[]] {
+  const [first, ...rest] = failures;
+  return [reportAnalysisIssue(first), ...rest.map(reportAnalysisIssue)];
+}
+
+function reportAnalysisIssue(
+  issue: PackageAnalysisFailure,
+): JsonReportAnalysisIssue {
+  const side = issue.stage === "fetch" ? issue.failure.side : stageSide(issue);
+  if (issue.stage === "fetch") {
+    return {
+      stage: issue.stage,
+      side,
+      kind: issue.failure.kind,
+      detail: truncate(issue.failure.detail, MAX_VALUE_CHARS),
+      url: truncate(issue.failure.url, MAX_VALUE_CHARS),
+      evidence: null,
+    };
+  }
+  if (issue.stage === "old-manifest" || issue.stage === "new-manifest") {
+    return {
+      stage: issue.stage,
+      side,
+      kind: issue.failure.kind,
+      detail: truncate(issue.failure.detail, MAX_VALUE_CHARS),
+      url: null,
+      evidence:
+        issue.failure.evidence === null
+          ? null
+          : reportEvidence(issue.failure.evidence),
+    };
+  }
+  return {
+    stage: issue.stage,
+    side,
+    kind: issue.failure.kind,
+    detail: truncate(issue.failure.detail, MAX_VALUE_CHARS),
+    url: null,
+    evidence: null,
+  };
+}
+
+function stageSide(
+  issue: Exclude<PackageAnalysisFailure, { stage: "fetch" }>,
+): "old" | "new" {
+  return issue.stage.startsWith("old-") ? "old" : "new";
 }
 
 function buildReport(result: CapabilityDiffResult): JsonReport {
@@ -334,15 +666,30 @@ function summaryLine(report: JsonReport): string {
   if (report.findings.length === 0) {
     return `Review this change: no manifest capability additions; ${count(report.diagnostics.length, "diagnostic")}.`;
   }
-  const severitySummary = SEVERITIES.filter(
-    (severity) => report.summary.bySeverity[severity] > 0,
-  )
-    .map(
-      (severity) =>
-        `${severity}: ${String(report.summary.bySeverity[severity])}`,
-    )
-    .join(", ");
+  const severitySummary = severityCountsText(report.summary.bySeverity);
   return `Review this change: ${count(report.findings.length, "finding")} (${severitySummary}); ${count(report.diagnostics.length, "diagnostic")}.`;
+}
+
+function severityCountsText(bySeverity: SeverityCounts): string {
+  return SEVERITIES.filter((severity) => bySeverity[severity] > 0)
+    .map((severity) => `${severity}: ${String(bySeverity[severity])}`)
+    .join(", ");
+}
+
+function reportPackageIdentity(reportPackage: ReportPackage): string {
+  const baseline =
+    reportPackage.oldVersion === null
+      ? "<new package>"
+      : quote(reportPackage.oldVersion);
+  return `${quote(reportPackage.name)} (${quote(reportPackage.ecosystem)}) ${baseline} -> ${quote(reportPackage.newVersion)}`;
+}
+
+function analysisIssueText(issue: JsonReportAnalysisIssue): string {
+  const context = [
+    issue.url === null ? null : `URL ${quote(issue.url)}`,
+    issue.evidence === null ? null : `Evidence ${evidenceText(issue.evidence)}`,
+  ].filter((item): item is string => item !== null);
+  return `[${issue.stage}/${issue.kind}] ${quote(issue.detail)}${context.length === 0 ? "" : `; ${context.join("; ")}`}`;
 }
 
 function findingDescription(finding: JsonReportFinding): string {

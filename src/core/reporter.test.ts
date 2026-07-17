@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { CapabilityDiffResult } from "./capability-differ.js";
+import type { ManifestAnalysisRun } from "./manifest-analysis-pipeline.js";
+import type { ChangedPackage } from "./contract/lockfile-diff.js";
 import {
   ReporterContractError,
   renderJsonReport,
+  renderJsonRunReport,
   renderTextReport,
+  renderTextRunReport,
 } from "./reporter.js";
 
 function emptyResult(): CapabilityDiffResult {
@@ -17,6 +21,39 @@ function emptyResult(): CapabilityDiffResult {
     newPackage: false,
     findings: [],
     diagnostics: [],
+  };
+}
+
+function changedPackage(
+  name = "fixture",
+  oldVersion: string | null = "1.0.0",
+): ChangedPackage {
+  return {
+    name,
+    oldVersion,
+    newVersion: "2.0.0",
+    oldIntegrity: oldVersion === null ? null : "sha512-old",
+    newIntegrity: "sha512-new",
+    oldResolvedUrl:
+      oldVersion === null ? null : `https://registry.npmjs.org/${name}/old.tgz`,
+    resolvedUrl: `https://registry.npmjs.org/${name}/new.tgz`,
+  };
+}
+
+function analyzedRun(): ManifestAnalysisRun {
+  return {
+    firstRun: false,
+    summary: { changed: 1, analyzed: 1, unavailable: 0, skipped: 0 },
+    packages: [
+      {
+        status: "analyzed",
+        changedPackage: changedPackage(),
+        diff: emptyResult(),
+        issues: [],
+      },
+    ],
+    lockfileFindings: [],
+    skipped: [],
   };
 }
 
@@ -131,5 +168,144 @@ describe("manifest Reporter", () => {
       ],
     };
     expect(() => renderTextReport(future)).toThrow(ReporterContractError);
+  });
+
+  it("renders every loud run-level failure channel with escaped values", () => {
+    const attacker = 'bad"\n<script>';
+    const changed = changedPackage(attacker, null);
+    const run: ManifestAnalysisRun = {
+      firstRun: false,
+      summary: { changed: 1, analyzed: 0, unavailable: 1, skipped: 1 },
+      packages: [
+        {
+          status: "unavailable",
+          changedPackage: changed,
+          failures: [
+            {
+              stage: "fetch",
+              failure: {
+                side: "new",
+                kind: "http-status",
+                detail: `HTTP 404 ${attacker}`,
+                url: `https://registry.npmjs.org/${attacker}.tgz`,
+              },
+            },
+          ],
+        },
+      ],
+      lockfileFindings: [
+        {
+          kind: "version-downgrade",
+          name: attacker,
+          path: `node_modules/${attacker}`,
+          oldVersion: "3.0.0",
+          newVersion: "2.0.0",
+        },
+      ],
+      skipped: [
+        {
+          name: attacker,
+          path: `node_modules/${attacker}`,
+          reason: "private-registry",
+          detail: `private host ${attacker}`,
+        },
+      ],
+    };
+
+    const json = renderJsonRunReport(run);
+    const text = renderTextRunReport(run);
+
+    expect(json).toContain('bad\\"\\n<script>');
+    expect(text).not.toContain('bad"\n<script>');
+    expect(text).toContain("[fetch/http-status]");
+    expect(text).toContain("Lockfile findings:");
+    expect(text).toContain("Skipped lockfile entries:");
+    expect(JSON.parse(json)).toMatchObject({
+      summary: {
+        unavailablePackages: 1,
+        analysisIssues: 1,
+        lockfileFindings: 1,
+        skippedLockfileEntries: 1,
+      },
+      packages: [
+        {
+          status: "unavailable",
+          failures: [{ stage: "fetch", side: "new", kind: "http-status" }],
+        },
+      ],
+    });
+  });
+
+  it("keeps first-run text aggregate-only while JSON retains package details", () => {
+    const run = analyzedRun();
+    run.firstRun = true;
+
+    const text = renderTextRunReport(run);
+    const json = renderJsonRunReport(run);
+
+    expect(text).toBe(
+      [
+        "capdelta manifest analysis report",
+        "Mode: first run (aggregate text; full details are in JSON)",
+        "Packages: 1 changed; 1 analyzed; 0 unavailable; 0 lockfile skips.",
+        "Signals: 0 manifest findings; 0 lockfile findings; 0 analysis issues; 0 manifest diagnostics.",
+        "",
+      ].join("\n"),
+    );
+    expect(text).not.toContain("Package:");
+    expect(JSON.parse(json)).toMatchObject({
+      firstRun: true,
+      packages: [
+        { status: "analyzed", report: { package: { name: "fixture" } } },
+      ],
+    });
+  });
+
+  it("renders non-fatal cleanup issues after a successful package report", () => {
+    const run = analyzedRun();
+    const analyzed = run.packages[0];
+    if (analyzed?.status !== "analyzed") {
+      throw new Error("inert fixture must be analyzed");
+    }
+    analyzed.issues = [
+      {
+        stage: "new-cleanup",
+        failure: {
+          kind: "cleanup-failed",
+          detail: "cleanup failed: Error",
+        },
+      },
+    ];
+
+    expect(renderTextRunReport(run)).toContain(
+      '[new-cleanup/cleanup-failed] "cleanup failed: Error"',
+    );
+    expect(JSON.parse(renderJsonRunReport(run))).toMatchObject({
+      summary: { analyzedPackages: 1, analysisIssues: 1 },
+      packages: [
+        {
+          status: "analyzed",
+          issues: [{ stage: "new-cleanup", kind: "cleanup-failed" }],
+        },
+      ],
+    });
+  });
+
+  it("rejects inconsistent run summaries and package identities", () => {
+    const badSummary = analyzedRun();
+    badSummary.summary.analyzed = 0;
+    expect(() => renderJsonRunReport(badSummary)).toThrow(
+      ReporterContractError,
+    );
+
+    const badIdentity = analyzedRun();
+    const analyzed = badIdentity.packages[0];
+    if (analyzed?.status !== "analyzed") {
+      throw new Error("inert fixture must be analyzed");
+    }
+    analyzed.diff.subject.name = "different";
+    expect(() => renderTextRunReport(badIdentity)).toThrow(
+      ReporterContractError,
+    );
   });
 });
