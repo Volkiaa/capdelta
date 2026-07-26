@@ -1,0 +1,41 @@
+name: capdelta dependency review
+description: Review behavioral capability changes in npm dependency updates
+author: capdelta contributors
+
+inputs:
+  github-token:
+    description: Token used to read repository contents and maintain the PR comment
+    required: false
+    default: ${{ github.token }}
+  lockfile-path:
+    description: Relative path to the single npm package-lock.json
+    required: false
+    default: package-lock.json
+  fail-on:
+    description: Lowest severity that fails the check, or none
+    required: false
+    default: CRITICAL
+  config-path:
+    description: Reserved path for future allowlist configuration
+    required: false
+    default: ""
+  base-ref:
+    description: Optional base Git ref override
+    required: false
+    default: ""
+
+outputs:
+  status:
+    description: no-op, passed, or failed
+  artifact-id:
+    description: GitHub artifact ID for the full JSON report
+  highest-severity:
+    description: Highest observed severity, or none
+
+runs:
+  using: node20
+  main: dist/action/index.js
+
+branding:
+  icon: shield
+  color: purple

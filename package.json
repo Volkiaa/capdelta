@@ -26,6 +26,8 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "package:action": "node scripts/package-action.mjs",
+    "check:action": "npm run package:action && git diff --exit-code -- dist/action/index.js",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -37,6 +39,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^26.1.1",
+    "@vercel/ncc": "^0.44.1",
     "eslint": "^10.7.0",
     "eslint-config-prettier": "^10.1.8",
     "prettier": "^3.9.5",
@@ -45,6 +48,9 @@
     "vitest": "^4.1.10"
   },
   "dependencies": {
+    "@actions/artifact": "^6.2.1",
+    "@actions/core": "^3.0.1",
+    "@actions/github": "^9.1.1",
     "jsonc-parser": "^3.3.1",
     "tar": "^7.5.19"
   }

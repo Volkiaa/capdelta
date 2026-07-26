@@ -108,23 +108,25 @@ function validateRequest(request: BaseLockfileRequest): void {
       "ref must be an immutable full commit ID",
     );
   }
-  if (
-    request.path.length === 0 ||
-    request.path.startsWith("/") ||
-    request.path.includes("\\") ||
-    request.path.includes("\0") ||
-    request.path
-      .split("/")
-      .some((segment) => segment === ".." || segment === "")
-  ) {
-    throw new GitHubContentsConfigurationError(
-      "lockfile path must be a normalized relative POSIX path",
-    );
-  }
+  validateLockfilePath(request.path);
   const maxBytes = request.maxBytes ?? DEFAULT_MAX_LOCKFILE_BYTES;
   if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) {
     throw new GitHubContentsConfigurationError(
       "maxBytes must be a positive safe integer",
+    );
+  }
+}
+
+export function validateLockfilePath(path: string): void {
+  if (
+    path.length === 0 ||
+    path.startsWith("/") ||
+    path.includes("\\") ||
+    path.includes("\0") ||
+    path.split("/").some((segment) => segment === ".." || segment === "")
+  ) {
+    throw new GitHubContentsConfigurationError(
+      "lockfile path must be a normalized relative POSIX path",
     );
   }
 }

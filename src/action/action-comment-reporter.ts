@@ -3,6 +3,7 @@ import type {
   JsonReportFinding,
   JsonRunReport,
 } from "../core/reporter.js";
+import { assessRunSeverity } from "./severity-gate.js";
 
 export const COMMENT_MARKER = "<!-- capdelta:manifest-report:v1 -->";
 const DEFAULT_MAX_COMMENT_CHARS = 60_000;
@@ -191,6 +192,7 @@ function buildComment(
   artifactName: string,
   maxRows: number,
 ): string {
+  const severity = assessRunSeverity(report);
   const lines = [
     COMMENT_MARKER,
     "## capdelta dependency review",
@@ -205,7 +207,7 @@ function buildComment(
     "",
     "| Critical | High | Medium | Low | Info |",
     "| ---: | ---: | ---: | ---: | ---: |",
-    `| ${String(report.summary.bySeverity.CRITICAL)} | ${String(report.summary.bySeverity.HIGH)} | ${String(report.summary.bySeverity.MEDIUM)} | ${String(report.summary.bySeverity.LOW)} | ${String(report.summary.bySeverity.INFO)} |`,
+    `| ${String(severity.counts.CRITICAL)} | ${String(severity.counts.HIGH)} | ${String(severity.counts.MEDIUM)} | ${String(severity.counts.LOW)} | ${String(severity.counts.INFO)} |`,
   ];
 
   const findings = collectFindings(report).slice(0, maxRows);
