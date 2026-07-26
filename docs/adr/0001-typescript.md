@@ -8,8 +8,7 @@
 
 The core component is a JavaScript parser pipeline: capdelta must statically
 analyze whatever npm packages actually contain (ESM, CJS, minified bundles).
-The tool also ships as a GitHub Action and a CLI. Go fluency is a separate
-personal goal and created real pressure to pick Go.
+The tool also ships as a GitHub Action and a CLI.
 
 ## Decision
 
