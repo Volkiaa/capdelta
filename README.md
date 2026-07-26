@@ -58,6 +58,45 @@ npx capdelta --base main
 The npm package is not published while the repository remains private, so use
 the built entrypoint during development.
 
+### GitHub Action
+
+Pin the Action to a full commit SHA rather than a mutable tag:
+
+```yaml
+name: capdelta
+on:
+  pull_request:
+    paths: [package-lock.json]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: Volkiaa/capdelta@89f87e0007b128496c5818005c884c1ac2f3ea74
+        with:
+          github-token: ${{ github.token }}
+          fail-on: CRITICAL
+```
+
+`fail-on` accepts `CRITICAL`, `HIGH`, `MEDIUM`, `LOW`, `INFO`, or `none` and
+defaults to `CRITICAL`. The Action updates one size-capped summary comment and
+uploads the complete `capdelta-report` JSON artifact. If the base lockfile is
+absent, it uses aggregate first-run mode. Fork and Dependabot PRs have
+read-only credentials, so capdelta writes the same inert summary to the job
+summary and relies on the job conclusion for check status instead of trying to
+post a comment.
+
+If dependency PRs can auto-merge, make the capdelta job a required status
+check so a bump cannot merge before the configured gate runs.
+
 ### CLI behavior
 
 ```text
@@ -70,10 +109,11 @@ Usage: capdelta --base <ref> [--format text|json]
 - A newly added lockfile enters first-run mode: text stays aggregate-only while
   JSON retains every package report.
 - Expected package-local failures are reported instead of disappearing.
-- Exit `0` means the M1 analysis completed, even when findings were reported.
+- Exit `0` means the CLI analysis completed, even when findings were reported.
   Exit `1` means an operational failure; exit `64` means invalid CLI usage.
   Exit `2` remains reserved for future `--strict` incomplete-analysis results
-  per PLAN §4.5. Finding-based failure thresholds belong to M2.
+  per PLAN §4.5. The Action applies the `fail-on` threshold after preserving
+  its comment or job summary and JSON artifact.
 
 Example text finding:
 
@@ -124,7 +164,7 @@ package through account takeover, a malicious maintainer, or a compromised
 release pipeline. Lockfiles, manifests, tarballs, package names, URLs, and
 report snippets are treated as attacker-controlled input.
 
-### Safety controls present in M1
+### Safety controls present through M2
 
 - package code is never imported, evaluated, or executed—not even in tests;
 - tarballs are verified against lockfile SHA-512 integrity before parsing;
@@ -163,16 +203,25 @@ Please report silent bypasses or unsafe parsing privately through
 
 ## Permissions and network access
 
-The M1 CLI needs:
+The CLI needs:
 
 - read access to the checkout, `.git`, and current-directory
   `package-lock.json`;
 - temporary-directory write access for bounded extraction; and
 - outbound HTTPS access to `registry.npmjs.org`.
 
-It does not need a GitHub token. A GitHub Action is not implemented yet. M2
-will document and request only `contents: read` and `pull-requests: write`;
-`security-events: write` will not be requested until SARIF exists.
+It does not need a GitHub token. The Action workflow requests exactly:
+
+```yaml
+permissions:
+  contents: read
+  pull-requests: write
+```
+
+`contents: read` retrieves the base lockfile at the immutable PR base commit;
+`pull-requests: write` maintains the sticky comment. The metadata file cannot
+declare permissions—GitHub permissions belong to the calling workflow.
+`security-events: write` is not requested because SARIF arrives in M3.
 
 Never work around fork-PR permissions with `pull_request_target` while checking
 out untrusted PR code.
@@ -185,15 +234,18 @@ npm run lint
 npm run typecheck
 npm test
 npm run check:deps
+npm run check:action
 ```
 
 Tests use inert handcrafted lockfiles and tarballs. The golden M1 pair changes
 from a benign manifest to `"postinstall": "echo test"`; package code is never
 run. CI executes the suite on Node.js 20 and 22.
 
-The runtime dependency budget is fewer than 10 direct dependencies. M1 uses
-two: `tar` for bounded archive parsing and `jsonc-parser` for exact manifest
-evidence locations. The repository CI enforces the direct-dependency budget.
+The runtime dependency budget is fewer than 10 direct dependencies. M2 uses
+five: `tar`, `jsonc-parser`, and the official `@actions/core`,
+`@actions/github`, and `@actions/artifact` packages. Repository CI enforces the
+direct-dependency budget and verifies that the committed Action bundle is
+current.
 
 No true-positive/false-positive corpus measurements have been published yet.
 The golden fixture verifies end-to-end behavior, not detection accuracy.

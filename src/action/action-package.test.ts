@@ -22,7 +22,22 @@ describe("Action package", () => {
         readFile(resolve(workflowDirectory, name), "utf8"),
       ),
     );
-    expect(workflows.join("\n")).not.toContain("pull_request_target");
+    expect(workflows.join("\n")).not.toMatch(/^\s*pull_request_target\s*:/mu);
+  });
+
+  it("dogfoods with only the approved workflow permissions and trusted code", async () => {
+    const workflow = await readFile(
+      resolve(ROOT, ".github", "workflows", "capdelta.yml"),
+      "utf8",
+    );
+    expect(workflow).toContain("contents: read");
+    expect(workflow).toContain("pull-requests: write");
+    expect(workflow).not.toContain("security-events:");
+    expect(workflow).toContain("persist-credentials: false");
+    expect(workflow).toContain(
+      "Volkiaa/capdelta@89f87e0007b128496c5818005c884c1ac2f3ea74",
+    );
+    expect(workflow).not.toContain("uses: ./");
   });
 
   it("executes the committed bundle and converts missing input into failure status", async () => {
