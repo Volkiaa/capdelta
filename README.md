@@ -24,8 +24,8 @@ capdelta compares `package.json` behavior and reports additions or changes to:
 - runtime constraints from `engines`.
 
 New packages receive a full manifest capability report. Removed packages are
-ignored. The current implementation accepts npm `package-lock.json` v2 and v3
-at the repository root.
+ignored. The current implementation accepts one npm `package-lock.json` v2 or
+v3 in the current working directory of a Git checkout.
 
 M1 does **not** inspect JavaScript source for network, filesystem, process,
 environment, native-code, or dynamic-code behavior. Those AST and signal
@@ -34,6 +34,8 @@ layers are roadmap work, not hidden heuristics in the current release.
 ## Try it locally
 
 Requirements: Node.js 20 or newer, npm, and Git.
+
+Run capdelta from the directory containing the lockfile to compare.
 
 ```bash
 npm ci
@@ -69,8 +71,9 @@ Usage: capdelta --base <ref> [--format text|json]
   JSON retains every package report.
 - Expected package-local failures are reported instead of disappearing.
 - Exit `0` means the M1 analysis completed, even when findings were reported.
-  Exit `1` means an operational failure; exit `2` means invalid CLI usage.
-  Finding-based failure thresholds and `--strict` belong to M2.
+  Exit `1` means an operational failure; exit `64` means invalid CLI usage.
+  Exit `2` remains reserved for future `--strict` incomplete-analysis results
+  per PLAN §4.5. Finding-based failure thresholds belong to M2.
 
 Example text finding:
 
@@ -151,8 +154,8 @@ packages are skipped and flagged.
   it does not execute or interpret the command.
 - **Registry scope:** private registries, mirrors, git, file, and link
   dependencies are skipped and surfaced as unanalyzed.
-- **Single ecosystem and lockfile:** npm v2/v3 only, with one root
-  `package-lock.json`.
+- **Single ecosystem and lockfile:** npm v2/v3 only, with one
+  current-directory `package-lock.json` per invocation.
 
 These are product limits, not claims that the corresponding attacks are safe.
 Please report silent bypasses or unsafe parsing privately through
@@ -162,7 +165,8 @@ Please report silent bypasses or unsafe parsing privately through
 
 The M1 CLI needs:
 
-- read access to the checkout, `.git`, and root `package-lock.json`;
+- read access to the checkout, `.git`, and current-directory
+  `package-lock.json`;
 - temporary-directory write access for bounded extraction; and
 - outbound HTTPS access to `registry.npmjs.org`.
 

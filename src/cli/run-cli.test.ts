@@ -1,6 +1,6 @@
 import { execFile, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -171,6 +171,41 @@ describe("capdelta CLI", () => {
     }
   });
 
+  it("reads the validated cwd-relative base blob from a subdirectory", async () => {
+    const cwd = await createRepository(emptyLockfile("root-baseline"));
+    try {
+      const app = join(cwd, "packages", "app");
+      await mkdir(app, { recursive: true });
+      await writeFile(join(cwd, "package-lock.json"), "{\n", "utf8");
+      await writeLockfile(app, emptyLockfile("app-baseline"));
+      await git(cwd, "add", ".");
+      await git(
+        cwd,
+        "commit",
+        "--quiet",
+        "-m",
+        "test: add inert subdirectory lockfile",
+      );
+
+      await writeLockfile(app, emptyLockfile("app-head"));
+      const result = await spawnCli(app, [
+        "--base",
+        "HEAD",
+        "--format",
+        "json",
+      ]);
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stderr).toBe("");
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        firstRun: false,
+        summary: { changedPackages: 0 },
+      });
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
   it("detects an untracked added lockfile as first-run mode", async () => {
     const cwd = await createRepository(null);
     try {
@@ -195,7 +230,7 @@ describe("capdelta CLI", () => {
 
   it("returns stable usage and operational exit codes", async () => {
     const usage = await spawnCli(process.cwd(), []);
-    expect(usage.exitCode).toBe(2);
+    expect(usage.exitCode).toBe(64);
     expect(usage.stderr).toContain("--base <ref> is required");
 
     const cwd = await createRepository(emptyLockfile("malformed"));
@@ -207,6 +242,13 @@ describe("capdelta CLI", () => {
       expect(malformed.stderr).toContain(
         "head package-lock.json is not valid JSON",
       );
+
+      await rm(join(cwd, "package-lock.json"));
+      const missing = await spawnCli(cwd, ["--base", "HEAD"]);
+      expect(missing.exitCode).toBe(1);
+      expect(missing.stdout).toBe("");
+      expect(missing.stderr).toContain("cannot inspect head package-lock.json");
+      expect(missing.stderr).toMatch(/caused by .*ENOENT/u);
     } finally {
       await rm(cwd, { recursive: true, force: true });
     }

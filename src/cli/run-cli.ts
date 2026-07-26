@@ -9,6 +9,9 @@ const LOCKFILE_NAME = "package-lock.json";
 const DEFAULT_MAX_LOCKFILE_BYTES = 50 * 1024 * 1024;
 const GIT_METADATA_OUTPUT_BYTES = 1024 * 1024;
 const MAX_ERROR_CHARS = 500;
+const MAX_ERROR_CHAIN_LENGTH = 3;
+/** BSD sysexits EX_USAGE; PLAN §4.5 reserves exit 2 for future --strict. */
+const USAGE_ERROR_EXIT_CODE = 64;
 
 const HELP = [
   "Usage: capdelta --base <ref> [--format text|json]",
@@ -71,7 +74,7 @@ export async function executeCli(
     await analyzeCheckout(args.base, args.format, runtime);
     return 0;
   } catch (error: unknown) {
-    const exitCode = error instanceof CliUsageError ? 2 : 1;
+    const exitCode = error instanceof CliUsageError ? USAGE_ERROR_EXIT_CODE : 1;
     runtime.stderr(`capdelta: ${terminalSafeError(error)}\n`);
     if (error instanceof CliUsageError) runtime.stderr(`\n${HELP}`);
     return exitCode;
@@ -221,19 +224,20 @@ async function readBaseLockfile(
   }
   if (tree.stdout.length === 0) return null;
   const metadata = decodeUtf8(tree.stdout, `base ${LOCKFILE_NAME} metadata`);
-  if (
-    !/^100\d{3} blob [0-9a-f]{40,64}\tpackage-lock\.json\0$/iu.test(metadata)
-  ) {
+  const blobId =
+    /^100\d{3} blob ([0-9a-f]{40,64})\tpackage-lock\.json\0$/iu.exec(
+      metadata,
+    )?.[1];
+  if (blobId === undefined) {
     throw new CliOperationalError(
       `base ${LOCKFILE_NAME} is not a regular Git blob`,
     );
   }
 
-  const shown = await runGit(
-    ["show", `${commit}:${LOCKFILE_NAME}`],
-    cwd,
-    maxBytes,
-  );
+  // Read the exact object whose mode and type were validated above. Using
+  // `<commit>:<path>` here would resolve the path from the repository root,
+  // while ls-tree and the head lockfile are relative to cwd.
+  const shown = await runGit(["cat-file", "blob", blobId], cwd, maxBytes);
   if (shown.exitCode !== 0) {
     throw new CliOperationalError(
       `cannot read base ${LOCKFILE_NAME}: ${gitDetail(shown)}`,
@@ -364,10 +368,28 @@ function decodeUtf8(bytes: Uint8Array, description: string): string {
 }
 
 function terminalSafeError(error: unknown): string {
-  const message =
-    error instanceof Error ? `${error.name}: ${error.message}` : typeof error;
+  const messages: string[] = [];
+  const seen = new Set<unknown>();
+  let current: unknown = error;
+  for (let depth = 0; depth < MAX_ERROR_CHAIN_LENGTH; depth += 1) {
+    if (seen.has(current)) {
+      messages.push("caused by [cycle]");
+      break;
+    }
+    seen.add(current);
+    messages.push(`${depth === 0 ? "" : "caused by "}${errorSummary(current)}`);
+    if (!(current instanceof Error) || current.cause === undefined) break;
+    current = current.cause;
+  }
+  const message = messages.join("; ");
   const escaped = JSON.stringify(truncate(message, MAX_ERROR_CHARS));
   return escaped.slice(1, -1);
+}
+
+function errorSummary(error: unknown): string {
+  return error instanceof Error
+    ? `${error.name}: ${error.message}`
+    : typeof error;
 }
 
 function truncate(value: string, maxCharacters: number): string {
