@@ -52,6 +52,6 @@
     "@actions/core": "^3.0.1",
     "@actions/github": "^9.1.1",
     "jsonc-parser": "^3.3.1",
-    "tar": "^7.5.19"
+    "tar": "^7.5.22"
   }
 }

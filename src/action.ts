@@ -184,7 +184,12 @@ async function uploadJson(name: string, contents: string) {
   let operationError: unknown;
   try {
     await writeFile(file, contents, { encoding: "utf8", flag: "wx" });
-    response = await artifact.uploadArtifact(name, [file], directory);
+    // One fixed internal JSON file needs no glob expansion or archive creation.
+    // Raw upload also keeps @actions/artifact's unused archiver dependency off
+    // the execution path (npm advisory GHSA-mh99-v99m-4gvg).
+    response = await artifact.uploadArtifact(name, [file], directory, {
+      skipArchive: true,
+    });
   } catch (error: unknown) {
     operationError = error;
   }
