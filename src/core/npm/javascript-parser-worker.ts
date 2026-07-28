@@ -55,6 +55,35 @@ function analyze(request: ParserRequest): ParserResponse {
       }
     });
     fullAncestor(ast, (node, _state, ancestors) => {
+      if (literalModuleLoad(node) === "vm") {
+        detections.push(evidence("DYNAMIC_CODE", node, request.source));
+        return;
+      }
+      const record = asRecord(node);
+      if (node.type === "CallExpression") {
+        const callee = asRecord(record?.callee);
+        if (
+          callee?.type === "Identifier" &&
+          callee.name === "eval" &&
+          resolver.lookup("eval", ancestors) === undefined &&
+          !ancestorDeclares("eval", ancestors)
+        ) {
+          detections.push(evidence("DYNAMIC_CODE", node, request.source));
+        }
+      }
+      if (node.type === "NewExpression") {
+        const callee = asRecord(record?.callee);
+        if (
+          callee?.type === "Identifier" &&
+          callee.name === "Function" &&
+          resolver.lookup("Function", ancestors) === undefined &&
+          !ancestorDeclares("Function", ancestors)
+        ) {
+          detections.push(evidence("DYNAMIC_CODE", node, request.source));
+        }
+      }
+    });
+    fullAncestor(ast, (node, _state, ancestors) => {
       if (node.type !== "MemberExpression") return;
       const record = asRecord(node);
       const object = asRecord(record?.object);

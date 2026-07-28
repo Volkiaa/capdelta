@@ -357,3 +357,42 @@ describe("extractNpmJavaScriptCapabilities ENV", () => {
     );
   });
 });
+
+describe("extractNpmJavaScriptCapabilities DYNAMIC_CODE", () => {
+  it("detects eval, Function construction, and vm imports", async () => {
+    await withPackage(
+      {
+        "index.cjs": [
+          "const vm = require('node:vm');",
+          "eval('1 + 1');",
+          "new Function('return 1');",
+        ].join("\n"),
+      },
+      async (root) => {
+        const result = await extractNpmJavaScriptCapabilities(
+          { root },
+          manifestSet,
+        );
+        expect(result.capabilities).toEqual([
+          {
+            kind: "DYNAMIC_CODE",
+            location: { kind: "runtime" },
+            evidence: [
+              {
+                file: "index.cjs",
+                line: 1,
+                snippet: "const vm = require('node:vm');",
+              },
+              { file: "index.cjs", line: 2, snippet: "eval('1 + 1');" },
+              {
+                file: "index.cjs",
+                line: 3,
+                snippet: "new Function('return 1');",
+              },
+            ],
+          },
+        ]);
+      },
+    );
+  });
+});

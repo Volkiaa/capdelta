@@ -18,7 +18,7 @@ import type {
 } from "./javascript-parser-protocol.js";
 
 const DEFAULT_MAX_SOURCE_BYTES = 2 * 1024 * 1024;
-const DEFAULT_PARSE_TIMEOUT_MS = 2_000;
+const DEFAULT_PARSE_TIMEOUT_MS = 5_000;
 const JAVASCRIPT_EXTENSIONS = new Set([".js", ".mjs", ".cjs"]);
 
 export interface AstExtractionOptions {
