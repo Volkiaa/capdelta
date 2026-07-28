@@ -27,7 +27,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "package:action": "node scripts/package-action.mjs",
-    "check:action": "npm run package:action && git diff --exit-code -- dist/action/index.js",
+    "check:action": "npm run package:action && git diff --exit-code -- dist/action",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
