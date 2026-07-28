@@ -237,6 +237,15 @@ function renderTextReportFromBuilt(report: JsonReport): string[] {
     summaryLine(report),
   ];
 
+  if ((report.shapes?.length ?? 0) > 0) {
+    lines.push("", "Capability shapes:");
+    for (const shape of report.shapes ?? []) {
+      lines.push(
+        `- [${shape.severity}] ${quote(shape.ruleId)} (${count(shape.capabilities.length, "capability")})`,
+      );
+    }
+  }
+
   if (report.findings.length > 0) {
     lines.push("", "Findings:");
     for (const finding of report.findings) {
@@ -245,15 +254,6 @@ function renderTextReportFromBuilt(report: JsonReport): string[] {
         ...finding.capability.evidence.map(
           (evidence) => `  Evidence: ${evidenceText(evidence)}`,
         ),
-      );
-    }
-  }
-
-  if ((report.shapes?.length ?? 0) > 0) {
-    lines.push("", "Capability shapes:");
-    for (const shape of report.shapes ?? []) {
-      lines.push(
-        `- [${shape.severity}] ${quote(shape.ruleId)} (${count(shape.capabilities.length, "capability")})`,
       );
     }
   }

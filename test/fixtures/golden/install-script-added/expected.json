@@ -7,6 +7,7 @@
     "newVersion": "2.0.0",
     "newPackage": false
   },
+  "reportId": "capdelta-d6161b9536688ca5e0b7",
   "summary": {
     "findings": 1,
     "diagnostics": 0,
@@ -39,6 +40,30 @@
         ]
       },
       "previous": null
+    }
+  ],
+  "shapes": [
+    {
+      "ruleId": "install-hook-change",
+      "severity": "CRITICAL",
+      "capabilities": [
+        {
+          "kind": "INSTALL_HOOK",
+          "hook": "postinstall",
+          "applicability": "registry-install",
+          "contentDigest": {
+            "algorithm": "sha256",
+            "value": "d960c2eba2b5400c91a09fdec42dabef3cfd2c19a92591a5b2e5437a99a5a91d"
+          },
+          "evidence": [
+            {
+              "file": "package.json",
+              "line": 5,
+              "snippet": "\"postinstall\": \"echo test\""
+            }
+          ]
+        }
+      ]
     }
   ],
   "diagnostics": []

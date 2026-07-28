@@ -2,6 +2,9 @@ capdelta manifest capability report
 Package: "golden-fixture" ("npm") "1.0.0" -> "2.0.0"
 Review this change: 1 finding (CRITICAL: 1); 0 diagnostics.
 
+Capability shapes:
+- [CRITICAL] "install-hook-change" (1 capability)
+
 Findings:
 - [CRITICAL] "postinstall" registry install hook added
   Evidence: "package.json":5 — "\"postinstall\": \"echo test\""
