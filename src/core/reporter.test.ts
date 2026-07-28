@@ -307,10 +307,10 @@ describe("manifest Reporter", () => {
 
     expect(text).toBe(
       [
-        "capdelta manifest analysis report",
+        "capdelta capability analysis report",
         "Mode: first run (aggregate text; full details are in JSON)",
         "Packages: 1 changed; 1 analyzed; 0 unavailable; 0 lockfile skips.",
-        "Signals: 0 manifest findings; 0 lockfile findings; 0 analysis issues; 0 manifest diagnostics.",
+        "Signals: 0 capability findings; 0 lockfile findings; 0 analysis issues; 0 analysis diagnostics.",
         "",
       ].join("\n"),
     );

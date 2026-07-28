@@ -15,15 +15,15 @@ const PAYLOAD =
 
 function adversarialReport(firstRun = false): JsonRunReport {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     firstRun,
     summary: {
       changedPackages: 1,
       analyzedPackages: 1,
       unavailablePackages: 0,
       skippedLockfileEntries: 0,
-      manifestFindings: 1,
-      manifestDiagnostics: 0,
+      capabilityFindings: 1,
+      analysisDiagnostics: 0,
       analysisIssues: 1,
       lockfileFindings: 0,
       bySeverity: { CRITICAL: 1, HIGH: 0, MEDIUM: 0, LOW: 0, INFO: 0 },
@@ -32,7 +32,7 @@ function adversarialReport(firstRun = false): JsonRunReport {
       {
         status: "analyzed",
         report: {
-          schemaVersion: 1,
+          schemaVersion: 2,
           package: {
             ecosystem: "npm",
             name: PAYLOAD,
@@ -135,7 +135,7 @@ describe("renderActionComment", () => {
       maxRows: 10,
     });
     expect(body).toBe(withoutRows);
-    expect(body).toContain("Showing 0 of 1 manifest findings");
+    expect(body).toContain("Showing 0 of 1 capability findings");
     expect(body.endsWith("\n")).toBe(true);
   });
 

@@ -9,15 +9,15 @@ import {
 
 function report(): JsonRunReport {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     firstRun: false,
     summary: {
       changedPackages: 2,
       analyzedPackages: 1,
       unavailablePackages: 1,
       skippedLockfileEntries: 0,
-      manifestFindings: 2,
-      manifestDiagnostics: 0,
+      capabilityFindings: 2,
+      analysisDiagnostics: 0,
       analysisIssues: 2,
       lockfileFindings: 2,
       bySeverity: { CRITICAL: 1, HIGH: 0, MEDIUM: 1, LOW: 0, INFO: 0 },
@@ -26,7 +26,7 @@ function report(): JsonRunReport {
       {
         status: "analyzed",
         report: {
-          schemaVersion: 1,
+          schemaVersion: 2,
           package: {
             ecosystem: "npm",
             name: "safe-fixture",

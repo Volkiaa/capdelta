@@ -199,7 +199,7 @@ function buildComment(
     "",
     report.firstRun
       ? "**First run:** no base lockfile was found. Review this aggregate capability inventory."
-      : "Review this change: capdelta reports newly gained manifest capabilities.",
+      : "Review this change: capdelta reports newly gained capabilities.",
     "",
     "| Packages | Analyzed | Unavailable | Lockfile skips |",
     "| ---: | ---: | ---: | ---: |",
@@ -241,12 +241,12 @@ function buildComment(
   }
 
   const shownFindings = findings.length;
-  const totalFindings = report.summary.manifestFindings;
+  const totalFindings = report.summary.capabilityFindings;
   const shownIssues = issues.length;
   const totalIssues = report.summary.analysisIssues;
   lines.push(
     "",
-    `Showing ${String(shownFindings)} of ${String(totalFindings)} manifest findings and ${String(shownIssues)} of ${String(totalIssues)} analysis gaps.`,
+    `Showing ${String(shownFindings)} of ${String(totalFindings)} capability findings and ${String(shownIssues)} of ${String(totalIssues)} analysis gaps.`,
     `Full escaped details are available in the workflow artifact ${escapeMarkdownText(artifactName, MAX_IDENTITY_CHARS)}.`,
   );
   return `${lines.join("\n")}\n`;
