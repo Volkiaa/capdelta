@@ -12,6 +12,7 @@ type LocatedNode = Node & { start: number };
 function analyze(request: ParserRequest): ParserResponse {
   try {
     const ast = parseSource(request);
+    const resolver = new BindingResolver(ast);
     const detections: ParserDetection[] = [];
     fullAncestor(ast, (node) => {
       if (!isDynamicModuleLoad(node)) return;
@@ -21,6 +22,36 @@ function analyze(request: ParserRequest): ParserResponse {
       const moduleName = literalModuleLoad(node);
       if (moduleName !== null && moduleName === "child_process") {
         detections.push(evidence("PROCESS", node, request.source));
+      }
+    });
+    fullAncestor(ast, (node, _state, ancestors) => {
+      const moduleName = literalModuleLoad(node);
+      if (moduleName !== null && NETWORK_MODULES.has(moduleName)) {
+        detections.push(evidence("NET", node, request.source));
+        return;
+      }
+      const record = asRecord(node);
+      if (node.type === "CallExpression") {
+        const callee = asRecord(record?.callee);
+        if (
+          callee?.type === "Identifier" &&
+          callee.name === "fetch" &&
+          resolver.lookup("fetch", ancestors) === undefined &&
+          !ancestorDeclares("fetch", ancestors)
+        ) {
+          detections.push(evidence("NET", node, request.source));
+        }
+      }
+      if (node.type === "NewExpression") {
+        const callee = asRecord(record?.callee);
+        if (
+          callee?.type === "Identifier" &&
+          callee.name === "WebSocket" &&
+          resolver.lookup("WebSocket", ancestors) === undefined &&
+          !ancestorDeclares("WebSocket", ancestors)
+        ) {
+          detections.push(evidence("NET", node, request.source));
+        }
       }
     });
     return { ok: true, detections };
@@ -37,6 +68,261 @@ function analyze(request: ParserRequest): ParserResponse {
       snippet: sourceLine(request.source, line),
     };
   }
+}
+
+const NETWORK_MODULES = new Set(["http", "https", "net", "tls", "dgram"]);
+
+interface ResolvedBinding {
+  module: string;
+  member: string | null;
+  depth: 0 | 1;
+}
+
+interface UnknownBinding {
+  unknownFromKnownApi: true;
+}
+
+type Binding = ResolvedBinding | UnknownBinding | null;
+
+interface Scope {
+  node: Node;
+  parent: Scope | null;
+  bindings: Map<string, Binding>;
+}
+
+class BindingResolver {
+  readonly scopes = new Map<Node, Scope>();
+
+  constructor(ast: Node) {
+    fullAncestor(ast, (node, _state, ancestors) => {
+      if (!isScopeNode(node)) return;
+      const parent = this.nearestScope(ancestors.slice(0, -1));
+      this.scopes.set(node, { node, parent, bindings: new Map() });
+    });
+    fullAncestor(ast, (node, _state, ancestors) => {
+      this.collectDeclaration(node, ancestors);
+    });
+    fullAncestor(ast, (node, _state, ancestors) => {
+      this.collectAlias(node, ancestors);
+    });
+  }
+
+  lookup(name: string, ancestors: readonly Node[]): Binding | undefined {
+    let scope = this.nearestScope(ancestors);
+    while (scope !== null) {
+      if (scope.bindings.has(name)) return scope.bindings.get(name);
+      scope = scope.parent;
+    }
+    return undefined;
+  }
+
+  resolveExpression(
+    value: unknown,
+    ancestors: readonly Node[],
+  ): Binding | undefined {
+    const node = asRecord(value);
+    if (node?.type === "Identifier" && typeof node.name === "string") {
+      return this.lookup(node.name, ancestors);
+    }
+    const direct = directModuleExpression(value);
+    if (direct !== null) return direct;
+    if (node?.type !== "MemberExpression" || node.computed === true) {
+      return undefined;
+    }
+    const object = this.resolveExpression(node.object, ancestors);
+    const property = identifierName(node.property);
+    if (isResolved(object) && object.member === null && property !== null) {
+      return { module: object.module, member: property, depth: object.depth };
+    }
+    return isKnownBinding(object) ? { unknownFromKnownApi: true } : undefined;
+  }
+
+  private collectDeclaration(node: Node, ancestors: readonly Node[]): void {
+    const record = asRecord(node);
+    if (node.type === "ImportDeclaration") {
+      const moduleName = normalizedModule(stringLiteral(record?.source));
+      const scope = this.nearestScope(ancestors);
+      const specifiers = record?.specifiers;
+      if (scope === null || moduleName === null || !Array.isArray(specifiers))
+        return;
+      for (const item of specifiers) {
+        const specifier = asRecord(item);
+        const local = identifierName(specifier?.local);
+        if (local === null) continue;
+        const imported =
+          specifier?.type === "ImportSpecifier"
+            ? identifierName(specifier.imported)
+            : null;
+        scope.bindings.set(local, {
+          module: moduleName,
+          member: imported,
+          depth: 0,
+        });
+      }
+      return;
+    }
+    if (node.type === "VariableDeclarator") {
+      const declaration = [...ancestors]
+        .reverse()
+        .map(asRecord)
+        .find((item) => item?.type === "VariableDeclaration");
+      const scope = this.nearestScope(ancestors);
+      if (scope === null) return;
+      const direct =
+        declaration?.kind === "const"
+          ? directModuleExpression(record?.init)
+          : null;
+      declarePattern(scope, record?.id, direct);
+      return;
+    }
+    if (isFunctionNode(node)) {
+      const scope = this.scopes.get(node);
+      const params = record?.params;
+      if (scope !== undefined && Array.isArray(params)) {
+        for (const parameter of params) declarePattern(scope, parameter, null);
+      }
+      if (node.type === "FunctionDeclaration") {
+        const name = identifierName(record?.id);
+        const parent = this.nearestScope(ancestors.slice(0, -1));
+        if (name !== null) parent?.bindings.set(name, null);
+      }
+    }
+  }
+
+  private collectAlias(node: Node, ancestors: readonly Node[]): void {
+    if (node.type !== "VariableDeclarator") return;
+    const record = asRecord(node);
+    const declaration = [...ancestors]
+      .reverse()
+      .map(asRecord)
+      .find((item) => item?.type === "VariableDeclaration");
+    if (declaration?.kind !== "const") return;
+    const scope = this.nearestScope(ancestors);
+    if (scope === null || directModuleExpression(record?.init) !== null) return;
+    const source = this.resolveExpression(record?.init, ancestors);
+    const alias = isResolved(source)
+      ? source.depth === 0
+        ? { ...source, depth: 1 as const }
+        : { unknownFromKnownApi: true as const }
+      : isKnownBinding(source)
+        ? { unknownFromKnownApi: true as const }
+        : null;
+    declarePattern(scope, record?.id, alias);
+  }
+
+  private nearestScope(ancestors: readonly Node[]): Scope | null {
+    for (let index = ancestors.length - 1; index >= 0; index -= 1) {
+      const node = ancestors[index];
+      if (node === undefined) continue;
+      const scope = this.scopes.get(node);
+      if (scope !== undefined) return scope;
+    }
+    return null;
+  }
+}
+
+function directModuleExpression(value: unknown): ResolvedBinding | null {
+  const node = asRecord(value);
+  if (node === null) return null;
+  const awaited = node.type === "AwaitExpression" ? node.argument : value;
+  const awaitedRecord = asRecord(awaited);
+  if (awaitedRecord?.type === "ImportExpression") {
+    const moduleName = normalizedModule(stringLiteral(awaitedRecord.source));
+    return moduleName === null
+      ? null
+      : { module: moduleName, member: null, depth: 0 };
+  }
+  if (awaitedRecord?.type === "CallExpression") {
+    const callee = asRecord(awaitedRecord.callee);
+    const args = awaitedRecord.arguments;
+    if (
+      callee?.type === "Identifier" &&
+      callee.name === "require" &&
+      Array.isArray(args)
+    ) {
+      const moduleName = normalizedModule(stringLiteral(args[0]));
+      return moduleName === null
+        ? null
+        : { module: moduleName, member: null, depth: 0 };
+    }
+  }
+  if (node.type === "MemberExpression" && node.computed !== true) {
+    const object = directModuleExpression(node.object);
+    const member = identifierName(node.property);
+    if (object !== null && member !== null)
+      return { module: object.module, member, depth: 0 };
+  }
+  return null;
+}
+
+function declarePattern(scope: Scope, value: unknown, binding: Binding): void {
+  const pattern = asRecord(value);
+  if (pattern?.type === "Identifier" && typeof pattern.name === "string") {
+    scope.bindings.set(pattern.name, binding);
+    return;
+  }
+  if (pattern?.type !== "ObjectPattern" || !Array.isArray(pattern.properties))
+    return;
+  for (const item of pattern.properties) {
+    const property = asRecord(item);
+    const name = identifierName(property?.value);
+    const member = identifierName(property?.key);
+    if (name === null) continue;
+    scope.bindings.set(
+      name,
+      isResolved(binding) && member !== null
+        ? { module: binding.module, member, depth: binding.depth }
+        : binding,
+    );
+  }
+}
+
+function isScopeNode(node: Node): boolean {
+  return (
+    node.type === "Program" ||
+    node.type === "BlockStatement" ||
+    node.type === "CatchClause" ||
+    isFunctionNode(node)
+  );
+}
+
+function isFunctionNode(node: Node): boolean {
+  return (
+    node.type === "FunctionDeclaration" ||
+    node.type === "FunctionExpression" ||
+    node.type === "ArrowFunctionExpression"
+  );
+}
+
+function isResolved(binding: Binding | undefined): binding is ResolvedBinding {
+  return binding !== null && binding !== undefined && "module" in binding;
+}
+
+function isKnownBinding(binding: Binding | undefined): boolean {
+  return (
+    isResolved(binding) ||
+    (binding !== null &&
+      binding !== undefined &&
+      "unknownFromKnownApi" in binding)
+  );
+}
+
+function identifierName(value: unknown): string | null {
+  const record = asRecord(value);
+  return record?.type === "Identifier" && typeof record.name === "string"
+    ? record.name
+    : null;
+}
+
+function ancestorDeclares(name: string, ancestors: readonly Node[]): boolean {
+  return ancestors.some((ancestor) => {
+    if (!isFunctionNode(ancestor)) return false;
+    const params = asRecord(ancestor)?.params;
+    return (
+      Array.isArray(params) &&
+      params.some((parameter) => identifierName(parameter) === name)
+    );
+  });
 }
 
 function literalModuleLoad(node: Node): string | null {

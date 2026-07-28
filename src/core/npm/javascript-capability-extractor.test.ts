@@ -132,3 +132,59 @@ describe("extractNpmJavaScriptCapabilities PROCESS", () => {
     );
   });
 });
+
+describe("extractNpmJavaScriptCapabilities NET", () => {
+  it("detects network modules and unshadowed network globals", async () => {
+    await withPackage(
+      {
+        "index.js": [
+          "const https = require('node:https');",
+          "fetch('https://example.test');",
+          "new WebSocket('wss://example.test');",
+        ].join("\n"),
+      },
+      async (root) => {
+        const result = await extractNpmJavaScriptCapabilities(
+          { root },
+          manifestSet,
+        );
+        expect(result.capabilities).toEqual([
+          {
+            kind: "NET",
+            location: { kind: "runtime" },
+            evidence: [
+              {
+                file: "index.js",
+                line: 1,
+                snippet: "const https = require('node:https');",
+              },
+              {
+                file: "index.js",
+                line: 2,
+                snippet: "fetch('https://example.test');",
+              },
+              {
+                file: "index.js",
+                line: 3,
+                snippet: "new WebSocket('wss://example.test');",
+              },
+            ],
+          },
+        ]);
+      },
+    );
+  });
+
+  it("does not confuse locally shadowed globals with network APIs", async () => {
+    await withPackage(
+      { "index.js": "function run(fetch) { fetch('local'); }\n" },
+      async (root) => {
+        const result = await extractNpmJavaScriptCapabilities(
+          { root },
+          manifestSet,
+        );
+        expect(result.capabilities).toEqual([]);
+      },
+    );
+  });
+});
