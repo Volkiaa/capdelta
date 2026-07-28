@@ -3,12 +3,16 @@ import type {
   ContentDigest,
   Evidence,
   InstallHook,
+  CapabilityLocation,
+  CodeCapabilityKind,
+  PackageSubject,
 } from "./contract/capability-set.js";
 import type {
   CapabilityChange,
   CapabilityDiffDiagnostic,
   CapabilityDiffResult,
   FindingSeverity,
+  ShapeRuleId,
 } from "./capability-differ.js";
 import type {
   ManifestAnalysisRun,
@@ -22,6 +26,7 @@ import type {
 import type { FetchFailureKind } from "./npm/fetcher.js";
 import type { ManifestCapabilityFailureKind } from "./npm/manifest-capability-extractor.js";
 import type { ExtractionFailureKind } from "./npm/safe-extractor.js";
+import { createHash } from "node:crypto";
 
 export const REPORT_SCHEMA_VERSION = 1 as const;
 
@@ -72,6 +77,7 @@ export interface ReportDependencyCapability extends ReportCapabilityBase {
   kind: "DEPENDENCY";
   name: string;
   requirement: string;
+  targetName?: string;
 }
 
 export interface ReportRuntimeConstraintCapability extends ReportCapabilityBase {
@@ -80,17 +86,30 @@ export interface ReportRuntimeConstraintCapability extends ReportCapabilityBase 
   requirement: string;
 }
 
+export interface ReportCodeCapability extends ReportCapabilityBase {
+  kind: CodeCapabilityKind;
+  location: CapabilityLocation;
+}
+
 export type ReportCapability =
   | ReportInstallHookCapability
   | ReportCommandEntrypointCapability
   | ReportDependencyCapability
-  | ReportRuntimeConstraintCapability;
+  | ReportRuntimeConstraintCapability
+  | ReportCodeCapability;
+
+export interface JsonReportShapeFinding {
+  ruleId: ShapeRuleId;
+  severity: "CRITICAL";
+  capabilities: readonly ReportCapability[];
+}
 
 export interface JsonReportFinding {
   severity: FindingSeverity;
   change: CapabilityChange;
   capability: ReportCapability;
   previous: ReportCapability | null;
+  relatedReportIds?: readonly string[];
 }
 
 export interface JsonReportDiagnostic {
@@ -175,12 +194,14 @@ export interface JsonRunReport {
 export interface JsonReport {
   schemaVersion: typeof REPORT_SCHEMA_VERSION;
   package: ReportPackage;
+  reportId?: string;
   summary: {
     findings: number;
     diagnostics: number;
     bySeverity: SeverityCounts;
   };
   findings: readonly JsonReportFinding[];
+  shapes?: readonly JsonReportShapeFinding[];
   diagnostics: readonly JsonReportDiagnostic[];
 }
 
@@ -215,6 +236,15 @@ function renderTextReportFromBuilt(report: JsonReport): string[] {
     `Package: ${quote(report.package.name)} (${quote(report.package.ecosystem)}) ${baseline} -> ${quote(report.package.newVersion)}`,
     summaryLine(report),
   ];
+
+  if ((report.shapes?.length ?? 0) > 0) {
+    lines.push("", "Capability shapes:");
+    for (const shape of report.shapes ?? []) {
+      lines.push(
+        `- [${shape.severity}] ${quote(shape.ruleId)} (${count(shape.capabilities.length, "capability")})`,
+      );
+    }
+  }
 
   if (report.findings.length > 0) {
     lines.push("", "Findings:");
@@ -337,6 +367,7 @@ function buildRunReport(run: ManifestAnalysisRun): JsonRunReport {
       failures,
     };
   });
+  crossLinkDependencies(packages);
 
   return {
     schemaVersion: REPORT_SCHEMA_VERSION,
@@ -505,6 +536,11 @@ function buildReport(result: CapabilityDiffResult): JsonReport {
       finding.previous === null ? null : reportCapability(finding.previous),
   }));
   const diagnostics = result.diagnostics.map(reportDiagnostic);
+  const shapes = (result.shapes ?? []).map((shape) => ({
+    ruleId: shape.ruleId,
+    severity: shape.severity,
+    capabilities: shape.capabilities.map(reportCapability),
+  }));
   const bySeverity = emptySeverityCounts();
   for (const finding of findings) bySeverity[finding.severity] += 1;
 
@@ -520,12 +556,14 @@ function buildReport(result: CapabilityDiffResult): JsonReport {
       newVersion: truncate(result.subject.version, MAX_IDENTITY_CHARS),
       newPackage: result.newPackage,
     },
+    reportId: reportId(result.subject),
     summary: {
       findings: findings.length,
       diagnostics: diagnostics.length,
       bySeverity,
     },
     findings,
+    shapes,
     diagnostics,
   };
 }
@@ -567,6 +605,12 @@ function validateResult(result: CapabilityDiffResult): void {
   for (const diagnostic of result.diagnostics) {
     validateEvidence(diagnostic.diagnostic.evidence);
   }
+  for (const shape of result.shapes ?? []) {
+    if (shape.capabilities.length === 0) {
+      throw new ReporterContractError("shape finding has no capabilities");
+    }
+    for (const capability of shape.capabilities) validateCapability(capability);
+  }
 }
 
 function validateCapability(capability: Capability): void {
@@ -578,9 +622,8 @@ function validateCapability(capability: Capability): void {
       validateEvidence(capability.evidence);
       return;
     default:
-      throw new ReporterContractError(
-        `M1 manifest Reporter does not support ${capability.kind}`,
-      );
+      validateEvidence(capability.evidence);
+      return;
   }
 }
 
@@ -623,6 +666,11 @@ function reportCapability(capability: Capability): ReportCapability {
         kind: capability.kind,
         name: truncate(capability.name, MAX_IDENTITY_CHARS),
         requirement: truncate(capability.requirement, MAX_VALUE_CHARS),
+        ...(capability.targetName === undefined
+          ? {}
+          : {
+              targetName: truncate(capability.targetName, MAX_IDENTITY_CHARS),
+            }),
         evidence,
       };
     case "RUNTIME_CONSTRAINT":
@@ -633,9 +681,11 @@ function reportCapability(capability: Capability): ReportCapability {
         evidence,
       };
     default:
-      throw new ReporterContractError(
-        `M1 manifest Reporter does not support ${capability.kind}`,
-      );
+      return {
+        kind: capability.kind,
+        location: capability.location,
+        evidence,
+      };
   }
 }
 
@@ -700,9 +750,40 @@ function findingDescription(finding: JsonReportFinding): string {
     case "COMMAND_ENTRYPOINT":
       return `command ${quote(capability.command)} entrypoint ${finding.change}: ${quote(capability.target)}`;
     case "DEPENDENCY":
-      return `dependency ${quote(capability.name)} ${finding.change}: ${quote(capability.requirement)}`;
+      return `dependency ${quote(capability.name)} ${finding.change}: ${quote(capability.requirement)}${finding.relatedReportIds === undefined || finding.relatedReportIds.length === 0 ? "" : ` -> see ${finding.relatedReportIds.map(quote).join(", ")}`}`;
     case "RUNTIME_CONSTRAINT":
       return `runtime ${quote(capability.runtime)} constraint ${finding.change}: ${quote(capability.requirement)}`;
+    default:
+      return `${quote(capability.kind)} capability ${finding.change} in ${quote(capability.location.kind)} code`;
+  }
+}
+
+function reportId(subject: PackageSubject): string {
+  const digest = createHash("sha256")
+    .update(`${subject.ecosystem}\0${subject.name}\0${subject.version}`)
+    .digest("hex")
+    .slice(0, 20);
+  return `capdelta-${digest}`;
+}
+
+function crossLinkDependencies(packages: readonly JsonRunPackage[]): void {
+  const byName = new Map<string, string[]>();
+  for (const item of packages) {
+    if (item.status !== "analyzed" || item.report.reportId === undefined)
+      continue;
+    const ids = byName.get(item.report.package.name) ?? [];
+    ids.push(item.report.reportId);
+    byName.set(item.report.package.name, ids);
+  }
+  for (const ids of byName.values()) ids.sort();
+  for (const item of packages) {
+    if (item.status !== "analyzed") continue;
+    for (const finding of item.report.findings) {
+      if (finding.capability.kind !== "DEPENDENCY") continue;
+      const target = finding.capability.targetName ?? finding.capability.name;
+      const related = byName.get(target);
+      if (related !== undefined) finding.relatedReportIds = [...related];
+    }
   }
 }
 

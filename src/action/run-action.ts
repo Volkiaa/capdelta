@@ -4,6 +4,7 @@ import {
 } from "../core/manifest-analysis-pipeline.js";
 import { diffNpmLockfiles } from "../core/npm/lockfile-differ.js";
 import { renderJsonRunReport, type JsonRunReport } from "../core/reporter.js";
+import { renderSarifReport } from "../core/sarif-reporter.js";
 import {
   publishStickyComment,
   renderActionComment,
@@ -33,6 +34,8 @@ export interface ActionContext {
   repo: string;
   pullRequestNumber: number;
   baseSha: string;
+  headSha: string;
+  headRef: string;
   baseRepository: string;
   headRepository: string;
   actor: string;
@@ -53,6 +56,10 @@ export interface ActionAdapters {
     newLockfile: unknown,
   ): Promise<ManifestAnalysisRun>;
   uploadJson(name: string, contents: string): Promise<ArtifactUpload>;
+  uploadSarif(
+    contents: string,
+    target: { commitSha: string; ref: string },
+  ): Promise<void>;
   comments: GitHubCommentClient;
   addJobSummary(markdown: string): Promise<void>;
   warn(message: string): void;
@@ -67,6 +74,7 @@ export type ActionOutcome =
       artifact: ArtifactUpload;
       comment: CommentPublishResult;
       gate: GateDecision;
+      sarifUploaded: boolean;
     };
 
 export class ActionRunnerError extends Error {
@@ -132,20 +140,35 @@ export async function runAction(
     adapters.analyze(oldLockfile, headLockfile),
   );
   const json = renderJsonRunReport(analysis);
+  const sarif = renderSarifReport(analysis);
   const report = parseRenderedReport(json);
 
   const artifact = await withContext("upload JSON report artifact", () =>
     adapters.uploadJson(ARTIFACT_NAME, json),
   );
-  const body = renderActionComment(report, {
-    artifactName: `${ARTIFACT_NAME}.json`,
-  });
   const readOnlyReason =
     context.actor === "dependabot[bot]"
       ? "dependabot"
       : context.headRepository !== context.baseRepository
         ? "fork"
         : null;
+  let sarifUploaded = false;
+  if (readOnlyReason === null) {
+    await withContext("upload SARIF report", () =>
+      adapters.uploadSarif(sarif, {
+        commitSha: context.headSha,
+        ref: `refs/pull/${String(context.pullRequestNumber)}/head`,
+      }),
+    );
+    sarifUploaded = true;
+  } else {
+    adapters.warn(
+      `capdelta: ${readOnlyReason} PR cannot upload SARIF with the read-only token; JSON artifact and job summary remain available`,
+    );
+  }
+  const body = renderActionComment(report, {
+    artifactName: `${ARTIFACT_NAME}.json`,
+  });
   const comment = await publishStickyComment(
     {
       owner: context.owner,
@@ -171,6 +194,7 @@ export async function runAction(
     artifact,
     comment,
     gate,
+    sarifUploaded,
   };
 }
 
@@ -183,7 +207,9 @@ function validateInputs(inputs: ActionInputs, context: ActionContext): void {
     context.headRepository.length === 0 ||
     !Number.isSafeInteger(context.pullRequestNumber) ||
     context.pullRequestNumber <= 0 ||
-    !/^[0-9a-f]{40,64}$/iu.test(context.baseSha)
+    !/^[0-9a-f]{40,64}$/iu.test(context.baseSha) ||
+    !/^[0-9a-f]{40,64}$/iu.test(context.headSha) ||
+    context.headRef.length === 0
   ) {
     throw new ActionRunnerConfigurationError(
       "Action requires a pull_request context with an immutable base SHA",

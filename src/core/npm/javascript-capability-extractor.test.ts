@@ -1,0 +1,479 @@
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+import {
+  CAPABILITY_SET_SCHEMA_VERSION,
+  type CapabilitySet,
+} from "../contract/capability-set.js";
+import { extractNpmJavaScriptCapabilities } from "./javascript-capability-extractor.js";
+
+const manifestSet: CapabilitySet = {
+  schemaVersion: CAPABILITY_SET_SCHEMA_VERSION,
+  subject: { ecosystem: "npm", name: "fixture", version: "2.0.0" },
+  completeness: "complete",
+  capabilities: [],
+  diagnostics: [],
+};
+
+async function withPackage(
+  files: Record<string, string>,
+  run: (root: string) => Promise<void>,
+): Promise<void> {
+  const root = await mkdtemp(join(tmpdir(), "capdelta-ast-test-"));
+  try {
+    await writeFile(
+      join(root, "package.json"),
+      JSON.stringify({ name: "fixture", version: "2.0.0" }),
+    );
+    for (const [file, source] of Object.entries(files)) {
+      await mkdir(join(root, file, ".."), { recursive: true });
+      await writeFile(join(root, file), source);
+    }
+    await run(root);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+describe("extractNpmJavaScriptCapabilities UNKNOWN", () => {
+  it("reports a computed require honestly as UNKNOWN", async () => {
+    await withPackage(
+      { "index.js": "const cp = require('child' + '_process');\n" },
+      async (root) => {
+        const result = await extractNpmJavaScriptCapabilities(
+          { root },
+          manifestSet,
+        );
+        expect(result).toEqual({
+          capabilities: [
+            {
+              kind: "UNKNOWN",
+              location: { kind: "runtime" },
+              evidence: [
+                {
+                  file: "index.js",
+                  line: 1,
+                  snippet: "const cp = require('child' + '_process');",
+                },
+              ],
+            },
+          ],
+          diagnostics: [],
+        });
+      },
+    );
+  });
+
+  it("degrades loudly for TypeScript and malformed JavaScript", async () => {
+    await withPackage(
+      { "index.ts": "export const x = 1;", "bad.js": "const =" },
+      async (root) => {
+        const result = await extractNpmJavaScriptCapabilities(
+          { root },
+          manifestSet,
+        );
+        expect(result.capabilities).toEqual([]);
+        expect(result.diagnostics.map((item) => item.kind)).toEqual([
+          "unparseable-source",
+          "unsupported-source",
+        ]);
+      },
+    );
+  });
+});
+
+describe("extractNpmJavaScriptCapabilities PROCESS", () => {
+  it("detects literal CommonJS and node:-prefixed ESM imports", async () => {
+    await withPackage(
+      {
+        "common.cjs": "const cp = require('child_process');\n",
+        "module.mjs": "import { spawn } from 'node:child_process';\n",
+      },
+      async (root) => {
+        const result = await extractNpmJavaScriptCapabilities(
+          { root },
+          manifestSet,
+        );
+        expect(result.capabilities).toEqual([
+          {
+            kind: "PROCESS",
+            location: { kind: "runtime" },
+            evidence: [
+              {
+                file: "common.cjs",
+                line: 1,
+                snippet: "const cp = require('child_process');",
+              },
+              {
+                file: "module.mjs",
+                line: 1,
+                snippet: "import { spawn } from 'node:child_process';",
+              },
+            ],
+          },
+        ]);
+      },
+    );
+  });
+
+  it("does not pretend a computed module specifier is PROCESS", async () => {
+    await withPackage(
+      { "index.js": "require('child' + '_process').exec('echo test');\n" },
+      async (root) => {
+        const result = await extractNpmJavaScriptCapabilities(
+          { root },
+          manifestSet,
+        );
+        expect(result.capabilities.map((item) => item.kind)).toEqual([
+          "UNKNOWN",
+        ]);
+      },
+    );
+  });
+});
+
+describe("extractNpmJavaScriptCapabilities NET", () => {
+  it("detects network modules and unshadowed network globals", async () => {
+    await withPackage(
+      {
+        "index.js": [
+          "const https = require('node:https');",
+          "fetch('https://example.test');",
+          "new WebSocket('wss://example.test');",
+        ].join("\n"),
+      },
+      async (root) => {
+        const result = await extractNpmJavaScriptCapabilities(
+          { root },
+          manifestSet,
+        );
+        expect(result.capabilities).toEqual([
+          {
+            kind: "NET",
+            location: { kind: "runtime" },
+            evidence: [
+              {
+                file: "index.js",
+                line: 1,
+                snippet: "const https = require('node:https');",
+              },
+              {
+                file: "index.js",
+                line: 2,
+                snippet: "fetch('https://example.test');",
+              },
+              {
+                file: "index.js",
+                line: 3,
+                snippet: "new WebSocket('wss://example.test');",
+              },
+            ],
+          },
+        ]);
+      },
+    );
+  });
+
+  it("does not confuse locally shadowed globals with network APIs", async () => {
+    await withPackage(
+      { "index.js": "function run(fetch) { fetch('local'); }\n" },
+      async (root) => {
+        const result = await extractNpmJavaScriptCapabilities(
+          { root },
+          manifestSet,
+        );
+        expect(result.capabilities).toEqual([]);
+      },
+    );
+  });
+});
+
+describe("extractNpmJavaScriptCapabilities FS_READ", () => {
+  it("detects direct, destructured, and one-hop aliased fs reads", async () => {
+    await withPackage(
+      {
+        "index.cjs": [
+          "const fs = require('node:fs');",
+          "fs.readFileSync('input.txt');",
+          "const { readdir } = require('fs');",
+          "readdir('.');",
+          "const read = fs.readFile;",
+          "read('input.txt', () => {});",
+        ].join("\n"),
+      },
+      async (root) => {
+        const result = await extractNpmJavaScriptCapabilities(
+          { root },
+          manifestSet,
+        );
+        expect(result.capabilities).toEqual([
+          {
+            kind: "FS_READ",
+            location: { kind: "runtime" },
+            evidence: [
+              {
+                file: "index.cjs",
+                line: 2,
+                snippet: "fs.readFileSync('input.txt');",
+              },
+              { file: "index.cjs", line: 4, snippet: "readdir('.');" },
+              {
+                file: "index.cjs",
+                line: 6,
+                snippet: "read('input.txt', () => {});",
+              },
+            ],
+          },
+        ]);
+      },
+    );
+  });
+
+  it("reports a second alias hop as UNKNOWN instead of FS_READ", async () => {
+    await withPackage(
+      {
+        "index.cjs":
+          "const fs = require('fs');\nconst read = fs.readFile;\nconst again = read;\nagain('x');\n",
+      },
+      async (root) => {
+        const result = await extractNpmJavaScriptCapabilities(
+          { root },
+          manifestSet,
+        );
+        expect(result.capabilities.map((item) => item.kind)).toEqual([
+          "UNKNOWN",
+        ]);
+      },
+    );
+  });
+});
+
+describe("extractNpmJavaScriptCapabilities FS_WRITE", () => {
+  it("detects filesystem mutations through namespace and named imports", async () => {
+    await withPackage(
+      {
+        "index.mjs": [
+          "import * as fs from 'node:fs';",
+          "import { unlink as remove } from 'fs';",
+          "fs.writeFileSync('output.txt', 'test');",
+          "remove('old.txt', () => {});",
+        ].join("\n"),
+      },
+      async (root) => {
+        const result = await extractNpmJavaScriptCapabilities(
+          { root },
+          manifestSet,
+        );
+        expect(result.capabilities).toEqual([
+          {
+            kind: "FS_WRITE",
+            location: { kind: "runtime" },
+            evidence: [
+              {
+                file: "index.mjs",
+                line: 3,
+                snippet: "fs.writeFileSync('output.txt', 'test');",
+              },
+              {
+                file: "index.mjs",
+                line: 4,
+                snippet: "remove('old.txt', () => {});",
+              },
+            ],
+          },
+        ]);
+      },
+    );
+  });
+});
+
+describe("extractNpmJavaScriptCapabilities FS_SENSITIVE", () => {
+  it("adds sensitive-path context for credential reads and writes", async () => {
+    await withPackage(
+      {
+        "index.cjs": [
+          "const fs = require('fs');",
+          "const path = require('path');",
+          "const os = require('os');",
+          "fs.readFileSync(path.join(os.homedir(), '.ssh', 'id_rsa'));",
+          "fs.writeFileSync('.env.production', 'echo test');",
+          "fs.readFileSync('.env.example');",
+        ].join("\n"),
+      },
+      async (root) => {
+        const result = await extractNpmJavaScriptCapabilities(
+          { root },
+          manifestSet,
+        );
+        const byKind = new Map(
+          result.capabilities.map((item) => [item.kind, item]),
+        );
+        expect(
+          byKind.get("FS_SENSITIVE")?.evidence.map((item) => item.line),
+        ).toEqual([4, 5]);
+        expect(
+          byKind.get("FS_READ")?.evidence.map((item) => item.line),
+        ).toEqual([4, 6]);
+        expect(
+          byKind.get("FS_WRITE")?.evidence.map((item) => item.line),
+        ).toEqual([5]);
+      },
+    );
+  });
+});
+
+describe("extractNpmJavaScriptCapabilities ENV", () => {
+  it("detects static and computed-literal process.env access", async () => {
+    await withPackage(
+      {
+        "index.js":
+          "const token = process.env.TOKEN;\nconst home = process['env'].HOME;\n",
+      },
+      async (root) => {
+        const result = await extractNpmJavaScriptCapabilities(
+          { root },
+          manifestSet,
+        );
+        expect(result.capabilities).toEqual([
+          {
+            kind: "ENV",
+            location: { kind: "runtime" },
+            evidence: [
+              {
+                file: "index.js",
+                line: 1,
+                snippet: "const token = process.env.TOKEN;",
+              },
+              {
+                file: "index.js",
+                line: 2,
+                snippet: "const home = process['env'].HOME;",
+              },
+            ],
+          },
+        ]);
+      },
+    );
+  });
+});
+
+describe("extractNpmJavaScriptCapabilities DYNAMIC_CODE", () => {
+  it("detects eval, Function construction, and vm imports", async () => {
+    await withPackage(
+      {
+        "index.cjs": [
+          "const vm = require('node:vm');",
+          "eval('1 + 1');",
+          "new Function('return 1');",
+        ].join("\n"),
+      },
+      async (root) => {
+        const result = await extractNpmJavaScriptCapabilities(
+          { root },
+          manifestSet,
+        );
+        expect(result.capabilities).toEqual([
+          {
+            kind: "DYNAMIC_CODE",
+            location: { kind: "runtime" },
+            evidence: [
+              {
+                file: "index.cjs",
+                line: 1,
+                snippet: "const vm = require('node:vm');",
+              },
+              { file: "index.cjs", line: 2, snippet: "eval('1 + 1');" },
+              {
+                file: "index.cjs",
+                line: 3,
+                snippet: "new Function('return 1');",
+              },
+            ],
+          },
+        ]);
+      },
+    );
+  });
+});
+
+describe("extractNpmJavaScriptCapabilities NATIVE", () => {
+  it("detects native artifacts and WebAssembly loading", async () => {
+    await withPackage(
+      {
+        "build/Release/addon.node": "inert fixture",
+        "binding.gyp": "{}",
+        "index.js":
+          "WebAssembly.instantiate(new Uint8Array());\nrequire('./build/Release/addon.node');\n",
+      },
+      async (root) => {
+        const result = await extractNpmJavaScriptCapabilities(
+          { root },
+          manifestSet,
+        );
+        const native = result.capabilities.find(
+          (item) => item.kind === "NATIVE",
+        );
+        expect(native?.evidence.map((item) => [item.file, item.line])).toEqual([
+          ["binding.gyp", 1],
+          ["build/Release/addon.node", 1],
+          ["index.js", 1],
+          ["index.js", 2],
+        ]);
+      },
+    );
+  });
+});
+
+describe("install-script location attribution", () => {
+  it("attributes a literal node entrypoint to its invoking hook", async () => {
+    const installSet: CapabilitySet = {
+      ...manifestSet,
+      capabilities: [
+        {
+          kind: "INSTALL_HOOK",
+          location: {
+            kind: "install-script",
+            hook: "postinstall",
+            applicability: "registry-install",
+          },
+          contentDigest: { algorithm: "sha256", value: "0".repeat(64) },
+          evidence: [{ file: "package.json", line: 1, snippet: "postinstall" }],
+        },
+      ],
+    };
+    await withPackage(
+      {
+        "package.json": JSON.stringify({
+          name: "fixture",
+          version: "2.0.0",
+          scripts: { postinstall: "node ./scripts/install.js" },
+        }),
+        "scripts/install.js": "fetch('https://example.test');\n",
+      },
+      async (root) => {
+        const result = await extractNpmJavaScriptCapabilities(
+          { root },
+          installSet,
+        );
+        expect(result.capabilities).toEqual([
+          {
+            kind: "NET",
+            location: {
+              kind: "install-script",
+              hook: "postinstall",
+              applicability: "registry-install",
+            },
+            evidence: [
+              {
+                file: "scripts/install.js",
+                line: 1,
+                snippet: "fetch('https://example.test');",
+              },
+            ],
+          },
+        ]);
+      },
+    );
+  });
+});

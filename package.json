@@ -27,14 +27,15 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "package:action": "node scripts/package-action.mjs",
-    "check:action": "npm run package:action && git diff --exit-code -- dist/action/index.js",
+    "check:action": "npm run package:action && git diff --exit-code -- dist/action",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
     "test": "npm run build && vitest run",
     "prepack": "npm run build",
-    "check:deps": "node scripts/check-dep-budget.mjs"
+    "check:deps": "node scripts/check-dep-budget.mjs",
+    "fp-check": "tsx scripts/fp-check.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -43,6 +44,7 @@
     "eslint": "^10.7.0",
     "eslint-config-prettier": "^10.1.8",
     "prettier": "^3.9.5",
+    "tsx": "^4.23.1",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.64.0",
     "vitest": "^4.1.10"
@@ -51,6 +53,8 @@
     "@actions/artifact": "^6.2.1",
     "@actions/core": "^3.0.1",
     "@actions/github": "^9.1.1",
+    "acorn": "^8.18.0",
+    "acorn-walk": "^8.3.5",
     "jsonc-parser": "^3.3.1",
     "tar": "^7.5.22"
   }

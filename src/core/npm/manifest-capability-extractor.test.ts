@@ -185,6 +185,24 @@ describe("extractNpmManifestCapabilities", () => {
     ).toBe(true);
   });
 
+  it("preserves an npm alias target for report cross-linking", async () => {
+    const manifest = JSON.stringify({
+      name: SUBJECT.name,
+      version: SUBJECT.version,
+      dependencies: { wrapper: "npm:@scope/real-package@^1.0.0" },
+    });
+    const result = await withManifest(manifest, (root) =>
+      extractNpmManifestCapabilities({ root }, SUBJECT),
+    );
+    expect(result.status).toBe("analyzed");
+    if (result.status !== "analyzed") throw new Error("expected analysis");
+    expect(result.set.capabilities[0]).toMatchObject({
+      kind: "DEPENDENCY",
+      name: "wrapper",
+      targetName: "@scope/real-package",
+    });
+  });
+
   it.each([
     ["comments", '{"name":"@scope/fixture",/* no */"version":"2.0.0"}'],
     ["trailing commas", '{"name":"@scope/fixture","version":"2.0.0",}'],

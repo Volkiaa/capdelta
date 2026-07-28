@@ -120,7 +120,7 @@ describe("manifest Reporter", () => {
     );
   });
 
-  it("throws for inconsistent findings and unsupported future capabilities", () => {
+  it("throws for inconsistent findings and renders AST capabilities", () => {
     const inconsistent: CapabilityDiffResult = {
       ...emptyResult(),
       findings: [
@@ -167,7 +167,9 @@ describe("manifest Reporter", () => {
         },
       ],
     };
-    expect(() => renderTextReport(future)).toThrow(ReporterContractError);
+    expect(renderTextReport(future)).toContain(
+      '[HIGH] "NET" capability added in "runtime" code',
+    );
   });
 
   it("renders every loud run-level failure channel with escaped values", () => {
@@ -234,6 +236,66 @@ describe("manifest Reporter", () => {
         },
       ],
     });
+  });
+
+  it("cross-links new dependencies to every matching analyzed report", () => {
+    const parent = emptyResult();
+    parent.findings = [
+      {
+        severity: "LOW",
+        change: "added",
+        capability: {
+          kind: "DEPENDENCY",
+          location: { kind: "manifest" },
+          name: "alias",
+          targetName: "target",
+          requirement: "npm:target@2.0.0",
+          evidence: [
+            {
+              file: "package.json",
+              line: 3,
+              snippet: '"alias":"npm:target@2.0.0"',
+            },
+          ],
+        },
+        previous: null,
+      },
+    ];
+    const target: CapabilityDiffResult = {
+      ...emptyResult(),
+      baseline: null,
+      subject: { ecosystem: "npm", name: "target", version: "2.0.0" },
+      newPackage: true,
+    };
+    const run: ManifestAnalysisRun = {
+      firstRun: false,
+      summary: { changed: 2, analyzed: 2, unavailable: 0, skipped: 0 },
+      packages: [
+        {
+          status: "analyzed",
+          changedPackage: changedPackage(),
+          diff: parent,
+          issues: [],
+        },
+        {
+          status: "analyzed",
+          changedPackage: changedPackage("target", null),
+          diff: target,
+          issues: [],
+        },
+      ],
+      lockfileFindings: [],
+      skipped: [],
+    };
+    const report = JSON.parse(renderJsonRunReport(run)) as {
+      packages: [
+        { report: { findings: [{ relatedReportIds: string[] }] } },
+        { report: { reportId: string } },
+      ];
+    };
+    expect(report.packages[0].report.findings[0].relatedReportIds).toEqual([
+      report.packages[1].report.reportId,
+    ]);
   });
 
   it("keeps first-run text aggregate-only while JSON retains package details", () => {

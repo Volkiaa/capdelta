@@ -11,6 +11,7 @@ import type { CapabilityDiffResult } from "./capability-differ.js";
 import type { FetchPackageResult, VerifiedTarball } from "./npm/fetcher.js";
 import type { ExtractionResult } from "./npm/safe-extractor.js";
 import type { ManifestCapabilityResult } from "./npm/manifest-capability-extractor.js";
+import type { JavaScriptCapabilityLayerResult } from "./npm/javascript-capability-extractor.js";
 import {
   ManifestAnalysisPipelineConfigurationError,
   ManifestAnalysisPipelineContractError,
@@ -78,6 +79,7 @@ interface AdapterOverrides {
   extractManifest?: (
     expected: PackageSubject,
   ) => Promise<ManifestCapabilityResult>;
+  extractJavaScript?: () => Promise<JavaScriptCapabilityLayerResult>;
   diff?: (
     oldSet: CapabilitySet | null,
     newSet: CapabilitySet,
@@ -108,6 +110,9 @@ function pipeline(overrides: AdapterOverrides = {}) {
     extractManifest: (_extracted, expected) =>
       overrides.extractManifest?.(expected) ??
       Promise.resolve({ status: "analyzed", set: capabilitySet(expected) }),
+    extractJavaScript: () =>
+      overrides.extractJavaScript?.() ??
+      Promise.resolve({ capabilities: [], diagnostics: [] }),
     diff: overrides.diff ?? capabilityDiff,
   });
 }
@@ -224,6 +229,8 @@ describe("analyzeManifestPackages", () => {
             evidence: null,
           },
         }),
+      extractJavaScript: () =>
+        Promise.resolve({ capabilities: [], diagnostics: [] }),
       diff: capabilityDiff,
     });
     const unavailable = await manifestFailure(

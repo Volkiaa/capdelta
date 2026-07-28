@@ -34,6 +34,8 @@ const context: ActionContext = {
   repo: "repo",
   pullRequestNumber: 4,
   baseSha: SHA,
+  headSha: "b".repeat(40),
+  headRef: "feature",
   baseRepository: "owner/repo",
   headRepository: "owner/repo",
   actor: "contributor",
@@ -57,6 +59,7 @@ function adapters(run = emptyRun()): ActionAdapters {
     readHeadLockfile: vi.fn().mockResolvedValue(EMPTY_LOCKFILE),
     analyze: vi.fn().mockResolvedValue(run),
     uploadJson: vi.fn().mockResolvedValue({ id: 91, name: "capdelta-report" }),
+    uploadSarif: vi.fn().mockResolvedValue(undefined),
     comments: {
       listComments: vi.fn().mockResolvedValue([]),
       createComment: vi.fn().mockResolvedValue({ id: 7 }),
@@ -88,6 +91,7 @@ describe("runAction", () => {
       artifact: { id: 91 },
       comment: { status: "created", commentId: 7 },
       gate: { fail: false, threshold: "CRITICAL" },
+      sarifUploaded: true,
     });
     expect(runtime.analyze).toHaveBeenCalledWith(
       { lockfileVersion: 3, packages: {} },
@@ -96,6 +100,10 @@ describe("runAction", () => {
     expect(runtime.uploadJson).toHaveBeenCalledWith(
       "capdelta-report",
       expect.stringContaining('"schemaVersion": 1'),
+    );
+    expect(runtime.uploadSarif).toHaveBeenCalledWith(
+      expect.stringContaining('"version": "2.1.0"'),
+      { commitSha: "b".repeat(40), ref: "refs/pull/4/head" },
     );
   });
 
@@ -124,6 +132,10 @@ describe("runAction", () => {
       ).resolves.toMatchObject({ comment: { status: "summary-only", reason } });
       expect(runtime.addJobSummary).toHaveBeenCalledOnce();
       expect(runtime.comments.listComments).not.toHaveBeenCalled();
+      expect(runtime.uploadSarif).not.toHaveBeenCalled();
+      expect(runtime.warn).toHaveBeenCalledWith(
+        expect.stringContaining("cannot upload SARIF"),
+      );
     },
   );
 

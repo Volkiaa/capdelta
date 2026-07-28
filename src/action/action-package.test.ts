@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
-import { readFile, readdir } from "node:fs/promises";
+import { access, readFile, readdir } from "node:fs/promises";
 import { resolve } from "node:path";
+import { Worker } from "node:worker_threads";
 import { describe, expect, it } from "vitest";
 
 const ROOT = resolve(import.meta.dirname, "..", "..");
@@ -11,7 +12,7 @@ describe("Action package", () => {
     expect(metadata).toContain("using: node20");
     expect(metadata).toContain("main: dist/action/index.js");
     expect(metadata).not.toMatch(/^permissions:/mu);
-    expect(metadata).not.toContain("security-events");
+    expect(metadata).not.toContain("permissions:");
   });
 
   it("contains no pull_request_target workflow trigger", async () => {
@@ -32,12 +33,15 @@ describe("Action package", () => {
     );
     expect(workflow).toContain("contents: read");
     expect(workflow).toContain("pull-requests: write");
-    expect(workflow).not.toContain("security-events:");
+    expect(workflow).toContain("security-events: write");
     expect(workflow).toContain("persist-credentials: false");
     expect(workflow).toContain(
       "Volkiaa/capdelta@89f87e0007b128496c5818005c884c1ac2f3ea74",
     );
     expect(workflow).not.toContain("uses: ./");
+    await expect(
+      access(resolve(ROOT, "dist", "action", "javascript-parser-worker.js")),
+    ).resolves.toBeUndefined();
   });
 
   it("executes the committed bundle and converts missing input into failure status", async () => {
@@ -47,6 +51,44 @@ describe("Action package", () => {
       "::error::capdelta: Error: Input required and not supplied: github-token",
     );
     expect(result.stderr).toBe("");
+  });
+
+  it("executes the separately packaged parser worker", async () => {
+    const worker = new Worker(
+      resolve(ROOT, "dist", "action", "javascript-parser-worker.js"),
+    );
+    const responses = await new Promise<unknown[]>(
+      (resolveResponse, reject) => {
+        const received: unknown[] = [];
+        worker.on("message", (response) => {
+          received.push(response);
+          if (received.length === 1) {
+            worker.postMessage({
+              source: "process.env.TEST;",
+              file: "second.js",
+              sourceType: "script",
+            });
+          } else {
+            resolveResponse(received);
+          }
+        });
+        worker.once("error", reject);
+        worker.postMessage({
+          source: "fetch('https://example.test');",
+          file: "fixture.js",
+          sourceType: "script",
+        });
+      },
+    );
+    await worker.terminate();
+    expect(responses[0]).toMatchObject({
+      ok: true,
+      detections: [{ kind: "NET", line: 1 }],
+    });
+    expect(responses[1]).toMatchObject({
+      ok: true,
+      detections: [{ kind: "ENV", line: 1 }],
+    });
   });
 });
 

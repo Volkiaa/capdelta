@@ -218,20 +218,52 @@ describe("diffManifestCapabilities", () => {
       "duplicate semantic slots",
       set("2.0.0", [dependency("same", "1"), dependency("same", "2")]),
     ],
-    [
-      "future code capability",
-      set("2.0.0", [
-        {
-          kind: "NET",
-          location: { kind: "runtime" },
-          evidence: EVIDENCE,
-        },
-      ]),
-    ],
     ["invalid completeness invariant", partialSetWithoutDiagnostics()],
   ])("throws for %s", (_label, malformed) => {
     expect(() => diffManifestCapabilities(null, malformed)).toThrow(
       CapabilityDifferContractError,
     );
+  });
+
+  it("applies install-context and exfiltration shapes before fallbacks", () => {
+    const result = diffManifestCapabilities(
+      null,
+      set("2.0.0", [
+        {
+          kind: "NET",
+          location: {
+            kind: "install-script",
+            hook: "postinstall",
+            applicability: "registry-install",
+          },
+          evidence: EVIDENCE,
+        },
+        {
+          kind: "ENV",
+          location: { kind: "runtime" },
+          evidence: EVIDENCE,
+        },
+        {
+          kind: "FS_READ",
+          location: { kind: "runtime" },
+          evidence: EVIDENCE,
+        },
+      ]),
+    );
+
+    expect(result.shapes?.map((shape) => shape.ruleId)).toEqual([
+      "install-code-execution",
+      "secret-exfiltration",
+    ]);
+    expect(
+      result.findings.map((finding) => [
+        finding.capability.kind,
+        finding.severity,
+      ]),
+    ).toEqual([
+      ["ENV", "CRITICAL"],
+      ["NET", "CRITICAL"],
+      ["FS_READ", "LOW"],
+    ]);
   });
 });
