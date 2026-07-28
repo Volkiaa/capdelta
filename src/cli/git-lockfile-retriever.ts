@@ -185,6 +185,7 @@ async function runGit(
     let outputBytes = 0;
     let settled = false;
     let pendingFailure: CliOperationalError | null = null;
+    let terminationPhase: "none" | "soft" | "hard" = "none";
     let terminationTimer: ReturnType<typeof setTimeout> | undefined;
 
     const rejectOnce = (error: CliOperationalError): void => {
@@ -196,6 +197,7 @@ async function runGit(
     };
 
     const abandonChild = (failure: CliOperationalError): void => {
+      if (settled) return;
       child.stdout.destroy();
       child.stderr.destroy();
       child.unref();
@@ -203,6 +205,9 @@ async function runGit(
     };
 
     const hardTerminate = (failure: CliOperationalError): void => {
+      if (settled || terminationPhase === "hard") return;
+      terminationPhase = "hard";
+      if (terminationTimer !== undefined) clearTimeout(terminationTimer);
       let signalSent: boolean;
       try {
         signalSent = child.kill("SIGKILL");
@@ -235,6 +240,7 @@ async function runGit(
     const terminate = (failure: CliOperationalError): void => {
       if (settled || pendingFailure !== null) return;
       pendingFailure = failure;
+      terminationPhase = "soft";
       clearTimeout(commandTimer);
       let signalSent: boolean;
       try {
@@ -286,9 +292,21 @@ async function runGit(
       capture(stderr, chunk);
     });
     child.once("error", (error) => {
-      rejectOnce(
-        pendingFailure ??
+      if (pendingFailure === null) {
+        rejectOnce(
           new CliOperationalError("cannot start Git", { cause: error }),
+        );
+        return;
+      }
+      if (terminationPhase === "soft") {
+        hardTerminate(pendingFailure);
+        return;
+      }
+      abandonChild(
+        new CliOperationalError(
+          `${pendingFailure.message}; Git errored during hard kill`,
+          { cause: error },
+        ),
       );
     });
     child.once("close", (code) => {

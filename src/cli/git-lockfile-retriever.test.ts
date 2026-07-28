@@ -51,22 +51,26 @@ type GitChildProcess = ChildProcessByStdio<null, Readable, Readable>;
 function fakeGitProcess(
   closeOn: "soft" | "hard" | "never" = "soft",
   softSignalAccepted = true,
+  errorOnSoft = false,
 ): {
   spawnImpl: typeof spawn;
   kill: ReturnType<typeof vi.fn>;
   stdout: PassThrough;
+  unref: ReturnType<typeof vi.fn>;
 } {
   const stdout = new PassThrough();
+  const unref = vi.fn();
   const child = Object.assign(new EventEmitter(), {
     stdin: null,
     stdout,
     stderr: new PassThrough(),
-    unref: vi.fn(),
+    unref,
   }) as unknown as GitChildProcess;
   const kill = vi.fn((signal?: NodeJS.Signals | number) => {
     const hard = signal === "SIGKILL";
-    if ((!hard && !softSignalAccepted) || (hard && closeOn === "never")) {
-      return false;
+    if (!hard && !softSignalAccepted) return false;
+    if (!hard && errorOnSoft) {
+      queueMicrotask(() => child.emit("error", new Error("kill failed")));
     }
     if ((hard && closeOn === "hard") || (!hard && closeOn === "soft")) {
       queueMicrotask(() => child.emit("close", null));
@@ -77,7 +81,7 @@ function fakeGitProcess(
   const spawnImpl = vi.fn(() => {
     return child;
   }) as unknown as typeof spawn;
-  return { spawnImpl, kill, stdout };
+  return { spawnImpl, kill, stdout, unref };
 }
 
 afterEach(async () => {
@@ -166,5 +170,24 @@ describe("Git lockfile retriever", () => {
     );
     expect(kill).toHaveBeenNthCalledWith(1);
     expect(kill).toHaveBeenNthCalledWith(2, "SIGKILL");
+  });
+
+  it("keeps escalation active when soft termination emits error without close", async () => {
+    const { spawnImpl, kill, stdout, unref } = fakeGitProcess(
+      "never",
+      true,
+      true,
+    );
+    const inspection = inspectGitLockfileChange("HEAD", process.cwd(), {
+      spawnImpl,
+      terminationGraceMs: 5,
+    });
+    stdout.write(Buffer.alloc(1024 * 1024 + 1));
+    await expect(inspection).rejects.toThrow(
+      "Git did not exit within 5 ms after hard kill",
+    );
+    expect(kill).toHaveBeenNthCalledWith(1);
+    expect(kill).toHaveBeenNthCalledWith(2, "SIGKILL");
+    expect(unref).toHaveBeenCalledOnce();
   });
 });
