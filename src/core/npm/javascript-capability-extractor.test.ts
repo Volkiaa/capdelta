@@ -188,3 +188,63 @@ describe("extractNpmJavaScriptCapabilities NET", () => {
     );
   });
 });
+
+describe("extractNpmJavaScriptCapabilities FS_READ", () => {
+  it("detects direct, destructured, and one-hop aliased fs reads", async () => {
+    await withPackage(
+      {
+        "index.cjs": [
+          "const fs = require('node:fs');",
+          "fs.readFileSync('input.txt');",
+          "const { readdir } = require('fs');",
+          "readdir('.');",
+          "const read = fs.readFile;",
+          "read('input.txt', () => {});",
+        ].join("\n"),
+      },
+      async (root) => {
+        const result = await extractNpmJavaScriptCapabilities(
+          { root },
+          manifestSet,
+        );
+        expect(result.capabilities).toEqual([
+          {
+            kind: "FS_READ",
+            location: { kind: "runtime" },
+            evidence: [
+              {
+                file: "index.cjs",
+                line: 2,
+                snippet: "fs.readFileSync('input.txt');",
+              },
+              { file: "index.cjs", line: 4, snippet: "readdir('.');" },
+              {
+                file: "index.cjs",
+                line: 6,
+                snippet: "read('input.txt', () => {});",
+              },
+            ],
+          },
+        ]);
+      },
+    );
+  });
+
+  it("reports a second alias hop as UNKNOWN instead of FS_READ", async () => {
+    await withPackage(
+      {
+        "index.cjs":
+          "const fs = require('fs');\nconst read = fs.readFile;\nconst again = read;\nagain('x');\n",
+      },
+      async (root) => {
+        const result = await extractNpmJavaScriptCapabilities(
+          { root },
+          manifestSet,
+        );
+        expect(result.capabilities.map((item) => item.kind)).toEqual([
+          "UNKNOWN",
+        ]);
+      },
+    );
+  });
+});

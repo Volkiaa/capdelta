@@ -54,6 +54,21 @@ function analyze(request: ParserRequest): ParserResponse {
         }
       }
     });
+    fullAncestor(ast, (node, _state, ancestors) => {
+      if (node.type !== "CallExpression") return;
+      const callee = asRecord(node)?.callee;
+      const binding = resolver.resolveExpression(callee, ancestors);
+      if (
+        isResolved(binding) &&
+        binding.module === "fs" &&
+        binding.member !== null &&
+        FS_READ_MEMBERS.has(binding.member)
+      ) {
+        detections.push(evidence("FS_READ", node, request.source));
+      } else if (isUnknownBinding(binding)) {
+        detections.push(evidence("UNKNOWN", node, request.source));
+      }
+    });
     return { ok: true, detections };
   } catch (error: unknown) {
     const located = error as { loc?: { line?: unknown }; pos?: unknown };
@@ -71,6 +86,25 @@ function analyze(request: ParserRequest): ParserResponse {
 }
 
 const NETWORK_MODULES = new Set(["http", "https", "net", "tls", "dgram"]);
+const FS_READ_MEMBERS = new Set([
+  "access",
+  "accessSync",
+  "createReadStream",
+  "existsSync",
+  "lstat",
+  "lstatSync",
+  "read",
+  "readFile",
+  "readFileSync",
+  "readdir",
+  "readdirSync",
+  "readlink",
+  "readlinkSync",
+  "realpath",
+  "realpathSync",
+  "stat",
+  "statSync",
+]);
 
 interface ResolvedBinding {
   module: string;
@@ -304,6 +338,16 @@ function isKnownBinding(binding: Binding | undefined): boolean {
     (binding !== null &&
       binding !== undefined &&
       "unknownFromKnownApi" in binding)
+  );
+}
+
+function isUnknownBinding(
+  binding: Binding | undefined,
+): binding is UnknownBinding {
+  return (
+    binding !== null &&
+    binding !== undefined &&
+    "unknownFromKnownApi" in binding
   );
 }
 
