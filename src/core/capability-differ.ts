@@ -371,6 +371,8 @@ function classifyGains(
   gains: readonly CapabilityGain[],
   shapes: readonly ShapeFinding[],
 ): CapabilityFinding[] {
+  // Shape evaluation retains each gain's capability object, so identity maps a
+  // participant back to its unique validated semantic slot without re-keying it.
   const shapeSeverity = new Map<Capability, FindingSeverity>();
   for (const shape of shapes) {
     for (const capability of shape.capabilities) {
