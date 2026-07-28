@@ -13,145 +13,10 @@ function analyze(request: ParserRequest): ParserResponse {
   try {
     const ast = parseSource(request);
     const resolver = new BindingResolver(ast);
-    const detections: ParserDetection[] = [];
-    fullAncestor(ast, (node) => {
-      if (!isDynamicModuleLoad(node)) return;
-      detections.push(evidence("UNKNOWN", node, request.source));
-    });
-    fullAncestor(ast, (node) => {
-      const moduleName = literalModuleLoad(node);
-      if (moduleName !== null && moduleName === "child_process") {
-        detections.push(evidence("PROCESS", node, request.source));
-      }
-    });
-    fullAncestor(ast, (node, _state, ancestors) => {
-      const moduleName = literalModuleLoad(node);
-      if (moduleName !== null && NETWORK_MODULES.has(moduleName)) {
-        detections.push(evidence("NET", node, request.source));
-        return;
-      }
-      const record = asRecord(node);
-      if (node.type === "CallExpression") {
-        const callee = asRecord(record?.callee);
-        if (
-          callee?.type === "Identifier" &&
-          callee.name === "fetch" &&
-          resolver.lookup("fetch", ancestors) === undefined &&
-          !ancestorDeclares("fetch", ancestors)
-        ) {
-          detections.push(evidence("NET", node, request.source));
-        }
-      }
-      if (node.type === "NewExpression") {
-        const callee = asRecord(record?.callee);
-        if (
-          callee?.type === "Identifier" &&
-          callee.name === "WebSocket" &&
-          resolver.lookup("WebSocket", ancestors) === undefined &&
-          !ancestorDeclares("WebSocket", ancestors)
-        ) {
-          detections.push(evidence("NET", node, request.source));
-        }
-      }
-    });
-    fullAncestor(ast, (node, _state, ancestors) => {
-      const moduleName = literalModuleLoad(node);
-      if (moduleName?.endsWith(".node") === true) {
-        detections.push(evidence("NATIVE", node, request.source));
-        return;
-      }
-      if (node.type !== "CallExpression" && node.type !== "NewExpression")
-        return;
-      const callee = asRecord(asRecord(node)?.callee);
-      if (callee?.type !== "MemberExpression") return;
-      const object = asRecord(callee.object);
-      const member = memberName(callee);
-      if (
-        object?.type === "Identifier" &&
-        object.name === "WebAssembly" &&
-        resolver.lookup("WebAssembly", ancestors) === undefined
-      ) {
-        detections.push(evidence("NATIVE", node, request.source));
-      } else if (
-        object?.type === "Identifier" &&
-        object.name === "process" &&
-        member === "dlopen" &&
-        resolver.lookup("process", ancestors) === undefined
-      ) {
-        detections.push(evidence("NATIVE", node, request.source));
-      }
-    });
-    fullAncestor(ast, (node, _state, ancestors) => {
-      if (literalModuleLoad(node) === "vm") {
-        detections.push(evidence("DYNAMIC_CODE", node, request.source));
-        return;
-      }
-      const record = asRecord(node);
-      if (node.type === "CallExpression") {
-        const callee = asRecord(record?.callee);
-        if (
-          callee?.type === "Identifier" &&
-          callee.name === "eval" &&
-          resolver.lookup("eval", ancestors) === undefined &&
-          !ancestorDeclares("eval", ancestors)
-        ) {
-          detections.push(evidence("DYNAMIC_CODE", node, request.source));
-        }
-      }
-      if (node.type === "NewExpression") {
-        const callee = asRecord(record?.callee);
-        if (
-          callee?.type === "Identifier" &&
-          callee.name === "Function" &&
-          resolver.lookup("Function", ancestors) === undefined &&
-          !ancestorDeclares("Function", ancestors)
-        ) {
-          detections.push(evidence("DYNAMIC_CODE", node, request.source));
-        }
-      }
-    });
-    fullAncestor(ast, (node, _state, ancestors) => {
-      if (node.type !== "MemberExpression") return;
-      const record = asRecord(node);
-      const object = asRecord(record?.object);
-      const property = memberName(record);
-      if (
-        object?.type === "Identifier" &&
-        object.name === "process" &&
-        property === "env" &&
-        resolver.lookup("process", ancestors) === undefined &&
-        !ancestorDeclares("process", ancestors)
-      ) {
-        detections.push(evidence("ENV", node, request.source));
-      }
-    });
-    fullAncestor(ast, (node, _state, ancestors) => {
-      if (node.type !== "CallExpression") return;
-      const callee = asRecord(node)?.callee;
-      const binding = resolver.resolveExpression(callee, ancestors);
-      if (
-        isResolved(binding) &&
-        binding.module === "fs" &&
-        binding.member !== null &&
-        FS_READ_MEMBERS.has(binding.member)
-      ) {
-        detections.push(evidence("FS_READ", node, request.source));
-        if (hasSensitivePath(node))
-          detections.push(evidence("FS_SENSITIVE", node, request.source));
-      } else if (
-        isResolved(binding) &&
-        binding.module === "fs" &&
-        binding.member !== null &&
-        FS_WRITE_MEMBERS.has(binding.member)
-      ) {
-        detections.push(evidence("FS_WRITE", node, request.source));
-        if (hasSensitivePath(node))
-          detections.push(evidence("FS_SENSITIVE", node, request.source));
-      } else if (isUnknownBinding(binding)) {
-        detections.push(evidence("UNKNOWN", node, request.source));
-      }
-    });
-    return { ok: true, detections };
+    return {
+      ok: true,
+      detections: detectCapabilities(resolver, request.source),
+    };
   } catch (error: unknown) {
     const located = error as { loc?: { line?: unknown }; pos?: unknown };
     const line =
@@ -164,6 +29,227 @@ function analyze(request: ParserRequest): ParserResponse {
       line,
       snippet: sourceLine(request.source, line),
     };
+  }
+}
+
+interface NodeVisit {
+  node: Node;
+  scope: Scope | null;
+}
+
+interface DetectionBuckets {
+  dynamicModule: ParserDetection[];
+  process: ParserDetection[];
+  network: ParserDetection[];
+  native: ParserDetection[];
+  dynamicCode: ParserDetection[];
+  environment: ParserDetection[];
+  filesystem: ParserDetection[];
+}
+
+function detectCapabilities(
+  resolver: BindingResolver,
+  source: string,
+): ParserDetection[] {
+  const buckets: DetectionBuckets = {
+    dynamicModule: [],
+    process: [],
+    network: [],
+    native: [],
+    dynamicCode: [],
+    environment: [],
+    filesystem: [],
+  };
+  for (const visit of resolver.visits) {
+    detectDynamicModule(visit.node, source, buckets.dynamicModule);
+    detectProcess(visit.node, source, buckets.process);
+    detectNetwork(visit, resolver, source, buckets.network);
+    detectNative(visit, resolver, source, buckets.native);
+    detectDynamicCode(visit, resolver, source, buckets.dynamicCode);
+    detectEnvironment(visit, resolver, source, buckets.environment);
+    detectFilesystem(visit, resolver, source, buckets.filesystem);
+  }
+  return [
+    ...buckets.dynamicModule,
+    ...buckets.process,
+    ...buckets.network,
+    ...buckets.native,
+    ...buckets.dynamicCode,
+    ...buckets.environment,
+    ...buckets.filesystem,
+  ];
+}
+
+function detectDynamicModule(
+  node: Node,
+  source: string,
+  output: ParserDetection[],
+): void {
+  if (isDynamicModuleLoad(node)) output.push(evidence("UNKNOWN", node, source));
+}
+
+function detectProcess(
+  node: Node,
+  source: string,
+  output: ParserDetection[],
+): void {
+  if (literalModuleLoad(node) === "child_process") {
+    output.push(evidence("PROCESS", node, source));
+  }
+}
+
+function detectNetwork(
+  visit: NodeVisit,
+  resolver: BindingResolver,
+  source: string,
+  output: ParserDetection[],
+): void {
+  const { node, scope } = visit;
+  const moduleName = literalModuleLoad(node);
+  if (moduleName !== null && NETWORK_MODULES.has(moduleName)) {
+    output.push(evidence("NET", node, source));
+    return;
+  }
+  const record = asRecord(node);
+  if (node.type === "CallExpression") {
+    const callee = asRecord(record?.callee);
+    if (
+      callee?.type === "Identifier" &&
+      callee.name === "fetch" &&
+      resolver.lookup("fetch", scope) === undefined
+    ) {
+      output.push(evidence("NET", node, source));
+    }
+  }
+  if (node.type === "NewExpression") {
+    const callee = asRecord(record?.callee);
+    if (
+      callee?.type === "Identifier" &&
+      callee.name === "WebSocket" &&
+      resolver.lookup("WebSocket", scope) === undefined
+    ) {
+      output.push(evidence("NET", node, source));
+    }
+  }
+}
+
+function detectNative(
+  visit: NodeVisit,
+  resolver: BindingResolver,
+  source: string,
+  output: ParserDetection[],
+): void {
+  const { node, scope } = visit;
+  const moduleName = literalModuleLoad(node);
+  if (moduleName?.endsWith(".node") === true) {
+    output.push(evidence("NATIVE", node, source));
+    return;
+  }
+  if (node.type !== "CallExpression" && node.type !== "NewExpression") return;
+  const callee = asRecord(asRecord(node)?.callee);
+  if (callee?.type !== "MemberExpression") return;
+  const object = asRecord(callee.object);
+  const member = memberName(callee);
+  if (
+    object?.type === "Identifier" &&
+    object.name === "WebAssembly" &&
+    resolver.lookup("WebAssembly", scope) === undefined
+  ) {
+    output.push(evidence("NATIVE", node, source));
+  } else if (
+    object?.type === "Identifier" &&
+    object.name === "process" &&
+    member === "dlopen" &&
+    resolver.lookup("process", scope) === undefined
+  ) {
+    output.push(evidence("NATIVE", node, source));
+  }
+}
+
+function detectDynamicCode(
+  visit: NodeVisit,
+  resolver: BindingResolver,
+  source: string,
+  output: ParserDetection[],
+): void {
+  const { node, scope } = visit;
+  if (literalModuleLoad(node) === "vm") {
+    output.push(evidence("DYNAMIC_CODE", node, source));
+    return;
+  }
+  const record = asRecord(node);
+  if (node.type === "CallExpression") {
+    const callee = asRecord(record?.callee);
+    if (
+      callee?.type === "Identifier" &&
+      callee.name === "eval" &&
+      resolver.lookup("eval", scope) === undefined
+    ) {
+      output.push(evidence("DYNAMIC_CODE", node, source));
+    }
+  }
+  if (node.type === "NewExpression") {
+    const callee = asRecord(record?.callee);
+    if (
+      callee?.type === "Identifier" &&
+      callee.name === "Function" &&
+      resolver.lookup("Function", scope) === undefined
+    ) {
+      output.push(evidence("DYNAMIC_CODE", node, source));
+    }
+  }
+}
+
+function detectEnvironment(
+  visit: NodeVisit,
+  resolver: BindingResolver,
+  source: string,
+  output: ParserDetection[],
+): void {
+  const { node, scope } = visit;
+  if (node.type !== "MemberExpression") return;
+  const record = asRecord(node);
+  const object = asRecord(record?.object);
+  const property = memberName(record);
+  if (
+    object?.type === "Identifier" &&
+    object.name === "process" &&
+    property === "env" &&
+    resolver.lookup("process", scope) === undefined
+  ) {
+    output.push(evidence("ENV", node, source));
+  }
+}
+
+function detectFilesystem(
+  visit: NodeVisit,
+  resolver: BindingResolver,
+  source: string,
+  output: ParserDetection[],
+): void {
+  const { node, scope } = visit;
+  if (node.type !== "CallExpression") return;
+  const binding = resolver.resolveExpression(asRecord(node)?.callee, scope);
+  if (
+    isResolved(binding) &&
+    binding.module === "fs" &&
+    binding.member !== null &&
+    FS_READ_MEMBERS.has(binding.member)
+  ) {
+    output.push(evidence("FS_READ", node, source));
+    if (hasSensitivePath(node))
+      output.push(evidence("FS_SENSITIVE", node, source));
+  } else if (
+    isResolved(binding) &&
+    binding.module === "fs" &&
+    binding.member !== null &&
+    FS_WRITE_MEMBERS.has(binding.member)
+  ) {
+    output.push(evidence("FS_WRITE", node, source));
+    if (hasSensitivePath(node))
+      output.push(evidence("FS_SENSITIVE", node, source));
+  } else if (isUnknownBinding(binding)) {
+    output.push(evidence("UNKNOWN", node, source));
   }
 }
 
@@ -234,46 +320,49 @@ interface Scope {
   bindings: Map<string, Binding>;
 }
 
+interface AliasTask {
+  node: Node;
+  scope: Scope | null;
+}
+
 class BindingResolver {
   readonly scopes = new Map<Node, Scope>();
+  readonly visits: NodeVisit[] = [];
 
   constructor(ast: Node) {
+    const aliases: AliasTask[] = [];
+    // This is the worker's only tree walk. Scope pointers keep the retained
+    // visit index linear in AST size; aliases resolve after all direct bindings.
     fullAncestor(ast, (node, _state, ancestors) => {
-      if (!isScopeNode(node)) return;
-      const parent = this.nearestScope(ancestors.slice(0, -1));
-      this.scopes.set(node, { node, parent, bindings: new Map() });
+      const scope = this.ensureScopes(ancestors);
+      this.collectDeclaration(node, ancestors, scope);
+      this.visits.push({ node, scope });
+      if (isAliasCandidate(node, ancestors)) aliases.push({ node, scope });
     });
-    fullAncestor(ast, (node, _state, ancestors) => {
-      this.collectDeclaration(node, ancestors);
-    });
-    fullAncestor(ast, (node, _state, ancestors) => {
-      this.collectAlias(node, ancestors);
-    });
+
+    for (const alias of aliases) this.collectAlias(alias.node, alias.scope);
   }
 
-  lookup(name: string, ancestors: readonly Node[]): Binding | undefined {
-    let scope = this.nearestScope(ancestors);
-    while (scope !== null) {
-      if (scope.bindings.has(name)) return scope.bindings.get(name);
-      scope = scope.parent;
+  lookup(name: string, initialScope: Scope | null): Binding | undefined {
+    let current = initialScope;
+    while (current !== null) {
+      if (current.bindings.has(name)) return current.bindings.get(name);
+      current = current.parent;
     }
     return undefined;
   }
 
-  resolveExpression(
-    value: unknown,
-    ancestors: readonly Node[],
-  ): Binding | undefined {
+  resolveExpression(value: unknown, scope: Scope | null): Binding | undefined {
     const node = asRecord(value);
     if (node?.type === "Identifier" && typeof node.name === "string") {
-      return this.lookup(node.name, ancestors);
+      return this.lookup(node.name, scope);
     }
     const direct = directModuleExpression(value);
     if (direct !== null) return direct;
     if (node?.type !== "MemberExpression" || node.computed === true) {
       return undefined;
     }
-    const object = this.resolveExpression(node.object, ancestors);
+    const object = this.resolveExpression(node.object, scope);
     const property = identifierName(node.property);
     if (isResolved(object) && object.member === null && property !== null) {
       return { module: object.module, member: property, depth: object.depth };
@@ -281,11 +370,14 @@ class BindingResolver {
     return isKnownBinding(object) ? { unknownFromKnownApi: true } : undefined;
   }
 
-  private collectDeclaration(node: Node, ancestors: readonly Node[]): void {
+  private collectDeclaration(
+    node: Node,
+    ancestors: readonly Node[],
+    scope: Scope | null,
+  ): void {
     const record = asRecord(node);
     if (node.type === "ImportDeclaration") {
       const moduleName = normalizedModule(stringLiteral(record?.source));
-      const scope = this.nearestScope(ancestors);
       const specifiers = record?.specifiers;
       if (scope === null || moduleName === null || !Array.isArray(specifiers))
         return;
@@ -310,7 +402,6 @@ class BindingResolver {
         .reverse()
         .map(asRecord)
         .find((item) => item?.type === "VariableDeclaration");
-      const scope = this.nearestScope(ancestors);
       if (scope === null) return;
       const direct =
         declaration?.kind === "const"
@@ -320,30 +411,24 @@ class BindingResolver {
       return;
     }
     if (isFunctionNode(node)) {
-      const scope = this.scopes.get(node);
+      const functionScope = this.scopes.get(node);
       const params = record?.params;
-      if (scope !== undefined && Array.isArray(params)) {
-        for (const parameter of params) declarePattern(scope, parameter, null);
+      if (functionScope !== undefined && Array.isArray(params)) {
+        for (const parameter of params)
+          declarePattern(functionScope, parameter, null);
       }
       if (node.type === "FunctionDeclaration") {
         const name = identifierName(record?.id);
-        const parent = this.nearestScope(ancestors.slice(0, -1));
-        if (name !== null) parent?.bindings.set(name, null);
+        if (name !== null) functionScope?.parent?.bindings.set(name, null);
       }
     }
   }
 
-  private collectAlias(node: Node, ancestors: readonly Node[]): void {
+  private collectAlias(node: Node, scope: Scope | null): void {
     if (node.type !== "VariableDeclarator") return;
     const record = asRecord(node);
-    const declaration = [...ancestors]
-      .reverse()
-      .map(asRecord)
-      .find((item) => item?.type === "VariableDeclaration");
-    if (declaration?.kind !== "const") return;
-    const scope = this.nearestScope(ancestors);
     if (scope === null || directModuleExpression(record?.init) !== null) return;
-    const source = this.resolveExpression(record?.init, ancestors);
+    const source = this.resolveExpression(record?.init, scope);
     const alias = isResolved(source)
       ? source.depth === 0
         ? { ...source, depth: 1 as const }
@@ -354,15 +439,28 @@ class BindingResolver {
     declarePattern(scope, record?.id, alias);
   }
 
-  private nearestScope(ancestors: readonly Node[]): Scope | null {
-    for (let index = ancestors.length - 1; index >= 0; index -= 1) {
-      const node = ancestors[index];
-      if (node === undefined) continue;
-      const scope = this.scopes.get(node);
-      if (scope !== undefined) return scope;
+  private ensureScopes(ancestors: readonly Node[]): Scope | null {
+    let parent: Scope | null = null;
+    for (const node of ancestors) {
+      if (!isScopeNode(node)) continue;
+      let scope = this.scopes.get(node);
+      if (scope === undefined) {
+        scope = { node, parent, bindings: new Map() };
+        this.scopes.set(node, scope);
+      }
+      parent = scope;
     }
-    return null;
+    return parent;
   }
+}
+
+function isAliasCandidate(node: Node, ancestors: readonly Node[]): boolean {
+  if (node.type !== "VariableDeclarator") return false;
+  const declaration = [...ancestors]
+    .reverse()
+    .map(asRecord)
+    .find((ancestor) => ancestor?.type === "VariableDeclaration");
+  return declaration?.kind === "const";
 }
 
 function directModuleExpression(value: unknown): ResolvedBinding | null {
@@ -523,17 +621,6 @@ function isSensitivePathFragment(value: string): boolean {
       (segment === ".env" || segment.startsWith(".env.")) &&
       ![".env.example", ".env.sample", ".env.template"].includes(segment),
   );
-}
-
-function ancestorDeclares(name: string, ancestors: readonly Node[]): boolean {
-  return ancestors.some((ancestor) => {
-    if (!isFunctionNode(ancestor)) return false;
-    const params = asRecord(ancestor)?.params;
-    return (
-      Array.isArray(params) &&
-      params.some((parameter) => identifierName(parameter) === name)
-    );
-  });
 }
 
 function literalModuleLoad(node: Node): string | null {
