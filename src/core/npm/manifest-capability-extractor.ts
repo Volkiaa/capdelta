@@ -160,13 +160,17 @@ export async function extractNpmManifestCapabilities(
     "dependencies",
     source,
     diagnostics,
-    (name, requirement, evidence) => ({
-      kind: "DEPENDENCY",
-      location: { kind: "manifest" },
-      name,
-      requirement,
-      evidence: [evidence],
-    }),
+    (name, requirement, evidence) => {
+      const targetName = npmAliasTarget(requirement);
+      return {
+        kind: "DEPENDENCY",
+        location: { kind: "manifest" },
+        name,
+        requirement,
+        ...(targetName === null ? {} : { targetName }),
+        evidence: [evidence],
+      };
+    },
     capabilities,
   );
   collectStringMap(
@@ -587,6 +591,11 @@ function compareText(left: string, right: string): number {
 
 function unscopedName(packageName: string): string {
   return packageName.slice(packageName.lastIndexOf("/") + 1);
+}
+
+function npmAliasTarget(requirement: string): string | null {
+  const match = /^npm:(@[^/]+\/[^@]+|[^@]+)@/u.exec(requirement);
+  return match?.[1] ?? null;
 }
 
 function hasErrorCode(error: unknown, code: string): boolean {

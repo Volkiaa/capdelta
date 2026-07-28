@@ -71,6 +71,8 @@ export interface DependencyCapability extends CapabilityBase {
   location: { kind: "manifest" };
   name: string;
   requirement: string;
+  /** Alias-resolved package identity when it differs from the declared name. */
+  targetName?: string;
 }
 
 export interface RuntimeConstraintCapability extends CapabilityBase {
