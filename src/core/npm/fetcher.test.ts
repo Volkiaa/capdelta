@@ -12,6 +12,10 @@ function bytes(...values: number[]): Uint8Array {
   return new Uint8Array(values);
 }
 
+function wasAborted(signal: AbortSignal | null): boolean {
+  return signal?.aborted === true;
+}
+
 function integrityFor(value: Uint8Array): string {
   return `sha512-${createHash("sha512").update(value).digest("base64")}`;
 }
@@ -132,6 +136,7 @@ describe("fetchChangedPackages", () => {
 
   it("reports non-success HTTP responses and performs no retry", async () => {
     let calls = 0;
+    let requestSignal: AbortSignal | null = null;
     const results = await fetchChangedPackages(
       [
         changedPackage({
@@ -141,8 +146,9 @@ describe("fetchChangedPackages", () => {
         }),
       ],
       {
-        fetchImpl: () => {
+        fetchImpl: (_input, init) => {
           calls += 1;
+          requestSignal = init?.signal ?? null;
           return Promise.resolve(new Response("not found", { status: 404 }));
         },
       },
@@ -153,6 +159,7 @@ describe("fetchChangedPackages", () => {
       failure: { kind: "http-status" },
     });
     expect(calls).toBe(1);
+    expect(wasAborted(requestSignal)).toBe(true);
   });
 
   it("reports a timeout as a package-local failure", async () => {
@@ -181,7 +188,47 @@ describe("fetchChangedPackages", () => {
     });
   });
 
+  it("aborts in-flight work and flags packages that were not started", async () => {
+    const controller = new AbortController();
+    let calls = 0;
+    const packages = ["first", "second"].map((name) =>
+      changedPackage({
+        name,
+        oldVersion: null,
+        oldIntegrity: null,
+        oldResolvedUrl: null,
+        resolvedUrl: `https://registry.npmjs.org/${name}/-/${name}.tgz`,
+      }),
+    );
+    const pending = fetchChangedPackages(packages, {
+      concurrency: 1,
+      signal: controller.signal,
+      fetchImpl: async (_input, init) => {
+        calls += 1;
+        return await new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => {
+            reject(new DOMException("aborted", "AbortError"));
+          });
+        });
+      },
+    });
+
+    controller.abort();
+    const results = await pending;
+
+    expect(calls).toBe(1);
+    expect(
+      results.map((result) =>
+        result.status === "unavailable" ? result.failure.kind : "verified",
+      ),
+    ).toEqual(["aborted", "aborted"]);
+    expect(results[1]).toMatchObject({
+      failure: { detail: "analysis aborted by caller" },
+    });
+  });
+
   it("rejects an oversized declared response before reading its body", async () => {
+    let requestSignal: AbortSignal | null = null;
     const results = await fetchChangedPackages(
       [
         changedPackage({
@@ -192,12 +239,14 @@ describe("fetchChangedPackages", () => {
       ],
       {
         maxTarballBytes: 3,
-        fetchImpl: () =>
-          Promise.resolve(
+        fetchImpl: (_input, init) => {
+          requestSignal = init?.signal ?? null;
+          return Promise.resolve(
             new Response(bytes(4, 5, 6, 7), {
               headers: { "content-length": "4" },
             }),
-          ),
+          );
+        },
       },
     );
 
@@ -205,6 +254,7 @@ describe("fetchChangedPackages", () => {
       status: "unavailable",
       failure: { kind: "size-limit-exceeded" },
     });
+    expect(wasAborted(requestSignal)).toBe(true);
   });
 
   it("enforces the size cap while streaming when Content-Length is absent", async () => {

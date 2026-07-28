@@ -6,7 +6,10 @@ import {
   CAPABILITY_SET_SCHEMA_VERSION,
   type CapabilitySet,
 } from "../contract/capability-set.js";
-import { extractNpmJavaScriptCapabilities } from "./javascript-capability-extractor.js";
+import {
+  JavaScriptCapabilityExtractorError,
+  extractNpmJavaScriptCapabilities,
+} from "./javascript-capability-extractor.js";
 
 const manifestSet: CapabilitySet = {
   schemaVersion: CAPABILITY_SET_SCHEMA_VERSION,
@@ -15,6 +18,20 @@ const manifestSet: CapabilitySet = {
   capabilities: [],
   diagnostics: [],
 };
+
+describe("analysis cancellation", () => {
+  it("stops before enumerating an aborted package", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    await withPackage({ "index.js": "fetch('inert')" }, async (root) => {
+      await expect(
+        extractNpmJavaScriptCapabilities({ root }, manifestSet, {
+          signal: controller.signal,
+        }),
+      ).rejects.toThrow(JavaScriptCapabilityExtractorError);
+    });
+  });
+});
 
 async function withPackage(
   files: Record<string, string>,

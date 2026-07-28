@@ -294,6 +294,23 @@ describe("extractNpmManifestCapabilities", () => {
     });
   });
 
+  it("returns a typed unavailable result when analysis is aborted", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const result = await withManifest(
+      '{"name":"@scope/fixture","version":"2.0.0"}',
+      (root) =>
+        extractNpmManifestCapabilities({ root }, SUBJECT, {
+          signal: controller.signal,
+        }),
+    );
+
+    expect(result).toMatchObject({
+      status: "unavailable",
+      failure: { kind: "analysis-aborted" },
+    });
+  });
+
   it("throws typed errors for caller configuration and handoff contract bugs", async () => {
     await expect(
       extractNpmManifestCapabilities({ root: "relative" }, SUBJECT),

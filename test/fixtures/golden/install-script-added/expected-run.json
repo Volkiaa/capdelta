@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "firstRun": false,
   "summary": {
     "changedPackages": 1,
@@ -22,7 +22,7 @@
     {
       "status": "analyzed",
       "report": {
-        "schemaVersion": 2,
+        "schemaVersion": 3,
         "package": {
           "ecosystem": "npm",
           "name": "golden-fixture",

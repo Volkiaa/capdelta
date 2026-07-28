@@ -3,6 +3,11 @@ import { tmpdir } from "node:os";
 import { isAbsolute, join, posix, win32 } from "node:path";
 import * as tar from "tar";
 import type { ReadEntry } from "tar";
+import {
+  analysisStopDetail,
+  analysisStopKind,
+  type AnalysisStopKind,
+} from "../analysis-execution-policy.js";
 import type { VerifiedTarball } from "./fetcher.js";
 
 export type ExtractionFailureKind =
@@ -14,7 +19,8 @@ export type ExtractionFailureKind =
   | "file-count-limit"
   | "expanded-size-limit"
   | "decompression-ratio-limit"
-  | "filesystem-error";
+  | "filesystem-error"
+  | AnalysisStopKind;
 
 export interface ExtractionFailure {
   kind: ExtractionFailureKind;
@@ -45,6 +51,8 @@ export interface ExtractorOptions {
   maxExpandedBytes?: number;
   /** Maximum decompressed-to-compressed ratio accepted by node-tar. */
   maxDecompressionRatio?: number;
+  /** Whole-analysis cooperative cancellation. */
+  signal?: AbortSignal;
 }
 
 export class ExtractorError extends Error {
@@ -61,6 +69,7 @@ interface ResolvedOptions {
   maxFileCount: number;
   maxExpandedBytes: number;
   maxDecompressionRatio: number;
+  signal?: AbortSignal;
 }
 
 interface ArchiveSummary {
@@ -80,12 +89,25 @@ class ArchiveRejectedError extends Error {
   constructor(
     readonly kind: Exclude<
       ExtractionFailureKind,
-      "invalid-archive" | "filesystem-error"
+      | "invalid-archive"
+      | "filesystem-error"
+      | "analysis-aborted"
+      | "deadline-exceeded"
     >,
     message: string,
   ) {
     super(message);
     this.name = new.target.name;
+  }
+}
+
+class ExtractionStoppedError extends Error {
+  readonly kind: AnalysisStopKind;
+
+  constructor(signal: AbortSignal) {
+    super(analysisStopDetail(signal));
+    this.name = new.target.name;
+    this.kind = analysisStopKind(signal) ?? "analysis-aborted";
   }
 }
 
@@ -103,17 +125,25 @@ export async function extractVerifiedTarball(
   const resolved = resolveOptions(options);
   let workRoot: string | undefined;
   try {
+    throwIfStopped(resolved.signal);
     workRoot = await mkdtemp(join(tmpdir(), "capdelta-"));
     const privateWorkRoot = workRoot;
     // The tar package warns that extraction roots must not be attacker
     // controlled. mkdtemp gives us a unique root; 0700 keeps it private.
     await chmod(privateWorkRoot, 0o700);
+    throwIfStopped(resolved.signal);
     const archivePath = join(privateWorkRoot, "verified-package.tgz");
     const extractionRoot = join(privateWorkRoot, "package");
-    await writeFile(archivePath, tarball.bytes, { flag: "wx", mode: 0o600 });
+    await writeFile(archivePath, tarball.bytes, {
+      flag: "wx",
+      mode: 0o600,
+      ...(resolved.signal === undefined ? {} : { signal: resolved.signal }),
+    });
     const summary = await preflight(archivePath, resolved);
+    throwIfStopped(resolved.signal);
     await mkdir(extractionRoot, { mode: 0o700 });
     await extract(archivePath, extractionRoot, resolved);
+    throwIfStopped(resolved.signal);
     await unlink(archivePath);
     return {
       status: "extracted",
@@ -136,7 +166,16 @@ export async function extractVerifiedTarball(
         };
       }
     }
-    return { status: "rejected", failure: classifyFailure(error) };
+    return {
+      status: "rejected",
+      failure:
+        resolved.signal?.aborted === true
+          ? {
+              kind: analysisStopKind(resolved.signal) ?? "analysis-aborted",
+              detail: analysisStopDetail(resolved.signal),
+            }
+          : classifyFailure(error),
+    };
   }
 }
 
@@ -144,6 +183,7 @@ async function preflight(
   archivePath: string,
   options: ResolvedOptions,
 ): Promise<ArchiveSummary> {
+  throwIfStopped(options.signal);
   let fileCount = 0;
   let expandedBytes = 0;
   await tar.t({
@@ -152,7 +192,12 @@ async function preflight(
     gzip: true,
     maxMetaEntrySize: MAX_META_ENTRY_BYTES,
     maxDecompressionRatio: options.maxDecompressionRatio,
+    ...(options.signal === undefined ? {} : { signal: options.signal }),
     filter(this: tar.Parser, _path, rawEntry) {
+      if (options.signal?.aborted === true) {
+        this.abort(new ExtractionStoppedError(options.signal));
+        return false;
+      }
       const entry = rawEntry as ReadEntry;
       if (entry.meta) return true;
       try {
@@ -189,6 +234,7 @@ async function preflight(
       return true;
     },
   });
+  throwIfStopped(options.signal);
   return { fileCount, expandedBytes };
 }
 
@@ -197,6 +243,7 @@ async function extract(
   root: string,
   options: ResolvedOptions,
 ): Promise<void> {
+  throwIfStopped(options.signal);
   await tar.x({
     file: archivePath,
     cwd: root,
@@ -212,7 +259,14 @@ async function extract(
     unlink: true,
     maxMetaEntrySize: MAX_META_ENTRY_BYTES,
     maxDecompressionRatio: options.maxDecompressionRatio,
+    ...(options.signal === undefined ? {} : { signal: options.signal }),
+    filter(this: tar.Parser) {
+      if (options.signal?.aborted !== true) return true;
+      this.abort(new ExtractionStoppedError(options.signal));
+      return false;
+    },
   });
+  throwIfStopped(options.signal);
 }
 
 function validateArchiveEntry(entry: ReadEntry): void {
@@ -269,18 +323,29 @@ function resolveOptions(options: ExtractorOptions): ResolvedOptions {
     maxExpandedBytes: options.maxExpandedBytes ?? DEFAULT_MAX_EXPANDED_BYTES,
     maxDecompressionRatio:
       options.maxDecompressionRatio ?? DEFAULT_MAX_DECOMPRESSION_RATIO,
+    ...(options.signal === undefined ? {} : { signal: options.signal }),
   };
-  for (const [name, value] of Object.entries(resolved)) {
+  for (const [name, value] of [
+    ["maxFileCount", resolved.maxFileCount],
+    ["maxExpandedBytes", resolved.maxExpandedBytes],
+    ["maxDecompressionRatio", resolved.maxDecompressionRatio],
+  ] as const) {
     if (!Number.isSafeInteger(value) || value <= 0) {
       throw new ExtractorConfigurationError(
         `${name} must be a positive safe integer`,
       );
     }
   }
+  if (options.signal !== undefined && !isAbortSignal(options.signal)) {
+    throw new ExtractorConfigurationError("signal must implement AbortSignal");
+  }
   return resolved;
 }
 
 function classifyFailure(error: unknown): ExtractionFailure {
+  if (error instanceof ExtractionStoppedError) {
+    return { kind: error.kind, detail: error.message };
+  }
   if (error instanceof ArchiveRejectedError) {
     return { kind: error.kind, detail: error.message };
   }
@@ -294,6 +359,21 @@ function classifyFailure(error: unknown): ExtractionFailure {
     kind: "invalid-archive",
     detail: `tar archive could not be processed: ${errorName(error)}`,
   };
+}
+
+function throwIfStopped(signal: AbortSignal | undefined): void {
+  if (signal?.aborted === true) throw new ExtractionStoppedError(signal);
+}
+
+function isAbortSignal(value: unknown): value is AbortSignal {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "aborted" in value &&
+    typeof value.aborted === "boolean" &&
+    "addEventListener" in value &&
+    typeof value.addEventListener === "function"
+  );
 }
 
 function isDecompressionRatioError(error: unknown): boolean {

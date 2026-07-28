@@ -16,6 +16,11 @@ import {
   type InstallHook,
   type PackageSubject,
 } from "../contract/capability-set.js";
+import {
+  analysisStopDetail,
+  analysisStopKind,
+  type AnalysisStopKind,
+} from "../analysis-execution-policy.js";
 import type { ExtractedTarball } from "./safe-extractor.js";
 
 const MANIFEST_FILE = "package.json";
@@ -34,7 +39,8 @@ export type ManifestCapabilityFailureKind =
   | "manifest-too-large"
   | "manifest-invalid-json"
   | "manifest-invalid-root"
-  | "identity-mismatch";
+  | "identity-mismatch"
+  | AnalysisStopKind;
 
 export interface ManifestCapabilityFailure {
   kind: ManifestCapabilityFailureKind;
@@ -58,6 +64,8 @@ export type ManifestCapabilityResult =
 
 export interface ManifestCapabilityExtractorOptions {
   maxManifestBytes?: number;
+  /** Whole-analysis cooperative cancellation. */
+  signal?: AbortSignal;
 }
 
 export class ManifestCapabilityExtractorError extends Error {
@@ -106,11 +114,20 @@ export async function extractNpmManifestCapabilities(
   options: ManifestCapabilityExtractorOptions = {},
 ): Promise<ManifestCapabilityResult> {
   const maxManifestBytes = resolveMaxManifestBytes(options);
+  validateSignal(options.signal);
   validateContract(extracted, expected);
+  const initialStop = stopped(options.signal);
+  if (initialStop !== null) return initialStop;
 
   const manifestPath = join(extracted.root, MANIFEST_FILE);
-  const read = await readManifest(manifestPath, maxManifestBytes);
+  const read = await readManifest(
+    manifestPath,
+    maxManifestBytes,
+    options.signal,
+  );
   if (!read.ok) return { status: "unavailable", failure: read.failure };
+  const readStop = stopped(options.signal);
+  if (readStop !== null) return readStop;
 
   const source = createSourceDocument(read.text);
   const errors: ParseError[] = [];
@@ -119,6 +136,8 @@ export async function extractNpmManifestCapabilities(
     allowTrailingComma: false,
     allowEmptyContent: false,
   });
+  const parseStop = stopped(options.signal);
+  if (parseStop !== null) return parseStop;
   if (root === undefined || errors.length > 0) {
     const first = errors[0];
     return unavailable(
@@ -240,9 +259,14 @@ function validateContract(
 async function readManifest(
   path: string,
   maxManifestBytes: number,
+  signal: AbortSignal | undefined,
 ): Promise<ManifestReadResult> {
   try {
+    const initialStop = readStopped(signal);
+    if (initialStop !== null) return initialStop;
     const metadata = await lstat(path);
+    const metadataStop = readStopped(signal);
+    if (metadataStop !== null) return metadataStop;
     if (!metadata.isFile()) {
       return readFailure(
         "manifest-unreadable",
@@ -255,7 +279,12 @@ async function readManifest(
         `package.json exceeds ${String(maxManifestBytes)} bytes`,
       );
     }
-    const bytes = await readFile(path);
+    const bytes = await readFile(
+      path,
+      signal === undefined ? undefined : { signal },
+    );
+    const readStop = readStopped(signal);
+    if (readStop !== null) return readStop;
     if (bytes.byteLength > maxManifestBytes) {
       return readFailure(
         "manifest-too-large",
@@ -274,12 +303,46 @@ async function readManifest(
       );
     }
   } catch (error: unknown) {
+    const caughtStop = readStopped(signal);
+    if (caughtStop !== null) return caughtStop;
     if (hasErrorCode(error, "ENOENT")) {
       return readFailure("manifest-missing", "package.json is missing");
     }
     return readFailure(
       "manifest-unreadable",
       `package.json could not be read: ${errorName(error)}`,
+    );
+  }
+}
+
+function stopped(
+  signal: AbortSignal | undefined,
+): UnavailableManifestCapabilities | null {
+  const read = readStopped(signal);
+  return read === null
+    ? null
+    : { status: "unavailable", failure: read.failure };
+}
+
+function readStopped(
+  signal: AbortSignal | undefined,
+): ManifestReadFailure | null {
+  if (signal?.aborted !== true) return null;
+  return readFailure(
+    analysisStopKind(signal) ?? "analysis-aborted",
+    analysisStopDetail(signal),
+  );
+}
+
+function validateSignal(signal: AbortSignal | undefined): void {
+  if (signal === undefined) return;
+  if (
+    typeof signal !== "object" ||
+    typeof signal.aborted !== "boolean" ||
+    typeof signal.addEventListener !== "function"
+  ) {
+    throw new ManifestCapabilityExtractorConfigurationError(
+      "signal must implement AbortSignal",
     );
   }
 }

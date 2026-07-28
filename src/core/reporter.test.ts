@@ -238,6 +238,50 @@ describe("manifest Reporter", () => {
     });
   });
 
+  it("reports whole-analysis cancellation without inventing a package side", () => {
+    const changed = changedPackage("queued", null);
+    const run: CapabilityAnalysisRun = {
+      firstRun: false,
+      summary: { changed: 1, analyzed: 0, unavailable: 1, skipped: 0 },
+      packages: [
+        {
+          status: "unavailable",
+          changedPackage: changed,
+          failures: [
+            {
+              stage: "analysis",
+              failure: {
+                kind: "deadline-exceeded",
+                detail: "analysis wall-clock deadline exceeded",
+              },
+            },
+          ],
+        },
+      ],
+      lockfileFindings: [],
+      skipped: [],
+    };
+
+    expect(JSON.parse(renderJsonRunReport(run))).toMatchObject({
+      schemaVersion: 3,
+      packages: [
+        {
+          status: "unavailable",
+          failures: [
+            {
+              stage: "analysis",
+              side: null,
+              kind: "deadline-exceeded",
+            },
+          ],
+        },
+      ],
+    });
+    expect(renderTextRunReport(run)).toContain(
+      '[analysis/deadline-exceeded] "analysis wall-clock deadline exceeded"',
+    );
+  });
+
   it("cross-links new dependencies to every matching analyzed report", () => {
     const parent = emptyResult();
     parent.findings = [
