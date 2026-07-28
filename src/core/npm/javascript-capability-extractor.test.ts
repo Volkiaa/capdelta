@@ -288,6 +288,33 @@ describe("extractNpmJavaScriptCapabilities FS_WRITE", () => {
   });
 });
 
+describe("single-walk binding index", () => {
+  it("preserves forward aliases and nested shadowing", async () => {
+    await withPackage(
+      {
+        "index.cjs": [
+          "const read = fs.readFile;",
+          "const fs = require('fs');",
+          "read('input.txt', () => {});",
+          "{ const process = { env: {} }; process.env.LOCAL; }",
+          "function outer(fetch) { function inner() { fetch('local'); } inner(); }",
+        ].join("\n"),
+      },
+      async (root) => {
+        const result = await extractNpmJavaScriptCapabilities(
+          { root },
+          manifestSet,
+        );
+
+        expect(result.capabilities.map(({ kind }) => kind)).toEqual([
+          "FS_READ",
+        ]);
+        expect(result.diagnostics).toEqual([]);
+      },
+    );
+  });
+});
+
 describe("extractNpmJavaScriptCapabilities FS_SENSITIVE", () => {
   it("adds sensitive-path context for credential reads and writes", async () => {
     await withPackage(
