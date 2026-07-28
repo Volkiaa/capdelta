@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { CapabilityAnalysisRun } from "./manifest-analysis-pipeline.js";
+import type { CapabilityAnalysisRun } from "./capability-analysis-pipeline.js";
 import { renderSarifReport } from "./sarif-reporter.js";
 
 describe("renderSarifReport", () => {

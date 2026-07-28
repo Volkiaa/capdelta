@@ -17,7 +17,7 @@ import type {
 import type {
   CapabilityAnalysisRun,
   PackageAnalysisFailure,
-} from "./manifest-analysis-pipeline.js";
+} from "./capability-analysis-pipeline.js";
 import type {
   ChangedPackage,
   LockfileFindingKind,

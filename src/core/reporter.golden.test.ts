@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import type { CapabilityAnalysisRun } from "./manifest-analysis-pipeline.js";
+import type { CapabilityAnalysisRun } from "./capability-analysis-pipeline.js";
 import { diffManifestCapabilities } from "./capability-differ.js";
 import { extractNpmManifestCapabilities } from "./npm/manifest-capability-extractor.js";
 import { extractVerifiedTarball } from "./npm/safe-extractor.js";

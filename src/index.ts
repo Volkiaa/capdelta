@@ -30,7 +30,7 @@ export {
   type PackageAnalysisFailure,
   type PackageAnalysisResult,
   type UnavailablePackage,
-} from "./core/manifest-analysis-pipeline.js";
+} from "./core/capability-analysis-pipeline.js";
 export {
   CAPABILITY_SET_SCHEMA_VERSION,
   type AnalysisDiagnostic,

@@ -1,4 +1,4 @@
-import { analyzeChangedPackages } from "../src/core/manifest-analysis-pipeline.js";
+import { analyzeChangedPackages } from "../src/core/capability-analysis-pipeline.js";
 import type { ChangedPackage } from "../src/core/contract/lockfile-diff.js";
 import type { FindingSeverity } from "../src/core/capability-differ.js";
 import { pathToFileURL } from "node:url";

@@ -1,7 +1,7 @@
 import {
   analyzeChangedPackages,
   type CapabilityAnalysisRun,
-} from "../core/manifest-analysis-pipeline.js";
+} from "../core/capability-analysis-pipeline.js";
 import { diffNpmLockfiles } from "../core/npm/lockfile-differ.js";
 import {
   REPORT_SCHEMA_VERSION,

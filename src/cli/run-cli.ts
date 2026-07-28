@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { lstat, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { analyzeChangedPackages } from "../core/manifest-analysis-pipeline.js";
+import { analyzeChangedPackages } from "../core/capability-analysis-pipeline.js";
 import { diffNpmLockfiles } from "../core/npm/lockfile-differ.js";
 import { renderJsonRunReport, renderTextRunReport } from "../core/reporter.js";
 

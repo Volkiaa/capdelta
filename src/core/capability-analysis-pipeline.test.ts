@@ -16,10 +16,12 @@ import {
   CapabilityAnalysisPipelineError,
   CapabilityAnalysisPipelineConfigurationError,
   CapabilityAnalysisPipelineContractError,
-  ManifestAnalysisPipelineError,
   analyzeChangedPackages,
-  analyzeManifestPackages,
   createCapabilityAnalysisPipeline,
+} from "./capability-analysis-pipeline.js";
+import {
+  ManifestAnalysisPipelineError,
+  analyzeManifestPackages,
   createManifestAnalysisPipeline,
 } from "./manifest-analysis-pipeline.js";
 

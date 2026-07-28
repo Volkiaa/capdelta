@@ -1,7 +1,7 @@
 /* Test assertions intentionally inspect mocked object methods without binding. */
 /* eslint-disable @typescript-eslint/unbound-method */
 import { describe, expect, it, vi } from "vitest";
-import type { CapabilityAnalysisRun } from "../core/manifest-analysis-pipeline.js";
+import type { CapabilityAnalysisRun } from "../core/capability-analysis-pipeline.js";
 import {
   runAction,
   type ActionAdapters,

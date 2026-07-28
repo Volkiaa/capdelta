@@ -3,7 +3,7 @@ import type {
   CapabilityFinding,
   FindingSeverity,
 } from "./capability-differ.js";
-import type { CapabilityAnalysisRun } from "./manifest-analysis-pipeline.js";
+import type { CapabilityAnalysisRun } from "./capability-analysis-pipeline.js";
 
 export const SARIF_VERSION = "2.1.0" as const;
 const SARIF_SCHEMA = "https://json.schemastore.org/sarif-2.1.0.json";
