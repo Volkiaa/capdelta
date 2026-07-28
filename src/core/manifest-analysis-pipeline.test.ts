@@ -128,9 +128,7 @@ describe("analyzeChangedPackages", () => {
     expect(createManifestAnalysisPipeline).toBe(
       createCapabilityAnalysisPipeline,
     );
-    expect(ManifestAnalysisPipelineError).toBe(
-      CapabilityAnalysisPipelineError,
-    );
+    expect(ManifestAnalysisPipelineError).toBe(CapabilityAnalysisPipelineError);
   });
 
   it("analyzes old and new manifests, preserves order, and returns run counts", async () => {
