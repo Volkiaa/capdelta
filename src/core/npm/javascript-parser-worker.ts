@@ -55,6 +55,21 @@ function analyze(request: ParserRequest): ParserResponse {
       }
     });
     fullAncestor(ast, (node, _state, ancestors) => {
+      if (node.type !== "MemberExpression") return;
+      const record = asRecord(node);
+      const object = asRecord(record?.object);
+      const property = memberName(record);
+      if (
+        object?.type === "Identifier" &&
+        object.name === "process" &&
+        property === "env" &&
+        resolver.lookup("process", ancestors) === undefined &&
+        !ancestorDeclares("process", ancestors)
+      ) {
+        detections.push(evidence("ENV", node, request.source));
+      }
+    });
+    fullAncestor(ast, (node, _state, ancestors) => {
       if (node.type !== "CallExpression") return;
       const callee = asRecord(node)?.callee;
       const binding = resolver.resolveExpression(callee, ancestors);
@@ -395,6 +410,13 @@ function identifierName(value: unknown): string | null {
   return record?.type === "Identifier" && typeof record.name === "string"
     ? record.name
     : null;
+}
+
+function memberName(member: Record<string, unknown> | null): string | null {
+  if (member === null) return null;
+  return member.computed === true
+    ? stringLiteral(member.property)
+    : identifierName(member.property);
 }
 
 function hasSensitivePath(node: Node): boolean {

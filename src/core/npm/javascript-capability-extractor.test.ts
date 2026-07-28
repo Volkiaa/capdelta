@@ -322,3 +322,38 @@ describe("extractNpmJavaScriptCapabilities FS_SENSITIVE", () => {
     );
   });
 });
+
+describe("extractNpmJavaScriptCapabilities ENV", () => {
+  it("detects static and computed-literal process.env access", async () => {
+    await withPackage(
+      {
+        "index.js":
+          "const token = process.env.TOKEN;\nconst home = process['env'].HOME;\n",
+      },
+      async (root) => {
+        const result = await extractNpmJavaScriptCapabilities(
+          { root },
+          manifestSet,
+        );
+        expect(result.capabilities).toEqual([
+          {
+            kind: "ENV",
+            location: { kind: "runtime" },
+            evidence: [
+              {
+                file: "index.js",
+                line: 1,
+                snippet: "const token = process.env.TOKEN;",
+              },
+              {
+                file: "index.js",
+                line: 2,
+                snippet: "const home = process['env'].HOME;",
+              },
+            ],
+          },
+        ]);
+      },
+    );
+  });
+});
