@@ -3,7 +3,7 @@ import type {
   CapabilityFinding,
   FindingSeverity,
 } from "./capability-differ.js";
-import type { ManifestAnalysisRun } from "./manifest-analysis-pipeline.js";
+import type { CapabilityAnalysisRun } from "./manifest-analysis-pipeline.js";
 
 export const SARIF_VERSION = "2.1.0" as const;
 const SARIF_SCHEMA = "https://json.schemastore.org/sarif-2.1.0.json";
@@ -17,7 +17,7 @@ interface SarifResult {
 }
 
 /** Deterministic SARIF 2.1.0 for package artifacts, never checkout source. */
-export function renderSarifReport(run: ManifestAnalysisRun): string {
+export function renderSarifReport(run: CapabilityAnalysisRun): string {
   const results: SarifResult[] = [];
   const ruleIds = new Set<string>();
   for (const item of run.packages) {

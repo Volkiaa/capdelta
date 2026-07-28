@@ -1,7 +1,7 @@
 /* Test assertions intentionally inspect mocked object methods without binding. */
 /* eslint-disable @typescript-eslint/unbound-method */
 import { describe, expect, it, vi } from "vitest";
-import type { ManifestAnalysisRun } from "../core/manifest-analysis-pipeline.js";
+import type { CapabilityAnalysisRun } from "../core/manifest-analysis-pipeline.js";
 import {
   runAction,
   type ActionAdapters,
@@ -12,7 +12,7 @@ import {
 const SHA = "a".repeat(40);
 const EMPTY_LOCKFILE = JSON.stringify({ lockfileVersion: 3, packages: {} });
 
-function emptyRun(firstRun = false): ManifestAnalysisRun {
+function emptyRun(firstRun = false): CapabilityAnalysisRun {
   return {
     firstRun,
     summary: { changed: 0, analyzed: 0, unavailable: 0, skipped: 0 },

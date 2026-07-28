@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { lstat, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { analyzeManifestPackages } from "../core/manifest-analysis-pipeline.js";
+import { analyzeChangedPackages } from "../core/manifest-analysis-pipeline.js";
 import { diffNpmLockfiles } from "../core/npm/lockfile-differ.js";
 import { renderJsonRunReport, renderTextRunReport } from "../core/reporter.js";
 
@@ -98,7 +98,7 @@ async function analyzeCheckout(
     baseText === null ? null : parseLockfile(baseText, "base");
   const headLockfile = parseLockfile(headText, "head");
   const lockfileDiff = diffNpmLockfiles(oldLockfile, headLockfile);
-  const analysis = await analyzeManifestPackages(
+  const analysis = await analyzeChangedPackages(
     lockfileDiff,
     runtime.fetchImpl === undefined
       ? {}

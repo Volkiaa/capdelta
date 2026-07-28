@@ -13,8 +13,13 @@ import type { ExtractionResult } from "./npm/safe-extractor.js";
 import type { ManifestCapabilityResult } from "./npm/manifest-capability-extractor.js";
 import type { JavaScriptCapabilityLayerResult } from "./npm/javascript-capability-extractor.js";
 import {
-  ManifestAnalysisPipelineConfigurationError,
-  ManifestAnalysisPipelineContractError,
+  CapabilityAnalysisPipelineError,
+  CapabilityAnalysisPipelineConfigurationError,
+  CapabilityAnalysisPipelineContractError,
+  ManifestAnalysisPipelineError,
+  analyzeChangedPackages,
+  analyzeManifestPackages,
+  createCapabilityAnalysisPipeline,
   createManifestAnalysisPipeline,
 } from "./manifest-analysis-pipeline.js";
 
@@ -87,7 +92,7 @@ interface AdapterOverrides {
 }
 
 function pipeline(overrides: AdapterOverrides = {}) {
-  return createManifestAnalysisPipeline({
+  return createCapabilityAnalysisPipeline({
     fetch: (packages) =>
       overrides.fetch?.(packages) ??
       Promise.resolve(
@@ -117,7 +122,17 @@ function pipeline(overrides: AdapterOverrides = {}) {
   });
 }
 
-describe("analyzeManifestPackages", () => {
+describe("analyzeChangedPackages", () => {
+  it("retains the M1 public aliases", () => {
+    expect(analyzeManifestPackages).toBe(analyzeChangedPackages);
+    expect(createManifestAnalysisPipeline).toBe(
+      createCapabilityAnalysisPipeline,
+    );
+    expect(ManifestAnalysisPipelineError).toBe(
+      CapabilityAnalysisPipelineError,
+    );
+  });
+
   it("analyzes old and new manifests, preserves order, and returns run counts", async () => {
     const packages = [
       changedPackage("updated", "1.0.0"),
@@ -199,7 +214,7 @@ describe("analyzeManifestPackages", () => {
       failures: [{ stage: "new-extraction", failure: { kind: "unsafe-path" } }],
     });
 
-    const manifestFailure = createManifestAnalysisPipeline({
+    const manifestFailure = createCapabilityAnalysisPipeline({
       fetch: (packages) =>
         Promise.resolve([
           {
@@ -333,7 +348,7 @@ describe("analyzeManifestPackages", () => {
     await expect(
       pipeline({ fetch: () => Promise.reject(fetchError) })(lockfileDiff([])),
     ).rejects.toMatchObject({
-      name: "ManifestAnalysisPipelineError",
+      name: "CapabilityAnalysisPipelineError",
       message: "package fetch batch threw",
       cause: fetchError,
     });
@@ -346,7 +361,7 @@ describe("analyzeManifestPackages", () => {
         },
       })(lockfileDiff([changedPackage("differ-throw")])),
     ).rejects.toMatchObject({
-      name: "ManifestAnalysisPipelineError",
+      name: "CapabilityAnalysisPipelineError",
       message: 'capability diff for "differ-throw" threw',
       cause: diffError,
     });
@@ -410,11 +425,11 @@ describe("analyzeManifestPackages", () => {
     });
     await expect(
       pipeline()(lockfileDiff([]), { extractionConcurrency: 0 }),
-    ).rejects.toBeInstanceOf(ManifestAnalysisPipelineConfigurationError);
+    ).rejects.toBeInstanceOf(CapabilityAnalysisPipelineConfigurationError);
 
     const broken = pipeline({ fetch: () => Promise.resolve([]) });
     await expect(
       broken(lockfileDiff([changedPackage("missing-result")])),
-    ).rejects.toBeInstanceOf(ManifestAnalysisPipelineContractError);
+    ).rejects.toBeInstanceOf(CapabilityAnalysisPipelineContractError);
   });
 });

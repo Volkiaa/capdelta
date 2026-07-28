@@ -15,7 +15,7 @@ import type {
   ShapeRuleId,
 } from "./capability-differ.js";
 import type {
-  ManifestAnalysisRun,
+  CapabilityAnalysisRun,
   PackageAnalysisFailure,
 } from "./manifest-analysis-pipeline.js";
 import type {
@@ -274,7 +274,7 @@ function renderTextReportFromBuilt(report: JsonReport): string[] {
 }
 
 /** Stable machine-readable report for one complete M1 analysis run. */
-export function renderJsonRunReport(run: ManifestAnalysisRun): string {
+export function renderJsonRunReport(run: CapabilityAnalysisRun): string {
   return `${JSON.stringify(buildRunReport(run), null, 2)}\n`;
 }
 
@@ -282,7 +282,7 @@ export function renderJsonRunReport(run: ManifestAnalysisRun): string {
  * Deterministic terminal report. First-run mode stays aggregate-only in text;
  * JSON retains every package detail (PLAN §4.1).
  */
-export function renderTextRunReport(run: ManifestAnalysisRun): string {
+export function renderTextRunReport(run: CapabilityAnalysisRun): string {
   const report = buildRunReport(run);
   const severitySummary = severityCountsText(report.summary.bySeverity);
   const lines = [
@@ -340,7 +340,7 @@ export function renderTextRunReport(run: ManifestAnalysisRun): string {
   return `${lines.join("\n")}\n`;
 }
 
-function buildRunReport(run: ManifestAnalysisRun): JsonRunReport {
+function buildRunReport(run: CapabilityAnalysisRun): JsonRunReport {
   validateRun(run);
   const bySeverity = emptySeverityCounts();
   let manifestFindings = 0;
@@ -403,7 +403,7 @@ function buildRunReport(run: ManifestAnalysisRun): JsonRunReport {
   };
 }
 
-function validateRun(run: ManifestAnalysisRun): void {
+function validateRun(run: CapabilityAnalysisRun): void {
   const analyzed = run.packages.filter(
     (item) => item.status === "analyzed",
   ).length;

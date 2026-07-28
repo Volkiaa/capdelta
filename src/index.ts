@@ -13,12 +13,18 @@ export {
   type ShapeRuleId,
 } from "./core/capability-differ.js";
 export {
+  CapabilityAnalysisPipelineConfigurationError,
+  CapabilityAnalysisPipelineContractError,
+  CapabilityAnalysisPipelineError,
   ManifestAnalysisPipelineConfigurationError,
   ManifestAnalysisPipelineContractError,
   ManifestAnalysisPipelineError,
+  analyzeChangedPackages,
   analyzeManifestPackages,
   type AnalysisSide,
   type AnalyzedPackage,
+  type CapabilityAnalysisOptions,
+  type CapabilityAnalysisRun,
   type ManifestAnalysisOptions,
   type ManifestAnalysisRun,
   type PackageAnalysisFailure,

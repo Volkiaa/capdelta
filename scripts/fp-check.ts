@@ -1,4 +1,4 @@
-import { analyzeManifestPackages } from "../src/core/manifest-analysis-pipeline.js";
+import { analyzeChangedPackages } from "../src/core/manifest-analysis-pipeline.js";
 import type { ChangedPackage } from "../src/core/contract/lockfile-diff.js";
 import type { FindingSeverity } from "../src/core/capability-differ.js";
 import { pathToFileURL } from "node:url";
@@ -61,7 +61,7 @@ async function main(): Promise<void> {
           throw new Error("version-pair construction failed");
         return changedPackage(packageName, previous, newest);
       });
-      const run = await analyzeManifestPackages({
+      const run = await analyzeChangedPackages({
         changed: pairs,
         findings: [],
         skipped: [],

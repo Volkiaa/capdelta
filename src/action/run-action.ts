@@ -1,6 +1,6 @@
 import {
-  analyzeManifestPackages,
-  type ManifestAnalysisRun,
+  analyzeChangedPackages,
+  type CapabilityAnalysisRun,
 } from "../core/manifest-analysis-pipeline.js";
 import { diffNpmLockfiles } from "../core/npm/lockfile-differ.js";
 import { renderJsonRunReport, type JsonRunReport } from "../core/reporter.js";
@@ -54,7 +54,7 @@ export interface ActionAdapters {
   analyze(
     oldLockfile: unknown,
     newLockfile: unknown,
-  ): Promise<ManifestAnalysisRun>;
+  ): Promise<CapabilityAnalysisRun>;
   uploadJson(name: string, contents: string): Promise<ArtifactUpload>;
   uploadSarif(
     contents: string,
@@ -269,6 +269,6 @@ async function withContext<T>(
 export async function analyzeLockfiles(
   oldLockfile: unknown,
   newLockfile: unknown,
-): Promise<ManifestAnalysisRun> {
-  return analyzeManifestPackages(diffNpmLockfiles(oldLockfile, newLockfile));
+): Promise<CapabilityAnalysisRun> {
+  return analyzeChangedPackages(diffNpmLockfiles(oldLockfile, newLockfile));
 }

@@ -72,7 +72,7 @@ export interface UnavailablePackage {
 
 export type PackageAnalysisResult = AnalyzedPackage | UnavailablePackage;
 
-export interface ManifestAnalysisRun {
+export interface CapabilityAnalysisRun {
   firstRun: boolean;
   summary: {
     changed: number;
@@ -85,7 +85,7 @@ export interface ManifestAnalysisRun {
   skipped: readonly SkippedPackage[];
 }
 
-export interface ManifestAnalysisOptions {
+export interface CapabilityAnalysisOptions {
   fetcher?: FetcherOptions;
   extractor?: ExtractorOptions;
   manifestExtractor?: ManifestCapabilityExtractorOptions;
@@ -94,18 +94,18 @@ export interface ManifestAnalysisOptions {
   extractionConcurrency?: number;
 }
 
-export class ManifestAnalysisPipelineError extends Error {
+export class CapabilityAnalysisPipelineError extends Error {
   constructor(message: string, options?: ErrorOptions) {
     super(message, options);
     this.name = new.target.name;
   }
 }
 
-export class ManifestAnalysisPipelineConfigurationError extends ManifestAnalysisPipelineError {}
+export class CapabilityAnalysisPipelineConfigurationError extends CapabilityAnalysisPipelineError {}
 
-export class ManifestAnalysisPipelineContractError extends ManifestAnalysisPipelineError {}
+export class CapabilityAnalysisPipelineContractError extends CapabilityAnalysisPipelineError {}
 
-interface ManifestAnalysisAdapters {
+interface CapabilityAnalysisAdapters {
   fetch(
     packages: readonly ChangedPackage[],
     options: FetcherOptions,
@@ -145,7 +145,7 @@ type SideAnalysisResult = SideAnalysisSuccess | SideAnalysisFailure;
 
 const DEFAULT_EXTRACTION_CONCURRENCY = 4;
 
-const DEFAULT_ADAPTERS: ManifestAnalysisAdapters = {
+const DEFAULT_ADAPTERS: CapabilityAnalysisAdapters = {
   fetch: fetchChangedPackages,
   extract: extractVerifiedTarball,
   extractManifest: extractNpmManifestCapabilities,
@@ -154,23 +154,23 @@ const DEFAULT_ADAPTERS: ManifestAnalysisAdapters = {
 };
 
 /**
- * Fetches, safely extracts, and manifest-diffs every analyzable lockfile change.
+ * Fetches, safely extracts, and capability-diffs every analyzable lockfile change.
  * Package-local failures are returned and processing continues (PLAN §2).
  */
-export const analyzeManifestPackages =
-  createManifestAnalysisPipeline(DEFAULT_ADAPTERS);
+export const analyzeChangedPackages =
+  createCapabilityAnalysisPipeline(DEFAULT_ADAPTERS);
 
 /** Internal construction seam used by inert orchestration tests. */
-export function createManifestAnalysisPipeline(
-  adapters: ManifestAnalysisAdapters,
+export function createCapabilityAnalysisPipeline(
+  adapters: CapabilityAnalysisAdapters,
 ): (
   lockfileDiff: LockfileDiffResult,
-  options?: ManifestAnalysisOptions,
-) => Promise<ManifestAnalysisRun> {
+  options?: CapabilityAnalysisOptions,
+) => Promise<CapabilityAnalysisRun> {
   return async (
     lockfileDiff: LockfileDiffResult,
-    options: ManifestAnalysisOptions = {},
-  ): Promise<ManifestAnalysisRun> => {
+    options: CapabilityAnalysisOptions = {},
+  ): Promise<CapabilityAnalysisRun> => {
     const extractionConcurrency = resolveExtractionConcurrency(options);
     const fetched = await callWithContext("package fetch batch", () =>
       adapters.fetch(lockfileDiff.changed, options.fetcher ?? {}),
@@ -215,11 +215,11 @@ export function createManifestAnalysisPipeline(
 }
 
 function resolveExtractionConcurrency(
-  options: ManifestAnalysisOptions,
+  options: CapabilityAnalysisOptions,
 ): number {
   const value = options.extractionConcurrency ?? DEFAULT_EXTRACTION_CONCURRENCY;
   if (!Number.isSafeInteger(value) || value <= 0) {
-    throw new ManifestAnalysisPipelineConfigurationError(
+    throw new CapabilityAnalysisPipelineConfigurationError(
       "extractionConcurrency must be a positive safe integer",
     );
   }
@@ -231,7 +231,7 @@ function validateFetchResults(
   actual: readonly FetchPackageResult[],
 ): void {
   if (actual.length !== expected.length) {
-    throw new ManifestAnalysisPipelineContractError(
+    throw new CapabilityAnalysisPipelineContractError(
       `Fetcher returned ${String(actual.length)} results for ${String(expected.length)} packages`,
     );
   }
@@ -243,7 +243,7 @@ function validateFetchResults(
       actualPackage === undefined ||
       !sameChangedPackage(expectedPackage, actualPackage)
     ) {
-      throw new ManifestAnalysisPipelineContractError(
+      throw new CapabilityAnalysisPipelineContractError(
         `Fetcher result ${String(index)} does not match its input package`,
       );
     }
@@ -267,8 +267,8 @@ function sameChangedPackage(
 
 async function analyzeFetchedPackage(
   fetched: FetchPackageResult,
-  options: ManifestAnalysisOptions,
-  adapters: ManifestAnalysisAdapters,
+  options: CapabilityAnalysisOptions,
+  adapters: CapabilityAnalysisAdapters,
 ): Promise<PackageAnalysisResult> {
   if (fetched.status === "unavailable") {
     return {
@@ -341,7 +341,7 @@ function validateVerifiedBaseline(
   oldTarball: VerifiedTarball | null,
 ): void {
   if ((changedPackage.oldVersion === null) !== (oldTarball === null)) {
-    throw new ManifestAnalysisPipelineContractError(
+    throw new CapabilityAnalysisPipelineContractError(
       `Fetcher baseline for ${JSON.stringify(changedPackage.name)} violates ADR-006`,
     );
   }
@@ -354,7 +354,7 @@ function subject(
   const version =
     side === "old" ? changedPackage.oldVersion : changedPackage.newVersion;
   if (version === null) {
-    throw new ManifestAnalysisPipelineContractError(
+    throw new CapabilityAnalysisPipelineContractError(
       `old subject requested for newly added ${JSON.stringify(changedPackage.name)}`,
     );
   }
@@ -365,8 +365,8 @@ async function analyzeSide(
   side: AnalysisSide,
   tarball: VerifiedTarball,
   expected: PackageSubject,
-  options: ManifestAnalysisOptions,
-  adapters: ManifestAnalysisAdapters,
+  options: CapabilityAnalysisOptions,
+  adapters: CapabilityAnalysisAdapters,
 ): Promise<SideAnalysisResult> {
   const extraction = await callWithContext(
     `${side} extraction for ${JSON.stringify(expected.name)}`,
@@ -405,13 +405,13 @@ async function analyzeSide(
       cleanupIssue === null
         ? ""
         : `; cleanup also failed (${cleanupIssue.failure.detail})`;
-    throw new ManifestAnalysisPipelineError(
+    throw new CapabilityAnalysisPipelineError(
       `${side} manifest extraction threw for ${JSON.stringify(expected.name)}${cleanupContext}`,
       { cause: operationError },
     );
   }
   if (manifest === undefined) {
-    throw new ManifestAnalysisPipelineError(
+    throw new CapabilityAnalysisPipelineError(
       `${side} manifest extraction returned no result for ${JSON.stringify(expected.name)}`,
     );
   }
@@ -423,7 +423,7 @@ async function analyzeSide(
     return { ok: false, failures };
   }
   if (javascript === undefined) {
-    throw new ManifestAnalysisPipelineError(
+    throw new CapabilityAnalysisPipelineError(
       `${side} JavaScript extraction returned no result for ${JSON.stringify(expected.name)}`,
     );
   }
@@ -459,7 +459,7 @@ async function callWithContext<T>(
   try {
     return await operation();
   } catch (error: unknown) {
-    throw new ManifestAnalysisPipelineError(`${context} threw`, {
+    throw new CapabilityAnalysisPipelineError(`${context} threw`, {
       cause: error,
     });
   }
@@ -469,7 +469,7 @@ function callSyncWithContext<T>(context: string, operation: () => T): T {
   try {
     return operation();
   } catch (error: unknown) {
-    throw new ManifestAnalysisPipelineError(`${context} threw`, {
+    throw new CapabilityAnalysisPipelineError(`${context} threw`, {
       cause: error,
     });
   }
@@ -478,3 +478,14 @@ function callSyncWithContext<T>(context: string, operation: () => T): T {
 function errorName(error: unknown): string {
   return error instanceof Error ? error.name : typeof error;
 }
+
+/** M1 compatibility aliases; new callers should use capability terminology. */
+export type ManifestAnalysisRun = CapabilityAnalysisRun;
+export type ManifestAnalysisOptions = CapabilityAnalysisOptions;
+export {
+  CapabilityAnalysisPipelineConfigurationError as ManifestAnalysisPipelineConfigurationError,
+  CapabilityAnalysisPipelineContractError as ManifestAnalysisPipelineContractError,
+  CapabilityAnalysisPipelineError as ManifestAnalysisPipelineError,
+};
+export const analyzeManifestPackages = analyzeChangedPackages;
+export const createManifestAnalysisPipeline = createCapabilityAnalysisPipeline;

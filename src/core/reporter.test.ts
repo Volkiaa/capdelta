@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CapabilityDiffResult } from "./capability-differ.js";
-import type { ManifestAnalysisRun } from "./manifest-analysis-pipeline.js";
+import type { CapabilityAnalysisRun } from "./manifest-analysis-pipeline.js";
 import type { ChangedPackage } from "./contract/lockfile-diff.js";
 import {
   ReporterContractError,
@@ -40,7 +40,7 @@ function changedPackage(
   };
 }
 
-function analyzedRun(): ManifestAnalysisRun {
+function analyzedRun(): CapabilityAnalysisRun {
   return {
     firstRun: false,
     summary: { changed: 1, analyzed: 1, unavailable: 0, skipped: 0 },
@@ -175,7 +175,7 @@ describe("manifest Reporter", () => {
   it("renders every loud run-level failure channel with escaped values", () => {
     const attacker = 'bad"\n<script>';
     const changed = changedPackage(attacker, null);
-    const run: ManifestAnalysisRun = {
+    const run: CapabilityAnalysisRun = {
       firstRun: false,
       summary: { changed: 1, analyzed: 0, unavailable: 1, skipped: 1 },
       packages: [
@@ -267,7 +267,7 @@ describe("manifest Reporter", () => {
       subject: { ecosystem: "npm", name: "target", version: "2.0.0" },
       newPackage: true,
     };
-    const run: ManifestAnalysisRun = {
+    const run: CapabilityAnalysisRun = {
       firstRun: false,
       summary: { changed: 2, analyzed: 2, unavailable: 0, skipped: 0 },
       packages: [
