@@ -3,7 +3,11 @@ import {
   type CapabilityAnalysisRun,
 } from "../core/manifest-analysis-pipeline.js";
 import { diffNpmLockfiles } from "../core/npm/lockfile-differ.js";
-import { renderJsonRunReport, type JsonRunReport } from "../core/reporter.js";
+import {
+  REPORT_SCHEMA_VERSION,
+  renderJsonRunReport,
+  type JsonRunReport,
+} from "../core/reporter.js";
 import { renderSarifReport } from "../core/sarif-reporter.js";
 import {
   publishStickyComment,
@@ -242,7 +246,7 @@ function parseRenderedReport(json: string): JsonRunReport {
     typeof value !== "object" ||
     value === null ||
     !("schemaVersion" in value) ||
-    value.schemaVersion !== 1
+    value.schemaVersion !== REPORT_SCHEMA_VERSION
   ) {
     throw new ActionRunnerOperationalError(
       "internal JSON reporter emitted an unsupported schema",
