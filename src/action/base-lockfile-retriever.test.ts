@@ -60,12 +60,14 @@ describe("retrieveBaseLockfile", () => {
     ).resolves.toEqual({ status: "missing", ref: REF });
 
     const forbidden = clientWith({ status: 403, data: { message: "no" } });
-    await expect(
-      retrieveBaseLockfile(
-        { owner: "o", repo: "r", path: "package-lock.json", ref: REF },
-        forbidden,
-      ),
-    ).rejects.toMatchObject(GitHubContentsApiError.prototype);
+    const forbiddenResult = retrieveBaseLockfile(
+      { owner: "o", repo: "r", path: "package-lock.json", ref: REF },
+      forbidden,
+    );
+    await expect(forbiddenResult).rejects.toBeInstanceOf(
+      GitHubContentsApiError,
+    );
+    await expect(forbiddenResult).rejects.toMatchObject({ status: 403 });
   });
 
   it("recognizes a thrown 404 but contextualizes other thrown API errors", async () => {
