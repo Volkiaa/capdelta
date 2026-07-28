@@ -1,5 +1,8 @@
 node_modules/
-dist/
+dist/*
+!dist/action/
+!dist/action/index.js
+!dist/action/package.json
 coverage/
 *.tsbuildinfo
 .env
