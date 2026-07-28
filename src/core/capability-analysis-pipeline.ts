@@ -603,9 +603,13 @@ async function analyzeSide(
   }
   if (extraction.status === "rejected") {
     if (isAborted(signal)) {
-      return stoppedSide(signal, [
-        { stage: `${side}-extraction`, failure: extraction.failure },
-      ]);
+      const stopKind = analysisStopKind(signal) ?? "analysis-aborted";
+      return stoppedSide(
+        signal,
+        extraction.failure.kind === stopKind
+          ? []
+          : [{ stage: `${side}-extraction`, failure: extraction.failure }],
+      );
     }
     return {
       ok: false,
