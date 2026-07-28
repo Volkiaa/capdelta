@@ -30,6 +30,8 @@ export interface CapabilityFinding {
   previous: Capability | null;
 }
 
+type CapabilityGain = Omit<CapabilityFinding, "severity">;
+
 export type ShapeRuleId =
   | "install-code-execution"
   | "secret-exfiltration"
@@ -96,26 +98,25 @@ export function diffCapabilities(
 
   const oldBySlot =
     oldSet === null ? new Map<string, Capability>() : indexSet(oldSet);
-  const findings: CapabilityFinding[] = [];
+  const gains: CapabilityGain[] = [];
   for (const current of manifestCapabilities(newSet)) {
     const previous = oldBySlot.get(semanticSlot(current));
     if (oldSet === null || previous === undefined) {
-      findings.push({
+      gains.push({
         change: "added",
-        severity: severityFor(current),
         capability: current,
         previous: null,
       });
     } else if (manifestCapabilityChanged(previous, current)) {
-      findings.push({
+      gains.push({
         change: "changed",
-        severity: severityFor(current),
         capability: current,
         previous,
       });
     }
   }
-  const shapes = evaluateShapes(findings);
+  const shapes = evaluateShapes(gains);
+  const findings = classifyGains(gains, shapes);
   findings.sort(compareFindings);
 
   const diagnostics: CapabilityDiffDiagnostic[] = [];
@@ -278,7 +279,7 @@ function manifestCapabilityChanged(
   }
 }
 
-function severityFor(capability: Capability): FindingSeverity {
+function fallbackSeverityFor(capability: Capability): FindingSeverity {
   switch (capability.kind) {
     case "INSTALL_HOOK":
       return capability.location.applicability === "registry-install"
@@ -305,17 +306,16 @@ function severityFor(capability: Capability): FindingSeverity {
   }
 }
 
-function evaluateShapes(findings: CapabilityFinding[]): ShapeFinding[] {
+function evaluateShapes(gains: readonly CapabilityGain[]): ShapeFinding[] {
   const shapes: ShapeFinding[] = [];
   const installCodeKinds = new Set(["NET", "PROCESS", "ENV", "FS_SENSITIVE"]);
-  for (const finding of findings) {
-    const capability = finding.capability;
+  for (const gain of gains) {
+    const capability = gain.capability;
     if (
       isCodeCapability(capability) &&
       capability.location.kind === "install-script" &&
       installCodeKinds.has(capability.kind)
     ) {
-      finding.severity = "CRITICAL";
       shapes.push({
         ruleId: "install-code-execution",
         severity: "CRITICAL",
@@ -324,31 +324,26 @@ function evaluateShapes(findings: CapabilityFinding[]): ShapeFinding[] {
     }
   }
 
-  const network = findings.filter(
-    (finding) => finding.capability.kind === "NET",
-  );
-  const secrets = findings.filter(
-    (finding) =>
-      finding.capability.kind === "ENV" ||
-      finding.capability.kind === "FS_SENSITIVE",
+  const network = gains.filter((gain) => gain.capability.kind === "NET");
+  const secrets = gains.filter(
+    (gain) =>
+      gain.capability.kind === "ENV" || gain.capability.kind === "FS_SENSITIVE",
   );
   if (network.length > 0 && secrets.length > 0) {
     const participants = [...network, ...secrets];
-    for (const finding of participants) finding.severity = "CRITICAL";
     shapes.push({
       ruleId: "secret-exfiltration",
       severity: "CRITICAL",
-      capabilities: participants.map((finding) => finding.capability),
+      capabilities: participants.map((gain) => gain.capability),
     });
   }
 
-  for (const finding of findings) {
-    const capability = finding.capability;
+  for (const gain of gains) {
+    const capability = gain.capability;
     if (
       capability.kind === "INSTALL_HOOK" &&
       capability.location.applicability === "registry-install"
     ) {
-      finding.severity = "CRITICAL";
       shapes.push({
         ruleId: "install-hook-change",
         severity: "CRITICAL",
@@ -357,20 +352,55 @@ function evaluateShapes(findings: CapabilityFinding[]): ShapeFinding[] {
     }
   }
 
-  for (const finding of findings) {
+  for (const gain of gains) {
     if (
-      finding.capability.kind === "DYNAMIC_CODE" ||
-      finding.capability.kind === "NATIVE"
+      gain.capability.kind === "DYNAMIC_CODE" ||
+      gain.capability.kind === "NATIVE"
     ) {
-      finding.severity = "CRITICAL";
       shapes.push({
         ruleId: "dynamic-or-native-code",
         severity: "CRITICAL",
-        capabilities: [finding.capability],
+        capabilities: [gain.capability],
       });
     }
   }
   return shapes;
+}
+
+function classifyGains(
+  gains: readonly CapabilityGain[],
+  shapes: readonly ShapeFinding[],
+): CapabilityFinding[] {
+  // Shape evaluation retains each gain's capability object, so identity maps a
+  // participant back to its unique validated semantic slot without re-keying it.
+  const shapeSeverity = new Map<Capability, FindingSeverity>();
+  for (const shape of shapes) {
+    for (const capability of shape.capabilities) {
+      const current = shapeSeverity.get(capability);
+      if (
+        current === undefined ||
+        SEVERITY_ORDER[shape.severity] < SEVERITY_ORDER[current]
+      ) {
+        shapeSeverity.set(capability, shape.severity);
+      }
+    }
+  }
+
+  return gains.map((gain) => ({
+    ...gain,
+    severity: highestSeverity(
+      fallbackSeverityFor(gain.capability),
+      shapeSeverity.get(gain.capability),
+    ),
+  }));
+}
+
+function highestSeverity(
+  fallback: FindingSeverity,
+  shaped: FindingSeverity | undefined,
+): FindingSeverity {
+  if (shaped === undefined) return fallback;
+  return SEVERITY_ORDER[shaped] < SEVERITY_ORDER[fallback] ? shaped : fallback;
 }
 
 function isCodeCapability(

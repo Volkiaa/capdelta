@@ -266,4 +266,42 @@ describe("diffManifestCapabilities", () => {
       ["FS_READ", "LOW"],
     ]);
   });
+
+  it("keeps overlapping shape matches in PLAN table order", () => {
+    const result = diffManifestCapabilities(
+      null,
+      set("2.0.0", [
+        {
+          kind: "NET",
+          location: {
+            kind: "install-script",
+            hook: "postinstall",
+            applicability: "registry-install",
+          },
+          evidence: EVIDENCE,
+        },
+        {
+          kind: "ENV",
+          location: { kind: "runtime" },
+          evidence: EVIDENCE,
+        },
+        installHook("postinstall", "new"),
+        {
+          kind: "DYNAMIC_CODE",
+          location: { kind: "runtime" },
+          evidence: EVIDENCE,
+        },
+      ]),
+    );
+
+    expect(result.shapes?.map((shape) => shape.ruleId)).toEqual([
+      "install-code-execution",
+      "secret-exfiltration",
+      "install-hook-change",
+      "dynamic-or-native-code",
+    ]);
+    expect(
+      result.findings.every(({ severity }) => severity === "CRITICAL"),
+    ).toBe(true);
+  });
 });
