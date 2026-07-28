@@ -67,6 +67,24 @@ export async function extractNpmJavaScriptCapabilities(
 
   for (const file of files) {
     const extension = file.slice(file.lastIndexOf(".")).toLowerCase();
+    if (
+      extension === ".node" ||
+      file.toLowerCase().endsWith("/binding.gyp") ||
+      file.toLowerCase() === "binding.gyp"
+    ) {
+      addGrouped(
+        grouped,
+        "NATIVE",
+        { kind: "runtime" },
+        {
+          file,
+          line: 1,
+          snippet:
+            extension === ".node" ? `<native binary: ${file}>` : "binding.gyp",
+        },
+      );
+      continue;
+    }
     if (extension === ".ts") {
       diagnostics.push(
         diagnostic(
@@ -127,20 +145,12 @@ export async function extractNpmJavaScriptCapabilities(
     const locations = installFiles.get(file) ?? [{ kind: "runtime" } as const];
     for (const detection of response.detections) {
       for (const location of locations) {
-        const key = JSON.stringify([detection.kind, location]);
         const evidence = {
           file,
           line: detection.line,
           snippet: detection.snippet,
         };
-        const existing = grouped.get(key);
-        if (existing === undefined)
-          grouped.set(key, {
-            kind: detection.kind,
-            location,
-            evidence: [evidence],
-          });
-        else existing.evidence.push(evidence);
+        addGrouped(grouped, detection.kind, location, evidence);
       }
     }
   }
@@ -162,6 +172,29 @@ export async function extractNpmJavaScriptCapabilities(
     compareEvidence(left.evidence[0], right.evidence[0]),
   );
   return { capabilities, diagnostics };
+}
+
+function addGrouped(
+  grouped: Map<
+    string,
+    {
+      kind: CodeCapabilityKind;
+      location: CapabilityLocation;
+      evidence: Evidence[];
+    }
+  >,
+  kind: CodeCapabilityKind,
+  location: CapabilityLocation,
+  evidence: Evidence,
+): void {
+  const key = JSON.stringify([kind, location]);
+  const existing = grouped.get(key);
+  if (existing === undefined)
+    grouped.set(key, { kind, location, evidence: [evidence] });
+  else if (
+    !existing.evidence.some((item) => compareEvidence(item, evidence) === 0)
+  )
+    existing.evidence.push(evidence);
 }
 
 function resolveOptions(options: AstExtractionOptions): ResolvedOptions {

@@ -55,6 +55,33 @@ function analyze(request: ParserRequest): ParserResponse {
       }
     });
     fullAncestor(ast, (node, _state, ancestors) => {
+      const moduleName = literalModuleLoad(node);
+      if (moduleName?.endsWith(".node") === true) {
+        detections.push(evidence("NATIVE", node, request.source));
+        return;
+      }
+      if (node.type !== "CallExpression" && node.type !== "NewExpression")
+        return;
+      const callee = asRecord(asRecord(node)?.callee);
+      if (callee?.type !== "MemberExpression") return;
+      const object = asRecord(callee.object);
+      const member = memberName(callee);
+      if (
+        object?.type === "Identifier" &&
+        object.name === "WebAssembly" &&
+        resolver.lookup("WebAssembly", ancestors) === undefined
+      ) {
+        detections.push(evidence("NATIVE", node, request.source));
+      } else if (
+        object?.type === "Identifier" &&
+        object.name === "process" &&
+        member === "dlopen" &&
+        resolver.lookup("process", ancestors) === undefined
+      ) {
+        detections.push(evidence("NATIVE", node, request.source));
+      }
+    });
+    fullAncestor(ast, (node, _state, ancestors) => {
       if (literalModuleLoad(node) === "vm") {
         detections.push(evidence("DYNAMIC_CODE", node, request.source));
         return;

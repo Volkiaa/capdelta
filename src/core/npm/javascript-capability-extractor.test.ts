@@ -396,3 +396,31 @@ describe("extractNpmJavaScriptCapabilities DYNAMIC_CODE", () => {
     );
   });
 });
+
+describe("extractNpmJavaScriptCapabilities NATIVE", () => {
+  it("detects native artifacts and WebAssembly loading", async () => {
+    await withPackage(
+      {
+        "build/Release/addon.node": "inert fixture",
+        "binding.gyp": "{}",
+        "index.js":
+          "WebAssembly.instantiate(new Uint8Array());\nrequire('./build/Release/addon.node');\n",
+      },
+      async (root) => {
+        const result = await extractNpmJavaScriptCapabilities(
+          { root },
+          manifestSet,
+        );
+        const native = result.capabilities.find(
+          (item) => item.kind === "NATIVE",
+        );
+        expect(native?.evidence.map((item) => [item.file, item.line])).toEqual([
+          ["binding.gyp", 1],
+          ["build/Release/addon.node", 1],
+          ["index.js", 1],
+          ["index.js", 2],
+        ]);
+      },
+    );
+  });
+});
