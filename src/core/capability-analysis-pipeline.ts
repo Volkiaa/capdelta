@@ -602,7 +602,11 @@ async function analyzeSide(
     );
   }
   if (extraction.status === "rejected") {
-    if (isAborted(signal)) return stoppedSide(signal);
+    if (isAborted(signal)) {
+      return stoppedSide(signal, [
+        { stage: `${side}-extraction`, failure: extraction.failure },
+      ]);
+    }
     return {
       ok: false,
       failures: [{ stage: `${side}-extraction`, failure: extraction.failure }],

@@ -166,7 +166,16 @@ export async function extractVerifiedTarball(
         };
       }
     }
-    return { status: "rejected", failure: classifyFailure(error) };
+    return {
+      status: "rejected",
+      failure:
+        resolved.signal?.aborted === true
+          ? {
+              kind: analysisStopKind(resolved.signal) ?? "analysis-aborted",
+              detail: analysisStopDetail(resolved.signal),
+            }
+          : classifyFailure(error),
+    };
   }
 }
 

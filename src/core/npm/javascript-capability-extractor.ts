@@ -378,6 +378,7 @@ function resolveInside(root: string, file: string): string {
 
 class ParserWorkerClient {
   private worker: Worker | null = null;
+  private readonly terminations: Promise<number>[] = [];
 
   constructor(private readonly timeoutMs: number) {}
 
@@ -396,7 +397,7 @@ class ParserWorkerClient {
         signal?.removeEventListener("abort", onAbort);
         if (discard && this.worker === worker) {
           this.worker = null;
-          void worker.terminate();
+          this.terminations.push(worker.terminate());
         }
         resolveResponse(response);
       };
@@ -450,7 +451,9 @@ class ParserWorkerClient {
   async close(): Promise<void> {
     const worker = this.worker;
     this.worker = null;
-    if (worker !== null) await worker.terminate();
+    const activeTermination = worker === null ? [] : [worker.terminate()];
+    await Promise.all([...this.terminations, ...activeTermination]);
+    this.terminations.length = 0;
   }
 }
 

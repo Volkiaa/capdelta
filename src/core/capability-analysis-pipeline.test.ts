@@ -613,6 +613,52 @@ describe("analyzeChangedPackages", () => {
     ]);
   });
 
+  it("preserves an extractor cleanup failure alongside cancellation", async () => {
+    vi.useFakeTimers();
+    let releaseExtraction: (() => void) | undefined;
+    let markStarted: (() => void) | undefined;
+    const started = new Promise<void>((resolve) => {
+      markStarted = resolve;
+    });
+    const gate = new Promise<void>((resolve) => {
+      releaseExtraction = resolve;
+    });
+    const pending = pipeline({
+      extract: async () => {
+        markStarted?.();
+        await gate;
+        return {
+          status: "rejected",
+          failure: {
+            kind: "filesystem-error",
+            detail: "extraction failed and cleanup failed",
+          },
+        };
+      },
+    })(lockfileDiff([changedPackage("cleanup")]), {
+      execution: { deadlineMs: 10 },
+    });
+
+    await started;
+    vi.advanceTimersByTime(10);
+    releaseExtraction?.();
+    const result = await pending;
+
+    expect(result.packages[0]).toMatchObject({
+      status: "unavailable",
+      failures: [
+        {
+          stage: "new-extraction",
+          failure: { kind: "filesystem-error" },
+        },
+        {
+          stage: "analysis",
+          failure: { kind: "deadline-exceeded" },
+        },
+      ],
+    });
+  });
+
   it("propagates lockfile facts and validates configuration and adapter contracts", async () => {
     const diff = lockfileDiff([]);
     diff.firstRun = true;
