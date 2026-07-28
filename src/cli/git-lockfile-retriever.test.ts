@@ -52,11 +52,13 @@ function fakeGitProcess(
   closeOn: "soft" | "hard" | "never" = "soft",
   softSignalAccepted = true,
   errorOnSoft = false,
+  errorOnHard = false,
 ): {
   spawnImpl: typeof spawn;
   kill: ReturnType<typeof vi.fn>;
   stdout: PassThrough;
   unref: ReturnType<typeof vi.fn>;
+  emitError: (error: Error) => void;
 } {
   const stdout = new PassThrough();
   const unref = vi.fn();
@@ -72,6 +74,9 @@ function fakeGitProcess(
     if (!hard && errorOnSoft) {
       queueMicrotask(() => child.emit("error", new Error("kill failed")));
     }
+    if (hard && errorOnHard) {
+      queueMicrotask(() => child.emit("error", new Error("hard kill failed")));
+    }
     if ((hard && closeOn === "hard") || (!hard && closeOn === "soft")) {
       queueMicrotask(() => child.emit("close", null));
     }
@@ -81,7 +86,15 @@ function fakeGitProcess(
   const spawnImpl = vi.fn(() => {
     return child;
   }) as unknown as typeof spawn;
-  return { spawnImpl, kill, stdout, unref };
+  return {
+    spawnImpl,
+    kill,
+    stdout,
+    unref,
+    emitError: (error: Error): void => {
+      child.emit("error", error);
+    },
+  };
 }
 
 afterEach(async () => {
@@ -91,6 +104,16 @@ afterEach(async () => {
 });
 
 describe("Git lockfile retriever", () => {
+  it("tears down a Git process that errors without closing", async () => {
+    const { spawnImpl, emitError, unref } = fakeGitProcess("never");
+    const inspection = inspectGitLockfileChange("HEAD", process.cwd(), {
+      spawnImpl,
+    });
+    emitError(new Error("spawn failed"));
+    await expect(inspection).rejects.toThrow("cannot start Git");
+    expect(unref).toHaveBeenCalledOnce();
+  });
+
   it("takes the no-op path for an unchanged lockfile", async () => {
     const cwd = await createRepository(true);
     await expect(inspectGitLockfileChange("HEAD", cwd)).resolves.toEqual({
@@ -186,6 +209,24 @@ describe("Git lockfile retriever", () => {
     await expect(inspection).rejects.toThrow(
       "Git did not exit within 5 ms after hard kill",
     );
+    expect(kill).toHaveBeenNthCalledWith(1);
+    expect(kill).toHaveBeenNthCalledWith(2, "SIGKILL");
+    expect(unref).toHaveBeenCalledOnce();
+  });
+
+  it("handles errors from both soft and hard termination", async () => {
+    const { spawnImpl, kill, stdout, unref } = fakeGitProcess(
+      "never",
+      true,
+      true,
+      true,
+    );
+    const inspection = inspectGitLockfileChange("HEAD", process.cwd(), {
+      spawnImpl,
+      terminationGraceMs: 5,
+    });
+    stdout.write(Buffer.alloc(1024 * 1024 + 1));
+    await expect(inspection).rejects.toThrow("Git errored during hard kill");
     expect(kill).toHaveBeenNthCalledWith(1);
     expect(kill).toHaveBeenNthCalledWith(2, "SIGKILL");
     expect(unref).toHaveBeenCalledOnce();

@@ -291,9 +291,10 @@ async function runGit(
     child.stderr.on("data", (chunk: Buffer) => {
       capture(stderr, chunk);
     });
-    child.once("error", (error) => {
+    const handleChildError = (error: Error): void => {
+      if (settled) return;
       if (pendingFailure === null) {
-        rejectOnce(
+        abandonChild(
           new CliOperationalError("cannot start Git", { cause: error }),
         );
         return;
@@ -308,8 +309,12 @@ async function runGit(
           { cause: error },
         ),
       );
-    });
+    };
+    // Keep this installed through soft and hard termination. ChildProcess may
+    // emit more than one error while signals are escalated.
+    child.on("error", handleChildError);
     child.once("close", (code) => {
+      child.off("error", handleChildError);
       if (settled) return;
       if (pendingFailure !== null) {
         rejectOnce(pendingFailure);
