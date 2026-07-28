@@ -3,12 +3,15 @@ import type {
   ContentDigest,
   Evidence,
   InstallHook,
+  CapabilityLocation,
+  CodeCapabilityKind,
 } from "./contract/capability-set.js";
 import type {
   CapabilityChange,
   CapabilityDiffDiagnostic,
   CapabilityDiffResult,
   FindingSeverity,
+  ShapeRuleId,
 } from "./capability-differ.js";
 import type {
   ManifestAnalysisRun,
@@ -80,11 +83,23 @@ export interface ReportRuntimeConstraintCapability extends ReportCapabilityBase 
   requirement: string;
 }
 
+export interface ReportCodeCapability extends ReportCapabilityBase {
+  kind: CodeCapabilityKind;
+  location: CapabilityLocation;
+}
+
 export type ReportCapability =
   | ReportInstallHookCapability
   | ReportCommandEntrypointCapability
   | ReportDependencyCapability
-  | ReportRuntimeConstraintCapability;
+  | ReportRuntimeConstraintCapability
+  | ReportCodeCapability;
+
+export interface JsonReportShapeFinding {
+  ruleId: ShapeRuleId;
+  severity: "CRITICAL";
+  capabilities: readonly ReportCapability[];
+}
 
 export interface JsonReportFinding {
   severity: FindingSeverity;
@@ -181,6 +196,7 @@ export interface JsonReport {
     bySeverity: SeverityCounts;
   };
   findings: readonly JsonReportFinding[];
+  shapes?: readonly JsonReportShapeFinding[];
   diagnostics: readonly JsonReportDiagnostic[];
 }
 
@@ -224,6 +240,15 @@ function renderTextReportFromBuilt(report: JsonReport): string[] {
         ...finding.capability.evidence.map(
           (evidence) => `  Evidence: ${evidenceText(evidence)}`,
         ),
+      );
+    }
+  }
+
+  if ((report.shapes?.length ?? 0) > 0) {
+    lines.push("", "Capability shapes:");
+    for (const shape of report.shapes ?? []) {
+      lines.push(
+        `- [${shape.severity}] ${quote(shape.ruleId)} (${count(shape.capabilities.length, "capability")})`,
       );
     }
   }
@@ -505,6 +530,11 @@ function buildReport(result: CapabilityDiffResult): JsonReport {
       finding.previous === null ? null : reportCapability(finding.previous),
   }));
   const diagnostics = result.diagnostics.map(reportDiagnostic);
+  const shapes = (result.shapes ?? []).map((shape) => ({
+    ruleId: shape.ruleId,
+    severity: shape.severity,
+    capabilities: shape.capabilities.map(reportCapability),
+  }));
   const bySeverity = emptySeverityCounts();
   for (const finding of findings) bySeverity[finding.severity] += 1;
 
@@ -526,6 +556,7 @@ function buildReport(result: CapabilityDiffResult): JsonReport {
       bySeverity,
     },
     findings,
+    shapes,
     diagnostics,
   };
 }
@@ -567,6 +598,12 @@ function validateResult(result: CapabilityDiffResult): void {
   for (const diagnostic of result.diagnostics) {
     validateEvidence(diagnostic.diagnostic.evidence);
   }
+  for (const shape of result.shapes ?? []) {
+    if (shape.capabilities.length === 0) {
+      throw new ReporterContractError("shape finding has no capabilities");
+    }
+    for (const capability of shape.capabilities) validateCapability(capability);
+  }
 }
 
 function validateCapability(capability: Capability): void {
@@ -578,9 +615,8 @@ function validateCapability(capability: Capability): void {
       validateEvidence(capability.evidence);
       return;
     default:
-      throw new ReporterContractError(
-        `M1 manifest Reporter does not support ${capability.kind}`,
-      );
+      validateEvidence(capability.evidence);
+      return;
   }
 }
 
@@ -633,9 +669,11 @@ function reportCapability(capability: Capability): ReportCapability {
         evidence,
       };
     default:
-      throw new ReporterContractError(
-        `M1 manifest Reporter does not support ${capability.kind}`,
-      );
+      return {
+        kind: capability.kind,
+        location: capability.location,
+        evidence,
+      };
   }
 }
 
@@ -703,6 +741,8 @@ function findingDescription(finding: JsonReportFinding): string {
       return `dependency ${quote(capability.name)} ${finding.change}: ${quote(capability.requirement)}`;
     case "RUNTIME_CONSTRAINT":
       return `runtime ${quote(capability.runtime)} constraint ${finding.change}: ${quote(capability.requirement)}`;
+    default:
+      return `${quote(capability.kind)} capability ${finding.change} in ${quote(capability.location.kind)} code`;
   }
 }
 

@@ -120,7 +120,7 @@ describe("manifest Reporter", () => {
     );
   });
 
-  it("throws for inconsistent findings and unsupported future capabilities", () => {
+  it("throws for inconsistent findings and renders AST capabilities", () => {
     const inconsistent: CapabilityDiffResult = {
       ...emptyResult(),
       findings: [
@@ -167,7 +167,9 @@ describe("manifest Reporter", () => {
         },
       ],
     };
-    expect(() => renderTextReport(future)).toThrow(ReporterContractError);
+    expect(renderTextReport(future)).toContain(
+      '[HIGH] "NET" capability added in "runtime" code',
+    );
   });
 
   it("renders every loud run-level failure channel with escaped values", () => {

@@ -293,6 +293,8 @@ function findingText(finding: JsonReportFinding): string {
       return `${finding.change.toLowerCase()} dependency ${capability.name}`;
     case "RUNTIME_CONSTRAINT":
       return `${finding.change.toLowerCase()} ${capability.runtime} constraint`;
+    default:
+      return `${finding.change.toLowerCase()} ${capability.kind} capability`;
   }
 }
 

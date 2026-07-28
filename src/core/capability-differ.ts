@@ -8,6 +8,7 @@ import {
   type InstallHookCapability,
   type PackageSubject,
   type RuntimeConstraintCapability,
+  type CodeCapability,
 } from "./contract/capability-set.js";
 
 type ManifestCapability =
@@ -29,6 +30,19 @@ export interface CapabilityFinding {
   previous: Capability | null;
 }
 
+export type ShapeRuleId =
+  | "install-code-execution"
+  | "secret-exfiltration"
+  | "install-hook-change"
+  | "dynamic-or-native-code";
+
+export interface ShapeFinding {
+  ruleId: ShapeRuleId;
+  severity: "CRITICAL";
+  /** Current-side gains that jointly satisfy the rule. */
+  capabilities: readonly Capability[];
+}
+
 export interface CapabilityDiffDiagnostic {
   side: "old" | "new";
   diagnostic: AnalysisDiagnostic;
@@ -42,13 +56,10 @@ export interface CapabilityDiffResult {
   newPackage: boolean;
   /** Severity-first, then semantic-slot order for deterministic reports. */
   findings: readonly CapabilityFinding[];
+  /** Shape matches are ordered by the PLAN §4.4 rule table. */
+  shapes?: readonly ShapeFinding[];
   /** Partial-analysis data is propagated, never silently discarded. */
   diagnostics: readonly CapabilityDiffDiagnostic[];
-}
-
-interface ManifestCapabilityFinding extends CapabilityFinding {
-  capability: ManifestCapability;
-  previous: ManifestCapability | null;
 }
 
 export class CapabilityDifferError extends Error {
@@ -58,7 +69,7 @@ export class CapabilityDifferError extends Error {
   }
 }
 
-/** The producer violated the capability-set contract or M1 feature boundary. */
+/** The producer violated the ecosystem-agnostic capability-set contract. */
 export class CapabilityDifferContractError extends CapabilityDifferError {}
 
 const SEVERITY_ORDER: Readonly<Record<FindingSeverity, number>> = {
@@ -70,7 +81,7 @@ const SEVERITY_ORDER: Readonly<Record<FindingSeverity, number>> = {
 };
 
 /**
- * Manifest-only M1 Differ (PLAN §4.3 layer 1, §4.4). Removed capabilities are
+ * Additions-only capability Differ (PLAN §4.4). Removed capabilities are
  * deliberately ignored; a null baseline receives a full capability report.
  */
 export function diffManifestCapabilities(
@@ -84,8 +95,8 @@ export function diffManifestCapabilities(
   }
 
   const oldBySlot =
-    oldSet === null ? new Map<string, ManifestCapability>() : indexSet(oldSet);
-  const findings: ManifestCapabilityFinding[] = [];
+    oldSet === null ? new Map<string, Capability>() : indexSet(oldSet);
+  const findings: CapabilityFinding[] = [];
   for (const current of manifestCapabilities(newSet)) {
     const previous = oldBySlot.get(semanticSlot(current));
     if (oldSet === null || previous === undefined) {
@@ -104,6 +115,7 @@ export function diffManifestCapabilities(
       });
     }
   }
+  const shapes = evaluateShapes(findings);
   findings.sort(compareFindings);
 
   const diagnostics: CapabilityDiffDiagnostic[] = [];
@@ -128,6 +140,7 @@ export function diffManifestCapabilities(
     subject: newSet.subject,
     newPackage: oldSet === null,
     findings,
+    shapes,
     diagnostics,
   };
 }
@@ -163,12 +176,6 @@ function validateSet(set: CapabilitySet, side: "old" | "new"): void {
 
   const slots = new Set<string>();
   for (const capability of set.capabilities) {
-    if (!isManifestCapability(capability)) {
-      throw contractError(
-        side,
-        `M1 manifest Differ does not support ${capability.kind}`,
-      );
-    }
     if (capability.evidence.length === 0) {
       throw contractError(side, `${capability.kind} has no evidence`);
     }
@@ -201,9 +208,8 @@ function contractError(
   return new CapabilityDifferContractError(`${side} capability set: ${detail}`);
 }
 
-function manifestCapabilities(set: CapabilitySet): ManifestCapability[] {
-  // validateSet establishes this M1 narrowing before the Differ runs.
-  return set.capabilities.filter(isManifestCapability);
+function manifestCapabilities(set: CapabilitySet): Capability[] {
+  return [...set.capabilities];
 }
 
 function isManifestCapability(
@@ -217,7 +223,7 @@ function isManifestCapability(
   );
 }
 
-function indexSet(set: CapabilitySet): Map<string, ManifestCapability> {
+function indexSet(set: CapabilitySet): Map<string, Capability> {
   return new Map(
     manifestCapabilities(set).map((capability) => [
       semanticSlot(capability),
@@ -226,7 +232,7 @@ function indexSet(set: CapabilitySet): Map<string, ManifestCapability> {
   );
 }
 
-function semanticSlot(capability: ManifestCapability): string {
+function semanticSlot(capability: Capability): string {
   switch (capability.kind) {
     case "INSTALL_HOOK":
       return JSON.stringify([capability.kind, capability.location.hook]);
@@ -236,12 +242,14 @@ function semanticSlot(capability: ManifestCapability): string {
       return JSON.stringify([capability.kind, capability.name]);
     case "RUNTIME_CONSTRAINT":
       return JSON.stringify([capability.kind, capability.runtime]);
+    default:
+      return JSON.stringify([capability.kind, capability.location]);
   }
 }
 
 function manifestCapabilityChanged(
-  previous: ManifestCapability,
-  current: ManifestCapability,
+  previous: Capability,
+  current: Capability,
 ): boolean {
   switch (current.kind) {
     case "INSTALL_HOOK":
@@ -262,10 +270,12 @@ function manifestCapabilityChanged(
         previous.kind !== current.kind ||
         previous.requirement !== current.requirement
       );
+    default:
+      return false;
   }
 }
 
-function severityFor(capability: ManifestCapability): FindingSeverity {
+function severityFor(capability: Capability): FindingSeverity {
   switch (capability.kind) {
     case "INSTALL_HOOK":
       return capability.location.applicability === "registry-install"
@@ -276,12 +286,99 @@ function severityFor(capability: ManifestCapability): FindingSeverity {
       return "LOW";
     case "RUNTIME_CONSTRAINT":
       return "INFO";
+    case "NET":
+    case "PROCESS":
+    case "FS_SENSITIVE":
+      return "HIGH";
+    case "ENV":
+    case "FS_WRITE":
+      return "MEDIUM";
+    case "FS_READ":
+    case "UNKNOWN":
+      return "LOW";
+    case "DYNAMIC_CODE":
+    case "NATIVE":
+      return "CRITICAL";
   }
 }
 
+function evaluateShapes(findings: CapabilityFinding[]): ShapeFinding[] {
+  const shapes: ShapeFinding[] = [];
+  const installCodeKinds = new Set(["NET", "PROCESS", "ENV", "FS_SENSITIVE"]);
+  for (const finding of findings) {
+    const capability = finding.capability;
+    if (
+      isCodeCapability(capability) &&
+      capability.location.kind === "install-script" &&
+      installCodeKinds.has(capability.kind)
+    ) {
+      finding.severity = "CRITICAL";
+      shapes.push({
+        ruleId: "install-code-execution",
+        severity: "CRITICAL",
+        capabilities: [capability],
+      });
+    }
+  }
+
+  const network = findings.filter(
+    (finding) => finding.capability.kind === "NET",
+  );
+  const secrets = findings.filter(
+    (finding) =>
+      finding.capability.kind === "ENV" ||
+      finding.capability.kind === "FS_SENSITIVE",
+  );
+  if (network.length > 0 && secrets.length > 0) {
+    const participants = [...network, ...secrets];
+    for (const finding of participants) finding.severity = "CRITICAL";
+    shapes.push({
+      ruleId: "secret-exfiltration",
+      severity: "CRITICAL",
+      capabilities: participants.map((finding) => finding.capability),
+    });
+  }
+
+  for (const finding of findings) {
+    const capability = finding.capability;
+    if (
+      capability.kind === "INSTALL_HOOK" &&
+      capability.location.applicability === "registry-install"
+    ) {
+      finding.severity = "CRITICAL";
+      shapes.push({
+        ruleId: "install-hook-change",
+        severity: "CRITICAL",
+        capabilities: [capability],
+      });
+    }
+  }
+
+  for (const finding of findings) {
+    if (
+      finding.capability.kind === "DYNAMIC_CODE" ||
+      finding.capability.kind === "NATIVE"
+    ) {
+      finding.severity = "CRITICAL";
+      shapes.push({
+        ruleId: "dynamic-or-native-code",
+        severity: "CRITICAL",
+        capabilities: [finding.capability],
+      });
+    }
+  }
+  return shapes;
+}
+
+function isCodeCapability(
+  capability: Capability,
+): capability is CodeCapability {
+  return !isManifestCapability(capability);
+}
+
 function compareFindings(
-  left: ManifestCapabilityFinding,
-  right: ManifestCapabilityFinding,
+  left: CapabilityFinding,
+  right: CapabilityFinding,
 ): number {
   const severity =
     SEVERITY_ORDER[left.severity] - SEVERITY_ORDER[right.severity];
