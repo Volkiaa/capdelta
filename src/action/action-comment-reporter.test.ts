@@ -15,7 +15,7 @@ const PAYLOAD =
 
 function adversarialReport(firstRun = false): JsonRunReport {
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     firstRun,
     summary: {
       changedPackages: 1,
@@ -32,7 +32,7 @@ function adversarialReport(firstRun = false): JsonRunReport {
       {
         status: "analyzed",
         report: {
-          schemaVersion: 2,
+          schemaVersion: 3,
           package: {
             ecosystem: "npm",
             name: PAYLOAD,

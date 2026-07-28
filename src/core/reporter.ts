@@ -18,6 +18,7 @@ import type {
   CapabilityAnalysisRun,
   PackageAnalysisFailure,
 } from "./capability-analysis-pipeline.js";
+import type { AnalysisStopKind } from "./analysis-execution-policy.js";
 import type {
   ChangedPackage,
   LockfileFindingKind,
@@ -28,7 +29,7 @@ import type { ManifestCapabilityFailureKind } from "./npm/manifest-capability-ex
 import type { ExtractionFailureKind } from "./npm/safe-extractor.js";
 import { createHash } from "node:crypto";
 
-export const REPORT_SCHEMA_VERSION = 2 as const;
+export const REPORT_SCHEMA_VERSION = 3 as const;
 
 const MAX_IDENTITY_CHARS = 160;
 const MAX_VALUE_CHARS = 240;
@@ -131,11 +132,12 @@ export type ReportAnalysisIssueKind =
   | FetchFailureKind
   | ExtractionFailureKind
   | ManifestCapabilityFailureKind
+  | AnalysisStopKind
   | "cleanup-failed";
 
 export interface JsonReportAnalysisIssue {
   stage: PackageAnalysisFailure["stage"];
-  side: "old" | "new";
+  side: "old" | "new" | null;
   kind: ReportAnalysisIssueKind;
   detail: string;
   url: string | null;
@@ -486,6 +488,16 @@ function reportAnalysisFailures(
 function reportAnalysisIssue(
   issue: PackageAnalysisFailure,
 ): JsonReportAnalysisIssue {
+  if (issue.stage === "analysis") {
+    return {
+      stage: issue.stage,
+      side: null,
+      kind: issue.failure.kind,
+      detail: truncate(issue.failure.detail, MAX_VALUE_CHARS),
+      url: null,
+      evidence: null,
+    };
+  }
   const side = issue.stage === "fetch" ? issue.failure.side : stageSide(issue);
   if (issue.stage === "fetch") {
     return {
@@ -521,7 +533,10 @@ function reportAnalysisIssue(
 }
 
 function stageSide(
-  issue: Exclude<PackageAnalysisFailure, { stage: "fetch" }>,
+  issue: Exclude<
+    PackageAnalysisFailure,
+    { stage: "fetch" } | { stage: "analysis" }
+  >,
 ): "old" | "new" {
   return issue.stage.startsWith("old-") ? "old" : "new";
 }

@@ -9,7 +9,7 @@ import {
 
 function report(): JsonRunReport {
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     firstRun: false,
     summary: {
       changedPackages: 2,
@@ -26,7 +26,7 @@ function report(): JsonRunReport {
       {
         status: "analyzed",
         report: {
-          schemaVersion: 2,
+          schemaVersion: 3,
           package: {
             ecosystem: "npm",
             name: "safe-fixture",

@@ -1,5 +1,17 @@
 /** Public library surface. Grows one component per milestone (PLAN §6). */
 export {
+  AnalysisExecutionPolicyConfigurationError,
+  AnalysisExecutionPolicyError,
+  analysisStopDetail,
+  analysisStopKind,
+  resolveAnalysisExecutionPolicy,
+  startAnalysisRun,
+  type AnalysisExecutionPolicy,
+  type AnalysisRunControl,
+  type AnalysisStopKind,
+  type ResolvedAnalysisExecutionPolicy,
+} from "./core/analysis-execution-policy.js";
+export {
   CapabilityDifferContractError,
   CapabilityDifferError,
   diffCapabilities,

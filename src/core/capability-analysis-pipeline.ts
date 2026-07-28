@@ -9,6 +9,16 @@ import type {
   PackageSubject,
 } from "./contract/capability-set.js";
 import {
+  AnalysisExecutionPolicyConfigurationError,
+  analysisStopDetail,
+  analysisStopKind,
+  resolveAnalysisExecutionPolicy,
+  startAnalysisRun,
+  type AnalysisExecutionPolicy,
+  type AnalysisStopKind,
+  type ResolvedAnalysisExecutionPolicy,
+} from "./analysis-execution-policy.js";
+import {
   diffCapabilities,
   type CapabilityDiffResult,
 } from "./capability-differ.js";
@@ -43,6 +53,10 @@ export type AnalysisSide = "old" | "new";
 
 export type PackageAnalysisFailure =
   | { stage: "fetch"; failure: FetchFailure }
+  | {
+      stage: "analysis";
+      failure: { kind: AnalysisStopKind; detail: string };
+    }
   | {
       stage: "old-extraction" | "new-extraction";
       failure: ExtractionFailure;
@@ -86,6 +100,7 @@ export interface CapabilityAnalysisRun {
 }
 
 export interface CapabilityAnalysisOptions {
+  execution?: AnalysisExecutionPolicy;
   fetcher?: FetcherOptions;
   extractor?: ExtractorOptions;
   manifestExtractor?: ManifestCapabilityExtractorOptions;
@@ -135,6 +150,14 @@ interface CapabilityAnalysisAdapters {
   ): CapabilityDiffResult;
 }
 
+interface ResolvedPipelineOptions {
+  execution: ResolvedAnalysisExecutionPolicy;
+  fetcher: FetcherOptions;
+  extractor: ExtractorOptions;
+  manifestExtractor: ManifestCapabilityExtractorOptions;
+  astExtractor: AstExtractionOptions;
+}
+
 interface SideAnalysisSuccess {
   ok: true;
   set: CapabilitySet;
@@ -147,8 +170,6 @@ interface SideAnalysisFailure {
 }
 
 type SideAnalysisResult = SideAnalysisSuccess | SideAnalysisFailure;
-
-const DEFAULT_EXTRACTION_CONCURRENCY = 4;
 
 const DEFAULT_ADAPTERS: CapabilityAnalysisAdapters = {
   fetch: fetchChangedPackages,
@@ -176,59 +197,197 @@ export function createCapabilityAnalysisPipeline(
     lockfileDiff: LockfileDiffResult,
     options: CapabilityAnalysisOptions = {},
   ): Promise<CapabilityAnalysisRun> => {
-    const extractionConcurrency = resolveExtractionConcurrency(options);
-    const fetched = await callWithContext("package fetch batch", () =>
-      adapters.fetch(lockfileDiff.changed, options.fetcher ?? {}),
-    );
-    validateFetchResults(lockfileDiff.changed, fetched);
+    const resolved = resolvePipelineOptions(options);
+    const control = startAnalysisRun(resolved.execution);
+    try {
+      const fetched = await callWithContext("package fetch batch", () =>
+        adapters.fetch(lockfileDiff.changed, {
+          ...resolved.fetcher,
+          signal: control.signal,
+        }),
+      );
+      validateFetchResults(lockfileDiff.changed, fetched);
 
-    const packages = new Array<PackageAnalysisResult>(fetched.length);
-    let nextIndex = 0;
-    const workerCount = Math.min(extractionConcurrency, fetched.length);
-    await Promise.all(
-      Array.from({ length: workerCount }, async () => {
-        for (;;) {
-          const index = nextIndex;
-          nextIndex += 1;
-          const fetchedPackage = fetched[index];
-          if (fetchedPackage === undefined) return;
-          packages[index] = await analyzeFetchedPackage(
-            fetchedPackage,
-            options,
-            adapters,
-          );
-        }
-      }),
-    );
+      const packages = new Array<PackageAnalysisResult>(fetched.length);
+      let nextIndex = 0;
+      const workerCount = Math.min(
+        resolved.execution.extraction.concurrency,
+        fetched.length,
+      );
+      await Promise.all(
+        Array.from({ length: workerCount }, async () => {
+          for (;;) {
+            const index = nextIndex;
+            nextIndex += 1;
+            const fetchedPackage = fetched[index];
+            if (fetchedPackage === undefined) return;
+            packages[index] = control.signal.aborted
+              ? policyUnavailable(fetchedPackage.changedPackage, control.signal)
+              : await analyzeFetchedPackage(
+                  fetchedPackage,
+                  resolved,
+                  control.signal,
+                  adapters,
+                );
+          }
+        }),
+      );
 
-    const analyzed = packages.filter(
-      (result) => result.status === "analyzed",
-    ).length;
-    return {
-      firstRun: lockfileDiff.firstRun,
-      summary: {
-        changed: lockfileDiff.changed.length,
-        analyzed,
-        unavailable: packages.length - analyzed,
-        skipped: lockfileDiff.skipped.length,
-      },
-      packages,
-      lockfileFindings: lockfileDiff.findings,
-      skipped: lockfileDiff.skipped,
-    };
+      const analyzed = packages.filter(
+        (result) => result.status === "analyzed",
+      ).length;
+      return {
+        firstRun: lockfileDiff.firstRun,
+        summary: {
+          changed: lockfileDiff.changed.length,
+          analyzed,
+          unavailable: packages.length - analyzed,
+          skipped: lockfileDiff.skipped.length,
+        },
+        packages,
+        lockfileFindings: lockfileDiff.findings,
+        skipped: lockfileDiff.skipped,
+      };
+    } finally {
+      control.dispose();
+    }
   };
 }
 
-function resolveExtractionConcurrency(
+function resolvePipelineOptions(
   options: CapabilityAnalysisOptions,
-): number {
-  const value = options.extractionConcurrency ?? DEFAULT_EXTRACTION_CONCURRENCY;
-  if (!Number.isSafeInteger(value) || value <= 0) {
+): ResolvedPipelineOptions {
+  rejectPolicyConflicts(options);
+  if (options.fetcher?.signal !== undefined) {
     throw new CapabilityAnalysisPipelineConfigurationError(
-      "extractionConcurrency must be a positive safe integer",
+      "fetcher.signal is managed by execution.signal",
     );
   }
-  return value;
+  try {
+    const defaults = resolveAnalysisExecutionPolicy(options.execution);
+    const execution = resolveAnalysisExecutionPolicy({
+      deadlineMs: defaults.deadlineMs,
+      ...(defaults.signal === undefined ? {} : { signal: defaults.signal }),
+      fetch: {
+        concurrency: options.fetcher?.concurrency ?? defaults.fetch.concurrency,
+        timeoutMs: options.fetcher?.timeoutMs ?? defaults.fetch.timeoutMs,
+        maxTarballBytes:
+          options.fetcher?.maxTarballBytes ?? defaults.fetch.maxTarballBytes,
+      },
+      extraction: {
+        concurrency:
+          options.extractionConcurrency ?? defaults.extraction.concurrency,
+        maxFileCount:
+          options.extractor?.maxFileCount ?? defaults.extraction.maxFileCount,
+        maxExpandedBytes:
+          options.extractor?.maxExpandedBytes ??
+          defaults.extraction.maxExpandedBytes,
+        maxDecompressionRatio:
+          options.extractor?.maxDecompressionRatio ??
+          defaults.extraction.maxDecompressionRatio,
+      },
+      manifest: {
+        maxBytes:
+          options.manifestExtractor?.maxManifestBytes ??
+          defaults.manifest.maxBytes,
+      },
+      javascript: {
+        maxSourceBytes:
+          options.astExtractor?.maxSourceBytes ??
+          defaults.javascript.maxSourceBytes,
+        parseTimeoutMs:
+          options.astExtractor?.parseTimeoutMs ??
+          defaults.javascript.parseTimeoutMs,
+      },
+    });
+    return {
+      execution,
+      fetcher: {
+        ...(options.fetcher?.fetchImpl === undefined
+          ? {}
+          : { fetchImpl: options.fetcher.fetchImpl }),
+        ...(options.fetcher?.cache === undefined
+          ? {}
+          : { cache: options.fetcher.cache }),
+        ...execution.fetch,
+      },
+      extractor: {
+        maxFileCount: execution.extraction.maxFileCount,
+        maxExpandedBytes: execution.extraction.maxExpandedBytes,
+        maxDecompressionRatio: execution.extraction.maxDecompressionRatio,
+      },
+      manifestExtractor: { maxManifestBytes: execution.manifest.maxBytes },
+      astExtractor: execution.javascript,
+    };
+  } catch (error: unknown) {
+    if (error instanceof AnalysisExecutionPolicyConfigurationError) {
+      throw new CapabilityAnalysisPipelineConfigurationError(error.message, {
+        cause: error,
+      });
+    }
+    throw error;
+  }
+}
+
+function rejectPolicyConflicts(options: CapabilityAnalysisOptions): void {
+  const policy = options.execution;
+  const conflicts: readonly (readonly [string, unknown, unknown])[] = [
+    [
+      "fetch.concurrency",
+      policy?.fetch?.concurrency,
+      options.fetcher?.concurrency,
+    ],
+    ["fetch.timeoutMs", policy?.fetch?.timeoutMs, options.fetcher?.timeoutMs],
+    [
+      "fetch.maxTarballBytes",
+      policy?.fetch?.maxTarballBytes,
+      options.fetcher?.maxTarballBytes,
+    ],
+    [
+      "extraction.concurrency",
+      policy?.extraction?.concurrency,
+      options.extractionConcurrency,
+    ],
+    [
+      "extraction.maxFileCount",
+      policy?.extraction?.maxFileCount,
+      options.extractor?.maxFileCount,
+    ],
+    [
+      "extraction.maxExpandedBytes",
+      policy?.extraction?.maxExpandedBytes,
+      options.extractor?.maxExpandedBytes,
+    ],
+    [
+      "extraction.maxDecompressionRatio",
+      policy?.extraction?.maxDecompressionRatio,
+      options.extractor?.maxDecompressionRatio,
+    ],
+    [
+      "manifest.maxBytes",
+      policy?.manifest?.maxBytes,
+      options.manifestExtractor?.maxManifestBytes,
+    ],
+    [
+      "javascript.maxSourceBytes",
+      policy?.javascript?.maxSourceBytes,
+      options.astExtractor?.maxSourceBytes,
+    ],
+    [
+      "javascript.parseTimeoutMs",
+      policy?.javascript?.parseTimeoutMs,
+      options.astExtractor?.parseTimeoutMs,
+    ],
+  ];
+  const duplicate = conflicts.find(
+    ([, policyValue, legacyValue]) =>
+      policyValue !== undefined && legacyValue !== undefined,
+  );
+  if (duplicate !== undefined) {
+    throw new CapabilityAnalysisPipelineConfigurationError(
+      `${duplicate[0]} is configured in both execution policy and legacy options`,
+    );
+  }
 }
 
 function validateFetchResults(
@@ -272,7 +431,8 @@ function sameChangedPackage(
 
 async function analyzeFetchedPackage(
   fetched: FetchPackageResult,
-  options: CapabilityAnalysisOptions,
+  options: ResolvedPipelineOptions,
+  signal: AbortSignal,
   adapters: CapabilityAnalysisAdapters,
 ): Promise<PackageAnalysisResult> {
   if (fetched.status === "unavailable") {
@@ -306,6 +466,10 @@ async function analyzeFetchedPackage(
     issues.push(...old.issues);
   }
 
+  if (signal.aborted) {
+    return policyUnavailable(changedPackage, signal, issues);
+  }
+
   const newest = await analyzeSide(
     "new",
     fetched.newTarball,
@@ -330,6 +494,26 @@ async function analyzeFetchedPackage(
       () => adapters.diff(oldSet, newest.set),
     ),
     issues,
+  };
+}
+
+function policyUnavailable(
+  changedPackage: ChangedPackage,
+  signal: AbortSignal,
+  priorFailures: readonly PackageAnalysisFailure[] = [],
+): UnavailablePackage {
+  const kind = analysisStopKind(signal) ?? "analysis-aborted";
+  const failure: PackageAnalysisFailure = {
+    stage: "analysis",
+    failure: { kind, detail: analysisStopDetail(signal) },
+  };
+  const [first, ...rest] = priorFailures;
+  const failures: [PackageAnalysisFailure, ...PackageAnalysisFailure[]] =
+    first === undefined ? [failure] : [first, ...rest, failure];
+  return {
+    status: "unavailable",
+    changedPackage,
+    failures,
   };
 }
 
@@ -370,12 +554,12 @@ async function analyzeSide(
   side: AnalysisSide,
   tarball: VerifiedTarball,
   expected: PackageSubject,
-  options: CapabilityAnalysisOptions,
+  options: ResolvedPipelineOptions,
   adapters: CapabilityAnalysisAdapters,
 ): Promise<SideAnalysisResult> {
   const extraction = await callWithContext(
     `${side} extraction for ${JSON.stringify(expected.name)}`,
-    () => adapters.extract(tarball, options.extractor ?? {}),
+    () => adapters.extract(tarball, options.extractor),
   );
   if (extraction.status === "rejected") {
     return {
@@ -391,13 +575,13 @@ async function analyzeSide(
     manifest = await adapters.extractManifest(
       extraction,
       expected,
-      options.manifestExtractor ?? {},
+      options.manifestExtractor,
     );
     if (manifest.status === "analyzed") {
       javascript = await adapters.extractJavaScript(
         extraction,
         manifest.set,
-        options.astExtractor ?? {},
+        options.astExtractor,
       );
     }
   } catch (error: unknown) {

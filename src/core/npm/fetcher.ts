@@ -1,4 +1,5 @@
 import { createHash, timingSafeEqual } from "node:crypto";
+import { analysisStopDetail } from "../analysis-execution-policy.js";
 import type { ChangedPackage } from "../contract/lockfile-diff.js";
 
 /** Verified, inert tarball bytes. Safe extraction is a separate M1 component. */
@@ -15,6 +16,7 @@ export type FetchFailureKind =
   | "unsupported-integrity"
   | "http-status"
   | "timeout"
+  | "aborted"
   | "network-error"
   | "size-limit-exceeded"
   | "invalid-response"
@@ -72,6 +74,8 @@ export interface FetcherOptions {
   timeoutMs?: number;
   /** PLAN §2 default: at most eight concurrent downloads. */
   concurrency?: number;
+  /** Whole-analysis cooperative cancellation propagated by the pipeline. */
+  signal?: AbortSignal;
   cache?: MemoryTarballCache;
 }
 
@@ -93,6 +97,7 @@ interface ResolvedOptions {
   maxTarballBytes: number;
   timeoutMs: number;
   concurrency: number;
+  signal?: AbortSignal;
   cache: MemoryTarballCache;
 }
 
@@ -117,6 +122,7 @@ const SHA512_BYTES = 64;
 const SRI_TOKEN = /^sha512-([A-Za-z0-9+/]+={0,2})$/;
 const TIMEOUT_ABORT = Symbol("capdelta fetch timeout");
 const SIZE_LIMIT_ABORT = Symbol("capdelta tarball size limit");
+const PARENT_ABORT = Symbol("capdelta parent analysis abort");
 
 /**
  * Downloads and verifies every changed package. A failure aborts only that
@@ -143,12 +149,34 @@ export async function fetchChangedPackages(
         nextIndex += 1;
         const changedPackage = packages[index];
         if (changedPackage === undefined) return;
-        results[index] = await fetchPackage(changedPackage, resolved);
+        results[index] =
+          resolved.signal?.aborted === true
+            ? abortedPackage(changedPackage, resolved.signal)
+            : await fetchPackage(changedPackage, resolved);
       }
     }),
   );
 
   return results;
+}
+
+function abortedPackage(
+  changedPackage: ChangedPackage,
+  signal: AbortSignal,
+): FetchPackageResult {
+  const oldSide = changedPackage.oldResolvedUrl !== null;
+  return {
+    status: "unavailable",
+    changedPackage,
+    failure: {
+      side: oldSide ? "old" : "new",
+      kind: "aborted",
+      detail: analysisStopDetail(signal),
+      url: oldSide
+        ? (changedPackage.oldResolvedUrl ?? changedPackage.resolvedUrl)
+        : changedPackage.resolvedUrl,
+    },
+  };
 }
 
 async function fetchPackage(
@@ -203,6 +231,15 @@ async function fetchArtifact(
   integrity: string | null,
   options: ResolvedOptions,
 ): Promise<ArtifactResult> {
+  const parentSignal = options.signal;
+  if (parentSignal?.aborted === true) {
+    return {
+      ok: false,
+      kind: "aborted",
+      detail: analysisStopDetail(parentSignal),
+      url,
+    };
+  }
   if (!isHttpsUrl(url)) {
     return {
       ok: false,
@@ -247,6 +284,11 @@ async function fetchArtifact(
   }
 
   const controller = new AbortController();
+  const abortFromParent = (): void => {
+    if (!controller.signal.aborted) controller.abort(PARENT_ABORT);
+  };
+  parentSignal?.addEventListener("abort", abortFromParent, { once: true });
+  if (isAborted(parentSignal)) abortFromParent();
   const timeout = setTimeout(() => {
     controller.abort(TIMEOUT_ABORT);
   }, options.timeoutMs);
@@ -323,6 +365,17 @@ async function fetchArtifact(
         url,
       };
     }
+    if (controller.signal.reason === PARENT_ABORT) {
+      return {
+        ok: false,
+        kind: "aborted",
+        detail:
+          parentSignal === undefined
+            ? "analysis aborted"
+            : analysisStopDetail(parentSignal),
+        url,
+      };
+    }
     // Recovery is structured failure, not a swallowed error: this package is
     // excluded from extraction and the caller receives the reason to report.
     return {
@@ -336,6 +389,7 @@ async function fetchArtifact(
     };
   } finally {
     clearTimeout(timeout);
+    parentSignal?.removeEventListener("abort", abortFromParent);
   }
 }
 
@@ -381,13 +435,34 @@ function resolveOptions(options: FetcherOptions): ResolvedOptions {
       );
     }
   }
+  if (options.signal !== undefined && !isAbortSignal(options.signal)) {
+    throw new FetcherConfigurationError("signal must implement AbortSignal");
+  }
   return {
     fetchImpl: options.fetchImpl ?? globalThis.fetch,
     maxTarballBytes,
     timeoutMs,
     concurrency,
+    ...(options.signal === undefined ? {} : { signal: options.signal }),
     cache: options.cache ?? new MemoryTarballCache(),
   };
+}
+
+function isAborted(signal: AbortSignal | undefined): boolean {
+  return signal?.aborted === true;
+}
+
+function isAbortSignal(value: unknown): value is AbortSignal {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "aborted" in value &&
+    typeof value.aborted === "boolean" &&
+    "addEventListener" in value &&
+    typeof value.addEventListener === "function" &&
+    "removeEventListener" in value &&
+    typeof value.removeEventListener === "function"
+  );
 }
 
 function assertChangedPackageInvariant(changedPackage: ChangedPackage): void {

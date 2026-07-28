@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
   CapabilitySet,
   PackageSubject,
@@ -8,10 +8,23 @@ import type {
   LockfileDiffResult,
 } from "./contract/lockfile-diff.js";
 import type { CapabilityDiffResult } from "./capability-differ.js";
-import type { FetchPackageResult, VerifiedTarball } from "./npm/fetcher.js";
-import type { ExtractionResult } from "./npm/safe-extractor.js";
-import type { ManifestCapabilityResult } from "./npm/manifest-capability-extractor.js";
-import type { JavaScriptCapabilityLayerResult } from "./npm/javascript-capability-extractor.js";
+import type {
+  FetchPackageResult,
+  FetcherOptions,
+  VerifiedTarball,
+} from "./npm/fetcher.js";
+import type {
+  ExtractionResult,
+  ExtractorOptions,
+} from "./npm/safe-extractor.js";
+import type {
+  ManifestCapabilityExtractorOptions,
+  ManifestCapabilityResult,
+} from "./npm/manifest-capability-extractor.js";
+import type {
+  AstExtractionOptions,
+  JavaScriptCapabilityLayerResult,
+} from "./npm/javascript-capability-extractor.js";
 import {
   CapabilityAnalysisPipelineError,
   CapabilityAnalysisPipelineConfigurationError,
@@ -83,12 +96,19 @@ function capabilityDiff(
 interface AdapterOverrides {
   fetch?: (
     packages: readonly ChangedPackage[],
+    options: FetcherOptions,
   ) => Promise<FetchPackageResult[]>;
-  extract?: (tarball: VerifiedTarball) => Promise<ExtractionResult>;
+  extract?: (
+    tarball: VerifiedTarball,
+    options: ExtractorOptions,
+  ) => Promise<ExtractionResult>;
   extractManifest?: (
     expected: PackageSubject,
+    options: ManifestCapabilityExtractorOptions,
   ) => Promise<ManifestCapabilityResult>;
-  extractJavaScript?: () => Promise<JavaScriptCapabilityLayerResult>;
+  extractJavaScript?: (
+    options: AstExtractionOptions,
+  ) => Promise<JavaScriptCapabilityLayerResult>;
   diff?: (
     oldSet: CapabilitySet | null,
     newSet: CapabilitySet,
@@ -97,8 +117,8 @@ interface AdapterOverrides {
 
 function pipeline(overrides: AdapterOverrides = {}) {
   return createCapabilityAnalysisPipeline({
-    fetch: (packages) =>
-      overrides.fetch?.(packages) ??
+    fetch: (packages, options) =>
+      overrides.fetch?.(packages, options) ??
       Promise.resolve(
         packages.map((changedPackage) => ({
           status: "verified" as const,
@@ -107,8 +127,8 @@ function pipeline(overrides: AdapterOverrides = {}) {
           newTarball: TARBALL,
         })),
       ),
-    extract: (tarball) =>
-      overrides.extract?.(tarball) ??
+    extract: (tarball, options) =>
+      overrides.extract?.(tarball, options) ??
       Promise.resolve({
         status: "extracted" as const,
         root: "C:\\inert-fixture",
@@ -116,15 +136,19 @@ function pipeline(overrides: AdapterOverrides = {}) {
         expandedBytes: 1,
         cleanup: () => Promise.resolve(),
       }),
-    extractManifest: (_extracted, expected) =>
-      overrides.extractManifest?.(expected) ??
+    extractManifest: (_extracted, expected, options) =>
+      overrides.extractManifest?.(expected, options) ??
       Promise.resolve({ status: "analyzed", set: capabilitySet(expected) }),
-    extractJavaScript: () =>
-      overrides.extractJavaScript?.() ??
+    extractJavaScript: (_extracted, _manifestSet, options) =>
+      overrides.extractJavaScript?.(options) ??
       Promise.resolve({ capabilities: [], diagnostics: [] }),
     diff: overrides.diff ?? capabilityDiff,
   });
 }
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe("analyzeChangedPackages", () => {
   it("retains the M1 public aliases", () => {
@@ -416,6 +440,161 @@ describe("analyzeChangedPackages", () => {
     );
   });
 
+  it("projects one execution policy into every analysis stage", async () => {
+    const observed: {
+      fetch?: FetcherOptions;
+      extraction?: ExtractorOptions;
+      manifest?: ManifestCapabilityExtractorOptions;
+      javascript?: AstExtractionOptions;
+    } = {};
+    const run = pipeline({
+      fetch: (packages, options) => {
+        observed.fetch = options;
+        return Promise.resolve(
+          packages.map((changedPackage) => ({
+            status: "verified" as const,
+            changedPackage,
+            oldTarball: null,
+            newTarball: TARBALL,
+          })),
+        );
+      },
+      extract: (_tarball, options) => {
+        observed.extraction = options;
+        return Promise.resolve({
+          status: "extracted",
+          root: "C:\\inert-fixture",
+          fileCount: 1,
+          expandedBytes: 1,
+          cleanup: () => Promise.resolve(),
+        });
+      },
+      extractManifest: (expected, options) => {
+        observed.manifest = options;
+        return Promise.resolve({
+          status: "analyzed",
+          set: capabilitySet(expected),
+        });
+      },
+      extractJavaScript: (options) => {
+        observed.javascript = options;
+        return Promise.resolve({ capabilities: [], diagnostics: [] });
+      },
+    });
+
+    await run(lockfileDiff([changedPackage("policy")]), {
+      execution: {
+        deadlineMs: 10_000,
+        fetch: { concurrency: 2, timeoutMs: 11, maxTarballBytes: 12 },
+        extraction: {
+          concurrency: 1,
+          maxFileCount: 13,
+          maxExpandedBytes: 14,
+          maxDecompressionRatio: 15,
+        },
+        manifest: { maxBytes: 16 },
+        javascript: { maxSourceBytes: 17, parseTimeoutMs: 18 },
+      },
+    });
+
+    expect(observed.fetch).toMatchObject({
+      concurrency: 2,
+      timeoutMs: 11,
+      maxTarballBytes: 12,
+    });
+    expect(observed.fetch?.signal).toBeInstanceOf(AbortSignal);
+    expect(observed.extraction).toEqual({
+      maxFileCount: 13,
+      maxExpandedBytes: 14,
+      maxDecompressionRatio: 15,
+    });
+    expect(observed.manifest).toEqual({ maxManifestBytes: 16 });
+    expect(observed.javascript).toEqual({
+      maxSourceBytes: 17,
+      parseTimeoutMs: 18,
+    });
+  });
+
+  it("flags work not started after caller cancellation", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    let extractions = 0;
+    const result = await pipeline({
+      extract: () => {
+        extractions += 1;
+        throw new Error("must not extract after cancellation");
+      },
+    })(lockfileDiff([changedPackage("one"), changedPackage("two")]), {
+      execution: { signal: controller.signal },
+    });
+
+    expect(extractions).toBe(0);
+    expect(result.summary).toMatchObject({ analyzed: 0, unavailable: 2 });
+    expect(
+      result.packages.map((item) =>
+        item.status === "unavailable" ? item.failures[0] : null,
+      ),
+    ).toEqual([
+      {
+        stage: "analysis",
+        failure: {
+          kind: "analysis-aborted",
+          detail: "analysis aborted by caller",
+        },
+      },
+      {
+        stage: "analysis",
+        failure: {
+          kind: "analysis-aborted",
+          detail: "analysis aborted by caller",
+        },
+      },
+    ]);
+  });
+
+  it("finishes active safe work and flags queued work at the deadline", async () => {
+    vi.useFakeTimers();
+    let releaseExtraction: (() => void) | undefined;
+    let markStarted: (() => void) | undefined;
+    const started = new Promise<void>((resolve) => {
+      markStarted = resolve;
+    });
+    const gate = new Promise<void>((resolve) => {
+      releaseExtraction = resolve;
+    });
+    const pending = pipeline({
+      extract: async () => {
+        markStarted?.();
+        await gate;
+        return {
+          status: "extracted",
+          root: "C:\\inert-fixture",
+          fileCount: 1,
+          expandedBytes: 1,
+          cleanup: () => Promise.resolve(),
+        };
+      },
+    })(lockfileDiff([changedPackage("active"), changedPackage("queued")]), {
+      execution: { deadlineMs: 10, extraction: { concurrency: 1 } },
+    });
+
+    await started;
+    vi.advanceTimersByTime(10);
+    releaseExtraction?.();
+    const result = await pending;
+
+    expect(result.packages[0]?.status).toBe("analyzed");
+    expect(result.packages[1]).toMatchObject({
+      status: "unavailable",
+      failures: [
+        {
+          stage: "analysis",
+          failure: { kind: "deadline-exceeded" },
+        },
+      ],
+    });
+  });
+
   it("propagates lockfile facts and validates configuration and adapter contracts", async () => {
     const diff = lockfileDiff([]);
     diff.firstRun = true;
@@ -443,6 +622,12 @@ describe("analyzeChangedPackages", () => {
     await expect(
       pipeline()(lockfileDiff([]), { extractionConcurrency: 0 }),
     ).rejects.toBeInstanceOf(CapabilityAnalysisPipelineConfigurationError);
+    await expect(
+      pipeline()(lockfileDiff([]), {
+        extractionConcurrency: 2,
+        execution: { extraction: { concurrency: 2 } },
+      }),
+    ).rejects.toThrow(/configured in both/u);
 
     const broken = pipeline({ fetch: () => Promise.resolve([]) });
     await expect(

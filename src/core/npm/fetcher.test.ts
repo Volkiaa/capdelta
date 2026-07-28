@@ -181,6 +181,45 @@ describe("fetchChangedPackages", () => {
     });
   });
 
+  it("aborts in-flight work and flags packages that were not started", async () => {
+    const controller = new AbortController();
+    let calls = 0;
+    const packages = ["first", "second"].map((name) =>
+      changedPackage({
+        name,
+        oldVersion: null,
+        oldIntegrity: null,
+        oldResolvedUrl: null,
+        resolvedUrl: `https://registry.npmjs.org/${name}/-/${name}.tgz`,
+      }),
+    );
+    const pending = fetchChangedPackages(packages, {
+      concurrency: 1,
+      signal: controller.signal,
+      fetchImpl: async (_input, init) => {
+        calls += 1;
+        return await new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => {
+            reject(new DOMException("aborted", "AbortError"));
+          });
+        });
+      },
+    });
+
+    controller.abort();
+    const results = await pending;
+
+    expect(calls).toBe(1);
+    expect(
+      results.map((result) =>
+        result.status === "unavailable" ? result.failure.kind : "verified",
+      ),
+    ).toEqual(["aborted", "aborted"]);
+    expect(results[1]).toMatchObject({
+      failure: { detail: "analysis aborted by caller" },
+    });
+  });
+
   it("rejects an oversized declared response before reading its body", async () => {
     const results = await fetchChangedPackages(
       [
