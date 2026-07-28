@@ -195,26 +195,64 @@ async function runGit(
       reject(error);
     };
 
+    const abandonChild = (failure: CliOperationalError): void => {
+      child.stdout.destroy();
+      child.stderr.destroy();
+      child.unref();
+      rejectOnce(failure);
+    };
+
+    const hardTerminate = (failure: CliOperationalError): void => {
+      let signalSent: boolean;
+      try {
+        signalSent = child.kill("SIGKILL");
+      } catch (error: unknown) {
+        abandonChild(
+          new CliOperationalError(`${failure.message}; cannot hard-kill Git`, {
+            cause: error,
+          }),
+        );
+        return;
+      }
+      if (!signalSent) {
+        abandonChild(
+          new CliOperationalError(
+            `${failure.message}; Git rejected the hard-kill signal`,
+          ),
+        );
+        return;
+      }
+      terminationTimer = setTimeout(() => {
+        abandonChild(
+          new CliOperationalError(
+            `${failure.message}; Git did not exit within ${String(terminationGraceMs)} ms after hard kill`,
+          ),
+        );
+      }, terminationGraceMs);
+      terminationTimer.unref();
+    };
+
     const terminate = (failure: CliOperationalError): void => {
       if (settled || pendingFailure !== null) return;
       pendingFailure = failure;
       clearTimeout(commandTimer);
+      let signalSent: boolean;
       try {
-        child.kill();
+        signalSent = child.kill();
       } catch (error: unknown) {
-        rejectOnce(
+        abandonChild(
           new CliOperationalError(`${failure.message}; cannot terminate Git`, {
             cause: error,
           }),
         );
         return;
       }
+      if (!signalSent) {
+        hardTerminate(failure);
+        return;
+      }
       terminationTimer = setTimeout(() => {
-        rejectOnce(
-          new CliOperationalError(
-            `${failure.message}; Git did not exit within ${String(terminationGraceMs)} ms after termination`,
-          ),
-        );
+        hardTerminate(failure);
       }, terminationGraceMs);
       terminationTimer.unref();
     };

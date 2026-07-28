@@ -48,7 +48,10 @@ async function createRepository(withLockfile: boolean): Promise<string> {
 
 type GitChildProcess = ChildProcessByStdio<null, Readable, Readable>;
 
-function fakeGitProcess(closeOnKill = true): {
+function fakeGitProcess(
+  closeOn: "soft" | "hard" | "never" = "soft",
+  softSignalAccepted = true,
+): {
   spawnImpl: typeof spawn;
   kill: ReturnType<typeof vi.fn>;
   stdout: PassThrough;
@@ -58,9 +61,16 @@ function fakeGitProcess(closeOnKill = true): {
     stdin: null,
     stdout,
     stderr: new PassThrough(),
+    unref: vi.fn(),
   }) as unknown as GitChildProcess;
-  const kill = vi.fn(() => {
-    if (closeOnKill) queueMicrotask(() => child.emit("close", null));
+  const kill = vi.fn((signal?: NodeJS.Signals | number) => {
+    const hard = signal === "SIGKILL";
+    if ((!hard && !softSignalAccepted) || (hard && closeOn === "never")) {
+      return false;
+    }
+    if ((hard && closeOn === "hard") || (!hard && closeOn === "soft")) {
+      queueMicrotask(() => child.emit("close", null));
+    }
     return true;
   });
   child.kill = kill;
@@ -121,7 +131,7 @@ describe("Git lockfile retriever", () => {
   });
 
   it("terminates and rejects a stalled Git command at its deadline", async () => {
-    const { spawnImpl, kill } = fakeGitProcess(false);
+    const { spawnImpl, kill } = fakeGitProcess("hard");
     await expect(
       inspectGitLockfileChange("HEAD", process.cwd(), {
         spawnImpl,
@@ -129,7 +139,8 @@ describe("Git lockfile retriever", () => {
         terminationGraceMs: 5,
       }),
     ).rejects.toThrow("Git command timed out after 5 ms");
-    expect(kill).toHaveBeenCalledOnce();
+    expect(kill).toHaveBeenNthCalledWith(1);
+    expect(kill).toHaveBeenNthCalledWith(2, "SIGKILL");
   });
 
   it("terminates and rejects immediately when Git output exceeds its cap", async () => {
@@ -142,5 +153,18 @@ describe("Git lockfile retriever", () => {
       "Git output exceeds the 1048576 byte limit",
     );
     expect(kill).toHaveBeenCalledOnce();
+  });
+
+  it("hard-kills immediately when Git rejects soft termination", async () => {
+    const { spawnImpl, kill, stdout } = fakeGitProcess("hard", false);
+    const inspection = inspectGitLockfileChange("HEAD", process.cwd(), {
+      spawnImpl,
+    });
+    stdout.write(Buffer.alloc(1024 * 1024 + 1));
+    await expect(inspection).rejects.toThrow(
+      "Git output exceeds the 1048576 byte limit",
+    );
+    expect(kill).toHaveBeenNthCalledWith(1);
+    expect(kill).toHaveBeenNthCalledWith(2, "SIGKILL");
   });
 });
