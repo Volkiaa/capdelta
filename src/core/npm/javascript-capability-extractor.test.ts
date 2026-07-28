@@ -248,3 +248,42 @@ describe("extractNpmJavaScriptCapabilities FS_READ", () => {
     );
   });
 });
+
+describe("extractNpmJavaScriptCapabilities FS_WRITE", () => {
+  it("detects filesystem mutations through namespace and named imports", async () => {
+    await withPackage(
+      {
+        "index.mjs": [
+          "import * as fs from 'node:fs';",
+          "import { unlink as remove } from 'fs';",
+          "fs.writeFileSync('output.txt', 'test');",
+          "remove('old.txt', () => {});",
+        ].join("\n"),
+      },
+      async (root) => {
+        const result = await extractNpmJavaScriptCapabilities(
+          { root },
+          manifestSet,
+        );
+        expect(result.capabilities).toEqual([
+          {
+            kind: "FS_WRITE",
+            location: { kind: "runtime" },
+            evidence: [
+              {
+                file: "index.mjs",
+                line: 3,
+                snippet: "fs.writeFileSync('output.txt', 'test');",
+              },
+              {
+                file: "index.mjs",
+                line: 4,
+                snippet: "remove('old.txt', () => {});",
+              },
+            ],
+          },
+        ]);
+      },
+    );
+  });
+});

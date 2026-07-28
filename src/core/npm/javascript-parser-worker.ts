@@ -65,6 +65,13 @@ function analyze(request: ParserRequest): ParserResponse {
         FS_READ_MEMBERS.has(binding.member)
       ) {
         detections.push(evidence("FS_READ", node, request.source));
+      } else if (
+        isResolved(binding) &&
+        binding.module === "fs" &&
+        binding.member !== null &&
+        FS_WRITE_MEMBERS.has(binding.member)
+      ) {
+        detections.push(evidence("FS_WRITE", node, request.source));
       } else if (isUnknownBinding(binding)) {
         detections.push(evidence("UNKNOWN", node, request.source));
       }
@@ -104,6 +111,34 @@ const FS_READ_MEMBERS = new Set([
   "realpathSync",
   "stat",
   "statSync",
+]);
+const FS_WRITE_MEMBERS = new Set([
+  "appendFile",
+  "appendFileSync",
+  "chmod",
+  "chmodSync",
+  "chown",
+  "chownSync",
+  "copyFile",
+  "copyFileSync",
+  "cp",
+  "cpSync",
+  "createWriteStream",
+  "mkdir",
+  "mkdirSync",
+  "rename",
+  "renameSync",
+  "rm",
+  "rmSync",
+  "rmdir",
+  "rmdirSync",
+  "truncate",
+  "truncateSync",
+  "unlink",
+  "unlinkSync",
+  "write",
+  "writeFile",
+  "writeFileSync",
 ]);
 
 interface ResolvedBinding {
