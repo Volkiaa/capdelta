@@ -5,11 +5,19 @@ import type {
 } from "../core/reporter.js";
 import { assessRunSeverity } from "./severity-gate.js";
 
-export const COMMENT_MARKER = "<!-- capdelta:manifest-report:v1 -->";
+export const COMMENT_MARKER = "<!-- capdelta:capability-report:v2 -->";
+const LEGACY_COMMENT_MARKERS = ["<!-- capdelta:manifest-report:v1 -->"];
 const DEFAULT_MAX_COMMENT_CHARS = 60_000;
 const DEFAULT_MAX_ROWS = 10;
 const MAX_IDENTITY_CHARS = 120;
 const MAX_DETAIL_CHARS = 200;
+const FINDING_SEVERITY_ORDER = {
+  CRITICAL: 0,
+  HIGH: 1,
+  MEDIUM: 2,
+  LOW: 3,
+  INFO: 4,
+} as const;
 
 export interface ActionCommentOptions {
   artifactName?: string;
@@ -139,7 +147,7 @@ export async function publishStickyComment(
       ...comments.filter(
         (comment) =>
           comment.authorLogin === "github-actions[bot]" &&
-          comment.body?.includes(COMMENT_MARKER) === true,
+          hasCommentMarker(comment.body),
       ),
     );
     if (comments.length < 100) break;
@@ -255,13 +263,37 @@ function buildComment(
 function collectFindings(
   report: JsonRunReport,
 ): { packageName: string; finding: JsonReportFinding }[] {
-  return report.packages.flatMap((item) =>
-    item.status === "analyzed"
-      ? item.report.findings.map((finding) => ({
-          packageName: item.report.package.name,
-          finding,
-        }))
-      : [],
+  return report.packages
+    .flatMap((item) =>
+      item.status === "analyzed"
+        ? item.report.findings.map((finding) => ({
+            packageName: item.report.package.name,
+            finding,
+          }))
+        : [],
+    )
+    .sort(compareFindingRows);
+}
+
+function compareFindingRows(
+  left: { packageName: string; finding: JsonReportFinding },
+  right: { packageName: string; finding: JsonReportFinding },
+): number {
+  const severity =
+    FINDING_SEVERITY_ORDER[left.finding.severity] -
+    FINDING_SEVERITY_ORDER[right.finding.severity];
+  if (severity !== 0) return severity;
+  return (
+    compareText(left.packageName, right.packageName) ||
+    compareText(findingText(left.finding), findingText(right.finding)) ||
+    compareText(evidenceText(left.finding), evidenceText(right.finding))
+  );
+}
+
+function hasCommentMarker(body: string | null): boolean {
+  return (
+    body?.includes(COMMENT_MARKER) === true ||
+    LEGACY_COMMENT_MARKERS.some((marker) => body?.includes(marker) === true)
   );
 }
 
@@ -362,6 +394,12 @@ function truncate(value: string, maxCharacters: number): string {
   if (characters.length <= maxCharacters) return value;
   if (maxCharacters === 0) return "";
   return `${characters.slice(0, Math.max(0, maxCharacters - 1)).join("")}…`;
+}
+
+function compareText(left: string, right: string): number {
+  if (left < right) return -1;
+  if (left > right) return 1;
+  return 0;
 }
 
 function validateDelivery(delivery: CommentDelivery): void {

@@ -104,9 +104,8 @@ describe("renderActionComment", () => {
       artifactName: PAYLOAD,
     });
 
-    expect(body.match(/<!-- capdelta:manifest-report:v1 -->/gu)).toHaveLength(
-      1,
-    );
+    expect(body.match(/<!-- capdelta:/gu)).toHaveLength(1);
+    expect(body.startsWith(`${COMMENT_MARKER}\n`)).toBe(true);
     expect(body).not.toContain("<script>");
     expect(body).not.toContain("javascript:");
     expect(body).not.toContain("[click]");
@@ -137,6 +136,81 @@ describe("renderActionComment", () => {
     expect(body).toBe(withoutRows);
     expect(body).toContain("Showing 0 of 1 capability findings");
     expect(body.endsWith("\n")).toBe(true);
+  });
+
+  it("keeps critical findings visible when lower priorities reach the row cap", () => {
+    const report = adversarialReport();
+    const criticalPackage = report.packages[0];
+    if (criticalPackage?.status !== "analyzed") {
+      throw new Error("fixture must contain an analyzed critical package");
+    }
+    const infoPackage: JsonRunReport["packages"][number] = {
+      status: "analyzed",
+      report: {
+        ...criticalPackage.report,
+        package: {
+          ...criticalPackage.report.package,
+          name: "alphabetically-first-info",
+        },
+        summary: {
+          findings: 1,
+          diagnostics: 0,
+          bySeverity: {
+            CRITICAL: 0,
+            HIGH: 0,
+            MEDIUM: 0,
+            LOW: 0,
+            INFO: 1,
+          },
+        },
+        findings: [
+          {
+            severity: "INFO",
+            change: "added",
+            capability: {
+              kind: "RUNTIME_CONSTRAINT",
+              runtime: "node",
+              requirement: ">=20",
+              evidence: [
+                {
+                  file: "package.json",
+                  line: 1,
+                  snippet: '"node": ">=20"',
+                },
+              ],
+            },
+            previous: null,
+          },
+        ],
+        shapes: [],
+        diagnostics: [],
+      },
+      issues: [],
+    };
+    const body = renderActionComment(
+      {
+        ...report,
+        summary: {
+          ...report.summary,
+          changedPackages: 2,
+          analyzedPackages: 2,
+          capabilityFindings: 2,
+          bySeverity: {
+            CRITICAL: 1,
+            HIGH: 0,
+            MEDIUM: 0,
+            LOW: 0,
+            INFO: 1,
+          },
+        },
+        packages: [infoPackage, criticalPackage],
+      },
+      { maxRows: 1 },
+    );
+
+    expect(body).toContain("| CRITICAL |");
+    expect(body).toContain("postinstall");
+    expect(body).not.toContain("| INFO |");
   });
 
   it("fails loudly when even the fixed summary cannot fit", () => {
@@ -178,7 +252,11 @@ describe("publishStickyComment", () => {
   it("updates the newest bot-owned marker and warns about duplicates", async () => {
     const client = commentClient();
     client.listComments.mockResolvedValueOnce([
-      { id: 3, body: COMMENT_MARKER, authorLogin: "github-actions[bot]" },
+      {
+        id: 3,
+        body: "<!-- capdelta:manifest-report:v1 -->",
+        authorLogin: "github-actions[bot]",
+      },
       { id: 8, body: COMMENT_MARKER, authorLogin: "github-actions[bot]" },
     ]);
     const warn = vi.fn();
