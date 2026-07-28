@@ -1,4 +1,5 @@
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcessByStdio } from "node:child_process";
+import type { Readable } from "node:stream";
 import {
   CliOperationalError,
   MAX_CLI_ERROR_CHARS,
@@ -7,11 +8,22 @@ import {
 
 const LOCKFILE_NAME = "package-lock.json";
 const GIT_METADATA_OUTPUT_BYTES = 1024 * 1024;
+const DEFAULT_GIT_COMMAND_TIMEOUT_MS = 60_000;
+const DEFAULT_GIT_TERMINATION_GRACE_MS = 1_000;
 
 interface GitResult {
   exitCode: number;
   stdout: Buffer;
   stderr: Buffer;
+}
+
+type GitChildProcess = ChildProcessByStdio<null, Readable, Readable>;
+
+export interface GitProcessRuntime {
+  /** Test seam; production starts Git without a shell. */
+  spawnImpl?: typeof spawn;
+  commandTimeoutMs?: number;
+  terminationGraceMs?: number;
 }
 
 export type GitLockfileInspection =
@@ -24,17 +36,25 @@ export type GitLockfileInspection =
 export async function inspectGitLockfileChange(
   base: string,
   cwd: string,
+  runtime: GitProcessRuntime = {},
 ): Promise<GitLockfileInspection> {
-  const commit = await resolveBaseCommit(base, cwd);
-  if (!(await lockfileChanged(commit, cwd))) return { changed: false };
+  const commit = await resolveBaseCommit(base, cwd, runtime);
+  if (!(await lockfileChanged(commit, cwd, runtime))) {
+    return { changed: false };
+  }
   return { changed: true, commit };
 }
 
-async function resolveBaseCommit(base: string, cwd: string): Promise<string> {
+async function resolveBaseCommit(
+  base: string,
+  cwd: string,
+  runtime: GitProcessRuntime,
+): Promise<string> {
   const result = await runGit(
     ["rev-parse", "--verify", "--end-of-options", `${base}^{commit}`],
     cwd,
     GIT_METADATA_OUTPUT_BYTES,
+    runtime,
   );
   if (result.exitCode !== 0) {
     throw new CliOperationalError(
@@ -48,11 +68,16 @@ async function resolveBaseCommit(base: string, cwd: string): Promise<string> {
   return commit;
 }
 
-async function lockfileChanged(commit: string, cwd: string): Promise<boolean> {
+async function lockfileChanged(
+  commit: string,
+  cwd: string,
+  runtime: GitProcessRuntime,
+): Promise<boolean> {
   const tracked = await runGit(
     ["diff", "--quiet", "--no-ext-diff", commit, "--", LOCKFILE_NAME],
     cwd,
     GIT_METADATA_OUTPUT_BYTES,
+    runtime,
   );
   if (tracked.exitCode === 1) return true;
   if (tracked.exitCode !== 0) {
@@ -65,6 +90,7 @@ async function lockfileChanged(commit: string, cwd: string): Promise<boolean> {
     ["ls-files", "--others", "--exclude-standard", "--", LOCKFILE_NAME],
     cwd,
     GIT_METADATA_OUTPUT_BYTES,
+    runtime,
   );
   if (untracked.exitCode !== 0) {
     throw new CliOperationalError(
@@ -78,11 +104,13 @@ export async function readGitBaseLockfile(
   commit: string,
   cwd: string,
   maxBytes: number,
+  runtime: GitProcessRuntime = {},
 ): Promise<string | null> {
   const tree = await runGit(
     ["ls-tree", "-z", commit, "--", LOCKFILE_NAME],
     cwd,
     GIT_METADATA_OUTPUT_BYTES,
+    runtime,
   );
   if (tree.exitCode !== 0) {
     throw new CliOperationalError(
@@ -104,7 +132,12 @@ export async function readGitBaseLockfile(
   // Read the exact object whose mode and type were validated above. Using
   // `<commit>:<path>` here would resolve the path from the repository root,
   // while ls-tree and the head lockfile are relative to cwd.
-  const shown = await runGit(["cat-file", "blob", blobId], cwd, maxBytes);
+  const shown = await runGit(
+    ["cat-file", "blob", blobId],
+    cwd,
+    maxBytes,
+    runtime,
+  );
   if (shown.exitCode !== 0) {
     throw new CliOperationalError(
       `cannot read base ${LOCKFILE_NAME}: ${gitDetail(shown)}`,
@@ -117,24 +150,93 @@ async function runGit(
   args: readonly string[],
   cwd: string,
   maxOutputBytes: number,
+  runtime: GitProcessRuntime,
 ): Promise<GitResult> {
+  const commandTimeoutMs =
+    runtime.commandTimeoutMs ?? DEFAULT_GIT_COMMAND_TIMEOUT_MS;
+  const terminationGraceMs =
+    runtime.terminationGraceMs ?? DEFAULT_GIT_TERMINATION_GRACE_MS;
+  if (
+    !Number.isSafeInteger(commandTimeoutMs) ||
+    commandTimeoutMs <= 0 ||
+    !Number.isSafeInteger(terminationGraceMs) ||
+    terminationGraceMs <= 0
+  ) {
+    throw new CliOperationalError(
+      "Git command timeouts must be positive safe integers",
+    );
+  }
+
   return new Promise((resolveResult, reject) => {
-    const child = spawn("git", args, {
-      cwd,
-      windowsHide: true,
-      shell: false,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
+    let child: GitChildProcess;
+    try {
+      child = (runtime.spawnImpl ?? spawn)("git", args, {
+        cwd,
+        windowsHide: true,
+        shell: false,
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+    } catch (error: unknown) {
+      reject(new CliOperationalError("cannot start Git", { cause: error }));
+      return;
+    }
     const stdout: Buffer[] = [];
     const stderr: Buffer[] = [];
     let outputBytes = 0;
-    let outputExceeded = false;
+    let settled = false;
+    let pendingFailure: CliOperationalError | null = null;
+    let terminationTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const rejectOnce = (error: CliOperationalError): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(commandTimer);
+      if (terminationTimer !== undefined) clearTimeout(terminationTimer);
+      reject(error);
+    };
+
+    const terminate = (failure: CliOperationalError): void => {
+      if (settled || pendingFailure !== null) return;
+      pendingFailure = failure;
+      clearTimeout(commandTimer);
+      try {
+        child.kill();
+      } catch (error: unknown) {
+        rejectOnce(
+          new CliOperationalError(`${failure.message}; cannot terminate Git`, {
+            cause: error,
+          }),
+        );
+        return;
+      }
+      terminationTimer = setTimeout(() => {
+        rejectOnce(
+          new CliOperationalError(
+            `${failure.message}; Git did not exit within ${String(terminationGraceMs)} ms after termination`,
+          ),
+        );
+      }, terminationGraceMs);
+      terminationTimer.unref();
+    };
+
+    const commandTimer = setTimeout(() => {
+      terminate(
+        new CliOperationalError(
+          `Git command timed out after ${String(commandTimeoutMs)} ms`,
+        ),
+      );
+    }, commandTimeoutMs);
+    commandTimer.unref();
 
     const capture = (target: Buffer[], chunk: Buffer): void => {
+      if (settled || pendingFailure !== null) return;
       outputBytes += chunk.length;
       if (outputBytes > maxOutputBytes) {
-        outputExceeded = true;
-        child.kill();
+        terminate(
+          new CliOperationalError(
+            `Git output exceeds the ${String(maxOutputBytes)} byte limit`,
+          ),
+        );
         return;
       }
       target.push(chunk);
@@ -146,17 +248,19 @@ async function runGit(
       capture(stderr, chunk);
     });
     child.once("error", (error) => {
-      reject(new CliOperationalError("cannot start Git", { cause: error }));
+      rejectOnce(
+        pendingFailure ??
+          new CliOperationalError("cannot start Git", { cause: error }),
+      );
     });
     child.once("close", (code) => {
-      if (outputExceeded) {
-        reject(
-          new CliOperationalError(
-            `Git output exceeds the ${String(maxOutputBytes)} byte limit`,
-          ),
-        );
+      if (settled) return;
+      if (pendingFailure !== null) {
+        rejectOnce(pendingFailure);
         return;
       }
+      settled = true;
+      clearTimeout(commandTimer);
       resolveResult({
         exitCode: code ?? 1,
         stdout: Buffer.concat(stdout),

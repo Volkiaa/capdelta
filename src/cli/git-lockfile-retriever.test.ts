@@ -1,9 +1,15 @@
-import { execFile } from "node:child_process";
+import {
+  execFile,
+  type ChildProcessByStdio,
+  type spawn,
+} from "node:child_process";
+import { EventEmitter } from "node:events";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { PassThrough, type Readable } from "node:stream";
 import { promisify } from "node:util";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { CliOperationalError } from "./cli-errors.js";
 import {
   inspectGitLockfileChange,
@@ -38,6 +44,30 @@ async function createRepository(withLockfile: boolean): Promise<string> {
   await git(cwd, "add", ".");
   await git(cwd, "commit", "--quiet", "-m", "test: add inert baseline");
   return cwd;
+}
+
+type GitChildProcess = ChildProcessByStdio<null, Readable, Readable>;
+
+function fakeGitProcess(closeOnKill = true): {
+  spawnImpl: typeof spawn;
+  kill: ReturnType<typeof vi.fn>;
+  stdout: PassThrough;
+} {
+  const stdout = new PassThrough();
+  const child = Object.assign(new EventEmitter(), {
+    stdin: null,
+    stdout,
+    stderr: new PassThrough(),
+  }) as unknown as GitChildProcess;
+  const kill = vi.fn(() => {
+    if (closeOnKill) queueMicrotask(() => child.emit("close", null));
+    return true;
+  });
+  child.kill = kill;
+  const spawnImpl = vi.fn(() => {
+    return child;
+  }) as unknown as typeof spawn;
+  return { spawnImpl, kill, stdout };
 }
 
 afterEach(async () => {
@@ -88,5 +118,29 @@ describe("Git lockfile retriever", () => {
     await expect(readGitBaseLockfile(commit, cwd, 1)).rejects.toBeInstanceOf(
       CliOperationalError,
     );
+  });
+
+  it("terminates and rejects a stalled Git command at its deadline", async () => {
+    const { spawnImpl, kill } = fakeGitProcess(false);
+    await expect(
+      inspectGitLockfileChange("HEAD", process.cwd(), {
+        spawnImpl,
+        commandTimeoutMs: 5,
+        terminationGraceMs: 5,
+      }),
+    ).rejects.toThrow("Git command timed out after 5 ms");
+    expect(kill).toHaveBeenCalledOnce();
+  });
+
+  it("terminates and rejects immediately when Git output exceeds its cap", async () => {
+    const { spawnImpl, kill, stdout } = fakeGitProcess();
+    const inspection = inspectGitLockfileChange("HEAD", process.cwd(), {
+      spawnImpl,
+    });
+    stdout.write(Buffer.alloc(1024 * 1024 + 1));
+    await expect(inspection).rejects.toThrow(
+      "Git output exceeds the 1048576 byte limit",
+    );
+    expect(kill).toHaveBeenCalledOnce();
   });
 });
