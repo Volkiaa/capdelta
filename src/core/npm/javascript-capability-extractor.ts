@@ -85,65 +85,68 @@ export async function extractNpmJavaScriptCapabilities(
     }
   >();
   const diagnostics: AnalysisDiagnostic[] = [];
+  const parser = new ParserWorkerClient(resolvedOptions.parseTimeoutMs);
 
-  for (const file of files) {
-    const extension = file.slice(file.lastIndexOf(".")).toLowerCase();
-    if (
-      extension === ".node" ||
-      file.toLowerCase().endsWith("/binding.gyp") ||
-      file.toLowerCase() === "binding.gyp"
-    ) {
-      addGrouped(
-        grouped,
-        "NATIVE",
-        { kind: "runtime" },
-        {
-          file,
-          line: 1,
-          snippet:
-            extension === ".node" ? `<native binary: ${file}>` : "binding.gyp",
-        },
-      );
-      continue;
-    }
-    if (extension === ".ts") {
-      diagnostics.push(
-        diagnostic(
-          "unsupported-source",
-          `${file} is TypeScript source; v0.1 parses JavaScript only`,
-          file,
-        ),
-      );
-      continue;
-    }
-    if (!JAVASCRIPT_EXTENSIONS.has(extension)) continue;
-    const absolute = resolveInside(extracted.root, file);
-    let source: string;
-    try {
-      const bytes = await readFile(absolute);
-      if (bytes.byteLength > resolvedOptions.maxSourceBytes) {
+  try {
+    for (const file of files) {
+      const extension = file.slice(file.lastIndexOf(".")).toLowerCase();
+      if (
+        extension === ".node" ||
+        file.toLowerCase().endsWith("/binding.gyp") ||
+        file.toLowerCase() === "binding.gyp"
+      ) {
+        addGrouped(
+          grouped,
+          "NATIVE",
+          { kind: "runtime" },
+          {
+            file,
+            line: 1,
+            snippet:
+              extension === ".node"
+                ? `<native binary: ${file}>`
+                : "binding.gyp",
+          },
+        );
+        continue;
+      }
+      if (extension === ".ts") {
         diagnostics.push(
           diagnostic(
-            "unparseable-source",
-            `${file} exceeds the ${String(resolvedOptions.maxSourceBytes)} byte parser limit`,
+            "unsupported-source",
+            `${file} is TypeScript source; v0.1 parses JavaScript only`,
             file,
           ),
         );
         continue;
       }
-      source = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-    } catch (error: unknown) {
-      diagnostics.push(
-        diagnostic(
-          "unparseable-source",
-          `${file} could not be read as UTF-8: ${errorName(error)}`,
-          file,
-        ),
-      );
-      continue;
-    }
-    const response = await parseInWorker(
-      {
+      if (!JAVASCRIPT_EXTENSIONS.has(extension)) continue;
+      const absolute = resolveInside(extracted.root, file);
+      let source: string;
+      try {
+        const bytes = await readFile(absolute);
+        if (bytes.byteLength > resolvedOptions.maxSourceBytes) {
+          diagnostics.push(
+            diagnostic(
+              "unparseable-source",
+              `${file} exceeds the ${String(resolvedOptions.maxSourceBytes)} byte parser limit`,
+              file,
+            ),
+          );
+          continue;
+        }
+        source = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+      } catch (error: unknown) {
+        diagnostics.push(
+          diagnostic(
+            "unparseable-source",
+            `${file} could not be read as UTF-8: ${errorName(error)}`,
+            file,
+          ),
+        );
+        continue;
+      }
+      const response = await parser.parse({
         source,
         file,
         sourceType:
@@ -152,28 +155,31 @@ export async function extractNpmJavaScriptCapabilities(
             : extension === ".cjs"
               ? "script"
               : "either",
-      },
-      resolvedOptions.parseTimeoutMs,
-    );
-    if (!response.ok) {
-      diagnostics.push({
-        kind: "unparseable-source",
-        detail: response.detail,
-        evidence: [{ file, line: response.line, snippet: response.snippet }],
       });
-      continue;
-    }
-    const locations = installFiles.get(file) ?? [{ kind: "runtime" } as const];
-    for (const detection of response.detections) {
-      for (const location of locations) {
-        const evidence = {
-          file,
-          line: detection.line,
-          snippet: detection.snippet,
-        };
-        addGrouped(grouped, detection.kind, location, evidence);
+      if (!response.ok) {
+        diagnostics.push({
+          kind: "unparseable-source",
+          detail: response.detail,
+          evidence: [{ file, line: response.line, snippet: response.snippet }],
+        });
+        continue;
+      }
+      const locations = installFiles.get(file) ?? [
+        { kind: "runtime" } as const,
+      ];
+      for (const detection of response.detections) {
+        for (const location of locations) {
+          const evidence = {
+            file,
+            line: detection.line,
+            snippet: detection.snippet,
+          };
+          addGrouped(grouped, detection.kind, location, evidence);
+        }
       }
     }
+  } finally {
+    await parser.close();
   }
 
   const capabilities = [...grouped.values()].map(
@@ -324,37 +330,62 @@ function resolveInside(root: string, file: string): string {
   return absolute;
 }
 
-async function parseInWorker(
-  request: ParserRequest,
-  timeoutMs: number,
-): Promise<ParserResponse> {
-  const worker = new Worker(workerUrl());
-  return await new Promise((resolveResponse) => {
-    const timeout = setTimeout(() => {
-      void worker.terminate();
-      resolveResponse({
-        ok: false,
-        detail: `JavaScript parse exceeded ${String(timeoutMs)} ms`,
-        line: 1,
-        snippet: request.source.split(/\r?\n/u)[0]?.trim().slice(0, 240) ?? "",
-      });
-    }, timeoutMs);
-    worker.once("message", (response: ParserResponse) => {
-      clearTimeout(timeout);
-      void worker.terminate();
-      resolveResponse(response);
+class ParserWorkerClient {
+  private worker: Worker | null = null;
+
+  constructor(private readonly timeoutMs: number) {}
+
+  async parse(request: ParserRequest): Promise<ParserResponse> {
+    const worker = this.worker ?? new Worker(workerUrl());
+    this.worker = worker;
+    return await new Promise((resolveResponse) => {
+      const finish = (response: ParserResponse, discard: boolean): void => {
+        clearTimeout(timeout);
+        worker.off("message", onMessage);
+        worker.off("error", onError);
+        if (discard && this.worker === worker) {
+          this.worker = null;
+          void worker.terminate();
+        }
+        resolveResponse(response);
+      };
+      const onMessage = (response: ParserResponse): void => {
+        finish(response, false);
+      };
+      const onError = (error: Error): void => {
+        finish(
+          {
+            ok: false,
+            detail: `JavaScript parser worker failed: ${errorName(error)}`,
+            line: 1,
+            snippet: "",
+          },
+          true,
+        );
+      };
+      const timeout = setTimeout(() => {
+        finish(
+          {
+            ok: false,
+            detail: `JavaScript parse exceeded ${String(this.timeoutMs)} ms`,
+            line: 1,
+            snippet:
+              request.source.split(/\r?\n/u)[0]?.trim().slice(0, 240) ?? "",
+          },
+          true,
+        );
+      }, this.timeoutMs);
+      worker.once("message", onMessage);
+      worker.once("error", onError);
+      worker.postMessage(request);
     });
-    worker.once("error", (error) => {
-      clearTimeout(timeout);
-      resolveResponse({
-        ok: false,
-        detail: `JavaScript parser worker failed: ${errorName(error)}`,
-        line: 1,
-        snippet: "",
-      });
-    });
-    worker.postMessage(request);
-  });
+  }
+
+  async close(): Promise<void> {
+    const worker = this.worker;
+    this.worker = null;
+    if (worker !== null) await worker.terminate();
+  }
 }
 
 function workerUrl(): URL {

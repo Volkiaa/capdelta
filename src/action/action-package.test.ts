@@ -57,19 +57,37 @@ describe("Action package", () => {
     const worker = new Worker(
       resolve(ROOT, "dist", "action", "javascript-parser-worker.js"),
     );
-    const response = await new Promise<unknown>((resolveResponse, reject) => {
-      worker.once("message", resolveResponse);
-      worker.once("error", reject);
-      worker.postMessage({
-        source: "fetch('https://example.test');",
-        file: "fixture.js",
-        sourceType: "script",
-      });
-    });
+    const responses = await new Promise<unknown[]>(
+      (resolveResponse, reject) => {
+        const received: unknown[] = [];
+        worker.on("message", (response) => {
+          received.push(response);
+          if (received.length === 1) {
+            worker.postMessage({
+              source: "process.env.TEST;",
+              file: "second.js",
+              sourceType: "script",
+            });
+          } else {
+            resolveResponse(received);
+          }
+        });
+        worker.once("error", reject);
+        worker.postMessage({
+          source: "fetch('https://example.test');",
+          file: "fixture.js",
+          sourceType: "script",
+        });
+      },
+    );
     await worker.terminate();
-    expect(response).toMatchObject({
+    expect(responses[0]).toMatchObject({
       ok: true,
       detections: [{ kind: "NET", line: 1 }],
+    });
+    expect(responses[1]).toMatchObject({
+      ok: true,
+      detections: [{ kind: "ENV", line: 1 }],
     });
   });
 });

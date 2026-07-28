@@ -635,6 +635,6 @@ function errorName(error: unknown): string {
 
 const port = parentPort;
 if (port === null) throw new Error("parser worker requires a parent port");
-port.once("message", (request: ParserRequest) => {
+port.on("message", (request: ParserRequest) => {
   port.postMessage(analyze(request));
 });
