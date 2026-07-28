@@ -287,3 +287,38 @@ describe("extractNpmJavaScriptCapabilities FS_WRITE", () => {
     );
   });
 });
+
+describe("extractNpmJavaScriptCapabilities FS_SENSITIVE", () => {
+  it("adds sensitive-path context for credential reads and writes", async () => {
+    await withPackage(
+      {
+        "index.cjs": [
+          "const fs = require('fs');",
+          "const path = require('path');",
+          "const os = require('os');",
+          "fs.readFileSync(path.join(os.homedir(), '.ssh', 'id_rsa'));",
+          "fs.writeFileSync('.env.production', 'echo test');",
+          "fs.readFileSync('.env.example');",
+        ].join("\n"),
+      },
+      async (root) => {
+        const result = await extractNpmJavaScriptCapabilities(
+          { root },
+          manifestSet,
+        );
+        const byKind = new Map(
+          result.capabilities.map((item) => [item.kind, item]),
+        );
+        expect(
+          byKind.get("FS_SENSITIVE")?.evidence.map((item) => item.line),
+        ).toEqual([4, 5]);
+        expect(
+          byKind.get("FS_READ")?.evidence.map((item) => item.line),
+        ).toEqual([4, 6]);
+        expect(
+          byKind.get("FS_WRITE")?.evidence.map((item) => item.line),
+        ).toEqual([5]);
+      },
+    );
+  });
+});

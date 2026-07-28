@@ -65,6 +65,8 @@ function analyze(request: ParserRequest): ParserResponse {
         FS_READ_MEMBERS.has(binding.member)
       ) {
         detections.push(evidence("FS_READ", node, request.source));
+        if (hasSensitivePath(node))
+          detections.push(evidence("FS_SENSITIVE", node, request.source));
       } else if (
         isResolved(binding) &&
         binding.module === "fs" &&
@@ -72,6 +74,8 @@ function analyze(request: ParserRequest): ParserResponse {
         FS_WRITE_MEMBERS.has(binding.member)
       ) {
         detections.push(evidence("FS_WRITE", node, request.source));
+        if (hasSensitivePath(node))
+          detections.push(evidence("FS_SENSITIVE", node, request.source));
       } else if (isUnknownBinding(binding)) {
         detections.push(evidence("UNKNOWN", node, request.source));
       }
@@ -391,6 +395,56 @@ function identifierName(value: unknown): string | null {
   return record?.type === "Identifier" && typeof record.name === "string"
     ? record.name
     : null;
+}
+
+function hasSensitivePath(node: Node): boolean {
+  const args = asRecord(node)?.arguments;
+  if (!Array.isArray(args)) return false;
+  return literalFragments(args[0]).some(isSensitivePathFragment);
+}
+
+function literalFragments(value: unknown): string[] {
+  const node = asRecord(value);
+  if (node === null) return [];
+  const literal = stringLiteral(node);
+  if (literal !== null) return [literal];
+  if (
+    node.type === "TemplateLiteral" &&
+    Array.isArray(node.expressions) &&
+    node.expressions.length === 0 &&
+    Array.isArray(node.quasis)
+  ) {
+    return node.quasis.flatMap((quasi) => {
+      const cooked = asRecord(asRecord(quasi)?.value)?.cooked;
+      return typeof cooked === "string" ? [cooked] : [];
+    });
+  }
+  if (node.type === "CallExpression" && Array.isArray(node.arguments)) {
+    return node.arguments.flatMap(literalFragments);
+  }
+  return [];
+}
+
+function isSensitivePathFragment(value: string): boolean {
+  const path = value.replaceAll("\\", "/").toLowerCase();
+  const segments = path.split("/").filter((segment) => segment.length > 0);
+  if (segments.includes(".npmrc") || segments.includes(".ssh")) return true;
+  if (path.includes(".aws/credentials") || path.includes(".config/gh"))
+    return true;
+  if (
+    path.includes("library/keychains") ||
+    path.includes(".local/share/keyrings") ||
+    path.includes("microsoft/credentials") ||
+    path.includes("microsoft/vault") ||
+    segments.some((segment) => segment.startsWith("login.keychain"))
+  ) {
+    return true;
+  }
+  return segments.some(
+    (segment) =>
+      (segment === ".env" || segment.startsWith(".env.")) &&
+      ![".env.example", ".env.sample", ".env.template"].includes(segment),
+  );
 }
 
 function ancestorDeclares(name: string, ancestors: readonly Node[]): boolean {
