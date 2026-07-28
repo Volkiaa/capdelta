@@ -8,12 +8,11 @@ do that the old version could not?** A newly added install script, command
 entrypoint, dependency, or runtime constraint is review-worthy even before a
 CVE exists.
 
-> **Development status:** private, unpublished, and at the M1 manifest-only CLI
+> **Development status:** private, unpublished, and at the M3 AST-analysis
 > milestone. It is suitable for development and evaluation, not production
-> enforcement. The GitHub Action, SARIF output, policy thresholds, and runtime
-> source analysis are later milestones.
+> enforcement; corpus-calibrated false-positive measurements follow M3.
 
-## What M1 detects
+## What M3 detects
 
 For every direct and transitive npm package whose resolved version changed,
 capdelta compares `package.json` behavior and reports additions or changes to:
@@ -27,9 +26,11 @@ New packages receive a full manifest capability report. Removed packages are
 ignored. The current implementation accepts one npm `package-lock.json` v2 or
 v3 in the current working directory of a Git checkout.
 
-M1 does **not** inspect JavaScript source for network, filesystem, process,
-environment, native-code, or dynamic-code behavior. Those AST and signal
-layers are roadmap work, not hidden heuristics in the current release.
+The static AST layer also reports gained `PROCESS`, `NET`, `FS_READ`,
+`FS_WRITE`, `FS_SENSITIVE`, `ENV`, `DYNAMIC_CODE`, `NATIVE`, and `UNKNOWN`
+capabilities. Literal imports and one immutable alias hop are resolved;
+anything deeper is reported honestly as `UNKNOWN`. Literal install-script
+entry files retain their install-time context.
 
 ## Try it locally
 
@@ -71,6 +72,7 @@ on:
 permissions:
   contents: read
   pull-requests: write
+  security-events: write
 
 jobs:
   review:
@@ -140,9 +142,9 @@ flowchart LR
     B --> C[Fetch changed tarballs]
     C --> D[Verify lockfile SHA-512 integrity]
     D --> E[Safe static extraction]
-    E --> F[Extract package.json capabilities]
-    F --> G[Additions-only Differ]
-    G --> H[Text or JSON report]
+    E --> F[Extract manifest and JavaScript capabilities]
+    F --> G[Shape-first additions-only Differ]
+    G --> H[Text JSON and SARIF reports]
 ```
 
 The no-op check happens before lockfile parsing or network access. Changed
@@ -164,7 +166,7 @@ package through account takeover, a malicious maintainer, or a compromised
 release pipeline. Lockfiles, manifests, tarballs, package names, URLs, and
 report snippets are treated as attacker-controlled input.
 
-### Safety controls present through M2
+### Safety controls present through M3
 
 - package code is never imported, evaluated, or executed—not even in tests;
 - tarballs are verified against lockfile SHA-512 integrity before parsing;
@@ -188,10 +190,13 @@ packages are skipped and flagged.
   not newly reported.
 - **Slow-roll attacks:** capabilities can be introduced across several
   apparently modest releases. A committed reviewed baseline is planned later.
-- **Manifest-only visibility:** M1 does not detect runtime source behavior,
-  obfuscation, dynamic imports, network calls, or filesystem/process access.
-- **Script semantics:** M1 reports install-script presence and content changes;
-  it does not execute or interpret the command.
+- **Bounded resolution:** M3 resolves literal imports and one `const` alias hop,
+  but not re-exports or general JavaScript dataflow. Deeper uses become
+  `UNKNOWN` rather than guessed.
+- **Source coverage:** `.ts` is diagnosed as unsupported in v0.1. The signal
+  layer for obfuscation, entropy, and URL-domain changes arrives in M4.
+- **Script semantics:** install hooks are never executed. Only conservative
+  literal `node path.js` entrypoints receive install-code attribution.
 - **Registry scope:** private registries, mirrors, git, file, and link
   dependencies are skipped and surfaced as unanalyzed.
 - **Single ecosystem and lockfile:** npm v2/v3 only, with one
@@ -216,12 +221,15 @@ It does not need a GitHub token. The Action workflow requests exactly:
 permissions:
   contents: read
   pull-requests: write
+  security-events: write
 ```
 
 `contents: read` retrieves the base lockfile at the immutable PR base commit;
 `pull-requests: write` maintains the sticky comment. The metadata file cannot
 declare permissions—GitHub permissions belong to the calling workflow.
-`security-events: write` is not requested because SARIF arrives in M3.
+`security-events: write` uploads the M3 SARIF report to code scanning. Fork and
+Dependabot PRs cannot use that write permission, so capdelta degrades loudly to
+the JSON artifact, job summary, and check conclusion.
 
 Never work around fork-PR permissions with `pull_request_target` while checking
 out untrusted PR code.

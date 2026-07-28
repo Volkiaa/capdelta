@@ -4,6 +4,8 @@ import * as github from "@actions/github";
 import { lstat, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, relative, resolve } from "node:path";
+import { promisify } from "node:util";
+import { gzip } from "node:zlib";
 import {
   analyzeLockfiles,
   runAction,
@@ -60,6 +62,8 @@ async function main(): Promise<void> {
         readHeadLockfile,
         analyze: analyzeLockfiles,
         uploadJson,
+        uploadSarif: (contents, target) =>
+          uploadSarif(octokit, context, contents, target),
         comments: commentClient(octokit),
         addJobSummary: async (markdown) => {
           await core.summary.addRaw(markdown).write();
@@ -93,6 +97,8 @@ function actionContext(): ActionContext {
     repo,
     pullRequestNumber: pullRequest.number,
     baseSha: pullRequest.baseSha,
+    headSha: pullRequest.headSha,
+    headRef: pullRequest.headRef,
     baseRepository: pullRequest.baseRepository,
     headRepository: pullRequest.headRepository,
     actor: github.context.actor,
@@ -210,6 +216,8 @@ async function uploadJson(name: string, contents: string) {
 interface PullRequestFields {
   number: number;
   baseSha: string;
+  headSha: string;
+  headRef: string;
   baseRepository: string;
   headRepository: string;
 }
@@ -223,6 +231,8 @@ function parsePullRequest(value: unknown): PullRequestFields {
   if (
     typeof value.number !== "number" ||
     typeof value.base.sha !== "string" ||
+    typeof value.head.sha !== "string" ||
+    typeof value.head.ref !== "string" ||
     !isRecord(baseRepo) ||
     typeof baseRepo.full_name !== "string"
   ) {
@@ -242,9 +252,27 @@ function parsePullRequest(value: unknown): PullRequestFields {
   return {
     number: value.number,
     baseSha: value.base.sha,
+    headSha: value.head.sha,
+    headRef: value.head.ref,
     baseRepository: baseRepo.full_name,
     headRepository,
   };
+}
+
+async function uploadSarif(
+  octokit: Octokit,
+  context: ActionContext,
+  contents: string,
+  target: { commitSha: string; ref: string },
+): Promise<void> {
+  const compressed = await promisify(gzip)(Buffer.from(contents, "utf8"));
+  await octokit.request("POST /repos/{owner}/{repo}/code-scanning/sarifs", {
+    owner: context.owner,
+    repo: context.repo,
+    commit_sha: target.commitSha,
+    ref: target.ref,
+    sarif: compressed.toString("base64"),
+  });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

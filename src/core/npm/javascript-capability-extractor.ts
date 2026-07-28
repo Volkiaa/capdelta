@@ -360,7 +360,10 @@ async function parseInWorker(
 function workerUrl(): URL {
   if (import.meta.url.endsWith(".ts"))
     return pathToFileURL(resolve("dist/core/npm/javascript-parser-worker.js"));
-  return new URL("./javascript-parser-worker.js", import.meta.url);
+  // Keep ncc from copying TypeScript as a hashed raw asset. The Action
+  // packaging script builds this stable worker entry as JavaScript itself.
+  const workerFile = ["javascript", "parser", "worker.js"].join("-");
+  return new URL(workerFile, import.meta.url);
 }
 
 function diagnostic(

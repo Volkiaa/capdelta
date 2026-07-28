@@ -8,6 +8,8 @@ export {
   type CapabilityDiffResult,
   type CapabilityFinding,
   type FindingSeverity,
+  type ShapeFinding,
+  type ShapeRuleId,
 } from "./core/capability-differ.js";
 export {
   ManifestAnalysisPipelineConfigurationError,
@@ -77,6 +79,15 @@ export {
   type UnavailableManifestCapabilities,
 } from "./core/npm/manifest-capability-extractor.js";
 export {
+  JavaScriptCapabilityExtractorConfigurationError,
+  JavaScriptCapabilityExtractorContractError,
+  JavaScriptCapabilityExtractorError,
+  extractNpmJavaScriptCapabilities,
+  mergeJavaScriptCapabilityLayer,
+  type AstExtractionOptions,
+  type JavaScriptCapabilityLayerResult,
+} from "./core/npm/javascript-capability-extractor.js";
+export {
   REPORT_SCHEMA_VERSION,
   ReporterContractError,
   ReporterError,
@@ -100,8 +111,11 @@ export {
   type ReportInstallHookCapability,
   type ReportPackage,
   type ReportRuntimeConstraintCapability,
+  type ReportCodeCapability,
+  type JsonReportShapeFinding,
   type SeverityCounts,
 } from "./core/reporter.js";
+export { SARIF_VERSION, renderSarifReport } from "./core/sarif-reporter.js";
 export {
   ExtractorConfigurationError,
   ExtractorError,
