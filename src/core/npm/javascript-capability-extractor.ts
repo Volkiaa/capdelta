@@ -31,6 +31,27 @@ export interface JavaScriptCapabilityLayerResult {
   diagnostics: readonly AnalysisDiagnostic[];
 }
 
+export function mergeJavaScriptCapabilityLayer(
+  manifestSet: CapabilitySet,
+  layer: JavaScriptCapabilityLayerResult,
+): CapabilitySet {
+  const capabilities = [...manifestSet.capabilities, ...layer.capabilities];
+  capabilities.sort((left, right) =>
+    compareText(JSON.stringify(left), JSON.stringify(right)),
+  );
+  const diagnostics = [...manifestSet.diagnostics, ...layer.diagnostics];
+  diagnostics.sort((left, right) =>
+    compareEvidence(left.evidence[0], right.evidence[0]),
+  );
+  return {
+    schemaVersion: manifestSet.schemaVersion,
+    subject: manifestSet.subject,
+    completeness: diagnostics.length === 0 ? "complete" : "partial",
+    capabilities,
+    diagnostics,
+  };
+}
+
 export class JavaScriptCapabilityExtractorError extends Error {
   constructor(message: string) {
     super(message);

@@ -424,3 +424,56 @@ describe("extractNpmJavaScriptCapabilities NATIVE", () => {
     );
   });
 });
+
+describe("install-script location attribution", () => {
+  it("attributes a literal node entrypoint to its invoking hook", async () => {
+    const installSet: CapabilitySet = {
+      ...manifestSet,
+      capabilities: [
+        {
+          kind: "INSTALL_HOOK",
+          location: {
+            kind: "install-script",
+            hook: "postinstall",
+            applicability: "registry-install",
+          },
+          contentDigest: { algorithm: "sha256", value: "0".repeat(64) },
+          evidence: [{ file: "package.json", line: 1, snippet: "postinstall" }],
+        },
+      ],
+    };
+    await withPackage(
+      {
+        "package.json": JSON.stringify({
+          name: "fixture",
+          version: "2.0.0",
+          scripts: { postinstall: "node ./scripts/install.js" },
+        }),
+        "scripts/install.js": "fetch('https://example.test');\n",
+      },
+      async (root) => {
+        const result = await extractNpmJavaScriptCapabilities(
+          { root },
+          installSet,
+        );
+        expect(result.capabilities).toEqual([
+          {
+            kind: "NET",
+            location: {
+              kind: "install-script",
+              hook: "postinstall",
+              applicability: "registry-install",
+            },
+            evidence: [
+              {
+                file: "scripts/install.js",
+                line: 1,
+                snippet: "fetch('https://example.test');",
+              },
+            ],
+          },
+        ]);
+      },
+    );
+  });
+});

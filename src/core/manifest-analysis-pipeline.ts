@@ -32,6 +32,12 @@ import {
   type ManifestCapabilityFailure,
   type ManifestCapabilityResult,
 } from "./npm/manifest-capability-extractor.js";
+import {
+  extractNpmJavaScriptCapabilities,
+  mergeJavaScriptCapabilityLayer,
+  type AstExtractionOptions,
+  type JavaScriptCapabilityLayerResult,
+} from "./npm/javascript-capability-extractor.js";
 
 export type AnalysisSide = "old" | "new";
 
@@ -83,6 +89,7 @@ export interface ManifestAnalysisOptions {
   fetcher?: FetcherOptions;
   extractor?: ExtractorOptions;
   manifestExtractor?: ManifestCapabilityExtractorOptions;
+  astExtractor?: AstExtractionOptions;
   /** PLAN §2 default: at most four packages extracting concurrently. */
   extractionConcurrency?: number;
 }
@@ -112,6 +119,11 @@ interface ManifestAnalysisAdapters {
     expected: PackageSubject,
     options: ManifestCapabilityExtractorOptions,
   ): Promise<ManifestCapabilityResult>;
+  extractJavaScript(
+    extracted: Pick<ExtractedTarball, "root">,
+    manifestSet: CapabilitySet,
+    options: AstExtractionOptions,
+  ): Promise<JavaScriptCapabilityLayerResult>;
   diff(
     oldSet: CapabilitySet | null,
     newSet: CapabilitySet,
@@ -137,6 +149,7 @@ const DEFAULT_ADAPTERS: ManifestAnalysisAdapters = {
   fetch: fetchChangedPackages,
   extract: extractVerifiedTarball,
   extractManifest: extractNpmManifestCapabilities,
+  extractJavaScript: extractNpmJavaScriptCapabilities,
   diff: diffManifestCapabilities,
 };
 
@@ -367,6 +380,7 @@ async function analyzeSide(
   }
 
   let manifest: ManifestCapabilityResult | undefined;
+  let javascript: JavaScriptCapabilityLayerResult | undefined;
   let operationError: unknown;
   try {
     manifest = await adapters.extractManifest(
@@ -374,6 +388,13 @@ async function analyzeSide(
       expected,
       options.manifestExtractor ?? {},
     );
+    if (manifest.status === "analyzed") {
+      javascript = await adapters.extractJavaScript(
+        extraction,
+        manifest.set,
+        options.astExtractor ?? {},
+      );
+    }
   } catch (error: unknown) {
     operationError = error;
   }
@@ -401,9 +422,14 @@ async function analyzeSide(
     if (cleanupIssue !== null) failures.push(cleanupIssue);
     return { ok: false, failures };
   }
+  if (javascript === undefined) {
+    throw new ManifestAnalysisPipelineError(
+      `${side} JavaScript extraction returned no result for ${JSON.stringify(expected.name)}`,
+    );
+  }
   return {
     ok: true,
-    set: manifest.set,
+    set: mergeJavaScriptCapabilityLayer(manifest.set, javascript),
     issues: cleanupIssue === null ? [] : [cleanupIssue],
   };
 }
