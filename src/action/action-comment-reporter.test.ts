@@ -84,15 +84,17 @@ function adversarialReport(firstRun = false): JsonRunReport {
   };
 }
 
-function commentClient(): GitHubCommentClient & {
-  listComments: ReturnType<typeof vi.fn>;
-  createComment: ReturnType<typeof vi.fn>;
-  updateComment: ReturnType<typeof vi.fn>;
-} {
+function commentClient() {
   return {
-    listComments: vi.fn().mockResolvedValue([]),
-    createComment: vi.fn().mockResolvedValue({ id: 12 }),
-    updateComment: vi.fn().mockResolvedValue(undefined),
+    listComments: vi
+      .fn<GitHubCommentClient["listComments"]>()
+      .mockResolvedValue([]),
+    createComment: vi
+      .fn<GitHubCommentClient["createComment"]>()
+      .mockResolvedValue({ id: 12 }),
+    updateComment: vi
+      .fn<GitHubCommentClient["updateComment"]>()
+      .mockResolvedValue(undefined),
   };
 }
 

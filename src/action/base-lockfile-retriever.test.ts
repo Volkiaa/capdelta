@@ -10,10 +10,10 @@ import {
 
 const REF = "a".repeat(40);
 
-function clientWith(
-  ...responses: readonly GitHubContentsResponse[]
-): GitHubContentsClient & { getContent: ReturnType<typeof vi.fn> } {
-  const getContent = vi.fn();
+function clientWith(...responses: readonly GitHubContentsResponse[]): {
+  getContent: ReturnType<typeof vi.fn<GitHubContentsClient["getContent"]>>;
+} {
+  const getContent = vi.fn<GitHubContentsClient["getContent"]>();
   for (const response of responses) getContent.mockResolvedValueOnce(response);
   return { getContent };
 }
