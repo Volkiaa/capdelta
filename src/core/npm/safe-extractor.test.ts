@@ -196,6 +196,21 @@ describe("extractVerifiedTarball", () => {
     });
   });
 
+  it("rejects an aborted extraction with the run-level reason", async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(
+      extractVerifiedTarball(
+        tarball([regularFile("package/index.js", "inert")]),
+        { signal: controller.signal },
+      ),
+    ).resolves.toMatchObject({
+      status: "rejected",
+      failure: { kind: "analysis-aborted" },
+    });
+  });
+
   it("throws for caps that would disable safe extraction", async () => {
     await expect(
       extractVerifiedTarball(tarball([]), { maxFileCount: 0 }),

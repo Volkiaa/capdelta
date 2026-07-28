@@ -11,6 +11,7 @@ import type {
   Evidence,
   InstallHookCapability,
 } from "../contract/capability-set.js";
+import { analysisStopDetail } from "../analysis-execution-policy.js";
 import type { ExtractedTarball } from "./safe-extractor.js";
 import type {
   ParserRequest,
@@ -24,6 +25,8 @@ const JAVASCRIPT_EXTENSIONS = new Set([".js", ".mjs", ".cjs"]);
 export interface AstExtractionOptions {
   maxSourceBytes?: number;
   parseTimeoutMs?: number;
+  /** Whole-analysis cooperative cancellation. */
+  signal?: AbortSignal;
 }
 
 export interface JavaScriptCapabilityLayerResult {
@@ -65,6 +68,7 @@ export class JavaScriptCapabilityExtractorContractError extends JavaScriptCapabi
 interface ResolvedOptions {
   maxSourceBytes: number;
   parseTimeoutMs: number;
+  signal?: AbortSignal;
 }
 
 export async function extractNpmJavaScriptCapabilities(
@@ -74,8 +78,15 @@ export async function extractNpmJavaScriptCapabilities(
 ): Promise<JavaScriptCapabilityLayerResult> {
   const resolvedOptions = resolveOptions(options);
   validateContract(extracted, manifestSet);
-  const installFiles = await discoverInstallFiles(extracted.root, manifestSet);
-  const files = await enumerateFiles(extracted.root);
+  throwIfStopped(resolvedOptions.signal);
+  const installFiles = await discoverInstallFiles(
+    extracted.root,
+    manifestSet,
+    resolvedOptions.signal,
+  );
+  throwIfStopped(resolvedOptions.signal);
+  const files = await enumerateFiles(extracted.root, resolvedOptions.signal);
+  throwIfStopped(resolvedOptions.signal);
   const grouped = new Map<
     string,
     {
@@ -89,6 +100,7 @@ export async function extractNpmJavaScriptCapabilities(
 
   try {
     for (const file of files) {
+      throwIfStopped(resolvedOptions.signal);
       const extension = file.slice(file.lastIndexOf(".")).toLowerCase();
       if (
         extension === ".node" ||
@@ -124,7 +136,13 @@ export async function extractNpmJavaScriptCapabilities(
       const absolute = resolveInside(extracted.root, file);
       let source: string;
       try {
-        const bytes = await readFile(absolute);
+        const bytes = await readFile(
+          absolute,
+          resolvedOptions.signal === undefined
+            ? undefined
+            : { signal: resolvedOptions.signal },
+        );
+        throwIfStopped(resolvedOptions.signal);
         if (bytes.byteLength > resolvedOptions.maxSourceBytes) {
           diagnostics.push(
             diagnostic(
@@ -137,6 +155,7 @@ export async function extractNpmJavaScriptCapabilities(
         }
         source = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
       } catch (error: unknown) {
+        throwIfStopped(resolvedOptions.signal);
         diagnostics.push(
           diagnostic(
             "unparseable-source",
@@ -146,16 +165,20 @@ export async function extractNpmJavaScriptCapabilities(
         );
         continue;
       }
-      const response = await parser.parse({
-        source,
-        file,
-        sourceType:
-          extension === ".mjs"
-            ? "module"
-            : extension === ".cjs"
-              ? "script"
-              : "either",
-      });
+      const response = await parser.parse(
+        {
+          source,
+          file,
+          sourceType:
+            extension === ".mjs"
+              ? "module"
+              : extension === ".cjs"
+                ? "script"
+                : "either",
+        },
+        resolvedOptions.signal,
+      );
+      throwIfStopped(resolvedOptions.signal);
       if (!response.ok) {
         diagnostics.push({
           kind: "unparseable-source",
@@ -237,7 +260,16 @@ function resolveOptions(options: AstExtractionOptions): ResolvedOptions {
       );
     }
   }
-  return { maxSourceBytes, parseTimeoutMs };
+  if (options.signal !== undefined && !isAbortSignal(options.signal)) {
+    throw new JavaScriptCapabilityExtractorConfigurationError(
+      "signal must implement AbortSignal",
+    );
+  }
+  return {
+    maxSourceBytes,
+    parseTimeoutMs,
+    ...(options.signal === undefined ? {} : { signal: options.signal }),
+  };
 }
 
 function validateContract(
@@ -254,12 +286,18 @@ function validateContract(
     );
 }
 
-async function enumerateFiles(root: string): Promise<string[]> {
+async function enumerateFiles(
+  root: string,
+  signal: AbortSignal | undefined,
+): Promise<string[]> {
   const files: string[] = [];
   async function visit(directory: string): Promise<void> {
+    throwIfStopped(signal);
     const entries = await readdir(directory, { withFileTypes: true });
+    throwIfStopped(signal);
     entries.sort((left, right) => compareText(left.name, right.name));
     for (const entry of entries) {
+      throwIfStopped(signal);
       const absolute = join(directory, entry.name);
       if (entry.isDirectory()) await visit(absolute);
       else if (entry.isFile())
@@ -279,7 +317,9 @@ async function enumerateFiles(root: string): Promise<string[]> {
 async function discoverInstallFiles(
   root: string,
   manifestSet: CapabilitySet,
+  signal: AbortSignal | undefined,
 ): Promise<Map<string, CapabilityLocation[]>> {
+  throwIfStopped(signal);
   const hooks = manifestSet.capabilities.filter(
     (capability): capability is InstallHookCapability =>
       capability.kind === "INSTALL_HOOK",
@@ -287,7 +327,13 @@ async function discoverInstallFiles(
   if (hooks.length === 0) return new Map();
   let manifest: unknown;
   try {
-    manifest = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
+    manifest = JSON.parse(
+      await readFile(join(root, "package.json"), {
+        encoding: "utf8",
+        ...(signal === undefined ? {} : { signal }),
+      }),
+    );
+    throwIfStopped(signal);
   } catch (error: unknown) {
     throw new JavaScriptCapabilityExtractorContractError(
       `validated package.json cannot be reread: ${errorName(error)}`,
@@ -335,7 +381,11 @@ class ParserWorkerClient {
 
   constructor(private readonly timeoutMs: number) {}
 
-  async parse(request: ParserRequest): Promise<ParserResponse> {
+  async parse(
+    request: ParserRequest,
+    signal: AbortSignal | undefined,
+  ): Promise<ParserResponse> {
+    throwIfStopped(signal);
     const worker = this.worker ?? new Worker(workerUrl());
     this.worker = worker;
     return await new Promise((resolveResponse) => {
@@ -343,6 +393,7 @@ class ParserWorkerClient {
         clearTimeout(timeout);
         worker.off("message", onMessage);
         worker.off("error", onError);
+        signal?.removeEventListener("abort", onAbort);
         if (discard && this.worker === worker) {
           this.worker = null;
           void worker.terminate();
@@ -363,6 +414,20 @@ class ParserWorkerClient {
           true,
         );
       };
+      const onAbort = (): void => {
+        finish(
+          {
+            ok: false,
+            detail:
+              signal === undefined
+                ? "analysis aborted"
+                : analysisStopDetail(signal),
+            line: 1,
+            snippet: "",
+          },
+          true,
+        );
+      };
       const timeout = setTimeout(() => {
         finish(
           {
@@ -377,6 +442,7 @@ class ParserWorkerClient {
       }, this.timeoutMs);
       worker.once("message", onMessage);
       worker.once("error", onError);
+      signal?.addEventListener("abort", onAbort, { once: true });
       worker.postMessage(request);
     });
   }
@@ -386,6 +452,23 @@ class ParserWorkerClient {
     this.worker = null;
     if (worker !== null) await worker.terminate();
   }
+}
+
+function throwIfStopped(signal: AbortSignal | undefined): void {
+  if (signal?.aborted === true) {
+    throw new JavaScriptCapabilityExtractorError(analysisStopDetail(signal));
+  }
+}
+
+function isAbortSignal(value: unknown): value is AbortSignal {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "aborted" in value &&
+    typeof value.aborted === "boolean" &&
+    "addEventListener" in value &&
+    typeof value.addEventListener === "function"
+  );
 }
 
 function workerUrl(): URL {

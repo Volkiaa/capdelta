@@ -503,16 +503,19 @@ describe("analyzeChangedPackages", () => {
       maxTarballBytes: 12,
     });
     expect(observed.fetch?.signal).toBeInstanceOf(AbortSignal);
-    expect(observed.extraction).toEqual({
+    expect(observed.extraction).toMatchObject({
       maxFileCount: 13,
       maxExpandedBytes: 14,
       maxDecompressionRatio: 15,
     });
-    expect(observed.manifest).toEqual({ maxManifestBytes: 16 });
-    expect(observed.javascript).toEqual({
+    expect(observed.extraction?.signal).toBeInstanceOf(AbortSignal);
+    expect(observed.manifest).toMatchObject({ maxManifestBytes: 16 });
+    expect(observed.manifest?.signal).toBeInstanceOf(AbortSignal);
+    expect(observed.javascript).toMatchObject({
       maxSourceBytes: 17,
       parseTimeoutMs: 18,
     });
+    expect(observed.javascript?.signal).toBeInstanceOf(AbortSignal);
   });
 
   it("flags work not started after caller cancellation", async () => {
@@ -552,7 +555,7 @@ describe("analyzeChangedPackages", () => {
     ]);
   });
 
-  it("finishes active safe work and flags queued work at the deadline", async () => {
+  it("cleans active safe work and flags all unfinished work at the deadline", async () => {
     vi.useFakeTimers();
     let releaseExtraction: (() => void) | undefined;
     let markStarted: (() => void) | undefined;
@@ -562,6 +565,7 @@ describe("analyzeChangedPackages", () => {
     const gate = new Promise<void>((resolve) => {
       releaseExtraction = resolve;
     });
+    let cleanups = 0;
     const pending = pipeline({
       extract: async () => {
         markStarted?.();
@@ -571,7 +575,10 @@ describe("analyzeChangedPackages", () => {
           root: "C:\\inert-fixture",
           fileCount: 1,
           expandedBytes: 1,
-          cleanup: () => Promise.resolve(),
+          cleanup: () => {
+            cleanups += 1;
+            return Promise.resolve();
+          },
         };
       },
     })(lockfileDiff([changedPackage("active"), changedPackage("queued")]), {
@@ -583,16 +590,27 @@ describe("analyzeChangedPackages", () => {
     releaseExtraction?.();
     const result = await pending;
 
-    expect(result.packages[0]?.status).toBe("analyzed");
-    expect(result.packages[1]).toMatchObject({
-      status: "unavailable",
-      failures: [
-        {
-          stage: "analysis",
-          failure: { kind: "deadline-exceeded" },
+    expect(cleanups).toBe(1);
+    expect(
+      result.packages.map((item) =>
+        item.status === "unavailable" ? item.failures.at(-1) : null,
+      ),
+    ).toEqual([
+      {
+        stage: "analysis",
+        failure: {
+          kind: "deadline-exceeded",
+          detail: "analysis wall-clock deadline exceeded",
         },
-      ],
-    });
+      },
+      {
+        stage: "analysis",
+        failure: {
+          kind: "deadline-exceeded",
+          detail: "analysis wall-clock deadline exceeded",
+        },
+      },
+    ]);
   });
 
   it("propagates lockfile facts and validates configuration and adapter contracts", async () => {

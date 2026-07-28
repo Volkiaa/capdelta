@@ -258,9 +258,14 @@ function resolvePipelineOptions(
   options: CapabilityAnalysisOptions,
 ): ResolvedPipelineOptions {
   rejectPolicyConflicts(options);
-  if (options.fetcher?.signal !== undefined) {
+  if (
+    options.fetcher?.signal !== undefined ||
+    options.extractor?.signal !== undefined ||
+    options.manifestExtractor?.signal !== undefined ||
+    options.astExtractor?.signal !== undefined
+  ) {
     throw new CapabilityAnalysisPipelineConfigurationError(
-      "fetcher.signal is managed by execution.signal",
+      "stage signals are managed by execution.signal",
     );
   }
   try {
@@ -453,6 +458,7 @@ async function analyzeFetchedPackage(
       fetched.oldTarball,
       subject(changedPackage, "old"),
       options,
+      signal,
       adapters,
     );
     if (!old.ok) {
@@ -466,7 +472,7 @@ async function analyzeFetchedPackage(
     issues.push(...old.issues);
   }
 
-  if (signal.aborted) {
+  if (isAborted(signal)) {
     return policyUnavailable(changedPackage, signal, issues);
   }
 
@@ -475,6 +481,7 @@ async function analyzeFetchedPackage(
     fetched.newTarball,
     subject(changedPackage, "new"),
     options,
+    signal,
     adapters,
   );
   if (!newest.ok) {
@@ -485,6 +492,9 @@ async function analyzeFetchedPackage(
     };
   }
   issues.push(...newest.issues);
+  if (isAborted(signal)) {
+    return policyUnavailable(changedPackage, signal, issues);
+  }
 
   return {
     status: "analyzed",
@@ -502,11 +512,7 @@ function policyUnavailable(
   signal: AbortSignal,
   priorFailures: readonly PackageAnalysisFailure[] = [],
 ): UnavailablePackage {
-  const kind = analysisStopKind(signal) ?? "analysis-aborted";
-  const failure: PackageAnalysisFailure = {
-    stage: "analysis",
-    failure: { kind, detail: analysisStopDetail(signal) },
-  };
+  const failure = analysisFailure(signal);
   const [first, ...rest] = priorFailures;
   const failures: [PackageAnalysisFailure, ...PackageAnalysisFailure[]] =
     first === undefined ? [failure] : [first, ...rest, failure];
@@ -515,6 +521,30 @@ function policyUnavailable(
     changedPackage,
     failures,
   };
+}
+
+function analysisFailure(signal: AbortSignal): PackageAnalysisFailure {
+  const kind: AnalysisStopKind = analysisStopKind(signal) ?? "analysis-aborted";
+  return {
+    stage: "analysis",
+    failure: { kind, detail: analysisStopDetail(signal) },
+  };
+}
+
+function stoppedSide(
+  signal: AbortSignal,
+  priorFailures: readonly PackageAnalysisFailure[] = [],
+): SideAnalysisFailure {
+  const failure = analysisFailure(signal);
+  const [first, ...rest] = priorFailures;
+  return {
+    ok: false,
+    failures: first === undefined ? [failure] : [first, ...rest, failure],
+  };
+}
+
+function isAborted(signal: AbortSignal): boolean {
+  return signal.aborted;
 }
 
 function prependFailures(
@@ -555,13 +585,24 @@ async function analyzeSide(
   tarball: VerifiedTarball,
   expected: PackageSubject,
   options: ResolvedPipelineOptions,
+  signal: AbortSignal,
   adapters: CapabilityAnalysisAdapters,
 ): Promise<SideAnalysisResult> {
-  const extraction = await callWithContext(
-    `${side} extraction for ${JSON.stringify(expected.name)}`,
-    () => adapters.extract(tarball, options.extractor),
-  );
+  let extraction: ExtractionResult;
+  try {
+    extraction = await adapters.extract(tarball, {
+      ...options.extractor,
+      signal,
+    });
+  } catch (error: unknown) {
+    if (isAborted(signal)) return stoppedSide(signal);
+    throw new CapabilityAnalysisPipelineError(
+      `${side} extraction for ${JSON.stringify(expected.name)} threw`,
+      { cause: error },
+    );
+  }
   if (extraction.status === "rejected") {
+    if (isAborted(signal)) return stoppedSide(signal);
     return {
       ok: false,
       failures: [{ stage: `${side}-extraction`, failure: extraction.failure }],
@@ -572,23 +613,24 @@ async function analyzeSide(
   let javascript: JavaScriptCapabilityLayerResult | undefined;
   let operationError: unknown;
   try {
-    manifest = await adapters.extractManifest(
-      extraction,
-      expected,
-      options.manifestExtractor,
-    );
+    manifest = await adapters.extractManifest(extraction, expected, {
+      ...options.manifestExtractor,
+      signal,
+    });
     if (manifest.status === "analyzed") {
-      javascript = await adapters.extractJavaScript(
-        extraction,
-        manifest.set,
-        options.astExtractor,
-      );
+      javascript = await adapters.extractJavaScript(extraction, manifest.set, {
+        ...options.astExtractor,
+        signal,
+      });
     }
   } catch (error: unknown) {
     operationError = error;
   }
 
   const cleanupIssue = await cleanup(side, extraction);
+  if (isAborted(signal)) {
+    return stoppedSide(signal, cleanupIssue === null ? [] : [cleanupIssue]);
+  }
   if (operationError !== undefined) {
     const cleanupContext =
       cleanupIssue === null

@@ -123,6 +123,7 @@ const SRI_TOKEN = /^sha512-([A-Za-z0-9+/]+={0,2})$/;
 const TIMEOUT_ABORT = Symbol("capdelta fetch timeout");
 const SIZE_LIMIT_ABORT = Symbol("capdelta tarball size limit");
 const PARENT_ABORT = Symbol("capdelta parent analysis abort");
+const REJECTED_RESPONSE_ABORT = Symbol("capdelta rejected response");
 
 /**
  * Downloads and verifies every changed package. A failure aborts only that
@@ -297,6 +298,7 @@ async function fetchArtifact(
       signal: controller.signal,
     });
     if (!response.ok) {
+      controller.abort(REJECTED_RESPONSE_ABORT);
       return {
         ok: false,
         kind: "http-status",
@@ -309,6 +311,7 @@ async function fetchArtifact(
       declaredLength !== null &&
       isLengthOverLimit(declaredLength, options.maxTarballBytes)
     ) {
+      controller.abort(REJECTED_RESPONSE_ABORT);
       return {
         ok: false,
         kind: "size-limit-exceeded",
