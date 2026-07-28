@@ -120,10 +120,10 @@ Usage: capdelta --base <ref> [--format text|json]
 Example text finding:
 
 ```text
-capdelta manifest analysis report
+capdelta capability analysis report
 Mode: comparison
 Packages: 1 changed; 1 analyzed; 0 unavailable; 0 lockfile skips.
-Signals: 1 manifest finding (CRITICAL: 1); 0 lockfile findings; 0 analysis issues; 0 manifest diagnostics.
+Signals: 1 capability finding (CRITICAL: 1); 0 lockfile findings; 0 analysis issues; 0 analysis diagnostics.
 
 Findings:
 - [CRITICAL] "postinstall" registry install hook added

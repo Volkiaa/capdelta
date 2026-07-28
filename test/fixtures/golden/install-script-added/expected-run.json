@@ -1,13 +1,13 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "firstRun": false,
   "summary": {
     "changedPackages": 1,
     "analyzedPackages": 1,
     "unavailablePackages": 0,
     "skippedLockfileEntries": 0,
-    "manifestFindings": 1,
-    "manifestDiagnostics": 0,
+    "capabilityFindings": 1,
+    "analysisDiagnostics": 0,
     "analysisIssues": 0,
     "lockfileFindings": 0,
     "bySeverity": {
@@ -22,7 +22,7 @@
     {
       "status": "analyzed",
       "report": {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "package": {
           "ecosystem": "npm",
           "name": "golden-fixture",

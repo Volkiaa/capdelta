@@ -1,9 +1,13 @@
 import {
-  analyzeManifestPackages,
-  type ManifestAnalysisRun,
-} from "../core/manifest-analysis-pipeline.js";
+  analyzeChangedPackages,
+  type CapabilityAnalysisRun,
+} from "../core/capability-analysis-pipeline.js";
 import { diffNpmLockfiles } from "../core/npm/lockfile-differ.js";
-import { renderJsonRunReport, type JsonRunReport } from "../core/reporter.js";
+import {
+  REPORT_SCHEMA_VERSION,
+  renderJsonRunReport,
+  type JsonRunReport,
+} from "../core/reporter.js";
 import { renderSarifReport } from "../core/sarif-reporter.js";
 import {
   publishStickyComment,
@@ -54,7 +58,7 @@ export interface ActionAdapters {
   analyze(
     oldLockfile: unknown,
     newLockfile: unknown,
-  ): Promise<ManifestAnalysisRun>;
+  ): Promise<CapabilityAnalysisRun>;
   uploadJson(name: string, contents: string): Promise<ArtifactUpload>;
   uploadSarif(
     contents: string,
@@ -242,7 +246,7 @@ function parseRenderedReport(json: string): JsonRunReport {
     typeof value !== "object" ||
     value === null ||
     !("schemaVersion" in value) ||
-    value.schemaVersion !== 1
+    value.schemaVersion !== REPORT_SCHEMA_VERSION
   ) {
     throw new ActionRunnerOperationalError(
       "internal JSON reporter emitted an unsupported schema",
@@ -269,6 +273,6 @@ async function withContext<T>(
 export async function analyzeLockfiles(
   oldLockfile: unknown,
   newLockfile: unknown,
-): Promise<ManifestAnalysisRun> {
-  return analyzeManifestPackages(diffNpmLockfiles(oldLockfile, newLockfile));
+): Promise<CapabilityAnalysisRun> {
+  return analyzeChangedPackages(diffNpmLockfiles(oldLockfile, newLockfile));
 }

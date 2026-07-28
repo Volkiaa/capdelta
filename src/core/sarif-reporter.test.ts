@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ManifestAnalysisRun } from "./manifest-analysis-pipeline.js";
+import type { CapabilityAnalysisRun } from "./capability-analysis-pipeline.js";
 import { renderSarifReport } from "./sarif-reporter.js";
 
 describe("renderSarifReport", () => {
@@ -15,7 +15,7 @@ describe("renderSarifReport", () => {
         },
       ] as const,
     };
-    const run: ManifestAnalysisRun = {
+    const run: CapabilityAnalysisRun = {
       firstRun: false,
       summary: { changed: 1, analyzed: 1, unavailable: 0, skipped: 0 },
       packages: [

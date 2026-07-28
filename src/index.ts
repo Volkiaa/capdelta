@@ -13,18 +13,24 @@ export {
   type ShapeRuleId,
 } from "./core/capability-differ.js";
 export {
+  CapabilityAnalysisPipelineConfigurationError,
+  CapabilityAnalysisPipelineContractError,
+  CapabilityAnalysisPipelineError,
   ManifestAnalysisPipelineConfigurationError,
   ManifestAnalysisPipelineContractError,
   ManifestAnalysisPipelineError,
+  analyzeChangedPackages,
   analyzeManifestPackages,
   type AnalysisSide,
   type AnalyzedPackage,
+  type CapabilityAnalysisOptions,
+  type CapabilityAnalysisRun,
   type ManifestAnalysisOptions,
   type ManifestAnalysisRun,
   type PackageAnalysisFailure,
   type PackageAnalysisResult,
   type UnavailablePackage,
-} from "./core/manifest-analysis-pipeline.js";
+} from "./core/capability-analysis-pipeline.js";
 export {
   CAPABILITY_SET_SCHEMA_VERSION,
   type AnalysisDiagnostic,

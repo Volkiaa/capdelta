@@ -15,9 +15,9 @@ import type {
   ShapeRuleId,
 } from "./capability-differ.js";
 import type {
-  ManifestAnalysisRun,
+  CapabilityAnalysisRun,
   PackageAnalysisFailure,
-} from "./manifest-analysis-pipeline.js";
+} from "./capability-analysis-pipeline.js";
 import type {
   ChangedPackage,
   LockfileFindingKind,
@@ -28,7 +28,7 @@ import type { ManifestCapabilityFailureKind } from "./npm/manifest-capability-ex
 import type { ExtractionFailureKind } from "./npm/safe-extractor.js";
 import { createHash } from "node:crypto";
 
-export const REPORT_SCHEMA_VERSION = 1 as const;
+export const REPORT_SCHEMA_VERSION = 2 as const;
 
 const MAX_IDENTITY_CHARS = 160;
 const MAX_VALUE_CHARS = 240;
@@ -180,8 +180,8 @@ export interface JsonRunReport {
     analyzedPackages: number;
     unavailablePackages: number;
     skippedLockfileEntries: number;
-    manifestFindings: number;
-    manifestDiagnostics: number;
+    capabilityFindings: number;
+    analysisDiagnostics: number;
     analysisIssues: number;
     lockfileFindings: number;
     bySeverity: SeverityCounts;
@@ -274,7 +274,7 @@ function renderTextReportFromBuilt(report: JsonReport): string[] {
 }
 
 /** Stable machine-readable report for one complete M1 analysis run. */
-export function renderJsonRunReport(run: ManifestAnalysisRun): string {
+export function renderJsonRunReport(run: CapabilityAnalysisRun): string {
   return `${JSON.stringify(buildRunReport(run), null, 2)}\n`;
 }
 
@@ -282,16 +282,16 @@ export function renderJsonRunReport(run: ManifestAnalysisRun): string {
  * Deterministic terminal report. First-run mode stays aggregate-only in text;
  * JSON retains every package detail (PLAN §4.1).
  */
-export function renderTextRunReport(run: ManifestAnalysisRun): string {
+export function renderTextRunReport(run: CapabilityAnalysisRun): string {
   const report = buildRunReport(run);
   const severitySummary = severityCountsText(report.summary.bySeverity);
   const lines = [
-    "capdelta manifest analysis report",
+    "capdelta capability analysis report",
     report.firstRun
       ? "Mode: first run (aggregate text; full details are in JSON)"
       : "Mode: comparison",
     `Packages: ${String(report.summary.changedPackages)} changed; ${String(report.summary.analyzedPackages)} analyzed; ${String(report.summary.unavailablePackages)} unavailable; ${count(report.summary.skippedLockfileEntries, "lockfile skip")}.`,
-    `Signals: ${count(report.summary.manifestFindings, "manifest finding")}${severitySummary.length === 0 ? "" : ` (${severitySummary})`}; ${count(report.summary.lockfileFindings, "lockfile finding")}; ${count(report.summary.analysisIssues, "analysis issue")}; ${count(report.summary.manifestDiagnostics, "manifest diagnostic")}.`,
+    `Signals: ${count(report.summary.capabilityFindings, "capability finding")}${severitySummary.length === 0 ? "" : ` (${severitySummary})`}; ${count(report.summary.lockfileFindings, "lockfile finding")}; ${count(report.summary.analysisIssues, "analysis issue")}; ${count(report.summary.analysisDiagnostics, "analysis diagnostic")}.`,
   ];
 
   if (report.firstRun) return `${lines.join("\n")}\n`;
@@ -340,17 +340,17 @@ export function renderTextRunReport(run: ManifestAnalysisRun): string {
   return `${lines.join("\n")}\n`;
 }
 
-function buildRunReport(run: ManifestAnalysisRun): JsonRunReport {
+function buildRunReport(run: CapabilityAnalysisRun): JsonRunReport {
   validateRun(run);
   const bySeverity = emptySeverityCounts();
-  let manifestFindings = 0;
-  let manifestDiagnostics = 0;
+  let capabilityFindings = 0;
+  let analysisDiagnostics = 0;
   let analysisIssues = 0;
   const packages = run.packages.map((item): JsonRunPackage => {
     if (item.status === "analyzed") {
       const report = buildReport(item.diff);
-      manifestFindings += report.summary.findings;
-      manifestDiagnostics += report.summary.diagnostics;
+      capabilityFindings += report.summary.findings;
+      analysisDiagnostics += report.summary.diagnostics;
       for (const severity of SEVERITIES) {
         bySeverity[severity] += report.summary.bySeverity[severity];
       }
@@ -377,8 +377,8 @@ function buildRunReport(run: ManifestAnalysisRun): JsonRunReport {
       analyzedPackages: run.summary.analyzed,
       unavailablePackages: run.summary.unavailable,
       skippedLockfileEntries: run.summary.skipped,
-      manifestFindings,
-      manifestDiagnostics,
+      capabilityFindings,
+      analysisDiagnostics,
       analysisIssues,
       lockfileFindings: run.lockfileFindings.length,
       bySeverity,
@@ -403,7 +403,7 @@ function buildRunReport(run: ManifestAnalysisRun): JsonRunReport {
   };
 }
 
-function validateRun(run: ManifestAnalysisRun): void {
+function validateRun(run: CapabilityAnalysisRun): void {
   const analyzed = run.packages.filter(
     (item) => item.status === "analyzed",
   ).length;

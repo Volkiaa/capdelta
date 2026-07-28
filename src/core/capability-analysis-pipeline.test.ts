@@ -13,8 +13,17 @@ import type { ExtractionResult } from "./npm/safe-extractor.js";
 import type { ManifestCapabilityResult } from "./npm/manifest-capability-extractor.js";
 import type { JavaScriptCapabilityLayerResult } from "./npm/javascript-capability-extractor.js";
 import {
+  CapabilityAnalysisPipelineError,
+  CapabilityAnalysisPipelineConfigurationError,
+  CapabilityAnalysisPipelineContractError,
+  analyzeChangedPackages,
+  createCapabilityAnalysisPipeline,
+} from "./capability-analysis-pipeline.js";
+import {
   ManifestAnalysisPipelineConfigurationError,
   ManifestAnalysisPipelineContractError,
+  ManifestAnalysisPipelineError,
+  analyzeManifestPackages,
   createManifestAnalysisPipeline,
 } from "./manifest-analysis-pipeline.js";
 
@@ -87,7 +96,7 @@ interface AdapterOverrides {
 }
 
 function pipeline(overrides: AdapterOverrides = {}) {
-  return createManifestAnalysisPipeline({
+  return createCapabilityAnalysisPipeline({
     fetch: (packages) =>
       overrides.fetch?.(packages) ??
       Promise.resolve(
@@ -117,7 +126,30 @@ function pipeline(overrides: AdapterOverrides = {}) {
   });
 }
 
-describe("analyzeManifestPackages", () => {
+describe("analyzeChangedPackages", () => {
+  it("retains the M1 public aliases", () => {
+    expect(analyzeManifestPackages).toBe(analyzeChangedPackages);
+    expect(createManifestAnalysisPipeline).toBe(
+      createCapabilityAnalysisPipeline,
+    );
+    expect(ManifestAnalysisPipelineError).toBe(CapabilityAnalysisPipelineError);
+    expect(ManifestAnalysisPipelineConfigurationError).toBe(
+      CapabilityAnalysisPipelineConfigurationError,
+    );
+    expect(ManifestAnalysisPipelineContractError).toBe(
+      CapabilityAnalysisPipelineContractError,
+    );
+    expect([
+      new ManifestAnalysisPipelineError("legacy").name,
+      new ManifestAnalysisPipelineConfigurationError("legacy").name,
+      new ManifestAnalysisPipelineContractError("legacy").name,
+    ]).toEqual([
+      "ManifestAnalysisPipelineError",
+      "ManifestAnalysisPipelineConfigurationError",
+      "ManifestAnalysisPipelineContractError",
+    ]);
+  });
+
   it("analyzes old and new manifests, preserves order, and returns run counts", async () => {
     const packages = [
       changedPackage("updated", "1.0.0"),
@@ -199,7 +231,7 @@ describe("analyzeManifestPackages", () => {
       failures: [{ stage: "new-extraction", failure: { kind: "unsafe-path" } }],
     });
 
-    const manifestFailure = createManifestAnalysisPipeline({
+    const manifestFailure = createCapabilityAnalysisPipeline({
       fetch: (packages) =>
         Promise.resolve([
           {
@@ -410,11 +442,11 @@ describe("analyzeManifestPackages", () => {
     });
     await expect(
       pipeline()(lockfileDiff([]), { extractionConcurrency: 0 }),
-    ).rejects.toBeInstanceOf(ManifestAnalysisPipelineConfigurationError);
+    ).rejects.toBeInstanceOf(CapabilityAnalysisPipelineConfigurationError);
 
     const broken = pipeline({ fetch: () => Promise.resolve([]) });
     await expect(
       broken(lockfileDiff([changedPackage("missing-result")])),
-    ).rejects.toBeInstanceOf(ManifestAnalysisPipelineContractError);
+    ).rejects.toBeInstanceOf(CapabilityAnalysisPipelineContractError);
   });
 });

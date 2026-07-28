@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import type { ManifestAnalysisRun } from "./manifest-analysis-pipeline.js";
+import type { CapabilityAnalysisRun } from "./capability-analysis-pipeline.js";
 import { diffManifestCapabilities } from "./capability-differ.js";
 import { extractNpmManifestCapabilities } from "./npm/manifest-capability-extractor.js";
 import { extractVerifiedTarball } from "./npm/safe-extractor.js";
@@ -75,7 +75,7 @@ describe("manifest report golden pair", () => {
         const diff = diffManifestCapabilities(oldAnalysis.set, newAnalysis.set);
         expect(renderJsonReport(diff)).toBe(expectedJson);
         expect(renderTextReport(diff)).toBe(expectedText);
-        const run: ManifestAnalysisRun = {
+        const run: CapabilityAnalysisRun = {
           firstRun: false,
           summary: { changed: 1, analyzed: 1, unavailable: 0, skipped: 0 },
           packages: [
