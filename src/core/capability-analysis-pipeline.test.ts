@@ -20,6 +20,8 @@ import {
   createCapabilityAnalysisPipeline,
 } from "./capability-analysis-pipeline.js";
 import {
+  ManifestAnalysisPipelineConfigurationError,
+  ManifestAnalysisPipelineContractError,
   ManifestAnalysisPipelineError,
   analyzeManifestPackages,
   createManifestAnalysisPipeline,
@@ -131,6 +133,21 @@ describe("analyzeChangedPackages", () => {
       createCapabilityAnalysisPipeline,
     );
     expect(ManifestAnalysisPipelineError).toBe(CapabilityAnalysisPipelineError);
+    expect(ManifestAnalysisPipelineConfigurationError).toBe(
+      CapabilityAnalysisPipelineConfigurationError,
+    );
+    expect(ManifestAnalysisPipelineContractError).toBe(
+      CapabilityAnalysisPipelineContractError,
+    );
+    expect([
+      new ManifestAnalysisPipelineError("legacy").name,
+      new ManifestAnalysisPipelineConfigurationError("legacy").name,
+      new ManifestAnalysisPipelineContractError("legacy").name,
+    ]).toEqual([
+      "ManifestAnalysisPipelineError",
+      "ManifestAnalysisPipelineConfigurationError",
+      "ManifestAnalysisPipelineContractError",
+    ]);
   });
 
   it("analyzes old and new manifests, preserves order, and returns run counts", async () => {
@@ -348,7 +365,7 @@ describe("analyzeChangedPackages", () => {
     await expect(
       pipeline({ fetch: () => Promise.reject(fetchError) })(lockfileDiff([])),
     ).rejects.toMatchObject({
-      name: "CapabilityAnalysisPipelineError",
+      name: "ManifestAnalysisPipelineError",
       message: "package fetch batch threw",
       cause: fetchError,
     });
@@ -361,7 +378,7 @@ describe("analyzeChangedPackages", () => {
         },
       })(lockfileDiff([changedPackage("differ-throw")])),
     ).rejects.toMatchObject({
-      name: "CapabilityAnalysisPipelineError",
+      name: "ManifestAnalysisPipelineError",
       message: 'capability diff for "differ-throw" threw',
       cause: diffError,
     });

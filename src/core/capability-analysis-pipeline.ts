@@ -97,7 +97,12 @@ export interface CapabilityAnalysisOptions {
 export class CapabilityAnalysisPipelineError extends Error {
   constructor(message: string, options?: ErrorOptions) {
     super(message, options);
-    this.name = new.target.name;
+    // Preserve the M1 observable error names while the exported constructors
+    // remain identity aliases for instanceof compatibility.
+    this.name = new.target.name.replace(
+      /^CapabilityAnalysis/u,
+      "ManifestAnalysis",
+    );
   }
 }
 
