@@ -11,7 +11,6 @@ const MAX_METADATA_BYTES = 20 * 1024 * 1024;
 
 interface RegistryVersion {
   version: string;
-  publishedAt: string;
   tarball: string;
   integrity: string;
 }
@@ -112,7 +111,7 @@ async function main(): Promise<void> {
       {
         schemaVersion: 1,
         selection:
-          "adjacent recent nondeprecated stable npm releases; not a legitimacy attestation",
+          "adjacent highest nondeprecated stable npm releases; not a legitimacy attestation",
         requestedBumps: parsed.bumps,
         packages: parsed.packages,
         summary: {
@@ -179,9 +178,7 @@ async function recentVersions(
     const response = await fetch(
       `https://registry.npmjs.org/${encodeURIComponent(packageName)}`,
       {
-        // Publication timestamps are absent from npm's abbreviated install
-        // metadata, so adjacent release selection requires the full document.
-        headers: { accept: "application/json" },
+        headers: { accept: "application/vnd.npm.install-v1+json" },
         signal: controller.signal,
       },
     );
@@ -193,11 +190,7 @@ async function recentVersions(
     const metadata = JSON.parse(
       new TextDecoder("utf-8", { fatal: true }).decode(bytes),
     ) as unknown;
-    if (
-      !isRecord(metadata) ||
-      !isRecord(metadata.versions) ||
-      !isRecord(metadata.time)
-    )
+    if (!isRecord(metadata) || !isRecord(metadata.versions))
       throw new Error("registry metadata has an invalid shape");
     const versions: RegistryVersion[] = [];
     for (const [version, raw] of Object.entries(metadata.versions)) {
@@ -208,9 +201,7 @@ async function recentVersions(
         !isRecord(raw.dist)
       )
         continue;
-      const publishedAt = metadata.time[version];
       if (
-        typeof publishedAt !== "string" ||
         typeof raw.dist.tarball !== "string" ||
         typeof raw.dist.integrity !== "string" ||
         !raw.dist.integrity.startsWith("sha512-")
@@ -218,20 +209,27 @@ async function recentVersions(
         continue;
       versions.push({
         version,
-        publishedAt,
         tarball: raw.dist.tarball,
         integrity: raw.dist.integrity,
       });
     }
-    versions.sort(
-      (left, right) =>
-        left.publishedAt.localeCompare(right.publishedAt) ||
-        left.version.localeCompare(right.version),
+    versions.sort((left, right) =>
+      compareStableVersions(left.version, right.version),
     );
     return versions.slice(-count);
   } finally {
     clearTimeout(timeout);
   }
+}
+
+function compareStableVersions(left: string, right: string): number {
+  const leftParts = left.split(".").map(Number);
+  const rightParts = right.split(".").map(Number);
+  for (let index = 0; index < 3; index += 1) {
+    const difference = (leftParts[index] ?? 0) - (rightParts[index] ?? 0);
+    if (difference !== 0) return difference;
+  }
+  return 0;
 }
 
 async function readCapped(
