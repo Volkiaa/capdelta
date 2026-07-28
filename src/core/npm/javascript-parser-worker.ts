@@ -17,6 +17,12 @@ function analyze(request: ParserRequest): ParserResponse {
       if (!isDynamicModuleLoad(node)) return;
       detections.push(evidence("UNKNOWN", node, request.source));
     });
+    fullAncestor(ast, (node) => {
+      const moduleName = literalModuleLoad(node);
+      if (moduleName !== null && moduleName === "child_process") {
+        detections.push(evidence("PROCESS", node, request.source));
+      }
+    });
     return { ok: true, detections };
   } catch (error: unknown) {
     const located = error as { loc?: { line?: unknown }; pos?: unknown };
@@ -31,6 +37,44 @@ function analyze(request: ParserRequest): ParserResponse {
       snippet: sourceLine(request.source, line),
     };
   }
+}
+
+function literalModuleLoad(node: Node): string | null {
+  const record = node as unknown as Record<string, unknown>;
+  if (node.type === "ImportDeclaration") {
+    return normalizedModule(stringLiteral(record.source));
+  }
+  if (node.type === "ImportExpression") {
+    return normalizedModule(stringLiteral(record.source));
+  }
+  if (node.type !== "CallExpression") return null;
+  const callee = asRecord(record.callee);
+  const args = record.arguments;
+  if (
+    callee?.type !== "Identifier" ||
+    callee.name !== "require" ||
+    !Array.isArray(args)
+  ) {
+    return null;
+  }
+  return normalizedModule(stringLiteral(args[0]));
+}
+
+function normalizedModule(value: string | null): string | null {
+  return value?.startsWith("node:") === true ? value.slice(5) : value;
+}
+
+function stringLiteral(value: unknown): string | null {
+  const record = asRecord(value);
+  return record?.type === "Literal" && typeof record.value === "string"
+    ? record.value
+    : null;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null
+    ? (value as Record<string, unknown>)
+    : null;
 }
 
 function parseSource(request: ParserRequest): Node {

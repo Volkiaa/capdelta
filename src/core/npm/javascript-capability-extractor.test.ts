@@ -82,3 +82,53 @@ describe("extractNpmJavaScriptCapabilities UNKNOWN", () => {
     );
   });
 });
+
+describe("extractNpmJavaScriptCapabilities PROCESS", () => {
+  it("detects literal CommonJS and node:-prefixed ESM imports", async () => {
+    await withPackage(
+      {
+        "common.cjs": "const cp = require('child_process');\n",
+        "module.mjs": "import { spawn } from 'node:child_process';\n",
+      },
+      async (root) => {
+        const result = await extractNpmJavaScriptCapabilities(
+          { root },
+          manifestSet,
+        );
+        expect(result.capabilities).toEqual([
+          {
+            kind: "PROCESS",
+            location: { kind: "runtime" },
+            evidence: [
+              {
+                file: "common.cjs",
+                line: 1,
+                snippet: "const cp = require('child_process');",
+              },
+              {
+                file: "module.mjs",
+                line: 1,
+                snippet: "import { spawn } from 'node:child_process';",
+              },
+            ],
+          },
+        ]);
+      },
+    );
+  });
+
+  it("does not pretend a computed module specifier is PROCESS", async () => {
+    await withPackage(
+      { "index.js": "require('child' + '_process').exec('echo test');\n" },
+      async (root) => {
+        const result = await extractNpmJavaScriptCapabilities(
+          { root },
+          manifestSet,
+        );
+        expect(result.capabilities.map((item) => item.kind)).toEqual([
+          "UNKNOWN",
+        ]);
+      },
+    );
+  });
+});
