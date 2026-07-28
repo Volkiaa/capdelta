@@ -2,6 +2,7 @@
 export {
   CapabilityDifferContractError,
   CapabilityDifferError,
+  diffCapabilities,
   diffManifestCapabilities,
   type CapabilityChange,
   type CapabilityDiffDiagnostic,

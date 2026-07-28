@@ -9,7 +9,7 @@ import type {
   PackageSubject,
 } from "./contract/capability-set.js";
 import {
-  diffManifestCapabilities,
+  diffCapabilities,
   type CapabilityDiffResult,
 } from "./capability-differ.js";
 import {
@@ -150,7 +150,7 @@ const DEFAULT_ADAPTERS: ManifestAnalysisAdapters = {
   extract: extractVerifiedTarball,
   extractManifest: extractNpmManifestCapabilities,
   extractJavaScript: extractNpmJavaScriptCapabilities,
-  diff: diffManifestCapabilities,
+  diff: diffCapabilities,
 };
 
 /**

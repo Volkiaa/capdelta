@@ -84,7 +84,7 @@ const SEVERITY_ORDER: Readonly<Record<FindingSeverity, number>> = {
  * Additions-only capability Differ (PLAN §4.4). Removed capabilities are
  * deliberately ignored; a null baseline receives a full capability report.
  */
-export function diffManifestCapabilities(
+export function diffCapabilities(
   oldSet: CapabilitySet | null,
   newSet: CapabilitySet,
 ): CapabilityDiffResult {
@@ -144,6 +144,9 @@ export function diffManifestCapabilities(
     diagnostics,
   };
 }
+
+/** M1 compatibility alias; new callers should use diffCapabilities. */
+export const diffManifestCapabilities = diffCapabilities;
 
 function validateSet(set: CapabilitySet, side: "old" | "new"): void {
   const schemaVersion: unknown = set.schemaVersion;
