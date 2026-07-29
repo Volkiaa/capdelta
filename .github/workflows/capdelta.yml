@@ -1,4 +1,4 @@
-# Dogfood the immutable M2 Action bundle against this repository's own npm
+# Dogfood the immutable bundled Action against this repository's own npm
 # updates. pull_request_target is deliberately forbidden by PLAN §3.
 name: capdelta
 

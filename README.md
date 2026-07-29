@@ -2,41 +2,80 @@
 
 **Review what an npm dependency gained between two lockfiles.**
 
-Traditional vulnerability scanners answer “is this version already known to
-be vulnerable?” capdelta asks a different question: **what can the new version
-do that the old version could not?** A newly added install script, command
-entrypoint, dependency, or runtime constraint is review-worthy even before a
-CVE exists.
+Traditional vulnerability scanners ask whether a version is already known to be
+vulnerable. capdelta asks a different question: **what can the new version do
+that the old version could not?** A newly added install script, process launch,
+network client, secret-file read, or dynamic-code primitive is review-worthy
+before a CVE exists.
 
-> **Development status:** private, unpublished, and at the M3 AST-analysis
-> milestone. It is suitable for development and evaluation, not production
-> enforcement; corpus-calibrated false-positive measurements follow M3.
+> **Development status:** the repository is public, but the npm package is
+> marked private, unpublished, and versioned `0.0.0`. M0-M3 are implemented;
+> the project is at the required post-M3 false-positive corpus checkpoint before
+> the remaining M4 signal work. It is suitable for development and evaluation,
+> not production enforcement. No measured detection or false-positive claims
+> have been published.
 
-## What M3 detects
+## What capdelta detects today
 
-For every direct and transitive npm package whose resolved version changed,
-capdelta compares `package.json` behavior and reports additions or changes to:
+capdelta analyzes every direct and transitive npm package whose resolved
+lockfile artifact changed. Removed packages are ignored. A newly added package
+has no baseline, so its complete capability set is reported.
 
-- `preinstall`, `install`, `postinstall`, and `prepare` scripts;
+The manifest layer detects additions or behavior changes to:
+
+- `preinstall`, `install`, and `postinstall` registry install hooks;
+- `prepare` hooks, labeled as git-only;
 - command entrypoints from `bin`;
-- dependencies; and
+- dependencies, including npm aliases; and
 - runtime constraints from `engines`.
 
-New packages receive a full manifest capability report. Removed packages are
-ignored. The current implementation accepts one npm `package-lock.json` v2 or
-v3 in the current working directory of a Git checkout.
+The static JavaScript layer parses `.js`, `.mjs`, and `.cjs` and detects:
 
-The static AST layer also reports gained `PROCESS`, `NET`, `FS_READ`,
-`FS_WRITE`, `FS_SENSITIVE`, `ENV`, `DYNAMIC_CODE`, `NATIVE`, and `UNKNOWN`
-capabilities. Literal imports and one immutable alias hop are resolved;
-anything deeper is reported honestly as `UNKNOWN`. Literal install-script
-entry files retain their install-time context.
+- `PROCESS` — child processes and command execution;
+- `NET` — HTTP, HTTPS, sockets, `fetch`, and WebSocket access;
+- `FS_READ` and `FS_WRITE`;
+- `FS_SENSITIVE` — literal paths near stores such as `.npmrc`, `.env`,
+  `.ssh/`, AWS credentials, and GitHub CLI configuration;
+- `ENV` — `process.env`;
+- `DYNAMIC_CODE` — `eval`, `Function`, and `vm`;
+- `NATIVE` — native addons, node-gyp, and WebAssembly loading; and
+- `UNKNOWN` — dynamic imports or calls that the bounded resolver cannot
+  identify honestly.
 
-## Try it locally
+Resolution covers literal ESM/CommonJS imports and one immutable `const` alias
+hop. Anything deeper becomes `UNKNOWN`; capdelta does not pretend to perform
+general JavaScript dataflow. Literal files invoked by install hooks retain
+install-time location context.
+
+Lockfile-level facts are also surfaced: same-version integrity changes,
+downgrades, unanalyzable git/file/link sources, private registries, malformed
+entries, and first-run lockfile additions.
+
+## Severity means review priority
+
+capdelta reports capability gains, not a malware verdict. Shape rules can
+promote otherwise ordinary capabilities when their combination or location is
+more dangerous.
+
+| Priority     | Current examples                                                                                                                                                                  |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **CRITICAL** | Registry install hook added/changed; `NET`, `PROCESS`, `ENV`, or `FS_SENSITIVE` in install code; `NET` plus secret access; `DYNAMIC_CODE` or `NATIVE`; tarball integrity mismatch |
+| **HIGH**     | `NET`, `PROCESS`, or `FS_SENSITIVE` gain; integrity changed while version stayed the same                                                                                         |
+| **MEDIUM**   | `ENV` or `FS_WRITE` gain                                                                                                                                                          |
+| **LOW**      | `FS_READ`, `UNKNOWN`, command entrypoint, or dependency gain                                                                                                                      |
+| **INFO**     | Runtime-constraint change, git-only hook, downgrade, or other review context                                                                                                      |
+
+Within each package, findings are ordered from CRITICAL through INFO in JSON and
+text. The size-capped PR table prioritizes findings globally before selecting
+its detail rows. Every capability finding includes escaped, length-bounded
+`file:line` evidence and a snippet. Copy says “review this change,” never
+“malware detected.”
+
+## Try the CLI
 
 Requirements: Node.js 20 or newer, npm, and Git.
 
-Run capdelta from the directory containing the lockfile to compare.
+From the directory containing one `package-lock.json`:
 
 ```bash
 npm ci
@@ -44,7 +83,7 @@ npm run build
 node dist/cli.js --base main
 ```
 
-Select machine-readable output with:
+Machine-readable output:
 
 ```bash
 node dist/cli.js --base main --format json
@@ -56,18 +95,53 @@ The intended published interface is:
 npx capdelta --base main
 ```
 
-The npm package is not published while the repository remains private, so use
-the built entrypoint during development.
+The npm package is still marked private and has not been published, so use the
+built entrypoint during development.
 
-### GitHub Action
+### CLI behavior
 
-Pin the Action to a full commit SHA rather than a mutable tag:
+```text
+Usage: capdelta --base <ref> [--format text|json]
+```
+
+- The base ref is resolved to an immutable commit. Git is invoked with argument
+  arrays and no shell; the validated base blob is read by object ID.
+- If `package-lock.json` is unchanged, capdelta exits `0` with no output and
+  performs no lockfile parsing, extraction, or network access.
+- An untracked, newly added lockfile enters first-run mode. Text stays
+  aggregate-only; JSON retains every package report.
+- Expected package-local failures and partial-analysis diagnostics remain in
+  the report instead of disappearing.
+- Exit `0` means analysis completed, even if findings need review. Exit `1`
+  means an operational failure. Exit `64` means invalid usage.
+- Exit `2` remains reserved for the planned `--strict` incomplete-analysis
+  mode (PLAN §4.5).
+
+Example excerpt:
+
+```text
+capdelta capability analysis report
+Mode: comparison
+Packages: 1 changed; 1 analyzed; 0 unavailable; 0 lockfile skips.
+Signals: 1 capability finding (CRITICAL: 1); 0 lockfile findings; 0 analysis issues; 0 analysis diagnostics.
+
+Findings:
+- [CRITICAL] "postinstall" registry install hook added
+  Evidence: "package.json":5 — "\"postinstall\": \"echo test\""
+```
+
+## Use the GitHub Action
+
+Pin the Action to a reviewed full commit SHA rather than a mutable branch or
+tag:
 
 ```yaml
 name: capdelta
+
 on:
   pull_request:
-    paths: [package-lock.json]
+    paths:
+      - package-lock.json
 
 permissions:
   contents: read
@@ -88,74 +162,79 @@ jobs:
           fail-on: CRITICAL
 ```
 
-`fail-on` accepts `CRITICAL`, `HIGH`, `MEDIUM`, `LOW`, `INFO`, or `none` and
-defaults to `CRITICAL`. The Action updates one size-capped summary comment and
-uploads the complete `capdelta-report` JSON artifact. If the base lockfile is
-absent, it uses aggregate first-run mode. Fork and Dependabot PRs have
-read-only credentials, so capdelta writes the same inert summary to the job
-summary and relies on the job conclusion for check status instead of trying to
-post a comment.
+The example pin is the repository's currently dogfooded immutable Action
+revision. Review and update pins deliberately when adopting a newer revision.
 
-If dependency PRs can auto-merge, make the capdelta job a required status
+### Action inputs
+
+| Input           | Default               | Behavior                                                                    |
+| --------------- | --------------------- | --------------------------------------------------------------------------- |
+| `github-token`  | `${{ github.token }}` | Reads base contents, comments, and uploads reports                          |
+| `lockfile-path` | `package-lock.json`   | One repository-relative npm lockfile                                        |
+| `fail-on`       | `CRITICAL`            | Inclusive threshold: `CRITICAL`, `HIGH`, `MEDIUM`, `LOW`, `INFO`, or `none` |
+| `base-ref`      | PR base SHA           | Optional base Git ref override                                              |
+| `config-path`   | empty                 | Reserved; non-empty values fail loudly until M4 allowlists exist            |
+
+Outputs are `status` (`no-op`, `passed`, or `failed`), `artifact-id`,
+and `highest-severity`.
+
+The Action:
+
+1. takes the no-op path when the configured lockfile did not change;
+2. retrieves the base lockfile through the GitHub Contents API at an immutable
+   base commit;
+3. uploads the complete schema-v3 JSON report as the `capdelta-report`
+   artifact;
+4. uploads SARIF 2.1.0 to code scanning when permissions permit;
+5. creates or updates one 60,000-character-capped sticky summary comment; and
+6. applies `fail-on` only after report delivery.
+
+Fork and Dependabot PRs have read-only credentials. capdelta therefore writes
+the same inert summary to the job summary, retains the JSON artifact, relies on
+the job conclusion for status, and skips SARIF/comment writes it cannot perform.
+Never work around this with `pull_request_target` while checking out untrusted
+PR-head code.
+
+If dependency updates can auto-merge, make the capdelta job a required status
 check so a bump cannot merge before the configured gate runs.
-
-### CLI behavior
-
-```text
-Usage: capdelta --base <ref> [--format text|json]
-```
-
-- If `package-lock.json` did not change relative to the base commit, capdelta
-  exits `0` with no output and performs no analysis.
-- Text is the default format. JSON contains full structured detail.
-- A newly added lockfile enters first-run mode: text stays aggregate-only while
-  JSON retains every package report.
-- Expected package-local failures are reported instead of disappearing.
-- Exit `0` means the CLI analysis completed, even when findings were reported.
-  Exit `1` means an operational failure; exit `64` means invalid CLI usage.
-  Exit `2` remains reserved for future `--strict` incomplete-analysis results
-  per PLAN §4.5. The Action applies the `fail-on` threshold after preserving
-  its comment or job summary and JSON artifact.
-
-Example text finding:
-
-```text
-capdelta capability analysis report
-Mode: comparison
-Packages: 1 changed; 1 analyzed; 0 unavailable; 0 lockfile skips.
-Signals: 1 capability finding (CRITICAL: 1); 0 lockfile findings; 0 analysis issues; 0 analysis diagnostics.
-
-Findings:
-- [CRITICAL] "postinstall" registry install hook added
-  Evidence: "package.json":5 — "\"postinstall\": \"echo test\""
-```
-
-All evidence includes `file:line` and an escaped, length-bounded snippet.
-Report wording asks reviewers to inspect a change; it does not claim malware
-was detected.
 
 ## How it works
 
 ```mermaid
 flowchart LR
-    A[Git base and head lockfiles] --> B[LockfileDiffer]
-    B --> C[Fetch changed tarballs]
-    C --> D[Verify lockfile SHA-512 integrity]
-    D --> E[Safe static extraction]
-    E --> F[Extract manifest and JavaScript capabilities]
-    F --> G[Shape-first additions-only Differ]
-    G --> H[Text JSON and SARIF reports]
+    A["Base and head package-lock.json"] --> B["npm LockfileDiffer"]
+    B --> C["Fetch changed tarballs"]
+    C --> D["Verify lockfile SHA-512 integrity"]
+    D --> E["Safe static extraction"]
+    E --> F["Manifest + JavaScript capability extraction"]
+    F --> G["Ecosystem-agnostic capability sets"]
+    G --> H["Shape-first additions-only Differ"]
+    H --> I["Text + JSON + PR summary + SARIF"]
 ```
 
-The no-op check happens before lockfile parsing or network access. Changed
-packages are fetched with bounded concurrency, verified against their lockfile
-SRI before parsing, extracted under resource limits, and analyzed without
-executing package code. Package-local failures remain visible in the final
-summary (“degrade loudly”).
+The no-op check precedes parsing and network access. Changed tarballs are
+verified byte-for-byte against lockfile SRI before extraction. Package code is
+never imported or executed. The npm-specific lockfile and extractor
+implementations sit behind core contracts so another ecosystem can add adapters
+without rewriting the Differ or Reporter.
 
-The npm-specific lockfile and manifest implementations sit behind core
-contracts so future ecosystems can add adapters without rewriting the Differ
-or Reporter.
+### Default resource limits
+
+| Boundary                      | Default                                                                   |
+| ----------------------------- | ------------------------------------------------------------------------- |
+| Whole capability-analysis run | 5-minute deadline                                                         |
+| Fetching                      | 8 concurrent requests, 30-second request timeout, 50 MiB per tarball      |
+| Extraction                    | 4 concurrent packages, 10,000 entries, 250 MiB expanded data, 100:1 ratio |
+| Manifest                      | 1 MiB                                                                     |
+| JavaScript source             | 2 MiB per file, 5-second parser-worker deadline                           |
+| CLI lockfile                  | 50 MiB                                                                    |
+| CLI Git command               | 60 seconds, then soft-to-hard termination escalation                      |
+| PR comment                    | 60,000 characters, 10 prioritized detail rows by default                  |
+
+Deadline, cancellation, cleanup, parser-worker termination, and package-local
+failures all degrade loudly into structured report issues. Limits are exposed
+through the analysis-library options; the current CLI exposes only report
+format and base ref.
 
 ## Security model
 
@@ -163,78 +242,83 @@ or Reporter.
 
 capdelta assumes an attacker can publish a new version of a legitimate npm
 package through account takeover, a malicious maintainer, or a compromised
-release pipeline. Lockfiles, manifests, tarballs, package names, URLs, and
-report snippets are treated as attacker-controlled input.
+release pipeline. Lockfiles, manifests, tarballs, package names, URLs, report
+snippets, and JavaScript source are attacker-controlled input.
 
-### Safety controls present through M3
+### Safety controls
 
 - package code is never imported, evaluated, or executed—not even in tests;
 - tarballs are verified against lockfile SHA-512 integrity before parsing;
 - extraction rejects absolute paths, traversal, links, unsupported entries,
-  invalid npm archive layouts, and resource-limit violations;
-- defaults cap tarballs at 50 MiB, extracted entries at 10,000, expanded data
-  at 250 MiB, and decompression ratio at 100:1;
-- fetching defaults to eight concurrent downloads with a 30-second per-request
-  timeout; extraction defaults to four packages concurrently;
-- head lockfile symlinks are rejected and lockfile reads are capped at 50 MiB;
-- Git is invoked with argument arrays, never through a shell;
-- report and terminal strings are escaped and truncated; and
-- malformed or unavailable data is reported rather than silently skipped.
+  invalid npm layouts, and resource-limit violations;
+- parsing runs statically under source-size and worker deadlines;
+- lockfile symlinks are rejected and reads are capped;
+- Git and child processes are shell-free, time-bounded, and forcibly detached
+  if termination cannot be confirmed;
+- report, terminal, Markdown, JSON, and SARIF strings are escaped or serialized
+  and truncated; and
+- malformed or unavailable data remains visible.
 
-Private registries are not authenticated in M1. Non-`registry.npmjs.org`
-packages are skipped and flagged.
+Private registries and mirrors are not authenticated in v0.1. Any host other
+than `registry.npmjs.org` is skipped and flagged.
 
 ### Known limitations and evasions
 
-- **No-delta attacks:** behavior that was already present in the baseline is
-  not newly reported.
-- **Slow-roll attacks:** capabilities can be introduced across several
-  apparently modest releases. A committed reviewed baseline is planned later.
-- **Bounded resolution:** M3 resolves literal imports and one `const` alias hop,
-  but not re-exports or general JavaScript dataflow. Deeper uses become
-  `UNKNOWN` rather than guessed.
-- **Source coverage:** `.ts` is diagnosed as unsupported in v0.1. The signal
-  layer for obfuscation, entropy, and URL-domain changes arrives in M4.
+- **No-delta attacks:** behavior already present in the baseline is not newly
+  reported.
+- **Slow-roll attacks:** capabilities introduced across several modest releases
+  can look harmless one diff at a time. A reviewed capability snapshot is
+  planned for v0.2.
+- **Bounded resolution:** re-exports and general JavaScript dataflow are not
+  resolved. Deeper expressions become `UNKNOWN`.
+- **Source coverage:** TypeScript source is diagnosed as unsupported in v0.1.
+- **Signal coverage:** URL-domain diffs, entropy, minified-blob growth, and
+  obfuscation recognizers remain M4 work.
 - **Script semantics:** install hooks are never executed. Only conservative
   literal `node path.js` entrypoints receive install-code attribution.
 - **Registry scope:** private registries, mirrors, git, file, and link
   dependencies are skipped and surfaced as unanalyzed.
-- **Single ecosystem and lockfile:** npm v2/v3 only, with one
-  current-directory `package-lock.json` per invocation.
+- **Single ecosystem and lockfile:** npm lockfile v2/v3 only, one lockfile per
+  invocation.
+- **Configuration:** allowlists, `--strict`, and full-inventory mode are not
+  implemented yet.
 
 These are product limits, not claims that the corresponding attacks are safe.
-Please report silent bypasses or unsafe parsing privately through
+Report silent bypasses or unsafe parsing privately through
 [SECURITY.md](SECURITY.md).
 
-## Permissions and network access
+## Dogfooding evidence
 
-The CLI needs:
+The repository's own lockfile PRs run the Action through
+[the dogfood workflow](.github/workflows/capdelta.yml), and Dependabot supplies
+real dependency traffic. In [PR #7's reviewed esbuild finding](https://github.com/Volkiaa/capdelta/pull/7#issuecomment-5108797671),
+capdelta raised a CRITICAL install-time capability shape. The finding was
+manually accepted because esbuild's documented installer legitimately selects
+and validates a platform binary. This is the intended meaning of CRITICAL:
+powerful behavior that requires review, not an automatic malware accusation.
 
-- read access to the checkout, `.git`, and current-directory
-  `package-lock.json`;
-- temporary-directory write access for bounded extraction; and
-- outbound HTTPS access to `registry.npmjs.org`.
+## Programmatic API
 
-It does not need a GitHub token. The Action workflow requests exactly:
+The package also exposes the ecosystem-agnostic analysis library. Until the
+first release, this API is available from a local build and may still evolve:
 
-```yaml
-permissions:
-  contents: read
-  pull-requests: write
-  security-events: write
+```ts
+import {
+  analyzeChangedPackages,
+  diffNpmLockfiles,
+  renderJsonRunReport,
+} from "capdelta";
+
+const lockfileDiff = diffNpmLockfiles(parsedBaseLockfile, parsedHeadLockfile);
+const run = await analyzeChangedPackages(lockfileDiff);
+const json = renderJsonRunReport(run);
 ```
 
-`contents: read` retrieves the base lockfile at the immutable PR base commit;
-`pull-requests: write` maintains the sticky comment. The metadata file cannot
-declare permissions—GitHub permissions belong to the calling workflow.
-`security-events: write` uploads the M3 SARIF report to code scanning. Fork and
-Dependabot PRs cannot use that write permission, so capdelta degrades loudly to
-the JSON artifact, job summary, and check conclusion.
+Public exports include the capability-set contract, npm lockfile/fetch/extract
+adapters, analysis execution policy, Differ, JSON/text/SARIF reporters, and
+typed failure taxonomies.
 
-Never work around fork-PR permissions with `pull_request_target` while checking
-out untrusted PR code.
-
-## Development
+## Development and validation
 
 ```bash
 npm run format:check
@@ -245,19 +329,27 @@ npm run check:deps
 npm run check:action
 ```
 
-Tests use inert handcrafted lockfiles and tarballs. The golden M1 pair changes
-from a benign manifest to `"postinstall": "echo test"`; package code is never
-run. CI executes the suite on Node.js 20 and 22.
+Tests use inert handcrafted lockfiles and tarballs. The golden pair changes from
+a benign manifest to `"postinstall": "echo test"`; package code is never run.
+CI executes the suite on Node.js 20 and 22 and verifies that the committed
+Action bundle is reproducible.
 
-The runtime dependency budget is fewer than 10 direct dependencies. M2 uses
-five: `tar`, `jsonc-parser`, and the official `@actions/core`,
-`@actions/github`, and `@actions/artifact` packages. Repository CI enforces the
-direct-dependency budget and verifies that the committed Action bundle is
-current.
+The post-M3 false-positive harness inspects adjacent recent, nondeprecated,
+stable npm releases:
 
-No true-positive/false-positive corpus measurements have been published yet.
-The golden fixture verifies end-to-end behavior, not detection accuracy.
-Measured and labeled validation is planned before public release.
+```bash
+npm run fp-check -- --bumps 3 lodash react minimist
+```
+
+Its selection is not a legitimacy attestation. It emits JSON summaries and
+returns exit `2` when a package or bump could not be analyzed. The required
+multi-package corpus run and published interpretation are still pending.
+
+capdelta currently has seven direct runtime dependencies:
+`@actions/artifact`, `@actions/core`, `@actions/github`, `acorn`,
+`acorn-walk`, `jsonc-parser`, and `tar`. CI fails at 10, so the enforced
+budget remains **fewer than 10**. Transitive runtime packages are reported by
+the check but are not the gate.
 
 ## Architecture decisions
 
@@ -272,16 +364,31 @@ Measured and labeled validation is planned before public release.
 - [ADR-009: Non-npmjs hosts are private](docs/adr/0009-non-npmjs-host-is-private.md)
 - [ADR-010: Preflight extraction and reject links](docs/adr/0010-preflight-and-reject-links-in-npm-tarballs.md)
 - [ADR-011: Bound extraction resources](docs/adr/0011-bound-npm-tarball-extraction-resources.md)
+- [ADR-012: Acorn parser and bounded honesty tier](docs/adr/0012-acorn-ast-parser.md)
 
-The authoritative architecture and roadmap are in [docs/PLAN.md](docs/PLAN.md).
+The authoritative architecture and roadmap remain in
+[docs/PLAN.md](docs/PLAN.md). Session handoffs are recorded in
+[docs/SESSIONS.md](docs/SESSIONS.md).
 
-## Roadmap
+## Roadmap status
 
-- **M2:** GitHub Action, sticky summary, exit-code policy, adversarial report
-  rendering tests, and dogfooding.
-- **M3:** JavaScript AST capability analysis and SARIF.
-- **M4:** lexical/entropy signals, allowlists, wall-clock budgeting, and fuzzing.
-- **M5:** measured validation, publication evidence, and public release work.
+- **M0-M3: complete.** Scaffolding, manifest CLI, secure retrieval/extraction,
+  Action reporting, AST taxonomy, shape severity, SARIF, dependency
+  cross-linking, and the false-positive harness are on `main`.
+- **Current checkpoint:** run and interpret the post-M3 legitimate-bump corpus
+  before adding more signal classes.
+- **M4: partly started.** Unified concurrency, cancellation, wall-clock limits,
+  and loud degradation landed early. Remaining work is URL/entropy/blob
+  signals, justified allowlists, extractor fuzzing, and benign-pattern
+  suppression.
+- **M5:** formal measured validation, release evidence, and publication work.
+
+## Contributing and security reports
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the design-first workflow, required
+checks, dependency budget, and inert-fixture rules. Report suspected
+vulnerabilities privately according to [SECURITY.md](SECURITY.md), not in a
+public issue or pull request.
 
 ## License
 

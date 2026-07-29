@@ -1,6 +1,6 @@
 # CI: lint + format + typecheck + test on Node 20 and 22, plus the
 # dependency-budget gate (PLAN §10). Third-party actions are pinned by commit
-# SHA — the same guidance capdelta's README will give its own users (PLAN §10).
+# SHA — the same guidance capdelta's README gives its own users (PLAN §10).
 name: CI
 
 on:

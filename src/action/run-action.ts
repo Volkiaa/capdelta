@@ -94,7 +94,7 @@ export class ActionRunnerOperationalError extends ActionRunnerError {}
 
 const ARTIFACT_NAME = "capdelta-report";
 
-/** Run the M2 Action pipeline without converting failures into process state. */
+/** Run the Action pipeline without converting failures into process state. */
 export async function runAction(
   inputs: ActionInputs,
   context: ActionContext,

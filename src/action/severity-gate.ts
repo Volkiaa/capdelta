@@ -45,8 +45,8 @@ export function parseFailOn(value: string): FailOn {
 }
 
 /**
- * Assess only M1 signals whose severity is already specified by PLAN §4.4.
- * This is deliberately smaller than the M3 shape-based severity model.
+ * Assess every report signal after shape-based capability severity has been
+ * classified by the core Differ (PLAN §4.4).
  */
 export function assessRunSeverity(report: JsonRunReport): SeverityAssessment {
   const counts: Record<FindingSeverity, number> = {

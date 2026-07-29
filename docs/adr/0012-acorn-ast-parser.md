@@ -1,4 +1,4 @@
-# ADR-0012: Acorn AST parser with a bounded honesty tier
+# ADR-012: Acorn AST parser with a bounded honesty tier
 
 - **Status:** accepted
 - **Date:** 2026-07-28

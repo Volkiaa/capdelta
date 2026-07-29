@@ -103,7 +103,7 @@ function renderTextReportFromBuilt(report: JsonReport): string[] {
   return lines;
 }
 
-/** Stable machine-readable report for one complete M1 analysis run. */
+/** Stable machine-readable report for one complete capability-analysis run. */
 export function renderJsonRunReport(run: CapabilityAnalysisRun): string {
   return `${JSON.stringify(buildRunReport(run), null, 2)}\n`;
 }

@@ -188,3 +188,67 @@ escapes; worth considering a CI grep for control characters in source files.
    settings rather than a code change.
 4. Should we add the previously noted control-character CI check before M1
    finishes, or keep it listed as an adjacent hardening task?
+
+## 2026-07-29 — M3 completion and post-M3 handoff
+
+### 1. Completed and verified
+
+- **M1 is complete on `main`:** PR #8 merged the manifest capability contract,
+  additions-only Differ, deterministic JSON/text reports, golden fixtures, CLI,
+  and Action integration as `4230782`. The current orchestration entrypoint is
+  `analyzeChangedPackages` (`src/core/capability-analysis-pipeline.ts:186`), and
+  the report contract is schema v3 (`src/core/report-contract.ts:23`).
+- **M2 is complete on `main`:** the Action retrieves the immutable base through
+  the GitHub API, publishes a size-capped sticky comment or job-summary fallback,
+  uploads the full JSON artifact, and gates by severity. The comment renderer
+  and delivery boundary are at `src/action/action-comment-reporter.ts:85,113`;
+  findings are sorted by severity before the ten-row cap
+  (`src/action/action-comment-reporter.ts:263-289`). These components reached
+  `main` through `4230782` and subsequent Action fixes through `1ba0c9c`.
+- **M3 is complete on `main`:** PR #7 implemented Acorn taxonomy detection,
+  bounded resolution, install-code attribution, shape-based severity, SARIF,
+  new-dependency cross-linking, and the FP harness (`1377dad`, promoted through
+  PR #8). The core Differ begins at `src/core/capability-differ.ts:89`; SARIF is
+  explicitly 2.1.0 (`src/core/sarif-reporter.ts:8,20`); the harness accepts its
+  bounded package/bump inputs at `scripts/fp-check.ts:139-164`.
+- **Post-M3 hardening/refactors are complete:** terminology (`0dd3fe2`), pure
+  severity classification (`b12a096`), one-pass AST traversal (`90142ff`), a
+  unified execution policy (`70ea22d`), report decomposition (`d422c10`), and
+  CLI/Git separation (`6e30222`). Defaults enforce a five-minute run deadline
+  plus bounded fetch, extraction, manifest, and parser work
+  (`src/core/analysis-execution-policy.ts:66-83`); Git resolves an immutable
+  commit and reads its lockfile blob without a shell
+  (`src/cli/git-lockfile-retriever.ts:32-45,103-146,149-178`).
+- **Repository status:** the GitHub repository is now public; the npm package
+  remains marked private and unpublished (`package.json:2-5`).
+
+### 2. Half-done and exact resume point
+
+- The implementation is at the mandatory post-M3 checkpoint in PLAN §6. The
+  runner exists (`scripts/fp-check.ts:34-136`), but no representative
+  multi-package corpus result or interpretation is committed. Resume by choosing
+  the package list, running several adjacent legitimate bumps, and recording
+  findings-per-bump and tuning observations before adding M4 detectors.
+- M4 execution-policy work landed early, but M4 signal work has not started:
+  URL-domain diffs, entropy/minified-blob signals, justified allowlists,
+  extractor fuzzing, and benign-pattern suppression remain open (PLAN §4.3,
+  §6). Keep the first implementation change to one signal component + tests.
+
+### 3. ADR status
+
+- ADR-012 records M3's Acorn and bounded-honesty decision
+  (`docs/adr/0012-acorn-ast-parser.md:1-41`). No additional ADR is required for
+  the recent responsibility refactors: they implement existing PLAN §2
+  concurrency/degrade-loudly and PLAN §4 boundaries without changing product
+  behavior.
+
+### 4. Open questions
+
+1. Which packages should form the first committed FP corpus? A useful mix needs
+   small utilities, framework/runtime packages, native installers, and packages
+   with legitimate install hooks.
+2. GitHub's repository API reported Private Vulnerability Reporting disabled on
+   2026-07-29. Should it be enabled now so `SECURITY.md` can offer a direct
+   private disclosure button instead of the detail-free-contact fallback?
+3. Should `main` require the Node 20/22 CI and capdelta dogfood checks before the
+   first public npm release?

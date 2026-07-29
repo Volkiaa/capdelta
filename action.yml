@@ -16,7 +16,7 @@ inputs:
     required: false
     default: CRITICAL
   config-path:
-    description: Reserved path for future allowlist configuration
+    description: Reserved for M4 allowlists; non-empty values currently fail
     required: false
     default: ""
   base-ref:

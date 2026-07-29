@@ -29,6 +29,6 @@ TypeScript, strict mode, targeting Node 20+.
 - Battle-tested JS parsing available as a library (acorn, or the TS compiler
   API); native node20 Action packaging; one ecosystem for tool, tests, and
   fixtures.
-- The parser choice within TS (acorn vs TS compiler API) is deliberately
-  deferred: prefer acorn for dependency-budget and speed reasons (PLAN §5,
-  §10), record the final pick as an ADR at the M2/M3 boundary.
+- The parser choice within TS was initially deferred. M3 selected Acorn with a
+  bounded resolution-honesty tier; [ADR-012](0012-acorn-ast-parser.md) records
+  the final decision.

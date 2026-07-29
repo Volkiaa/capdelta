@@ -46,7 +46,7 @@ export class ReporterError extends Error {
   }
 }
 
-/** The Differ result violates the M1 Reporter contract. */
+/** The Differ result violates the Reporter contract. */
 export class ReporterContractError extends ReporterError {}
 
 export function buildRunReport(run: CapabilityAnalysisRun): JsonRunReport {

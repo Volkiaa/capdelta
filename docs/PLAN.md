@@ -3,6 +3,12 @@
 Working name: `capdelta` — **verified free on npm (registry 404) and effectively unclaimed on GitHub** (one dormant adjacent research repo) as of 2026-07-14. `depdiff` is taken (same-concept npm package + 15 repos); `capdiff` is an active same-concept cargo tool (telcharr/capdiff, studied as prior art — see §4.4, §8).
 Revision 3: rev. 2 review fixes + capdiff prior-art adoptions (shape-based severity, FS_SENSITIVE, evidence format, baseline snapshot to v0.2, --strict, benign-pattern suppression).
 
+> **Implementation status (non-normative, 2026-07-29):** M0-M3 are complete.
+> The required post-M3 legitimate-bump false-positive corpus run is the current
+> checkpoint before M4 signal work. M4's unified execution policy—bounded
+> concurrency, cancellation, cleanup, and whole-run deadlines—landed early; the
+> remaining roadmap below is unchanged. See `docs/SESSIONS.md` for handoffs.
+
 ## 1. Problem statement
 
 CVE scanners are blind to a trusted package shipping a malicious version (axios 2026, Shai-Hulud 2025): there is no CVE at attack time. The reliable signal is a **capability delta**: version N+1 can do things version N could not (install script appears, network calls appear in a string-utils lib, obfuscated blob grows). `capdelta` answers one question in the PR that bumps a dependency: **"What can the new version do that the old one couldn't?"**
@@ -52,7 +58,7 @@ CVE scanners are blind to a trusted package shipping a malicious version (axios 
 flowchart TD
     A[PR event] --> A0{Lockfile changed?}
     A0 -->|no| Z[exit 0, no output]
-    A0 -->|yes| B[LockfileDiffer - npm impl<br/>git show BASE vs HEAD<br/>name, oldVer, newVer, integrity]
+    A0 -->|yes| B[LockfileDiffer - npm impl<br/>immutable base vs head<br/>name, oldVer, newVer, integrity]
     B --> C[Fetcher<br/>registry dist.tarball URLs<br/>verify lockfile integrity hash<br/>cache by hash - 8x concurrent]
     C --> D[Safe Extractor<br/>traversal guard, caps - 4x concurrent]
     D --> E[CapabilityExtractor - npm impl]
@@ -69,8 +75,8 @@ flowchart TD
 ### Component specs
 
 **4.1 LockfileDiffer (npm implementation)**
-- Input: base-ref lockfile fetched via the **GitHub contents API** (one file, no git history needed — decided over `fetch-depth: 0`, which is slow, and over shallow-clone `git show`, which fails on the default `actions/checkout` depth-1 merge commit). CLI mode outside Actions falls back to `git show BASE:package-lock.json`. Head lockfile read from the checkout. npm lockfile v2/v3 `packages` map.
-- Output: `ChangedPackage[] { name, oldVersion|null, newVersion, oldIntegrity|null, newIntegrity, resolvedUrl }` — the ecosystem-agnostic contract.
+- Input: base-ref lockfile fetched via the **GitHub contents API** (one file, no git history needed — decided over `fetch-depth: 0`, which is slow, and over shallow-clone `git show`, which fails on the default `actions/checkout` depth-1 merge commit). CLI mode outside Actions resolves the base to an immutable commit, validates the repository-relative path, and reads the blob with shell-free Git object commands. Head lockfile read from the checkout. npm lockfile v2/v3 `packages` map.
+- Output: `ChangedPackage[] { name, oldVersion|null, newVersion, oldIntegrity|null, newIntegrity, oldResolvedUrl|null, resolvedUrl }` — the ecosystem-agnostic contract, refined by ADR-006 so the Fetcher never reconstructs an old artifact URL.
 - Edge cases (spec'd): npm aliases (`npm:pkg@ver`); same package at multiple versions in different tree positions (each position diffed independently); version unchanged but integrity changed → **HIGH finding on its own**; **version downgrade → INFO finding** (cheap to detect, mildly suspicious); package removed → ignore; git/file/link deps → unanalyzable, INFO; private-registry `resolved` URLs → skip and flag (§2).
 - **Lockfile-added case (first run / repo adopting capdelta):** old = null for every package → everything is "new." Switch to **first-run mode**: aggregate summary in the comment (counts per severity, top N findings), full details to the JSON artifact. Never emit hundreds of report sections into one comment.
 
