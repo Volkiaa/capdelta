@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import type { VerifiedTarball } from "./fetcher.js";
 import {
   ExtractorConfigurationError,
+  extractVerifiedManifest,
   extractVerifiedTarball,
 } from "./safe-extractor.js";
 
@@ -93,6 +94,21 @@ function regularFile(path: string, text = "inert fixture"): TarEntry {
 }
 
 describe("extractVerifiedTarball", () => {
+  it("manifest-preflights safely write only package.json", async () => {
+    const result = await extractVerifiedManifest(
+      tarball([
+        regularFile("package/package.json", '{"name":"fixture"}'),
+        regularFile("package/index.js", "echo inert"),
+      ]),
+    );
+
+    expect(result.status).toBe("extracted");
+    if (result.status !== "extracted") throw new Error("expected extraction");
+    expect(existsSync(`${result.root}/package.json`)).toBe(true);
+    expect(existsSync(`${result.root}/index.js`)).toBe(false);
+    await result.cleanup();
+  });
+
   it("extracts only package/ contents into a private root and cleans it up", async () => {
     const result = await extractVerifiedTarball(
       tarball([regularFile("package/package.json", '{"name":"fixture"}')]),

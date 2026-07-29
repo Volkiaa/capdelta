@@ -9,9 +9,9 @@ network client, secret-file read, or dynamic-code primitive is review-worthy
 before a CVE exists.
 
 > **Development status:** the repository is public, but the npm package is
-> marked private, unpublished, and versioned `0.0.0`. M0-M3 are implemented;
-> the project is at the required post-M3 false-positive corpus checkpoint before
-> the remaining M4 signal work. It is suitable for development and evaluation,
+> marked private, unpublished, and versioned `0.0.0`. M0-M4 are implemented;
+> the required post-M3 false-positive corpus checkpoint is complete. It is
+> suitable for development and evaluation,
 > not production enforcement. No measured detection or false-positive claims
 > have been published.
 
@@ -101,7 +101,7 @@ built entrypoint during development.
 ### CLI behavior
 
 ```text
-Usage: capdelta --base <ref> [--format text|json]
+Usage: capdelta --base <ref> [--format text|json] [--config path] [--strict]
 ```
 
 - The base ref is resolved to an immutable commit. Git is invoked with argument
@@ -114,8 +114,23 @@ Usage: capdelta --base <ref> [--format text|json]
   the report instead of disappearing.
 - Exit `0` means analysis completed, even if findings need review. Exit `1`
   means an operational failure. Exit `64` means invalid usage.
-- Exit `2` remains reserved for the planned `--strict` incomplete-analysis
-  mode (PLAN §4.5).
+
+`--strict` returns exit `2` when a package is unavailable, a lockfile entry is
+skipped, diagnostics remain, or cancellation/deadline leaves work incomplete.
+Without it, those gaps remain loud in the report but do not change the exit code.
+
+Allowlist exceptions live in `.capdelta.yml` and require a justification:
+
+```yaml
+allowlist:
+  - package: example-package
+    capability: NET
+    justification: "documented telemetry endpoint"
+```
+
+The finding remains visible as `suppressed ("documented telemetry endpoint")`
+and is excluded from the severity gate. The parser intentionally supports only
+this small, reviewable YAML subset and adds no runtime dependency.
 
 Example excerpt:
 
@@ -173,7 +188,8 @@ revision. Review and update pins deliberately when adopting a newer revision.
 | `lockfile-path` | `package-lock.json`   | One repository-relative npm lockfile                                        |
 | `fail-on`       | `CRITICAL`            | Inclusive threshold: `CRITICAL`, `HIGH`, `MEDIUM`, `LOW`, `INFO`, or `none` |
 | `base-ref`      | PR base SHA           | Optional base Git ref override                                              |
-| `config-path`   | empty                 | Reserved; non-empty values fail loudly until M4 allowlists exist            |
+| `config-path`   | empty                 | Optional repository-relative `.capdelta.yml` allowlist                      |
+| `strict`        | `false`               | Fails the Action when any changed content remains unanalyzed                |
 
 Outputs are `status` (`no-op`, `passed`, or `failed`), `artifact-id`,
 and `highest-severity`.
@@ -183,7 +199,7 @@ The Action:
 1. takes the no-op path when the configured lockfile did not change;
 2. retrieves the base lockfile through the GitHub Contents API at an immutable
    base commit;
-3. uploads the complete schema-v3 JSON report as the `capdelta-report`
+3. uploads the complete schema-v4 JSON report as the `capdelta-report`
    artifact;
 4. uploads SARIF 2.1.0 to code scanning when permissions permit;
 5. creates or updates one 60,000-character-capped sticky summary comment; and
@@ -232,9 +248,12 @@ without rewriting the Differ or Reporter.
 | PR comment                    | 60,000 characters, 10 prioritized detail rows by default                  |
 
 Deadline, cancellation, cleanup, parser-worker termination, and package-local
-failures all degrade loudly into structured report issues. Limits are exposed
-through the analysis-library options; the current CLI exposes only report
-format and base ref.
+failures all degrade loudly into structured report issues. A manifest preflight
+discovers install hooks safely, then the scheduler prioritizes those packages,
+smaller downloads, and lockfile order while preserving report order. The full
+budget record is in JSON and partial runs are called out in text and Action
+summaries. Limits are exposed through the analysis-library options; the CLI
+exposes report format, base ref, config, and strict mode.
 
 ## Security model
 
@@ -273,15 +292,18 @@ than `registry.npmjs.org` is skipped and flagged.
   resolved. Deeper expressions become `UNKNOWN`.
 - **Source coverage:** TypeScript source is diagnosed as unsupported in v0.1.
 - **Signal coverage:** URL-domain diffs, entropy, minified-blob growth, and
-  obfuscation recognizers remain M4 work.
+  obfuscation recognizers are implemented with provisional thresholds.
 - **Script semantics:** install hooks are never executed. Only conservative
   literal `node path.js` entrypoints receive install-code attribution.
+- **Routine hooks:** whole-command `node-gyp rebuild`, `husky install`, and
+  `patch-package` matches are provisional benign patterns and rank at INFO;
+  composed commands remain unclassified and retain normal severity.
 - **Registry scope:** private registries, mirrors, git, file, and link
   dependencies are skipped and surfaced as unanalyzed.
 - **Single ecosystem and lockfile:** npm lockfile v2/v3 only, one lockfile per
   invocation.
-- **Configuration:** allowlists, `--strict`, and full-inventory mode are not
-  implemented yet.
+- **Configuration:** allowlists and `--strict` are implemented; full-inventory
+  mode remains future work.
 
 These are product limits, not claims that the corresponding attacks are safe.
 Report silent bypasses or unsafe parsing privately through
@@ -343,7 +365,9 @@ npm run fp-check -- --bumps 3 lodash react minimist
 
 Its selection is not a legitimacy attestation. It emits JSON summaries and
 returns exit `2` when a package or bump could not be analyzed. The required
-multi-package corpus run and published interpretation are still pending.
+informal run covered 20 packages and 60 bumps; see the
+[recorded results and interpretation](docs/fp-corpus-2026-07-29.md). This is a
+pre-M4 tuning exercise, not the formal M5 false-positive measurement.
 
 capdelta currently has seven direct runtime dependencies:
 `@actions/artifact`, `@actions/core`, `@actions/github`, `acorn`,
@@ -372,15 +396,16 @@ The authoritative architecture and roadmap remain in
 
 ## Roadmap status
 
-- **M0-M3: complete.** Scaffolding, manifest CLI, secure retrieval/extraction,
+- **M0-M4: complete.** Scaffolding, manifest CLI, secure retrieval/extraction,
   Action reporting, AST taxonomy, shape severity, SARIF, dependency
   cross-linking, and the false-positive harness are on `main`.
-- **Current checkpoint:** run and interpret the post-M3 legitimate-bump corpus
-  before adding more signal classes.
-- **M4: partly started.** Unified concurrency, cancellation, wall-clock limits,
-  and loud degradation landed early. Remaining work is URL/entropy/blob
-  signals, justified allowlists, extractor fuzzing, and benign-pattern
-  suppression.
+- **Post-M3 checkpoint: complete.** All 60 selected legitimate bumps were
+  analyzed; 54 had no findings, all 16 findings were LOW/INFO, and no bump
+  tripped the default CRITICAL gate. The detailed corpus record documents the
+  diagnostic-noise and tuning observations.
+- **M4: complete.** Signals, justified allowlists, strict mode, bounded
+  scheduling, loud partial-analysis reporting, malformed-input property tests,
+  and provisional benign-pattern suppression are implemented.
 - **M5:** formal measured validation, release evidence, and publication work.
 
 ## Contributing and security reports

@@ -324,7 +324,7 @@ describe("analyzeChangedPackages", () => {
     });
   });
 
-  it("retains an old cleanup issue when the new manifest is unavailable", async () => {
+  it("reports preflight cleanup when the new manifest is unavailable", async () => {
     let extraction = 0;
     const run = pipeline({
       extract: () => {
@@ -362,7 +362,7 @@ describe("analyzeChangedPackages", () => {
 
     expect(result.packages[0]).toMatchObject({
       status: "unavailable",
-      failures: [{ stage: "old-cleanup" }, { stage: "new-manifest" }],
+      failures: [{ stage: "new-manifest" }, { stage: "new-cleanup" }],
     });
   });
 
@@ -438,6 +438,96 @@ describe("analyzeChangedPackages", () => {
     expect(result.packages.map((item) => item.changedPackage.name)).toEqual(
       packages.map((item) => item.name),
     );
+  });
+
+  it("starts higher-risk packages first but preserves report order", async () => {
+    const extractionOrder: string[] = [];
+    const run = pipeline({
+      extractManifest: (expected) => {
+        extractionOrder.push(expected.name);
+        return Promise.resolve({
+          status: "analyzed" as const,
+          set: capabilitySet(expected),
+        });
+      },
+    });
+    const packages = [
+      changedPackage("routine", "1.0.0"),
+      changedPackage("new"),
+    ];
+    const result = await run(
+      {
+        ...lockfileDiff(packages),
+        findings: [
+          {
+            kind: "version-downgrade",
+            name: "routine",
+            path: "node_modules/routine",
+            oldVersion: "1.0.0",
+            newVersion: "2.0.0",
+          },
+        ],
+      },
+      { extractionConcurrency: 1 },
+    );
+    expect(extractionOrder).toEqual(["new", "routine", "routine"]);
+    expect(result.packages.map((item) => item.changedPackage.name)).toEqual([
+      "routine",
+      "new",
+    ]);
+    expect(result.budget).toMatchObject({
+      prioritization: "install-script-first",
+      startedPackages: 2,
+      completedPackages: 2,
+      unstartedPackages: 0,
+      partial: false,
+    });
+  });
+
+  it("prioritizes manifest install hooks before smaller downloads", async () => {
+    const analysisOrder: string[] = [];
+    const routine = changedPackage("routine", "1.0.0");
+    const small = changedPackage("small");
+    const run = pipeline({
+      extractManifest: (expected) =>
+        Promise.resolve({
+          status: "analyzed" as const,
+          set:
+            expected.name === "routine"
+              ? {
+                  ...capabilitySet(expected),
+                  capabilities: [
+                    {
+                      kind: "INSTALL_HOOK" as const,
+                      location: {
+                        kind: "install-script" as const,
+                        hook: "postinstall" as const,
+                        applicability: "registry-install" as const,
+                      },
+                      contentDigest: {
+                        algorithm: "sha256" as const,
+                        value: "0".repeat(64),
+                      },
+                      evidence: [
+                        { file: "package.json", line: 1, snippet: "inert" },
+                      ],
+                    },
+                  ],
+                }
+              : capabilitySet(expected),
+        }),
+      diff: (oldSet, newSet) => {
+        analysisOrder.push(newSet.subject.name);
+        return capabilityDiff(oldSet, newSet);
+      },
+    });
+
+    const result = await run(lockfileDiff([routine, small]), {
+      extractionConcurrency: 1,
+    });
+
+    expect(analysisOrder).toEqual(["routine", "small"]);
+    expect(result.budget?.prioritization).toBe("install-script-first");
   });
 
   it("projects one execution policy into every analysis stage", async () => {
@@ -553,6 +643,13 @@ describe("analyzeChangedPackages", () => {
         },
       },
     ]);
+    expect(result.budget).toMatchObject({
+      startedPackages: 0,
+      completedPackages: 2,
+      unstartedPackages: 2,
+      deadlineExceeded: false,
+      partial: true,
+    });
   });
 
   it("cleans active safe work and flags all unfinished work at the deadline", async () => {
@@ -611,6 +708,13 @@ describe("analyzeChangedPackages", () => {
         },
       },
     ]);
+    expect(result.budget).toMatchObject({
+      startedPackages: 1,
+      completedPackages: 2,
+      unstartedPackages: 1,
+      deadlineExceeded: true,
+      partial: true,
+    });
   });
 
   it("preserves an extractor cleanup failure alongside cancellation", async () => {

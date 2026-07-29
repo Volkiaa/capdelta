@@ -114,10 +114,39 @@ describe("manifest Reporter", () => {
       [
         "capdelta manifest capability report",
         'Package: "fixture" ("npm") "1.0.0" -> "2.0.0"',
-        "Review this change: no manifest capability additions; 0 diagnostics.",
+        "Review this change: no capability or signal additions; 0 diagnostics.",
         "",
       ].join("\n"),
     );
+  });
+
+  it("renders signal findings with their evidence and severity", () => {
+    const result: CapabilityDiffResult = {
+      ...emptyResult(),
+      signalFindings: [
+        {
+          kind: "new-external-endpoint",
+          severity: "HIGH",
+          change: "added",
+          detail: "new external domain evil.example",
+          evidence: [
+            {
+              file: "lib/index.js",
+              line: 4,
+              snippet: "fetch('https://evil.example')",
+            },
+          ],
+        },
+      ],
+    };
+
+    expect(renderTextReport(result)).toContain(
+      '[HIGH] "new external domain evil.example"',
+    );
+    expect(JSON.parse(renderJsonReport(result))).toMatchObject({
+      summary: { findings: 1, capabilityFindings: 0, signalFindings: 1 },
+      signalFindings: [{ kind: "new-external-endpoint", severity: "HIGH" }],
+    });
   });
 
   it("throws for inconsistent findings and renders AST capabilities", () => {
@@ -263,7 +292,7 @@ describe("manifest Reporter", () => {
     };
 
     expect(JSON.parse(renderJsonRunReport(run))).toMatchObject({
-      schemaVersion: 3,
+      schemaVersion: 4,
       packages: [
         {
           status: "unavailable",
@@ -354,7 +383,7 @@ describe("manifest Reporter", () => {
         "capdelta capability analysis report",
         "Mode: first run (aggregate text; full details are in JSON)",
         "Packages: 1 changed; 1 analyzed; 0 unavailable; 0 lockfile skips.",
-        "Signals: 0 capability findings; 0 lockfile findings; 0 analysis issues; 0 analysis diagnostics.",
+        "Signals: 0 findings; 0 lockfile findings; 0 analysis issues; 0 analysis diagnostics.",
         "",
       ].join("\n"),
     );

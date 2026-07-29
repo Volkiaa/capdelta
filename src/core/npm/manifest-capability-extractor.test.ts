@@ -203,6 +203,37 @@ describe("extractNpmManifestCapabilities", () => {
     });
   });
 
+  it("marks only complete routine install commands as provisional benign patterns", async () => {
+    const manifest = JSON.stringify({
+      name: SUBJECT.name,
+      version: SUBJECT.version,
+      scripts: {
+        postinstall: "node-gyp rebuild",
+        install: "husky install",
+        preinstall: "patch-package",
+        prepare: "node-gyp rebuild && echo extra",
+      },
+    });
+    const result = await withManifest(manifest, (root) =>
+      extractNpmManifestCapabilities({ root }, SUBJECT),
+    );
+    expect(result.status).toBe("analyzed");
+    if (result.status !== "analyzed") throw new Error("expected analysis");
+    expect(
+      result.set.capabilities
+        .filter((capability) => capability.kind === "INSTALL_HOOK")
+        .map((capability) => [
+          capability.location.hook,
+          capability.benignPattern ?? null,
+        ]),
+    ).toEqual([
+      ["install", "husky-install"],
+      ["postinstall", "node-gyp-rebuild"],
+      ["preinstall", "patch-package"],
+      ["prepare", null],
+    ]);
+  });
+
   it.each([
     ["comments", '{"name":"@scope/fixture",/* no */"version":"2.0.0"}'],
     ["trailing commas", '{"name":"@scope/fixture","version":"2.0.0",}'],

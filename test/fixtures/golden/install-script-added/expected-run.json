@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "firstRun": false,
   "summary": {
     "changedPackages": 1,
@@ -7,12 +7,13 @@
     "unavailablePackages": 0,
     "skippedLockfileEntries": 0,
     "capabilityFindings": 1,
+    "signalFindings": 1,
     "analysisDiagnostics": 0,
     "analysisIssues": 0,
     "lockfileFindings": 0,
     "bySeverity": {
       "CRITICAL": 1,
-      "HIGH": 0,
+      "HIGH": 1,
       "MEDIUM": 0,
       "LOW": 0,
       "INFO": 0
@@ -22,7 +23,7 @@
     {
       "status": "analyzed",
       "report": {
-        "schemaVersion": 3,
+        "schemaVersion": 4,
         "package": {
           "ecosystem": "npm",
           "name": "golden-fixture",
@@ -32,11 +33,13 @@
         },
         "reportId": "capdelta-d6161b9536688ca5e0b7",
         "summary": {
-          "findings": 1,
+          "findings": 2,
+          "capabilityFindings": 1,
+          "signalFindings": 1,
           "diagnostics": 0,
           "bySeverity": {
             "CRITICAL": 1,
-            "HIGH": 0,
+            "HIGH": 1,
             "MEDIUM": 0,
             "LOW": 0,
             "INFO": 0
@@ -63,6 +66,21 @@
               ]
             },
             "previous": null
+          }
+        ],
+        "signalFindings": [
+          {
+            "kind": "new-external-endpoint",
+            "severity": "HIGH",
+            "change": "added",
+            "detail": "new external domain example.test",
+            "evidence": [
+              {
+                "file": "index.js",
+                "line": 2,
+                "snippet": "export const telemetryEndpoint = \"https://example.test/telemetry\";"
+              }
+            ]
           }
         ],
         "shapes": [

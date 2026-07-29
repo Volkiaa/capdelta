@@ -31,7 +31,10 @@ export function renderSarifReport(run: CapabilityAnalysisRun): string {
           ruleId,
           shape.severity,
           `Review this change: ${shape.ruleId} capability shape in ${subject.name}@${subject.version}.`,
-          shape.capabilities.flatMap((capability) => capability.evidence),
+          [
+            ...shape.capabilities.flatMap((capability) => capability.evidence),
+            ...(shape.signals ?? []).flatMap((finding) => finding.evidence),
+          ],
           subject.name,
           subject.version,
           {
@@ -39,12 +42,16 @@ export function renderSarifReport(run: CapabilityAnalysisRun): string {
             capabilities: shape.capabilities.map(
               (capability) => capability.kind,
             ),
+            signals: (shape.signals ?? []).map((finding) => finding.kind),
           },
         ),
       );
     }
     const covered = new Set(
       (item.diff.shapes ?? []).flatMap((shape) => shape.capabilities),
+    );
+    const coveredSignals = new Set(
+      (item.diff.shapes ?? []).flatMap((shape) => shape.signals ?? []),
     );
     for (const finding of item.diff.findings) {
       if (covered.has(finding.capability)) continue;
@@ -54,7 +61,7 @@ export function renderSarifReport(run: CapabilityAnalysisRun): string {
         resultFor(
           ruleId,
           finding.severity,
-          `Review this change: ${finding.capability.kind} capability ${finding.change} in ${subject.name}@${subject.version}.`,
+          `Review this change: ${finding.capability.kind} capability ${finding.change} in ${subject.name}@${subject.version}.${suppressionText(finding.suppression?.reason)}`,
           finding.capability.evidence,
           subject.name,
           subject.version,
@@ -62,6 +69,32 @@ export function renderSarifReport(run: CapabilityAnalysisRun): string {
             kind: "capability",
             capability: finding.capability.kind,
             change: finding.change,
+            ...(finding.suppression === undefined
+              ? {}
+              : { suppression: finding.suppression.reason }),
+          },
+        ),
+      );
+    }
+    for (const finding of item.diff.signalFindings ?? []) {
+      if (coveredSignals.has(finding)) continue;
+      const ruleId = `CAPDELTA-SIGNAL-${finding.kind.toUpperCase()}`;
+      ruleIds.add(ruleId);
+      results.push(
+        resultFor(
+          ruleId,
+          finding.severity,
+          `Review this change: ${finding.detail} in ${subject.name}@${subject.version}.${suppressionText(finding.suppression?.reason)}`,
+          finding.evidence,
+          subject.name,
+          subject.version,
+          {
+            kind: "signal",
+            signal: finding.kind,
+            change: finding.change,
+            ...(finding.suppression === undefined
+              ? {}
+              : { suppression: finding.suppression.reason }),
           },
         ),
       );
@@ -168,9 +201,13 @@ function sarifLevel(severity: FindingSeverity): "error" | "warning" | "note" {
 }
 
 function ruleDescription(id: string): string {
-  return id.startsWith("CAPDELTA-SHAPE-")
-    ? "Capability shape gained"
-    : "Capability gained";
+  if (id.startsWith("CAPDELTA-SHAPE-")) return "Capability shape gained";
+  if (id.startsWith("CAPDELTA-SIGNAL-")) return "Behavioral signal gained";
+  return "Capability gained";
+}
+
+function suppressionText(reason: string | undefined): string {
+  return reason === undefined ? "" : ` Suppressed (${reason})`;
 }
 
 function compareText(left: string, right: string): number {

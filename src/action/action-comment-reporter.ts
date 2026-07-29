@@ -1,6 +1,7 @@
 import type {
   JsonReportAnalysisIssue,
   JsonReportFinding,
+  JsonReportSignalFinding,
   JsonRunReport,
 } from "../core/reporter.js";
 import { assessRunSeverity } from "./severity-gate.js";
@@ -217,6 +218,12 @@ function buildComment(
     "| ---: | ---: | ---: | ---: | ---: |",
     `| ${String(severity.counts.CRITICAL)} | ${String(severity.counts.HIGH)} | ${String(severity.counts.MEDIUM)} | ${String(severity.counts.LOW)} | ${String(severity.counts.INFO)} |`,
   ];
+  if (report.budget?.partial === true) {
+    lines.push(
+      "",
+      `**Partial analysis:** ${String(report.budget.completedPackages)} of ${String(report.summary.changedPackages)} packages reached a result; ${String(report.budget.unstartedPackages)} were not started before ${report.budget.deadlineExceeded ? `${String(report.budget.deadlineMs)}ms wall-clock budget` : "caller cancellation"}.`,
+    );
+  }
 
   const findings = collectFindings(report).slice(0, maxRows);
   if (findings.length > 0) {
@@ -249,35 +256,49 @@ function buildComment(
   }
 
   const shownFindings = findings.length;
-  const totalFindings = report.summary.capabilityFindings;
+  const totalFindings =
+    report.summary.capabilityFindings + (report.summary.signalFindings ?? 0);
   const shownIssues = issues.length;
   const totalIssues = report.summary.analysisIssues;
   lines.push(
     "",
-    `Showing ${String(shownFindings)} of ${String(totalFindings)} capability findings and ${String(shownIssues)} of ${String(totalIssues)} analysis gaps.`,
+    `Showing ${String(shownFindings)} of ${String(totalFindings)} findings and ${String(shownIssues)} of ${String(totalIssues)} analysis gaps.`,
     `Full escaped details are available in the workflow artifact ${escapeMarkdownText(artifactName, MAX_IDENTITY_CHARS)}.`,
   );
   return `${lines.join("\n")}\n`;
 }
 
-function collectFindings(
-  report: JsonRunReport,
-): { packageName: string; finding: JsonReportFinding }[] {
+function collectFindings(report: JsonRunReport): {
+  packageName: string;
+  finding: JsonReportFinding | JsonReportSignalFinding;
+}[] {
   return report.packages
     .flatMap((item) =>
       item.status === "analyzed"
-        ? item.report.findings.map((finding) => ({
-            packageName: item.report.package.name,
-            finding,
-          }))
+        ? [
+            ...item.report.findings.map((finding) => ({
+              packageName: item.report.package.name,
+              finding,
+            })),
+            ...(item.report.signalFindings ?? []).map((finding) => ({
+              packageName: item.report.package.name,
+              finding,
+            })),
+          ]
         : [],
     )
     .sort(compareFindingRows);
 }
 
 function compareFindingRows(
-  left: { packageName: string; finding: JsonReportFinding },
-  right: { packageName: string; finding: JsonReportFinding },
+  left: {
+    packageName: string;
+    finding: JsonReportFinding | JsonReportSignalFinding;
+  },
+  right: {
+    packageName: string;
+    finding: JsonReportFinding | JsonReportSignalFinding;
+  },
 ): number {
   const severity =
     FINDING_SEVERITY_ORDER[left.finding.severity] -
@@ -314,24 +335,45 @@ function collectIssues(
   });
 }
 
-function findingText(finding: JsonReportFinding): string {
-  const capability = finding.capability;
-  switch (capability.kind) {
-    case "INSTALL_HOOK":
-      return `${finding.change.toLowerCase()} ${capability.hook} install hook`;
-    case "COMMAND_ENTRYPOINT":
-      return `${finding.change.toLowerCase()} command ${capability.command}`;
-    case "DEPENDENCY":
-      return `${finding.change.toLowerCase()} dependency ${capability.name}`;
-    case "RUNTIME_CONSTRAINT":
-      return `${finding.change.toLowerCase()} ${capability.runtime} constraint`;
-    default:
-      return `${finding.change.toLowerCase()} ${capability.kind} capability`;
+function findingText(
+  finding: JsonReportFinding | JsonReportSignalFinding,
+): string {
+  let description: string;
+  if ("kind" in finding && "detail" in finding) {
+    description = `${finding.change.toLowerCase()} signal: ${finding.detail}`;
+  } else {
+    const capability = finding.capability;
+    switch (capability.kind) {
+      case "INSTALL_HOOK":
+        description = `${finding.change.toLowerCase()} ${capability.hook} install hook`;
+        break;
+      case "COMMAND_ENTRYPOINT":
+        description = `${finding.change.toLowerCase()} command ${capability.command}`;
+        break;
+      case "DEPENDENCY":
+        description = `${finding.change.toLowerCase()} dependency ${capability.name}`;
+        break;
+      case "RUNTIME_CONSTRAINT":
+        description = `${finding.change.toLowerCase()} ${capability.runtime} constraint`;
+        break;
+      default:
+        description = `${finding.change.toLowerCase()} ${capability.kind} capability`;
+    }
   }
+  return `${description}${suppressionText(finding.suppression?.reason)}`;
 }
 
-function evidenceText(finding: JsonReportFinding): string {
-  const evidence = finding.capability.evidence[0];
+function suppressionText(reason: string | undefined): string {
+  return reason === undefined ? "" : ` (suppressed (${reason}))`;
+}
+
+function evidenceText(
+  finding: JsonReportFinding | JsonReportSignalFinding,
+): string {
+  const evidence =
+    "kind" in finding && "detail" in finding
+      ? finding.evidence[0]
+      : finding.capability.evidence[0];
   return evidence === undefined
     ? "evidence unavailable"
     : `${evidence.file}:${String(evidence.line)} ${evidence.snippet}`;

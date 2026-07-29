@@ -99,7 +99,7 @@ describe("runAction", () => {
     );
     expect(runtime.uploadJson).toHaveBeenCalledWith(
       "capdelta-report",
-      expect.stringContaining('"schemaVersion": 3'),
+      expect.stringContaining('"schemaVersion": 4'),
     );
     expect(runtime.uploadSarif).toHaveBeenCalledWith(
       expect.stringContaining('"version": "2.1.0"'),
@@ -194,14 +194,33 @@ describe("runAction", () => {
     expect(runtime.comments.createComment).toHaveBeenCalledOnce();
   });
 
-  it("rejects unsupported config and contextualizes artifact failures", async () => {
+  it("loads allowlist config and contextualizes artifact failures", async () => {
+    const configured = adapters();
+    configured.readConfig = vi
+      .fn()
+      .mockResolvedValue(
+        'allowlist:\n  - package: fixture\n    capability: NET\n    justification: "documented endpoint"\n',
+      );
     await expect(
       runAction(
         { ...inputs, configPath: ".capdelta.yml" },
         context,
-        adapters(),
+        configured,
       ),
-    ).rejects.toThrow("not supported until M4");
+    ).resolves.toMatchObject({ status: "analyzed" });
+    expect(configured.analyze).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      {
+        allowlist: [
+          {
+            package: "fixture",
+            capability: "NET",
+            justification: "documented endpoint",
+          },
+        ],
+      },
+    );
 
     const runtime = adapters();
     vi.mocked(runtime.uploadJson).mockRejectedValue(new Error("service down"));

@@ -21,6 +21,7 @@ import {
   analysisStopKind,
   type AnalysisStopKind,
 } from "../analysis-execution-policy.js";
+import { recognizeBenignInstallScript } from "../benign-install-script.js";
 import type { ExtractedTarball } from "./safe-extractor.js";
 
 const MANIFEST_FILE = "package.json";
@@ -415,6 +416,7 @@ function collectScripts(
       continue;
     }
     const command = stringValue(script.value);
+    const benignPattern = recognizeBenignInstallScript(command);
     capabilities.push({
       kind: "INSTALL_HOOK",
       location: {
@@ -426,6 +428,7 @@ function collectScripts(
         algorithm: "sha256",
         value: createHash("sha256").update(command).digest("hex"),
       },
+      ...(benignPattern === null ? {} : { benignPattern }),
       evidence: [evidenceAt(source, script.property.offset)],
     });
   }

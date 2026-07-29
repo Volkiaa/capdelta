@@ -158,7 +158,7 @@ describe("capdelta CLI", () => {
       expect(result.exitCode).toBe(0);
       expect(result.stderr).toBe("");
       expect(JSON.parse(result.stdout)).toMatchObject({
-        schemaVersion: 3,
+        schemaVersion: 4,
         firstRun: false,
         summary: {
           changedPackages: 0,
@@ -223,6 +223,39 @@ describe("capdelta CLI", () => {
         firstRun: true,
         summary: { changedPackages: 0 },
       });
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it("returns exit 2 in strict mode when lockfile content is skipped", async () => {
+    const cwd = await createRepository(emptyLockfile("strict"));
+    try {
+      await writeLockfile(cwd, {
+        ...emptyLockfile("strict"),
+        packages: {
+          "": { name: "strict", version: "1.0.0" },
+          "node_modules/private": {
+            version: "1.0.0",
+            resolved: "https://packages.example.invalid/private.tgz",
+            integrity: "sha512-inert",
+          },
+        },
+      });
+      let stdout = "";
+      let stderr = "";
+      const exitCode = await executeCli(["--base", "HEAD", "--strict"], {
+        cwd,
+        stdout: (value) => {
+          stdout += value;
+        },
+        stderr: (value) => {
+          stderr += value;
+        },
+      });
+      expect(exitCode).toBe(2);
+      expect(stdout).toContain("Skipped lockfile entries:");
+      expect(stderr).toContain("strict mode found unanalyzed content");
     } finally {
       await rm(cwd, { recursive: true, force: true });
     }

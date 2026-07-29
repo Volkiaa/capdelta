@@ -11,6 +11,12 @@ import type {
   Evidence,
   InstallHookCapability,
 } from "../contract/capability-set.js";
+import {
+  buildSignalSet,
+  emptySignalSet,
+  observeSignalSource,
+  type SignalSourceInput,
+} from "../signal-extractor.js";
 import { analysisStopDetail } from "../analysis-execution-policy.js";
 import type { ExtractedTarball } from "./safe-extractor.js";
 import type {
@@ -21,6 +27,7 @@ import type {
 const DEFAULT_MAX_SOURCE_BYTES = 2 * 1024 * 1024;
 const DEFAULT_PARSE_TIMEOUT_MS = 5_000;
 const JAVASCRIPT_EXTENSIONS = new Set([".js", ".mjs", ".cjs"]);
+const TYPESCRIPT_EXTENSION = ".ts";
 
 export interface AstExtractionOptions {
   maxSourceBytes?: number;
@@ -32,6 +39,7 @@ export interface AstExtractionOptions {
 export interface JavaScriptCapabilityLayerResult {
   capabilities: readonly CodeCapability[];
   diagnostics: readonly AnalysisDiagnostic[];
+  signals?: ReturnType<typeof buildSignalSet>;
 }
 
 export function mergeJavaScriptCapabilityLayer(
@@ -52,6 +60,7 @@ export function mergeJavaScriptCapabilityLayer(
     completeness: diagnostics.length === 0 ? "complete" : "partial",
     capabilities,
     diagnostics,
+    signals: layer.signals ?? emptySignalSet(),
   };
 }
 
@@ -96,6 +105,7 @@ export async function extractNpmJavaScriptCapabilities(
     }
   >();
   const diagnostics: AnalysisDiagnostic[] = [];
+  const signalInputs: SignalSourceInput[] = [];
   const parser = new ParserWorkerClient(resolvedOptions.parseTimeoutMs);
 
   try {
@@ -122,44 +132,67 @@ export async function extractNpmJavaScriptCapabilities(
         );
         continue;
       }
-      if (extension === ".ts") {
-        diagnostics.push(
-          diagnostic(
-            "unsupported-source",
-            `${file} is TypeScript source; v0.1 parses JavaScript only`,
-            file,
-          ),
-        );
-        continue;
-      }
-      if (!JAVASCRIPT_EXTENSIONS.has(extension)) continue;
+      const isTypeScript = extension === TYPESCRIPT_EXTENSION;
+      if (isTypeScript && file.toLowerCase().endsWith(".d.ts")) continue;
+      if (!JAVASCRIPT_EXTENSIONS.has(extension) && !isTypeScript) continue;
       const absolute = resolveInside(extracted.root, file);
-      let source: string;
+      let bytes: Uint8Array;
       try {
-        const bytes = await readFile(
+        bytes = await readFile(
           absolute,
           resolvedOptions.signal === undefined
             ? undefined
             : { signal: resolvedOptions.signal },
         );
         throwIfStopped(resolvedOptions.signal);
-        if (bytes.byteLength > resolvedOptions.maxSourceBytes) {
-          diagnostics.push(
-            diagnostic(
-              "unparseable-source",
-              `${file} exceeds the ${String(resolvedOptions.maxSourceBytes)} byte parser limit`,
-              file,
-            ),
-          );
-          continue;
-        }
-        source = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
       } catch (error: unknown) {
         throwIfStopped(resolvedOptions.signal);
+        signalInputs.push({
+          file,
+          bytes: new Uint8Array(),
+          parseState: "unreadable",
+        });
         diagnostics.push(
           diagnostic(
             "unparseable-source",
             `${file} could not be read as UTF-8: ${errorName(error)}`,
+            file,
+          ),
+        );
+        continue;
+      }
+      if (bytes.byteLength > resolvedOptions.maxSourceBytes) {
+        signalInputs.push({ file, bytes, parseState: "unparseable" });
+        diagnostics.push(
+          diagnostic(
+            "unparseable-source",
+            `${file} exceeds the ${String(resolvedOptions.maxSourceBytes)} byte parser limit`,
+            file,
+          ),
+        );
+        continue;
+      }
+      let source: string;
+      try {
+        source = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+      } catch (error: unknown) {
+        throwIfStopped(resolvedOptions.signal);
+        signalInputs.push({ file, bytes, parseState: "unreadable" });
+        diagnostics.push(
+          diagnostic(
+            "unparseable-source",
+            `${file} could not be read as UTF-8: ${errorName(error)}`,
+            file,
+          ),
+        );
+        continue;
+      }
+      if (isTypeScript) {
+        signalInputs.push({ file, bytes, parseState: "unsupported" });
+        diagnostics.push(
+          diagnostic(
+            "unsupported-source",
+            `${file} is TypeScript source; v0.1 parses JavaScript only`,
             file,
           ),
         );
@@ -179,6 +212,11 @@ export async function extractNpmJavaScriptCapabilities(
         resolvedOptions.signal,
       );
       throwIfStopped(resolvedOptions.signal);
+      signalInputs.push({
+        file,
+        bytes,
+        parseState: response.ok ? "parsed" : "unparseable",
+      });
       if (!response.ok) {
         diagnostics.push({
           kind: "unparseable-source",
@@ -221,7 +259,11 @@ export async function extractNpmJavaScriptCapabilities(
   diagnostics.sort((left, right) =>
     compareEvidence(left.evidence[0], right.evidence[0]),
   );
-  return { capabilities, diagnostics };
+  return {
+    capabilities,
+    diagnostics,
+    signals: buildSignalSet(signalInputs.map(observeSignalSource)),
+  };
 }
 
 function addGrouped(

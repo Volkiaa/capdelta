@@ -1,11 +1,11 @@
 capdelta capability analysis report
 Mode: comparison
 Packages: 1 changed; 1 analyzed; 0 unavailable; 0 lockfile skips.
-Signals: 1 capability finding (CRITICAL: 1); 0 lockfile findings; 0 analysis issues; 0 analysis diagnostics.
+Signals: 2 findings (CRITICAL: 1, HIGH: 1); 0 lockfile findings; 0 analysis issues; 0 analysis diagnostics.
 
 capdelta manifest capability report
 Package: "golden-fixture" ("npm") "1.0.0" -> "2.0.0"
-Review this change: 1 finding (CRITICAL: 1); 0 diagnostics.
+Review this change: 2 findings (CRITICAL: 1, HIGH: 1); 0 diagnostics.
 
 Capability shapes:
 - [CRITICAL] "install-hook-change" (1 capability)
@@ -13,3 +13,7 @@ Capability shapes:
 Findings:
 - [CRITICAL] "postinstall" registry install hook added
   Evidence: "package.json":5 — "\"postinstall\": \"echo test\""
+
+Signals:
+- [HIGH] "new external domain example.test"
+  Evidence: "index.js":2 — "export const telemetryEndpoint = \"https://example.test/telemetry\";"

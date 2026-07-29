@@ -122,6 +122,26 @@ export async function extractVerifiedTarball(
   tarball: VerifiedTarball,
   options: ExtractorOptions = {},
 ): Promise<ExtractionResult> {
+  return extractVerifiedTarballInternal(tarball, options, false);
+}
+
+/**
+ * Validates an archive exactly like full extraction but writes only the npm
+ * manifest. The pipeline uses this bounded preflight to discover install
+ * hooks before scheduling the expensive full extraction/AST phase.
+ */
+export async function extractVerifiedManifest(
+  tarball: VerifiedTarball,
+  options: ExtractorOptions = {},
+): Promise<ExtractionResult> {
+  return extractVerifiedTarballInternal(tarball, options, true);
+}
+
+async function extractVerifiedTarballInternal(
+  tarball: VerifiedTarball,
+  options: ExtractorOptions,
+  manifestOnly: boolean,
+): Promise<ExtractionResult> {
   const resolved = resolveOptions(options);
   let workRoot: string | undefined;
   try {
@@ -142,7 +162,7 @@ export async function extractVerifiedTarball(
     const summary = await preflight(archivePath, resolved);
     throwIfStopped(resolved.signal);
     await mkdir(extractionRoot, { mode: 0o700 });
-    await extract(archivePath, extractionRoot, resolved);
+    await extract(archivePath, extractionRoot, resolved, manifestOnly);
     throwIfStopped(resolved.signal);
     await unlink(archivePath);
     return {
@@ -242,6 +262,7 @@ async function extract(
   archivePath: string,
   root: string,
   options: ResolvedOptions,
+  manifestOnly: boolean,
 ): Promise<void> {
   throwIfStopped(options.signal);
   await tar.x({
@@ -260,10 +281,14 @@ async function extract(
     maxMetaEntrySize: MAX_META_ENTRY_BYTES,
     maxDecompressionRatio: options.maxDecompressionRatio,
     ...(options.signal === undefined ? {} : { signal: options.signal }),
-    filter(this: tar.Parser) {
-      if (options.signal?.aborted !== true) return true;
-      this.abort(new ExtractionStoppedError(options.signal));
-      return false;
+    filter(this: tar.Parser, path) {
+      if (options.signal?.aborted === true) {
+        this.abort(new ExtractionStoppedError(options.signal));
+        return false;
+      }
+      return (
+        !manifestOnly || path.replaceAll("\\", "/") === "package/package.json"
+      );
     },
   });
   throwIfStopped(options.signal);

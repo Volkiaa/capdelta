@@ -174,6 +174,16 @@ describe("diffManifestCapabilities", () => {
     ]);
   });
 
+  it("ranks a routine install hook below an unclassified registry hook", () => {
+    const routine = installHook("postinstall", "routine");
+    routine.benignPattern = "node-gyp-rebuild";
+    const result = diffManifestCapabilities(null, set("2.0.0", [routine]));
+    expect(result.findings).toMatchObject([
+      { severity: "INFO", capability: { benignPattern: "node-gyp-rebuild" } },
+    ]);
+    expect(result.shapes).toEqual([]);
+  });
+
   it("propagates partial-analysis diagnostics with their source side", () => {
     const oldDiagnostic: AnalysisDiagnostic = {
       kind: "malformed-manifest-field",
@@ -303,5 +313,48 @@ describe("diffManifestCapabilities", () => {
     expect(
       result.findings.every(({ severity }) => severity === "CRITICAL"),
     ).toBe(true);
+  });
+
+  it("escalates an obfuscation signal paired with process execution", () => {
+    const result = diffManifestCapabilities(null, {
+      ...set("2.0.0", [
+        {
+          kind: "PROCESS",
+          location: { kind: "runtime" },
+          evidence: EVIDENCE,
+        },
+      ]),
+      signals: {
+        sourceFiles: [
+          {
+            file: "loader.js",
+            byteLength: 512,
+            entropyMilliBitsPerByte: 7_000,
+            parseState: "parsed",
+          },
+        ],
+        endpoints: [],
+        obfuscationPatterns: [
+          {
+            kind: "OBFUSCATION_PATTERN",
+            file: "loader.js",
+            pattern: "hex-byte-array",
+            elementCount: 24,
+            evidence: EVIDENCE,
+          },
+        ],
+      },
+    });
+
+    expect(result.shapes?.map((shape) => shape.ruleId)).toContain(
+      "obfuscated-execution",
+    );
+    expect(result.signalFindings?.[0]).toMatchObject({
+      kind: "obfuscation-pattern-added",
+      severity: "CRITICAL",
+    });
+    expect(result.findings).toMatchObject([
+      { capability: { kind: "PROCESS" }, severity: "CRITICAL" },
+    ]);
   });
 });

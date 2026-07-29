@@ -53,6 +53,16 @@ export function assessRunSeverity(report: JsonRunReport): SeverityAssessment {
     ...report.summary.bySeverity,
   };
 
+  for (const item of report.packages) {
+    if (item.status !== "analyzed") continue;
+    for (const finding of [
+      ...item.report.findings,
+      ...(item.report.signalFindings ?? []),
+    ]) {
+      if (finding.suppression !== undefined) counts[finding.severity] -= 1;
+    }
+  }
+
   for (const finding of report.lockfileFindings) {
     counts[
       finding.kind === "integrity-changed-version-same" ? "HIGH" : "INFO"

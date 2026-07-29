@@ -21,6 +21,7 @@ interface BumpSummary {
   newVersion: string;
   status: "analyzed" | "unavailable";
   findings: number;
+  signalFindings: number;
   diagnostics: number;
   bySeverity: Record<FindingSeverity, number>;
   error: string | null;
@@ -79,6 +80,7 @@ async function main(): Promise<void> {
             newVersion: pair.newVersion,
             status: "unavailable",
             findings: 0,
+            signalFindings: 0,
             diagnostics: 0,
             bySeverity: emptySeverities(),
             error: result.failures
@@ -90,12 +92,16 @@ async function main(): Promise<void> {
         const bySeverity = emptySeverities();
         for (const finding of result.diff.findings)
           bySeverity[finding.severity] += 1;
+        for (const finding of result.diff.signalFindings ?? [])
+          bySeverity[finding.severity] += 1;
+        const signalFindings = result.diff.signalFindings?.length ?? 0;
         summaries.push({
           package: packageName,
           oldVersion: pair.oldVersion ?? "",
           newVersion: pair.newVersion,
           status: "analyzed",
-          findings: result.diff.findings.length,
+          findings: result.diff.findings.length + signalFindings,
+          signalFindings,
           diagnostics: result.diff.diagnostics.length,
           bySeverity,
           error: null,

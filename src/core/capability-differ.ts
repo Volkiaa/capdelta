@@ -10,6 +10,8 @@ import {
   type RuntimeConstraintCapability,
   type CodeCapability,
 } from "./contract/capability-set.js";
+import { emptySignalSet } from "./signal-extractor.js";
+import { diffSignals, type SignalFinding } from "./signal-differ.js";
 
 type ManifestCapability =
   | InstallHookCapability
@@ -28,6 +30,7 @@ export interface CapabilityFinding {
   capability: Capability;
   /** Present only for changed slots; null for additions and new packages. */
   previous: Capability | null;
+  suppression?: { reason: string };
 }
 
 type CapabilityGain = Omit<CapabilityFinding, "severity">;
@@ -35,6 +38,7 @@ type CapabilityGain = Omit<CapabilityFinding, "severity">;
 export type ShapeRuleId =
   | "install-code-execution"
   | "secret-exfiltration"
+  | "obfuscated-execution"
   | "install-hook-change"
   | "dynamic-or-native-code";
 
@@ -43,6 +47,8 @@ export interface ShapeFinding {
   severity: "CRITICAL";
   /** Current-side gains that jointly satisfy the rule. */
   capabilities: readonly Capability[];
+  /** Signal participants for mixed capability/signal shapes. */
+  signals?: readonly SignalFinding[];
 }
 
 export interface CapabilityDiffDiagnostic {
@@ -58,6 +64,8 @@ export interface CapabilityDiffResult {
   newPackage: boolean;
   /** Severity-first, then semantic-slot order for deterministic reports. */
   findings: readonly CapabilityFinding[];
+  /** Signal-layer additions, kept separate from the closed capability taxonomy. */
+  signalFindings?: readonly SignalFinding[];
   /** Shape matches are ordered by the PLAN §4.4 rule table. */
   shapes?: readonly ShapeFinding[];
   /** Partial-analysis data is propagated, never silently discarded. */
@@ -115,9 +123,14 @@ export function diffCapabilities(
       });
     }
   }
-  const shapes = evaluateShapes(gains);
+  const signalFindings = diffSignals(
+    oldSet?.signals ?? null,
+    newSet.signals ?? emptySignalSet(),
+  );
+  const shapes = evaluateShapes(gains, signalFindings);
   const findings = classifyGains(gains, shapes);
   findings.sort(compareFindings);
+  const classifiedSignals = classifySignalFindings(signalFindings, shapes);
 
   const diagnostics: CapabilityDiffDiagnostic[] = [];
   if (oldSet !== null) {
@@ -141,6 +154,7 @@ export function diffCapabilities(
     subject: newSet.subject,
     newPackage: oldSet === null,
     findings,
+    signalFindings: classifiedSignals,
     shapes,
     diagnostics,
   };
@@ -177,6 +191,7 @@ function validateSet(set: CapabilitySet, side: "old" | "new"): void {
       throw contractError(side, "diagnostic has no evidence");
     }
   }
+  if (set.signals !== undefined) validateSignals(set.signals, side);
 
   const slots = new Set<string>();
   for (const capability of set.capabilities) {
@@ -188,6 +203,43 @@ function validateSet(set: CapabilitySet, side: "old" | "new"): void {
       throw contractError(side, `duplicate semantic slot ${slot}`);
     }
     slots.add(slot);
+  }
+}
+
+function validateSignals(
+  signals: NonNullable<CapabilitySet["signals"]>,
+  side: "old" | "new",
+): void {
+  for (const file of signals.sourceFiles) {
+    if (
+      file.file.length === 0 ||
+      !Number.isSafeInteger(file.byteLength) ||
+      file.byteLength < 0 ||
+      (file.entropyMilliBitsPerByte !== null &&
+        (!Number.isSafeInteger(file.entropyMilliBitsPerByte) ||
+          file.entropyMilliBitsPerByte < 0 ||
+          file.entropyMilliBitsPerByte > 8_000))
+    ) {
+      throw contractError(side, "invalid signal file observation");
+    }
+  }
+  for (const endpoint of signals.endpoints) {
+    if (
+      endpoint.normalizedValue.length === 0 ||
+      endpoint.evidence.length === 0
+    ) {
+      throw contractError(side, "invalid signal endpoint observation");
+    }
+  }
+  for (const pattern of signals.obfuscationPatterns) {
+    if (
+      pattern.file.length === 0 ||
+      pattern.elementCount <= 0 ||
+      !Number.isSafeInteger(pattern.elementCount) ||
+      pattern.evidence.length === 0
+    ) {
+      throw contractError(side, "invalid obfuscation signal observation");
+    }
   }
 }
 
@@ -282,6 +334,7 @@ function manifestCapabilityChanged(
 function fallbackSeverityFor(capability: Capability): FindingSeverity {
   switch (capability.kind) {
     case "INSTALL_HOOK":
+      if (capability.benignPattern !== undefined) return "INFO";
       return capability.location.applicability === "registry-install"
         ? "CRITICAL"
         : "INFO";
@@ -306,7 +359,10 @@ function fallbackSeverityFor(capability: Capability): FindingSeverity {
   }
 }
 
-function evaluateShapes(gains: readonly CapabilityGain[]): ShapeFinding[] {
+function evaluateShapes(
+  gains: readonly CapabilityGain[],
+  signalFindings: readonly SignalFinding[],
+): ShapeFinding[] {
   const shapes: ShapeFinding[] = [];
   const installCodeKinds = new Set(["NET", "PROCESS", "ENV", "FS_SENSITIVE"]);
   for (const gain of gains) {
@@ -338,11 +394,29 @@ function evaluateShapes(gains: readonly CapabilityGain[]): ShapeFinding[] {
     });
   }
 
+  const obfuscation = signalFindings.filter(
+    (finding) => finding.kind === "obfuscation-pattern-added",
+  );
+  const executable = gains.filter(
+    (gain) =>
+      gain.capability.kind === "PROCESS" ||
+      gain.capability.kind === "DYNAMIC_CODE",
+  );
+  if (obfuscation.length > 0 && executable.length > 0) {
+    shapes.push({
+      ruleId: "obfuscated-execution",
+      severity: "CRITICAL",
+      capabilities: executable.map((gain) => gain.capability),
+      signals: obfuscation,
+    });
+  }
+
   for (const gain of gains) {
     const capability = gain.capability;
     if (
       capability.kind === "INSTALL_HOOK" &&
-      capability.location.applicability === "registry-install"
+      capability.location.applicability === "registry-install" &&
+      !isRoutineInstallHookChange(gain)
     ) {
       shapes.push({
         ruleId: "install-hook-change",
@@ -365,6 +439,37 @@ function evaluateShapes(gains: readonly CapabilityGain[]): ShapeFinding[] {
     }
   }
   return shapes;
+}
+
+function isRoutineInstallHookChange(gain: CapabilityGain): boolean {
+  const current = gain.capability;
+  if (current.kind !== "INSTALL_HOOK" || current.benignPattern === undefined) {
+    return false;
+  }
+  const previous = gain.previous;
+  return (
+    previous === null ||
+    (previous.kind === "INSTALL_HOOK" &&
+      previous.benignPattern === current.benignPattern)
+  );
+}
+
+function classifySignalFindings(
+  findings: readonly SignalFinding[],
+  shapes: readonly ShapeFinding[],
+): SignalFinding[] {
+  const shaped = new Set(shapes.flatMap((shape) => shape.signals ?? []));
+  return findings
+    .map((finding) =>
+      shaped.has(finding)
+        ? { ...finding, severity: "CRITICAL" as const }
+        : finding,
+    )
+    .sort((left, right) => {
+      const severity =
+        SEVERITY_ORDER[left.severity] - SEVERITY_ORDER[right.severity];
+      return severity !== 0 ? severity : compareText(left.detail, right.detail);
+    });
 }
 
 function classifyGains(
