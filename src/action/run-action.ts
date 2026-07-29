@@ -1,8 +1,14 @@
 import {
   analyzeChangedPackages,
+  hasUnanalyzedContent,
   type CapabilityAnalysisRun,
 } from "../core/capability-analysis-pipeline.js";
 import { diffNpmLockfiles } from "../core/npm/lockfile-differ.js";
+import {
+  emptyCapdeltaConfig,
+  parseCapdeltaConfig,
+  type CapdeltaConfig,
+} from "../core/capdelta-config.js";
 import {
   REPORT_SCHEMA_VERSION,
   renderJsonRunReport,
@@ -31,6 +37,7 @@ export interface ActionInputs {
   failOn: string;
   configPath: string;
   baseRef: string;
+  strict?: boolean;
 }
 
 export interface ActionContext {
@@ -58,7 +65,9 @@ export interface ActionAdapters {
   analyze(
     oldLockfile: unknown,
     newLockfile: unknown,
+    config?: CapdeltaConfig,
   ): Promise<CapabilityAnalysisRun>;
+  readConfig?(path: string): Promise<string>;
   uploadJson(name: string, contents: string): Promise<ArtifactUpload>;
   uploadSarif(
     contents: string,
@@ -79,6 +88,7 @@ export type ActionOutcome =
       comment: CommentPublishResult;
       gate: GateDecision;
       sarifUploaded: boolean;
+      strictFailure: boolean;
     };
 
 export class ActionRunnerError extends Error {
@@ -102,11 +112,6 @@ export async function runAction(
 ): Promise<ActionOutcome> {
   validateInputs(inputs, context);
   const threshold = parseFailOn(inputs.failOn);
-  if (inputs.configPath.length > 0) {
-    throw new ActionRunnerConfigurationError(
-      "config-path is reserved for allowlists and is not supported until M4",
-    );
-  }
 
   const changedFiles = await withContext("list PR files", () =>
     adapters.listChangedFiles(),
@@ -114,6 +119,28 @@ export async function runAction(
   if (!changedFiles.includes(inputs.lockfilePath)) {
     adapters.setOutput("status", "no-op");
     return { status: "no-op" };
+  }
+
+  let config = emptyCapdeltaConfig();
+  if (inputs.configPath.length > 0) {
+    if (adapters.readConfig === undefined) {
+      throw new ActionRunnerConfigurationError(
+        "config-path was provided but this Action adapter cannot read it",
+      );
+    }
+    const text = await withContext(
+      "read config",
+      () =>
+        adapters.readConfig?.(inputs.configPath) ??
+        Promise.reject(new Error("config reader unavailable")),
+    );
+    try {
+      config = parseCapdeltaConfig(text);
+    } catch (error: unknown) {
+      throw new ActionRunnerConfigurationError("config is invalid", {
+        cause: error,
+      });
+    }
   }
 
   const baseSha =
@@ -141,7 +168,9 @@ export async function runAction(
     base.status === "missing" ? null : parseLockfile(base.text, "base");
   const headLockfile = parseLockfile(headText, "head");
   const analysis = await withContext("analyze changed packages", () =>
-    adapters.analyze(oldLockfile, headLockfile),
+    inputs.configPath.length === 0
+      ? adapters.analyze(oldLockfile, headLockfile)
+      : adapters.analyze(oldLockfile, headLockfile, config),
   );
   const json = renderJsonRunReport(analysis);
   const sarif = renderSarifReport(analysis);
@@ -188,10 +217,13 @@ export async function runAction(
     adapters.comments,
   );
   const gate = evaluateSeverityGate(report, threshold);
+  const strictFailure =
+    inputs.strict === true && hasUnanalyzedContent(analysis);
 
   adapters.setOutput("status", gate.fail ? "failed" : "passed");
   adapters.setOutput("artifact-id", String(artifact.id));
   adapters.setOutput("highest-severity", gate.highest ?? "none");
+  adapters.setOutput("strict-failed", strictFailure ? "true" : "false");
   return {
     status: "analyzed",
     firstRun: report.firstRun,
@@ -199,6 +231,7 @@ export async function runAction(
     comment,
     gate,
     sarifUploaded,
+    strictFailure,
   };
 }
 
@@ -273,6 +306,9 @@ async function withContext<T>(
 export async function analyzeLockfiles(
   oldLockfile: unknown,
   newLockfile: unknown,
+  config?: CapdeltaConfig,
 ): Promise<CapabilityAnalysisRun> {
-  return analyzeChangedPackages(diffNpmLockfiles(oldLockfile, newLockfile));
+  return analyzeChangedPackages(diffNpmLockfiles(oldLockfile, newLockfile), {
+    ...(config === undefined ? {} : { config }),
+  });
 }

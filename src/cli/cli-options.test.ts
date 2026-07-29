@@ -8,10 +8,18 @@ describe("CLI options", () => {
       help: false,
       base: "main",
       format: "text",
+      configPath: null,
+      strict: false,
     });
     expect(
       parseCliArguments(["--format", "json", "--base", "origin/main"]),
-    ).toEqual({ help: false, base: "origin/main", format: "json" });
+    ).toEqual({
+      help: false,
+      base: "origin/main",
+      format: "json",
+      configPath: null,
+      strict: false,
+    });
   });
 
   it("accepts help without inventing a base revision", () => {
@@ -19,6 +27,8 @@ describe("CLI options", () => {
       help: true,
       base: null,
       format: "text",
+      configPath: null,
+      strict: false,
     });
     expect(CLI_HELP).toContain("Usage: capdelta --base <ref>");
   });
@@ -30,6 +40,11 @@ describe("CLI options", () => {
       message: "--base may only be provided once",
     },
     { argv: ["--format"], message: "--format must be text or json" },
+    { argv: ["--config"], message: "--config requires a path" },
+    {
+      argv: ["--strict", "--strict"],
+      message: "--strict may only be provided once",
+    },
     {
       argv: ["--format", "text", "--format", "json"],
       message: "--format may only be provided once",

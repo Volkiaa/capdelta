@@ -25,6 +25,13 @@ export {
   type ShapeRuleId,
 } from "./core/capability-differ.js";
 export {
+  diffSignals,
+  type SignalFinding,
+  type SignalFindingChange,
+  type SignalFindingKind,
+  type SignalFindingSeverity,
+} from "./core/signal-differ.js";
+export {
   CapabilityAnalysisPipelineConfigurationError,
   CapabilityAnalysisPipelineContractError,
   CapabilityAnalysisPipelineError,
@@ -32,6 +39,7 @@ export {
   ManifestAnalysisPipelineContractError,
   ManifestAnalysisPipelineError,
   analyzeChangedPackages,
+  hasUnanalyzedContent,
   analyzeManifestPackages,
   type AnalysisSide,
   type AnalyzedPackage,
@@ -42,7 +50,21 @@ export {
   type PackageAnalysisFailure,
   type PackageAnalysisResult,
   type UnavailablePackage,
+  type AnalysisBudgetSummary,
 } from "./core/capability-analysis-pipeline.js";
+export {
+  ALLOWLISTED_CAPABILITIES,
+  CapdeltaConfigContractError,
+  CapdeltaConfigError,
+  CapdeltaConfigParseError,
+  applyCapabilityAllowlist,
+  emptyCapdeltaConfig,
+  parseCapdeltaConfig,
+  type AllowlistedCapability,
+  type CapabilityAllowlistEntry,
+  type CapdeltaConfig,
+  type FindingSuppression,
+} from "./core/capdelta-config.js";
 export {
   CAPABILITY_SET_SCHEMA_VERSION,
   type AnalysisDiagnostic,
@@ -62,6 +84,13 @@ export {
   type InstallScriptLocation,
   type PackageSubject,
   type RuntimeConstraintCapability,
+  type ObfuscationPattern,
+  type SignalEndpointObservation,
+  type SignalEndpointType,
+  type SignalFileObservation,
+  type SignalObfuscationObservation,
+  type SignalParseState,
+  type SignalSet,
 } from "./core/contract/capability-set.js";
 export type {
   ChangedPackage,
@@ -132,6 +161,7 @@ export {
   type ReportRuntimeConstraintCapability,
   type ReportCodeCapability,
   type JsonReportShapeFinding,
+  type JsonReportSignalFinding,
   type SeverityCounts,
 } from "./core/reporter.js";
 export { SARIF_VERSION, renderSarifReport } from "./core/sarif-reporter.js";

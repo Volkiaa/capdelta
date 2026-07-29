@@ -20,6 +20,7 @@ export type {
   JsonReportAnalysisIssue,
   JsonReportDiagnostic,
   JsonReportFinding,
+  JsonReportSignalFinding,
   JsonReportLockfileFinding,
   JsonReportShapeFinding,
   JsonReportSkippedPackage,
@@ -80,8 +81,20 @@ function renderTextReportFromBuilt(report: JsonReport): string[] {
     lines.push("", "Findings:");
     for (const finding of report.findings) {
       lines.push(
-        `- [${finding.severity}] ${findingDescription(finding)}`,
+        `- [${finding.severity}] ${findingDescription(finding)}${suppressionText(finding.suppression?.reason)}`,
         ...finding.capability.evidence.map(
+          (evidence) => `  Evidence: ${evidenceText(evidence)}`,
+        ),
+      );
+    }
+  }
+
+  if ((report.signalFindings?.length ?? 0) > 0) {
+    lines.push("", "Signals:");
+    for (const finding of report.signalFindings ?? []) {
+      lines.push(
+        `- [${finding.severity}] ${quote(finding.detail)}${suppressionText(finding.suppression?.reason)}`,
+        ...finding.evidence.map(
           (evidence) => `  Evidence: ${evidenceText(evidence)}`,
         ),
       );
@@ -121,8 +134,17 @@ export function renderTextRunReport(run: CapabilityAnalysisRun): string {
       ? "Mode: first run (aggregate text; full details are in JSON)"
       : "Mode: comparison",
     `Packages: ${String(report.summary.changedPackages)} changed; ${String(report.summary.analyzedPackages)} analyzed; ${String(report.summary.unavailablePackages)} unavailable; ${count(report.summary.skippedLockfileEntries, "lockfile skip")}.`,
-    `Signals: ${count(report.summary.capabilityFindings, "capability finding")}${severitySummary.length === 0 ? "" : ` (${severitySummary})`}; ${count(report.summary.lockfileFindings, "lockfile finding")}; ${count(report.summary.analysisIssues, "analysis issue")}; ${count(report.summary.analysisDiagnostics, "analysis diagnostic")}.`,
+    `Signals: ${count(report.summary.capabilityFindings + (report.summary.signalFindings ?? 0), "finding")}${severitySummary.length === 0 ? "" : ` (${severitySummary})`}; ${count(report.summary.lockfileFindings, "lockfile finding")}; ${count(report.summary.analysisIssues, "analysis issue")}; ${count(report.summary.analysisDiagnostics, "analysis diagnostic")}.`,
   ];
+
+  if (report.budget?.partial === true) {
+    const stopDescription = report.budget.deadlineExceeded
+      ? `${String(report.budget.deadlineMs)}ms wall-clock budget ended`
+      : "caller cancellation stopped the run";
+    lines.push(
+      `Analysis budget: partial; ${String(report.budget.unstartedPackages)} package(s) were not started before ${stopDescription}.`,
+    );
+  }
 
   if (report.firstRun) return `${lines.join("\n")}\n`;
 
@@ -171,11 +193,11 @@ export function renderTextRunReport(run: CapabilityAnalysisRun): string {
 }
 
 function summaryLine(report: JsonReport): string {
-  if (report.findings.length === 0) {
-    return `Review this change: no manifest capability additions; ${count(report.diagnostics.length, "diagnostic")}.`;
+  if (report.summary.findings === 0) {
+    return `Review this change: no capability or signal additions; ${count(report.diagnostics.length, "diagnostic")}.`;
   }
   const severitySummary = severityCountsText(report.summary.bySeverity);
-  return `Review this change: ${count(report.findings.length, "finding")} (${severitySummary}); ${count(report.diagnostics.length, "diagnostic")}.`;
+  return `Review this change: ${count(report.summary.findings, "finding")} (${severitySummary}); ${count(report.diagnostics.length, "diagnostic")}.`;
 }
 
 function severityCountsText(bySeverity: SeverityCounts): string {
@@ -214,6 +236,10 @@ function findingDescription(finding: JsonReportFinding): string {
     default:
       return `${quote(capability.kind)} capability ${finding.change} in ${quote(capability.location.kind)} code`;
   }
+}
+
+function suppressionText(reason: string | undefined): string {
+  return reason === undefined ? "" : ` (suppressed (${quote(reason)}))`;
 }
 
 function evidenceText(evidence: ReportEvidence): string {

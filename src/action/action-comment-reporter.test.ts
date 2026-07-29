@@ -15,7 +15,7 @@ const PAYLOAD =
 
 function adversarialReport(firstRun = false): JsonRunReport {
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     firstRun,
     summary: {
       changedPackages: 1,
@@ -32,7 +32,7 @@ function adversarialReport(firstRun = false): JsonRunReport {
       {
         status: "analyzed",
         report: {
-          schemaVersion: 3,
+          schemaVersion: 4,
           package: {
             ecosystem: "npm",
             name: PAYLOAD,
@@ -134,7 +134,7 @@ describe("renderActionComment", () => {
       maxRows: 10,
     });
     expect(body).toBe(withoutRows);
-    expect(body).toContain("Showing 0 of 1 capability findings");
+    expect(body).toContain("Showing 0 of 1 findings");
     expect(body.endsWith("\n")).toBe(true);
   });
 

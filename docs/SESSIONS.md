@@ -252,3 +252,91 @@ escapes; worth considering a CI grep for control characters in source files.
    private disclosure button instead of the detail-free-contact fallback?
 3. Should `main` require the Node 20/22 CI and capdelta dogfood checks before the
    first public npm release?
+
+## 2026-07-29 — Post-M3 false-positive corpus checkpoint
+
+### 1. Completed and verified
+
+- Ran the existing static-only harness over 20 popular packages and three
+  adjacent stable, nondeprecated bumps per package: 60/60 bumps analyzed, with
+  zero unavailable bumps and zero package errors. The harness verifies SHA-512,
+  safely extracts, and invokes the capability pipeline without installing or
+  executing package code (`scripts/fp-check.ts:34-136`).
+- Recorded the complete corpus and interpretation in
+  `docs/fp-corpus-2026-07-29.md`: 54/60 bumps had no capability findings; the
+  remaining six produced 16 findings, all LOW/INFO; no bump would fail the
+  default CRITICAL gate. The run also produced 1,258 diagnostics, concentrated
+  in declaration files and oversized JavaScript.
+- Inspected every finding-positive bump. Dependency, filesystem, UNKNOWN, and
+  runtime-engine facts were real additions or changes. No capability shape
+  fired. Existing behavior did not re-alert, consistent with the additions-only
+  Differ (`src/core/capability-differ.ts:85-120`).
+
+### 2. Half-done and exact resume point
+
+- M4 signal work has not started. Before adding a signal, propose one scoped
+  JavaScript-extractor change: classify `.d.ts` declaration files as
+  non-executable metadata instead of emitting one `unsupported-source`
+  diagnostic per file. Preserve loud diagnostics for executable `.ts` and
+  oversized `.js`, and implement only this change plus its unit tests after
+  approval.
+- Treat UNKNOWN provenance as a separate design discussion and change set.
+  Preserve the PLAN §7.1 adversarial invariant that
+  `require('child' + '_process')` resolves to UNKNOWN.
+
+### 3. ADR status
+
+- No ADR was added. The corpus record is empirical evidence and does not change
+  the architecture. A future UNKNOWN-provenance design may require an ADR if it
+  changes the bounded resolution-honesty tier in PLAN §4.3 / ADR-012.
+
+### 4. Open questions
+
+1. Approve the `.d.ts` design direction as the first pre-signal M4 change?
+2. After that isolated change, should UNKNOWN retain originating-module
+   provenance so local/vendored member chains can be distinguished from dynamic
+   module loads without suppressing either?
+3. Should dependency additions be aggregated only in the capped PR-comment
+   table while preserving every fact in JSON/SARIF?
+
+## 2026-07-29 — M4 completion
+
+### 1. Completed and verified
+
+- Added the plan-seeded routine install-script recognizer in
+  `src/core/benign-install-script.ts`; `node-gyp rebuild`, `husky install`,
+  and `patch-package` are conservative whole-command matches, represented by
+  `InstallHookCapability.benignPattern` (`src/core/contract/capability-set.ts:55-67`).
+  Routine registry hooks fall back to INFO and do not trigger the install-hook
+  shape when the transition is routine (`src/core/capability-differ.ts:331-345,440-454`).
+- Added malformed-input property tests for the safe extractor and Acorn layer
+  using dev-only `fast-check` (`src/core/npm/safe-extractor.fuzz.test.ts`,
+  `src/core/npm/javascript-capability-extractor.fuzz.test.ts`). The safe
+  manifest preflight writes only `package.json` after validating the whole
+  archive (`src/core/npm/safe-extractor.ts:133-144,216-225`).
+- The scheduler now preflights manifests and prioritizes install-hook packages,
+  then smaller verified downloads, then lockfile order while retaining report
+  order (`src/core/capability-analysis-pipeline.ts:260-373,563-605`).
+- Verification passed: `npm test` — 242 tests / 28 files; lint, typecheck,
+  formatting, dependency budget, and Action bundle generation also passed.
+
+### 2. Half-done and exact resume point
+
+- M4 is complete. Resume at M5 formal validation and publication work in
+  PLAN §6; the routine recognizer remains explicitly provisional until that
+  corpus validates its false-positive behavior (`src/core/benign-install-script.ts:3-8`).
+- Changes are intentionally uncommitted in this workspace; review the full
+  dirty tree before selecting commits because earlier M4 work is also present.
+
+### 3. ADR status
+
+- No ADR was added. The recognizer names and conservative matching rules are
+  explicitly required by PLAN §6; the manifest-only preflight implements the
+  existing PLAN §2 scheduling heuristic without changing the ecosystem boundary.
+
+### 4. Open questions
+
+1. Should M5 promote any routine pattern from provisional to measured suppression
+   only after a corpus run contains targeted hook additions?
+2. Should the next M5 chunk be formal corpus measurement or publication/release
+   evidence first?

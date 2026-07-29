@@ -9,7 +9,7 @@ import {
 
 function report(): JsonRunReport {
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     firstRun: false,
     summary: {
       changedPackages: 2,
@@ -26,7 +26,7 @@ function report(): JsonRunReport {
       {
         status: "analyzed",
         report: {
-          schemaVersion: 3,
+          schemaVersion: 4,
           package: {
             ecosystem: "npm",
             name: "safe-fixture",
@@ -130,6 +130,37 @@ describe("severity gate", () => {
       exitCode: 0,
       matchingCount: 0,
     });
+  });
+
+  it("does not gate on a finding with a reviewed suppression", () => {
+    const original = report();
+    const packageItem = original.packages[0];
+    if (packageItem?.status !== "analyzed")
+      throw new Error("test fixture drift");
+    packageItem.report.findings = [
+      {
+        severity: "CRITICAL",
+        change: "added",
+        capability: {
+          kind: "PROCESS",
+          location: { kind: "runtime" },
+          evidence: [{ file: "index.js", line: 1, snippet: "spawn()" }],
+        },
+        previous: null,
+        suppression: { reason: "required by the package contract" },
+      },
+    ];
+    const suppressed: JsonRunReport = {
+      ...original,
+      packages: [packageItem],
+      summary: {
+        ...original.summary,
+        unavailablePackages: 0,
+        analysisIssues: 0,
+      },
+    };
+    expect(assessRunSeverity(suppressed).counts.CRITICAL).toBe(0);
+    expect(evaluateSeverityGate(suppressed, "CRITICAL").fail).toBe(false);
   });
 
   it("does not fail an empty report", () => {

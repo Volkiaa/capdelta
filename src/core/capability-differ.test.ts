@@ -174,6 +174,18 @@ describe("diffManifestCapabilities", () => {
     ]);
   });
 
+  it("does not suppress a routine-looking registry install hook", () => {
+    // PLAN §6 allows benign-pattern suppression only when driven by post-M3 FP
+    // data. The 2026-07-29 corpus produced no install-hook findings, so no
+    // command is ranked down; a routine-looking hook stays CRITICAL.
+    const routine = installHook("postinstall", "node-gyp rebuild");
+    const result = diffManifestCapabilities(null, set("2.0.0", [routine]));
+    expect(result.findings).toMatchObject([{ severity: "CRITICAL" }]);
+    expect(result.shapes).toMatchObject([
+      { ruleId: "install-hook-change", severity: "CRITICAL" },
+    ]);
+  });
+
   it("propagates partial-analysis diagnostics with their source side", () => {
     const oldDiagnostic: AnalysisDiagnostic = {
       kind: "malformed-manifest-field",
@@ -303,5 +315,48 @@ describe("diffManifestCapabilities", () => {
     expect(
       result.findings.every(({ severity }) => severity === "CRITICAL"),
     ).toBe(true);
+  });
+
+  it("escalates an obfuscation signal paired with process execution", () => {
+    const result = diffManifestCapabilities(null, {
+      ...set("2.0.0", [
+        {
+          kind: "PROCESS",
+          location: { kind: "runtime" },
+          evidence: EVIDENCE,
+        },
+      ]),
+      signals: {
+        sourceFiles: [
+          {
+            file: "loader.js",
+            byteLength: 512,
+            entropyMilliBitsPerByte: 7_000,
+            parseState: "parsed",
+          },
+        ],
+        endpoints: [],
+        obfuscationPatterns: [
+          {
+            kind: "OBFUSCATION_PATTERN",
+            file: "loader.js",
+            pattern: "hex-byte-array",
+            elementCount: 24,
+            evidence: EVIDENCE,
+          },
+        ],
+      },
+    });
+
+    expect(result.shapes?.map((shape) => shape.ruleId)).toContain(
+      "obfuscated-execution",
+    );
+    expect(result.signalFindings?.[0]).toMatchObject({
+      kind: "obfuscation-pattern-added",
+      severity: "CRITICAL",
+    });
+    expect(result.findings).toMatchObject([
+      { capability: { kind: "PROCESS" }, severity: "CRITICAL" },
+    ]);
   });
 });

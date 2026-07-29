@@ -16,9 +16,13 @@ inputs:
     required: false
     default: CRITICAL
   config-path:
-    description: Reserved for M4 allowlists; non-empty values currently fail
+    description: Optional path to .capdelta.yml allowlist configuration
     required: false
     default: ""
+  strict:
+    description: Fail the job when any changed content is unanalyzed
+    required: false
+    default: "false"
   base-ref:
     description: Optional base Git ref override
     required: false

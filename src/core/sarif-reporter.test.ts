@@ -74,4 +74,53 @@ describe("renderSarifReport", () => {
     expect(text).toContain("<img src=x onerror=alert(1)>");
     expect(text).not.toContain('"uri": "javascript:');
   });
+
+  it("renders signal findings as SARIF results", () => {
+    const run: CapabilityAnalysisRun = {
+      firstRun: false,
+      summary: { changed: 1, analyzed: 1, unavailable: 0, skipped: 0 },
+      packages: [
+        {
+          status: "analyzed",
+          changedPackage: {
+            name: "fixture",
+            oldVersion: "1.0.0",
+            newVersion: "2.0.0",
+            oldIntegrity: "sha512-old",
+            newIntegrity: "sha512-new",
+            oldResolvedUrl: "https://registry.npmjs.org/old.tgz",
+            resolvedUrl: "https://registry.npmjs.org/new.tgz",
+          },
+          diff: {
+            baseline: { ecosystem: "npm", name: "fixture", version: "1.0.0" },
+            subject: { ecosystem: "npm", name: "fixture", version: "2.0.0" },
+            newPackage: false,
+            findings: [],
+            signalFindings: [
+              {
+                kind: "entropy-jump",
+                severity: "MEDIUM",
+                change: "changed",
+                detail: "loader.js entropy jumped",
+                evidence: [{ file: "loader.js", line: 2, snippet: "payload" }],
+              },
+            ],
+            diagnostics: [],
+          },
+          issues: [],
+        },
+      ],
+      lockfileFindings: [],
+      skipped: [],
+    };
+
+    const sarif = JSON.parse(renderSarifReport(run)) as {
+      runs: [{ results: [{ ruleId: string; level: string }] }];
+    };
+    expect(sarif.runs[0].results).toHaveLength(1);
+    expect(sarif.runs[0].results[0]).toMatchObject({
+      ruleId: "CAPDELTA-SIGNAL-ENTROPY-JUMP",
+      level: "warning",
+    });
+  });
 });

@@ -30,6 +30,7 @@ import {
   type VerifiedTarball,
 } from "./npm/fetcher.js";
 import {
+  extractVerifiedManifest,
   extractVerifiedTarball,
   type ExtractedTarball,
   type ExtractionFailure,
@@ -48,6 +49,11 @@ import {
   type AstExtractionOptions,
   type JavaScriptCapabilityLayerResult,
 } from "./npm/javascript-capability-extractor.js";
+import {
+  applyCapabilityAllowlist,
+  emptyCapdeltaConfig,
+  type CapdeltaConfig,
+} from "./capdelta-config.js";
 
 export type AnalysisSide = "old" | "new";
 
@@ -97,6 +103,18 @@ export interface CapabilityAnalysisRun {
   packages: readonly PackageAnalysisResult[];
   lockfileFindings: readonly LockfileFinding[];
   skipped: readonly SkippedPackage[];
+  /** Loud accounting for the bounded scheduler (PLAN §2). */
+  budget?: AnalysisBudgetSummary;
+}
+
+export interface AnalysisBudgetSummary {
+  deadlineMs: number;
+  prioritization: "install-script-first";
+  startedPackages: number;
+  completedPackages: number;
+  unstartedPackages: number;
+  deadlineExceeded: boolean;
+  partial: boolean;
 }
 
 export interface CapabilityAnalysisOptions {
@@ -107,6 +125,22 @@ export interface CapabilityAnalysisOptions {
   astExtractor?: AstExtractionOptions;
   /** PLAN §2 default: at most four packages extracting concurrently. */
   extractionConcurrency?: number;
+  /** Reviewed policy exceptions are rendered, never removed. */
+  config?: CapdeltaConfig;
+}
+
+/** Strict mode treats every unanalysed input as a distinct failure class. */
+export function hasUnanalyzedContent(run: CapabilityAnalysisRun): boolean {
+  return (
+    run.summary.unavailable > 0 ||
+    run.summary.skipped > 0 ||
+    run.packages.some((item) =>
+      item.status === "analyzed"
+        ? item.issues.length > 0 || item.diff.diagnostics.length > 0
+        : true,
+    ) ||
+    run.budget?.partial === true
+  );
 }
 
 export class CapabilityAnalysisPipelineError extends Error {
@@ -134,6 +168,10 @@ interface CapabilityAnalysisAdapters {
     tarball: VerifiedTarball,
     options: ExtractorOptions,
   ): Promise<ExtractionResult>;
+  extractManifestOnly?(
+    tarball: VerifiedTarball,
+    options: ExtractorOptions,
+  ): Promise<ExtractionResult>;
   extractManifest(
     extracted: Pick<ExtractedTarball, "root">,
     expected: PackageSubject,
@@ -156,6 +194,7 @@ interface ResolvedPipelineOptions {
   extractor: ExtractorOptions;
   manifestExtractor: ManifestCapabilityExtractorOptions;
   astExtractor: AstExtractionOptions;
+  config: CapdeltaConfig;
 }
 
 interface SideAnalysisSuccess {
@@ -169,11 +208,29 @@ interface SideAnalysisFailure {
   failures: [PackageAnalysisFailure, ...PackageAnalysisFailure[]];
 }
 
+interface ManifestPreflightReady {
+  status: "ready";
+  changedPackage: ChangedPackage;
+  newManifest: CapabilitySet;
+  hasInstallScript: boolean;
+  issues: PackageAnalysisFailure[];
+}
+
+interface ManifestPreflightUnavailable {
+  status: "unavailable";
+  changedPackage: ChangedPackage;
+  failures: [PackageAnalysisFailure, ...PackageAnalysisFailure[]];
+}
+
+type ManifestPreflightResult =
+  ManifestPreflightReady | ManifestPreflightUnavailable;
+
 type SideAnalysisResult = SideAnalysisSuccess | SideAnalysisFailure;
 
 const DEFAULT_ADAPTERS: CapabilityAnalysisAdapters = {
   fetch: fetchChangedPackages,
   extract: extractVerifiedTarball,
+  extractManifestOnly: extractVerifiedManifest,
   extractManifest: extractNpmManifestCapabilities,
   extractJavaScript: extractNpmJavaScriptCapabilities,
   diff: diffCapabilities,
@@ -208,27 +265,88 @@ export function createCapabilityAnalysisPipeline(
       );
       validateFetchResults(lockfileDiff.changed, fetched);
 
-      const packages = new Array<PackageAnalysisResult>(fetched.length);
-      let nextIndex = 0;
+      const preflighted = new Array<ManifestPreflightResult>(fetched.length);
+      let nextPreflightPosition = 0;
+      let startedPackages = 0;
+      let completedPackages = 0;
       const workerCount = Math.min(
         resolved.execution.extraction.concurrency,
         fetched.length,
       );
+      const preflightOrder = prioritizePreflightPackages(fetched, lockfileDiff);
       await Promise.all(
         Array.from({ length: workerCount }, async () => {
           for (;;) {
-            const index = nextIndex;
-            nextIndex += 1;
+            const index = preflightOrder[nextPreflightPosition];
+            nextPreflightPosition += 1;
+            if (index === undefined) return;
             const fetchedPackage = fetched[index];
-            if (fetchedPackage === undefined) return;
+            if (fetchedPackage === undefined) {
+              throw new CapabilityAnalysisPipelineContractError(
+                `preflight selected missing fetched package at index ${String(index)}`,
+              );
+            }
+            if (control.signal.aborted) {
+              preflighted[index] = preflightStopped(
+                fetchedPackage.changedPackage,
+                control.signal,
+              );
+            } else {
+              startedPackages += 1;
+              preflighted[index] = await preflightFetchedPackage(
+                fetchedPackage,
+                resolved,
+                control.signal,
+                adapters,
+              );
+            }
+          }
+        }),
+      );
+
+      const packages = new Array<PackageAnalysisResult>(fetched.length);
+      const workOrder = prioritizePackages(fetched, preflighted);
+      let nextWorkPosition = 0;
+      await Promise.all(
+        Array.from({ length: workerCount }, async () => {
+          for (;;) {
+            const index = workOrder[nextWorkPosition];
+            nextWorkPosition += 1;
+            if (index === undefined) return;
+            const fetchedPackage = fetched[index];
+            if (fetchedPackage === undefined) {
+              throw new CapabilityAnalysisPipelineContractError(
+                `scheduler selected missing fetched package at index ${String(index)}`,
+              );
+            }
+            const preflight = preflighted[index];
+            if (preflight === undefined) {
+              throw new CapabilityAnalysisPipelineContractError(
+                `preflight returned no result at index ${String(index)}`,
+              );
+            }
             packages[index] = control.signal.aborted
-              ? policyUnavailable(fetchedPackage.changedPackage, control.signal)
-              : await analyzeFetchedPackage(
-                  fetchedPackage,
-                  resolved,
+              ? policyUnavailable(
+                  fetchedPackage.changedPackage,
                   control.signal,
-                  adapters,
-                );
+                  preflight.status === "ready"
+                    ? preflight.issues
+                    : preflight.failures,
+                )
+              : preflight.status === "unavailable"
+                ? {
+                    status: "unavailable",
+                    changedPackage: preflight.changedPackage,
+                    failures: preflight.failures,
+                  }
+                : await analyzeFetchedPackage(
+                    fetchedPackage,
+                    resolved,
+                    control.signal,
+                    adapters,
+                    preflight,
+                  );
+            completedPackages += 1;
           }
         }),
       );
@@ -247,6 +365,18 @@ export function createCapabilityAnalysisPipeline(
         packages,
         lockfileFindings: lockfileDiff.findings,
         skipped: lockfileDiff.skipped,
+        budget: {
+          deadlineMs: resolved.execution.deadlineMs,
+          prioritization: "install-script-first",
+          startedPackages,
+          completedPackages,
+          unstartedPackages: fetched.length - startedPackages,
+          deadlineExceeded:
+            analysisStopKind(control.signal) === "deadline-exceeded",
+          partial:
+            analysisStopKind(control.signal) !== null ||
+            startedPackages < fetched.length,
+        },
       };
     } finally {
       control.dispose();
@@ -323,6 +453,7 @@ function resolvePipelineOptions(
       },
       manifestExtractor: { maxManifestBytes: execution.manifest.maxBytes },
       astExtractor: execution.javascript,
+      config: options.config ?? emptyCapdeltaConfig(),
     };
   } catch (error: unknown) {
     if (error instanceof AnalysisExecutionPolicyConfigurationError) {
@@ -434,11 +565,209 @@ function sameChangedPackage(
   );
 }
 
+function prioritizePackages(
+  fetched: readonly FetchPackageResult[],
+  preflighted: readonly (ManifestPreflightResult | undefined)[],
+): number[] {
+  // The manifest preflight makes the PLAN §2 heuristic observable: packages
+  // with registry install hooks are processed first, then smaller verified
+  // downloads, then original lockfile order. Lockfile facts are retained as
+  // the preflight order for deadline behavior, not as a hidden priority.
+  return fetched
+    .map((item, index) => ({
+      index,
+      hasInstallScript:
+        preflighted[index]?.status === "ready" &&
+        preflighted[index].hasInstallScript,
+      downloadBytes:
+        item.status === "verified"
+          ? item.newTarball.bytes.length +
+            (item.oldTarball === null ? 0 : item.oldTarball.bytes.length)
+          : Number.MAX_SAFE_INTEGER,
+      name: item.changedPackage.name,
+    }))
+    .sort(
+      (left, right) =>
+        Number(right.hasInstallScript) - Number(left.hasInstallScript) ||
+        left.downloadBytes - right.downloadBytes ||
+        left.index - right.index ||
+        compareText(left.name, right.name),
+    )
+    .map((item) => item.index);
+}
+
+async function preflightFetchedPackage(
+  fetched: FetchPackageResult,
+  options: ResolvedPipelineOptions,
+  signal: AbortSignal,
+  adapters: CapabilityAnalysisAdapters,
+): Promise<ManifestPreflightResult> {
+  if (fetched.status === "unavailable") {
+    return {
+      status: "unavailable",
+      changedPackage: fetched.changedPackage,
+      failures: [{ stage: "fetch", failure: fetched.failure }],
+    };
+  }
+  validateVerifiedBaseline(fetched.changedPackage, fetched.oldTarball);
+  let extraction: ExtractionResult;
+  try {
+    extraction = await (adapters.extractManifestOnly ?? adapters.extract)(
+      fetched.newTarball,
+      {
+        ...options.extractor,
+        signal,
+      },
+    );
+  } catch (error: unknown) {
+    if (isAborted(signal)) {
+      return preflightStopped(fetched.changedPackage, signal);
+    }
+    throw new CapabilityAnalysisPipelineError(
+      `new manifest preflight extraction for ${JSON.stringify(fetched.changedPackage.name)} threw`,
+      { cause: error },
+    );
+  }
+  if (extraction.status === "rejected") {
+    if (isAborted(signal)) {
+      const stopKind = analysisStopKind(signal) ?? "analysis-aborted";
+      const prior =
+        extraction.failure.kind === stopKind
+          ? []
+          : [{ stage: "new-extraction" as const, failure: extraction.failure }];
+      return preflightStopped(fetched.changedPackage, signal, prior);
+    }
+    return {
+      status: "unavailable",
+      changedPackage: fetched.changedPackage,
+      failures: [{ stage: "new-extraction", failure: extraction.failure }],
+    };
+  }
+
+  let manifest: ManifestCapabilityResult | undefined;
+  let operationError: unknown;
+  try {
+    manifest = await adapters.extractManifest(
+      extraction,
+      subject(fetched.changedPackage, "new"),
+      { ...options.manifestExtractor, signal },
+    );
+  } catch (error: unknown) {
+    operationError = error;
+  }
+  const cleanupIssue = await cleanup("new", extraction);
+  if (isAborted(signal)) {
+    return preflightStopped(
+      fetched.changedPackage,
+      signal,
+      cleanupIssue === null ? [] : [cleanupIssue],
+    );
+  }
+  if (operationError !== undefined) {
+    const cleanupContext =
+      cleanupIssue === null
+        ? ""
+        : `; cleanup also failed (${cleanupIssue.failure.detail})`;
+    throw new CapabilityAnalysisPipelineError(
+      `new manifest preflight threw for ${JSON.stringify(fetched.changedPackage.name)}${cleanupContext}`,
+      { cause: operationError },
+    );
+  }
+  if (manifest === undefined) {
+    throw new CapabilityAnalysisPipelineError(
+      `new manifest preflight returned no result for ${JSON.stringify(fetched.changedPackage.name)}`,
+    );
+  }
+  if (manifest.status === "unavailable") {
+    const failures: [PackageAnalysisFailure, ...PackageAnalysisFailure[]] = [
+      { stage: "new-manifest", failure: manifest.failure },
+    ];
+    if (cleanupIssue !== null) failures.push(cleanupIssue);
+    return {
+      status: "unavailable",
+      changedPackage: fetched.changedPackage,
+      failures,
+    };
+  }
+  return {
+    status: "ready",
+    changedPackage: fetched.changedPackage,
+    newManifest: manifest.set,
+    hasInstallScript: manifest.set.capabilities.some(
+      (capability) => capability.kind === "INSTALL_HOOK",
+    ),
+    issues: cleanupIssue === null ? [] : [cleanupIssue],
+  };
+}
+
+function preflightStopped(
+  changedPackage: ChangedPackage,
+  signal: AbortSignal,
+  priorFailures: readonly PackageAnalysisFailure[] = [],
+): ManifestPreflightUnavailable {
+  const stopped = stoppedSide(signal, priorFailures);
+  return {
+    status: "unavailable",
+    changedPackage,
+    failures: stopped.failures,
+  };
+}
+
+function compareText(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function prioritizePreflightPackages(
+  fetched: readonly FetchPackageResult[],
+  lockfileDiff: LockfileDiffResult,
+): number[] {
+  const scoreByName = new Map<string, number>();
+  for (const finding of lockfileDiff.findings) {
+    const score = finding.kind === "integrity-changed-version-same" ? 100 : 80;
+    scoreByName.set(
+      finding.name,
+      Math.max(scoreByName.get(finding.name) ?? 0, score),
+    );
+  }
+  return fetched
+    .map((item, index) => ({
+      index,
+      score:
+        (item.changedPackage.oldVersion === null ? 90 : 0) +
+        (scoreByName.get(item.changedPackage.name) ?? 0),
+      downloadBytes:
+        item.status === "verified"
+          ? item.newTarball.bytes.length +
+            (item.oldTarball === null ? 0 : item.oldTarball.bytes.length)
+          : Number.MAX_SAFE_INTEGER,
+    }))
+    .sort(
+      (left, right) =>
+        right.score - left.score ||
+        left.downloadBytes - right.downloadBytes ||
+        left.index - right.index,
+    )
+    .map((item) => item.index);
+}
+
+function uniqueIssues(
+  issues: readonly PackageAnalysisFailure[],
+): PackageAnalysisFailure[] {
+  const seen = new Set<string>();
+  return issues.filter((issue) => {
+    const key = JSON.stringify(issue);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 async function analyzeFetchedPackage(
   fetched: FetchPackageResult,
   options: ResolvedPipelineOptions,
   signal: AbortSignal,
   adapters: CapabilityAnalysisAdapters,
+  preflight: ManifestPreflightReady,
 ): Promise<PackageAnalysisResult> {
   if (fetched.status === "unavailable") {
     return {
@@ -451,7 +780,7 @@ async function analyzeFetchedPackage(
   const changedPackage = fetched.changedPackage;
   validateVerifiedBaseline(changedPackage, fetched.oldTarball);
   let oldSet: CapabilitySet | null = null;
-  const issues: PackageAnalysisFailure[] = [];
+  const issues: PackageAnalysisFailure[] = [...preflight.issues];
   if (fetched.oldTarball !== null) {
     const old = await analyzeSide(
       "old",
@@ -483,6 +812,7 @@ async function analyzeFetchedPackage(
     options,
     signal,
     adapters,
+    preflight.newManifest,
   );
   if (!newest.ok) {
     return {
@@ -499,11 +829,14 @@ async function analyzeFetchedPackage(
   return {
     status: "analyzed",
     changedPackage,
-    diff: callSyncWithContext(
-      `capability diff for ${JSON.stringify(changedPackage.name)}`,
-      () => adapters.diff(oldSet, newest.set),
+    diff: applyCapabilityAllowlist(
+      callSyncWithContext(
+        `capability diff for ${JSON.stringify(changedPackage.name)}`,
+        () => adapters.diff(oldSet, newest.set),
+      ),
+      options.config,
     ),
-    issues,
+    issues: uniqueIssues(issues),
   };
 }
 
@@ -513,13 +846,17 @@ function policyUnavailable(
   priorFailures: readonly PackageAnalysisFailure[] = [],
 ): UnavailablePackage {
   const failure = analysisFailure(signal);
-  const [first, ...rest] = priorFailures;
-  const failures: [PackageAnalysisFailure, ...PackageAnalysisFailure[]] =
-    first === undefined ? [failure] : [first, ...rest, failure];
+  const failures = uniqueIssues([...priorFailures, failure]);
+  const [first, ...rest] = failures;
+  if (first === undefined) {
+    throw new CapabilityAnalysisPipelineContractError(
+      "policy failure construction produced no failure",
+    );
+  }
   return {
     status: "unavailable",
     changedPackage,
-    failures,
+    failures: [first, ...rest],
   };
 }
 
@@ -587,6 +924,7 @@ async function analyzeSide(
   options: ResolvedPipelineOptions,
   signal: AbortSignal,
   adapters: CapabilityAnalysisAdapters,
+  preflightedManifest?: CapabilitySet,
 ): Promise<SideAnalysisResult> {
   let extraction: ExtractionResult;
   try {
@@ -621,10 +959,13 @@ async function analyzeSide(
   let javascript: JavaScriptCapabilityLayerResult | undefined;
   let operationError: unknown;
   try {
-    manifest = await adapters.extractManifest(extraction, expected, {
-      ...options.manifestExtractor,
-      signal,
-    });
+    manifest =
+      preflightedManifest === undefined
+        ? await adapters.extractManifest(extraction, expected, {
+            ...options.manifestExtractor,
+            signal,
+          })
+        : { status: "analyzed", set: preflightedManifest };
     if (manifest.status === "analyzed") {
       javascript = await adapters.extractJavaScript(extraction, manifest.set, {
         ...options.astExtractor,

@@ -77,6 +77,18 @@ describe("extractNpmJavaScriptCapabilities UNKNOWN", () => {
             },
           ],
           diagnostics: [],
+          signals: {
+            sourceFiles: [
+              {
+                file: "index.js",
+                byteLength: 42,
+                entropyMilliBitsPerByte: 4252,
+                parseState: "parsed",
+              },
+            ],
+            endpoints: [],
+            obfuscationPatterns: [],
+          },
         });
       },
     );
@@ -94,6 +106,32 @@ describe("extractNpmJavaScriptCapabilities UNKNOWN", () => {
         expect(result.diagnostics.map((item) => item.kind)).toEqual([
           "unparseable-source",
           "unsupported-source",
+        ]);
+      },
+    );
+  });
+
+  it("treats declaration files as non-executable metadata", async () => {
+    await withPackage(
+      {
+        "types.d.ts": "declare const value: string;",
+        "runtime.ts": "export const value = 1;",
+      },
+      async (root) => {
+        const result = await extractNpmJavaScriptCapabilities(
+          { root },
+          manifestSet,
+        );
+        expect(result.diagnostics).toEqual([
+          {
+            kind: "unsupported-source",
+            detail:
+              "runtime.ts is TypeScript source; v0.1 parses JavaScript only",
+            evidence: [{ file: "runtime.ts", line: 1, snippet: "" }],
+          },
+        ]);
+        expect(result.signals?.sourceFiles.map((file) => file.file)).toEqual([
+          "runtime.ts",
         ]);
       },
     );

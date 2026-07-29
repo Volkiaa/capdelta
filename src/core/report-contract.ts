@@ -10,7 +10,9 @@ import type {
   FindingSeverity,
   ShapeRuleId,
 } from "./capability-differ.js";
+import type { SignalFindingKind } from "./signal-differ.js";
 import type { PackageAnalysisFailure } from "./capability-analysis-pipeline.js";
+import type { AnalysisBudgetSummary } from "./capability-analysis-pipeline.js";
 import type { AnalysisStopKind } from "./analysis-execution-policy.js";
 import type {
   LockfileFindingKind,
@@ -20,7 +22,7 @@ import type { FetchFailureKind } from "./npm/fetcher.js";
 import type { ManifestCapabilityFailureKind } from "./npm/manifest-capability-extractor.js";
 import type { ExtractionFailureKind } from "./npm/safe-extractor.js";
 
-export const REPORT_SCHEMA_VERSION = 3 as const;
+export const REPORT_SCHEMA_VERSION = 4 as const;
 
 export interface ReportPackage {
   ecosystem: string;
@@ -82,6 +84,16 @@ export interface JsonReportShapeFinding {
   ruleId: ShapeRuleId;
   severity: "CRITICAL";
   capabilities: readonly ReportCapability[];
+  signals?: readonly JsonReportSignalFinding[];
+}
+
+export interface JsonReportSignalFinding {
+  kind: SignalFindingKind;
+  severity: FindingSeverity;
+  change: CapabilityChange;
+  detail: string;
+  evidence: readonly ReportEvidence[];
+  suppression?: { reason: string };
 }
 
 export interface JsonReportFinding {
@@ -90,6 +102,7 @@ export interface JsonReportFinding {
   capability: ReportCapability;
   previous: ReportCapability | null;
   relatedReportIds?: readonly string[];
+  suppression?: { reason: string };
 }
 
 export interface JsonReportDiagnostic {
@@ -162,6 +175,7 @@ export interface JsonRunReport {
     unavailablePackages: number;
     skippedLockfileEntries: number;
     capabilityFindings: number;
+    signalFindings?: number;
     analysisDiagnostics: number;
     analysisIssues: number;
     lockfileFindings: number;
@@ -170,6 +184,7 @@ export interface JsonRunReport {
   packages: readonly JsonRunPackage[];
   lockfileFindings: readonly JsonReportLockfileFinding[];
   skipped: readonly JsonReportSkippedPackage[];
+  budget?: AnalysisBudgetSummary;
 }
 
 export interface JsonReport {
@@ -178,10 +193,13 @@ export interface JsonReport {
   reportId?: string;
   summary: {
     findings: number;
+    capabilityFindings?: number;
+    signalFindings?: number;
     diagnostics: number;
     bySeverity: SeverityCounts;
   };
   findings: readonly JsonReportFinding[];
+  signalFindings?: readonly JsonReportSignalFinding[];
   shapes?: readonly JsonReportShapeFinding[];
   diagnostics: readonly JsonReportDiagnostic[];
 }

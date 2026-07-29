@@ -3,6 +3,10 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import type { CapabilityAnalysisRun } from "./capability-analysis-pipeline.js";
 import { diffManifestCapabilities } from "./capability-differ.js";
+import {
+  extractNpmJavaScriptCapabilities,
+  mergeJavaScriptCapabilityLayer,
+} from "./npm/javascript-capability-extractor.js";
 import { extractNpmManifestCapabilities } from "./npm/manifest-capability-extractor.js";
 import { extractVerifiedTarball } from "./npm/safe-extractor.js";
 import {
@@ -16,7 +20,7 @@ const FIXTURE_ROOT = fileURLToPath(
   new URL("../../test/fixtures/golden/install-script-added/", import.meta.url),
 );
 
-describe("manifest report golden pair", () => {
+describe("capability report golden pair", () => {
   it("reports an inert install script added from v1 to v2", async () => {
     const [
       oldBytes,
@@ -72,7 +76,23 @@ describe("manifest report golden pair", () => {
           );
         }
 
-        const diff = diffManifestCapabilities(oldAnalysis.set, newAnalysis.set);
+        const oldJavaScript = await extractNpmJavaScriptCapabilities(
+          oldExtraction,
+          oldAnalysis.set,
+        );
+        const newJavaScript = await extractNpmJavaScriptCapabilities(
+          newExtraction,
+          newAnalysis.set,
+        );
+        const oldSet = mergeJavaScriptCapabilityLayer(
+          oldAnalysis.set,
+          oldJavaScript,
+        );
+        const newSet = mergeJavaScriptCapabilityLayer(
+          newAnalysis.set,
+          newJavaScript,
+        );
+        const diff = diffManifestCapabilities(oldSet, newSet);
         expect(renderJsonReport(diff)).toBe(expectedJson);
         expect(renderTextReport(diff)).toBe(expectedText);
         const run: CapabilityAnalysisRun = {

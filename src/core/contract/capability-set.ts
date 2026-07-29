@@ -100,6 +100,43 @@ export interface CodeCapability extends CapabilityBase {
   location: CapabilityLocation;
 }
 
+export type SignalParseState =
+  "parsed" | "unparseable" | "unsupported" | "unreadable";
+
+/** Per-file signal measurements; non-parsed states are first-class data. */
+export interface SignalFileObservation {
+  file: string;
+  byteLength: number;
+  entropyMilliBitsPerByte: number | null;
+  parseState: SignalParseState;
+}
+
+export type SignalEndpointType = "domain" | "ipv4" | "ipv6";
+
+export interface SignalEndpointObservation {
+  kind: "EXTERNAL_ENDPOINT";
+  endpointType: SignalEndpointType;
+  normalizedValue: string;
+  confidence: "literal" | "byte-scan-candidate";
+  evidence: EvidenceList;
+}
+
+export type ObfuscationPattern = "hex-byte-array" | "charcode-array";
+
+export interface SignalObfuscationObservation {
+  kind: "OBFUSCATION_PATTERN";
+  file: string;
+  pattern: ObfuscationPattern;
+  elementCount: number;
+  evidence: EvidenceList;
+}
+
+export interface SignalSet {
+  sourceFiles: readonly SignalFileObservation[];
+  endpoints: readonly SignalEndpointObservation[];
+  obfuscationPatterns: readonly SignalObfuscationObservation[];
+}
+
 export type Capability =
   | InstallHookCapability
   | CommandEntrypointCapability
@@ -125,4 +162,6 @@ export interface CapabilitySet {
   /** Deterministically sorted because this contract is serialized to JSON. */
   capabilities: readonly Capability[];
   diagnostics: readonly AnalysisDiagnostic[];
+  /** Signal data is optional for compatibility; omission means an empty set. */
+  signals?: SignalSet;
 }

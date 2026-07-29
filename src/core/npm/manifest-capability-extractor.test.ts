@@ -203,6 +203,44 @@ describe("extractNpmManifestCapabilities", () => {
     });
   });
 
+  it("records routine install commands without any suppression metadata", async () => {
+    // Routine-looking commands are captured exactly like any other hook: the
+    // extractor emits facts, and no command is pre-ranked (PLAN §6 requires
+    // FP-corpus evidence before benign-pattern suppression exists).
+    const manifest = JSON.stringify({
+      name: SUBJECT.name,
+      version: SUBJECT.version,
+      scripts: {
+        postinstall: "node-gyp rebuild",
+        install: "husky install",
+        preinstall: "patch-package",
+        prepare: "node-gyp rebuild && echo extra",
+      },
+    });
+    const result = await withManifest(manifest, (root) =>
+      extractNpmManifestCapabilities({ root }, SUBJECT),
+    );
+    expect(result.status).toBe("analyzed");
+    if (result.status !== "analyzed") throw new Error("expected analysis");
+    const hooks = result.set.capabilities.filter(
+      (capability) => capability.kind === "INSTALL_HOOK",
+    );
+    expect(hooks.map((capability) => capability.location.hook)).toEqual([
+      "install",
+      "postinstall",
+      "preinstall",
+      "prepare",
+    ]);
+    for (const hook of hooks) {
+      expect(Object.keys(hook).sort()).toEqual([
+        "contentDigest",
+        "evidence",
+        "kind",
+        "location",
+      ]);
+    }
+  });
+
   it.each([
     ["comments", '{"name":"@scope/fixture",/* no */"version":"2.0.0"}'],
     ["trailing commas", '{"name":"@scope/fixture","version":"2.0.0",}'],

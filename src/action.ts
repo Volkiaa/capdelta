@@ -11,6 +11,7 @@ import {
   runAction,
   type ActionContext,
 } from "./action/run-action.js";
+import { parseCapdeltaConfig } from "./core/capdelta-config.js";
 import type {
   GitHubComment,
   GitHubCommentClient,
@@ -36,6 +37,7 @@ async function main(): Promise<void> {
         failOn: core.getInput("fail-on") || "CRITICAL",
         configPath: core.getInput("config-path"),
         baseRef: core.getInput("base-ref"),
+        strict: core.getBooleanInput("strict"),
       },
       context,
       {
@@ -60,6 +62,7 @@ async function main(): Promise<void> {
         },
         contents: contentsClient(octokit),
         readHeadLockfile,
+        readConfig,
         analyze: analyzeLockfiles,
         uploadJson,
         uploadSarif: (contents, target) =>
@@ -73,10 +76,14 @@ async function main(): Promise<void> {
       },
     );
 
-    if (outcome.status === "analyzed" && outcome.gate.fail) {
-      core.setFailed(
-        `Review this change: ${String(outcome.gate.matchingCount)} finding(s) meet the ${outcome.gate.threshold} failure threshold.`,
-      );
+    if (outcome.status === "analyzed") {
+      if (outcome.gate.fail) {
+        core.setFailed(
+          `Review this change: ${String(outcome.gate.matchingCount)} finding(s) meet the ${outcome.gate.threshold} failure threshold.`,
+        );
+      } else if (outcome.strictFailure) {
+        core.setFailed("Strict mode found unanalyzed content.");
+      }
     }
   } catch (error: unknown) {
     core.setFailed(`capdelta: ${safeError(error)}`);
@@ -181,6 +188,32 @@ async function readHeadLockfile(path: string): Promise<string> {
     );
   }
   return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+}
+
+async function readConfig(path: string): Promise<string> {
+  const root = process.cwd();
+  const file = resolve(root, ...path.split("/"));
+  const fromRoot = relative(root, file);
+  if (fromRoot.startsWith("..") || isAbsolute(fromRoot)) {
+    throw new Error("config path escapes the checkout");
+  }
+  const metadata = await lstat(file);
+  if (!metadata.isFile() || metadata.isSymbolicLink()) {
+    throw new Error("config must be a regular file, not a symlink");
+  }
+  const maxBytes = 256 * 1024;
+  if (metadata.size > maxBytes) {
+    throw new Error(`config exceeds the ${String(maxBytes)} byte limit`);
+  }
+  const bytes = await readFile(file);
+  if (bytes.byteLength > maxBytes) {
+    throw new Error(`config exceeds the ${String(maxBytes)} byte limit`);
+  }
+  const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  // Parse here as well as in the runner so the production adapter's read seam
+  // cannot accidentally return a syntactically valid but unsupported policy.
+  parseCapdeltaConfig(text);
+  return text;
 }
 
 async function uploadJson(name: string, contents: string) {

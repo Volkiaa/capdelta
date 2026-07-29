@@ -18,6 +18,7 @@ import {
   type JsonReport,
   type JsonReportAnalysisIssue,
   type JsonReportDiagnostic,
+  type JsonReportSignalFinding,
   type JsonRunPackage,
   type JsonRunReport,
   type ReportCapability,
@@ -53,12 +54,15 @@ export function buildRunReport(run: CapabilityAnalysisRun): JsonRunReport {
   validateRun(run);
   const bySeverity = emptySeverityCounts();
   let capabilityFindings = 0;
+  let signalFindings = 0;
   let analysisDiagnostics = 0;
   let analysisIssues = 0;
   const packages = run.packages.map((item): JsonRunPackage => {
     if (item.status === "analyzed") {
       const report = buildReport(item.diff);
-      capabilityFindings += report.summary.findings;
+      capabilityFindings +=
+        report.summary.capabilityFindings ?? report.summary.findings;
+      signalFindings += report.summary.signalFindings ?? 0;
       analysisDiagnostics += report.summary.diagnostics;
       for (const severity of SEVERITIES) {
         bySeverity[severity] += report.summary.bySeverity[severity];
@@ -87,6 +91,7 @@ export function buildRunReport(run: CapabilityAnalysisRun): JsonRunReport {
       unavailablePackages: run.summary.unavailable,
       skippedLockfileEntries: run.summary.skipped,
       capabilityFindings,
+      signalFindings,
       analysisDiagnostics,
       analysisIssues,
       lockfileFindings: run.lockfileFindings.length,
@@ -109,6 +114,7 @@ export function buildRunReport(run: CapabilityAnalysisRun): JsonRunReport {
       reason: skipped.reason,
       detail: truncate(skipped.detail, MAX_VALUE_CHARS),
     })),
+    ...(run.budget === undefined ? {} : { budget: run.budget }),
   };
 }
 
@@ -256,15 +262,27 @@ export function buildReport(result: CapabilityDiffResult): JsonReport {
     capability: reportCapability(finding.capability),
     previous:
       finding.previous === null ? null : reportCapability(finding.previous),
+    ...(finding.suppression === undefined
+      ? {}
+      : {
+          suppression: {
+            reason: truncate(finding.suppression.reason, MAX_VALUE_CHARS),
+          },
+        }),
   }));
   const diagnostics = result.diagnostics.map(reportDiagnostic);
+  const signalFindings = (result.signalFindings ?? []).map(reportSignalFinding);
   const shapes = (result.shapes ?? []).map((shape) => ({
     ruleId: shape.ruleId,
     severity: shape.severity,
     capabilities: shape.capabilities.map(reportCapability),
+    ...(shape.signals === undefined
+      ? {}
+      : { signals: shape.signals.map(reportSignalFinding) }),
   }));
   const bySeverity = emptySeverityCounts();
   for (const finding of findings) bySeverity[finding.severity] += 1;
+  for (const finding of signalFindings) bySeverity[finding.severity] += 1;
 
   return {
     schemaVersion: REPORT_SCHEMA_VERSION,
@@ -280,11 +298,14 @@ export function buildReport(result: CapabilityDiffResult): JsonReport {
     },
     reportId: reportId(result.subject),
     summary: {
-      findings: findings.length,
+      findings: findings.length + signalFindings.length,
+      capabilityFindings: findings.length,
+      signalFindings: signalFindings.length,
       diagnostics: diagnostics.length,
       bySeverity,
     },
     findings,
+    signalFindings,
     shapes,
     diagnostics,
   };
@@ -332,7 +353,16 @@ function validateResult(result: CapabilityDiffResult): void {
       throw new ReporterContractError("shape finding has no capabilities");
     }
     for (const capability of shape.capabilities) validateCapability(capability);
+    for (const finding of shape.signals ?? []) validateSignalFinding(finding);
   }
+  for (const finding of result.signalFindings ?? [])
+    validateSignalFinding(finding);
+}
+
+function validateSignalFinding(
+  finding: NonNullable<CapabilityDiffResult["signalFindings"]>[number],
+): void {
+  validateEvidence(finding.evidence);
 }
 
 function validateCapability(capability: Capability): void {
@@ -427,6 +457,25 @@ function reportDiagnostic(
     kind: diagnostic.diagnostic.kind,
     detail: truncate(diagnostic.diagnostic.detail, MAX_VALUE_CHARS),
     evidence: diagnostic.diagnostic.evidence.map(reportEvidence),
+  };
+}
+
+function reportSignalFinding(
+  finding: NonNullable<CapabilityDiffResult["signalFindings"]>[number],
+): JsonReportSignalFinding {
+  return {
+    kind: finding.kind,
+    severity: finding.severity,
+    change: finding.change,
+    detail: truncate(finding.detail, MAX_VALUE_CHARS),
+    evidence: finding.evidence.map(reportEvidence),
+    ...(finding.suppression === undefined
+      ? {}
+      : {
+          suppression: {
+            reason: truncate(finding.suppression.reason, MAX_VALUE_CHARS),
+          },
+        }),
   };
 }
 
