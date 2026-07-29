@@ -334,7 +334,6 @@ function manifestCapabilityChanged(
 function fallbackSeverityFor(capability: Capability): FindingSeverity {
   switch (capability.kind) {
     case "INSTALL_HOOK":
-      if (capability.benignPattern !== undefined) return "INFO";
       return capability.location.applicability === "registry-install"
         ? "CRITICAL"
         : "INFO";
@@ -415,8 +414,7 @@ function evaluateShapes(
     const capability = gain.capability;
     if (
       capability.kind === "INSTALL_HOOK" &&
-      capability.location.applicability === "registry-install" &&
-      !isRoutineInstallHookChange(gain)
+      capability.location.applicability === "registry-install"
     ) {
       shapes.push({
         ruleId: "install-hook-change",
@@ -439,19 +437,6 @@ function evaluateShapes(
     }
   }
   return shapes;
-}
-
-function isRoutineInstallHookChange(gain: CapabilityGain): boolean {
-  const current = gain.capability;
-  if (current.kind !== "INSTALL_HOOK" || current.benignPattern === undefined) {
-    return false;
-  }
-  const previous = gain.previous;
-  return (
-    previous === null ||
-    (previous.kind === "INSTALL_HOOK" &&
-      previous.benignPattern === current.benignPattern)
-  );
 }
 
 function classifySignalFindings(

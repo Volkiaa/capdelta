@@ -49,10 +49,6 @@ export interface ContentDigest {
   value: string;
 }
 
-/** Provisional routine install-script recognizers, seeded by PLAN §6. */
-export type BenignInstallScriptPattern =
-  "node-gyp-rebuild" | "husky-install" | "patch-package";
-
 interface CapabilityBase {
   evidence: EvidenceList;
 }
@@ -61,8 +57,6 @@ export interface InstallHookCapability extends CapabilityBase {
   kind: "INSTALL_HOOK";
   location: InstallScriptLocation;
   contentDigest: ContentDigest;
-  /** Present only when the complete script matches a conservative routine pattern. */
-  benignPattern?: BenignInstallScriptPattern;
 }
 
 export interface CommandEntrypointCapability extends CapabilityBase {

@@ -203,7 +203,10 @@ describe("extractNpmManifestCapabilities", () => {
     });
   });
 
-  it("marks only complete routine install commands as provisional benign patterns", async () => {
+  it("records routine install commands without any suppression metadata", async () => {
+    // Routine-looking commands are captured exactly like any other hook: the
+    // extractor emits facts, and no command is pre-ranked (PLAN §6 requires
+    // FP-corpus evidence before benign-pattern suppression exists).
     const manifest = JSON.stringify({
       name: SUBJECT.name,
       version: SUBJECT.version,
@@ -219,19 +222,23 @@ describe("extractNpmManifestCapabilities", () => {
     );
     expect(result.status).toBe("analyzed");
     if (result.status !== "analyzed") throw new Error("expected analysis");
-    expect(
-      result.set.capabilities
-        .filter((capability) => capability.kind === "INSTALL_HOOK")
-        .map((capability) => [
-          capability.location.hook,
-          capability.benignPattern ?? null,
-        ]),
-    ).toEqual([
-      ["install", "husky-install"],
-      ["postinstall", "node-gyp-rebuild"],
-      ["preinstall", "patch-package"],
-      ["prepare", null],
+    const hooks = result.set.capabilities.filter(
+      (capability) => capability.kind === "INSTALL_HOOK",
+    );
+    expect(hooks.map((capability) => capability.location.hook)).toEqual([
+      "install",
+      "postinstall",
+      "preinstall",
+      "prepare",
     ]);
+    for (const hook of hooks) {
+      expect(Object.keys(hook).sort()).toEqual([
+        "contentDigest",
+        "evidence",
+        "kind",
+        "location",
+      ]);
+    }
   });
 
   it.each([

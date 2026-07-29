@@ -226,7 +226,7 @@ function findingDescription(finding: JsonReportFinding): string {
   const capability = finding.capability;
   switch (capability.kind) {
     case "INSTALL_HOOK":
-      return `${quote(capability.hook)} ${capability.applicability === "registry-install" ? "registry install" : "git-only"} hook ${finding.change}${capability.benignPattern === undefined ? "" : ` (routine ${quote(capability.benignPattern)})`}`;
+      return `${quote(capability.hook)} ${capability.applicability === "registry-install" ? "registry install" : "git-only"} hook ${finding.change}`;
     case "COMMAND_ENTRYPOINT":
       return `command ${quote(capability.command)} entrypoint ${finding.change}: ${quote(capability.target)}`;
     case "DEPENDENCY":

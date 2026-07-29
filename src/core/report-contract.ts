@@ -47,7 +47,6 @@ export interface ReportInstallHookCapability extends ReportCapabilityBase {
   hook: InstallHook;
   applicability: "registry-install" | "git-only";
   contentDigest: ContentDigest;
-  benignPattern?: "node-gyp-rebuild" | "husky-install" | "patch-package";
 }
 
 export interface ReportCommandEntrypointCapability extends ReportCapabilityBase {

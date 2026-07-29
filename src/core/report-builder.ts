@@ -404,9 +404,6 @@ function reportCapability(capability: Capability): ReportCapability {
           algorithm: capability.contentDigest.algorithm,
           value: truncate(capability.contentDigest.value, 128),
         },
-        ...(capability.benignPattern === undefined
-          ? {}
-          : { benignPattern: capability.benignPattern }),
         evidence,
       };
     case "COMMAND_ENTRYPOINT":

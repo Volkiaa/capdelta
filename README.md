@@ -295,9 +295,10 @@ than `registry.npmjs.org` is skipped and flagged.
   obfuscation recognizers are implemented with provisional thresholds.
 - **Script semantics:** install hooks are never executed. Only conservative
   literal `node path.js` entrypoints receive install-code attribution.
-- **Routine hooks:** whole-command `node-gyp rebuild`, `husky install`, and
-  `patch-package` matches are provisional benign patterns and rank at INFO;
-  composed commands remain unclassified and retain normal severity.
+- **Routine hooks:** no install command is ranked down. Benign-pattern
+  suppression stays unimplemented until a corpus containing real install-hook
+  additions justifies it (PLAN §6), so a routine-looking `node-gyp rebuild`
+  addition is reported at the same severity as any other new registry hook.
 - **Registry scope:** private registries, mirrors, git, file, and link
   dependencies are skipped and surfaced as unanalyzed.
 - **Single ecosystem and lockfile:** npm lockfile v2/v3 only, one lockfile per
@@ -403,9 +404,12 @@ The authoritative architecture and roadmap remain in
   analyzed; 54 had no findings, all 16 findings were LOW/INFO, and no bump
   tripped the default CRITICAL gate. The detailed corpus record documents the
   diagnostic-noise and tuning observations.
-- **M4: complete.** Signals, justified allowlists, strict mode, bounded
-  scheduling, loud partial-analysis reporting, malformed-input property tests,
-  and provisional benign-pattern suppression are implemented.
+- **M4: complete except benign-pattern suppression.** Signals, justified
+  allowlists, strict mode, bounded scheduling, loud partial-analysis reporting,
+  and malformed-input property tests are implemented. Benign-pattern
+  suppression is deliberately deferred: PLAN §6 requires it be driven by
+  post-M3 false-positive data, and the 2026-07-29 corpus produced no
+  install-hook findings to drive it.
 - **M5:** formal measured validation, release evidence, and publication work.
 
 ## Contributing and security reports
