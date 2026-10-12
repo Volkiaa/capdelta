@@ -32,8 +32,9 @@ export {
   type SignalFindingSeverity,
 } from "./core/signal-differ.js";
 export {
-  UNANALYZABLE_FAILURE_KINDS,
-  type UnanalyzableFailureKind,
+  EXCEPTABLE_UNANALYZABLE_KINDS,
+  FETCH_STAGE_CRITICAL_KINDS,
+  type ExceptableUnanalyzableKind,
 } from "./core/run-severity.js";
 export {
   CapabilityAnalysisPipelineConfigurationError,

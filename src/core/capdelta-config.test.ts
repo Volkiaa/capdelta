@@ -363,12 +363,33 @@ describe("capdelta config unanalyzable exceptions (ADR-017)", () => {
   });
 
   it.each([
-    ["integrity-mismatch", /integrity-mismatch cannot be excepted/u],
-    ["unsupported-integrity", /unsupported-integrity cannot be excepted/u],
-    ["network-error", /unsupported kind/u],
-  ])("rejects kind %s", (kind, message) => {
-    expect(() => parseUnanalyzable(entry({ kind }))).toThrow(message);
+    "size-limit-exceeded",
+    "invalid-url",
+    "unsupported-integrity",
+    "integrity-mismatch",
+  ])("rejects the fetch-stage kind %s with its reason", (kind) => {
+    expect(() => parseUnanalyzable(entry({ kind }))).toThrow(
+      /fetch-stage failures occur before the artifact bytes are verified/u,
+    );
   });
+
+  it.each(["network-error", "deadline-exceeded", "manifest-unreadable"])(
+    "rejects the non-unanalyzable kind %s with its reason",
+    (kind) => {
+      expect(() => parseUnanalyzable(entry({ kind }))).toThrow(
+        /not an unanalyzable failure/u,
+      );
+    },
+  );
+
+  it.each(["expanded-size-limit", "link-entry", "manifest-missing"])(
+    "accepts the post-verification kind %s",
+    (kind) => {
+      expect(parseUnanalyzable(entry({ kind })).unanalyzable[0]?.kind).toBe(
+        kind,
+      );
+    },
+  );
 
   it("rejects a duplicate tuple", () => {
     expect(() => parseUnanalyzable(entry(), entry())).toThrow(

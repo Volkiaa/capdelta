@@ -4,8 +4,9 @@ import type { SignalFindingKind } from "./signal-differ.js";
 import { isExactSemver } from "./npm/semver.js";
 import { parseSha512Integrity } from "./npm/fetcher.js";
 import {
-  UNANALYZABLE_FAILURE_KINDS,
-  type UnanalyzableFailureKind,
+  EXCEPTABLE_UNANALYZABLE_KINDS,
+  FETCH_STAGE_CRITICAL_KINDS,
+  type ExceptableUnanalyzableKind,
 } from "./run-severity.js";
 
 /** A reviewed exception to the default severity gate (PLAN §4.4). */
@@ -23,13 +24,14 @@ export interface CapabilityAllowlistEntry {
 
 /**
  * ADR-017: a reviewed exception for a package capdelta could not analyze.
- * Bound to the exact reviewed bytes, so it names the lockfile integrity.
+ * Bound to the exact reviewed bytes, so it names the lockfile integrity. Only
+ * post-verification failure kinds can be excepted (amendment A).
  */
 export interface UnanalyzableExceptionEntry {
   package: string;
   version: string;
   integrity: string;
-  kind: UnanalyzableFailureKind;
+  kind: ExceptableUnanalyzableKind;
   justification: string;
 }
 
@@ -79,7 +81,12 @@ export class CapdeltaConfigContractError extends CapdeltaConfigError {}
 
 const EMPTY_CONFIG: CapdeltaConfig = { allowlist: [], unanalyzable: [] };
 const CAPABILITY_SET = new Set<string>(ALLOWLISTED_CAPABILITIES);
-const UNANALYZABLE_KIND_SET = new Set<string>(UNANALYZABLE_FAILURE_KINDS);
+const EXCEPTABLE_UNANALYZABLE_KIND_SET = new Set<string>(
+  EXCEPTABLE_UNANALYZABLE_KINDS,
+);
+const FETCH_STAGE_CRITICAL_KIND_SET = new Set<string>(
+  FETCH_STAGE_CRITICAL_KINDS,
+);
 
 type ConfigSection = "allowlist" | "unanalyzable";
 
@@ -270,7 +277,7 @@ function assignField(
       target.integrity = parsed;
       return;
     case "kind":
-      target.kind = parsed as UnanalyzableFailureKind;
+      target.kind = parsed as ExceptableUnanalyzableKind;
       return;
     default: {
       // Exhaustiveness: every allowed key is handled above.
@@ -374,19 +381,16 @@ function normalizeUnanalyzableEntry(
   if (typeof entry.kind !== "string") {
     throw new CapdeltaConfigContractError(`${label} requires kind`);
   }
-  if (entry.kind === "integrity-mismatch") {
+  if (FETCH_STAGE_CRITICAL_KIND_SET.has(entry.kind)) {
+    // ADR-017 amendment A: fetch-stage failures are decided before or without
+    // byte verification, so there are no reviewed bytes to bind.
     throw new CapdeltaConfigContractError(
-      `${label} kind integrity-mismatch cannot be excepted: it is evidence of tampering (PLAN §4.2)`,
+      `${label} kind ${JSON.stringify(entry.kind)} cannot be excepted: fetch-stage failures occur before the artifact bytes are verified`,
     );
   }
-  if (entry.kind === "unsupported-integrity") {
+  if (!EXCEPTABLE_UNANALYZABLE_KIND_SET.has(entry.kind)) {
     throw new CapdeltaConfigContractError(
-      `${label} kind unsupported-integrity cannot be excepted: bind the exception to sha512 bytes by correcting the lockfile`,
-    );
-  }
-  if (!UNANALYZABLE_KIND_SET.has(entry.kind)) {
-    throw new CapdeltaConfigContractError(
-      `${label} has unsupported kind ${JSON.stringify(entry.kind)}`,
+      `${label} has unsupported kind ${JSON.stringify(entry.kind)}: not an unanalyzable failure`,
     );
   }
   if (
