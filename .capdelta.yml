@@ -1,0 +1,7 @@
+# Reviewed capdelta exceptions, read by the Action from the base commit
+# (ADR-015). Each is scoped to the exact version that was reviewed.
+allowlist:
+  - package: "@rolldown/binding-android-arm-eabi"
+    capability: NATIVE
+    version: 1.2.13
+    justification: "rolldown prebuilt optional binding (os android, cpu arm; not selected by this repo's CI); lockfile SRI sha512-Vu/NICrg...rwawA== matches the registry; SLSA v1 provenance from rolldown/rolldown main, publish-to-npm.yml; reviewed 2026-10-12 for vitest 5 (#27)"
