@@ -136,7 +136,7 @@ Report **additions only** by default (`--full-inventory` opt-in); newly added pa
 
 Severity mapping is provisional (judgment plus capdiff's field-tested shapes) until the corpus validation in §7.4 corrects it.
 
-Allowlist config (`.capdelta.yml`): suppress `(package, capability)` pairs with a required justification; suppressions appear in the report as "suppressed (reason)" — they never disappear.
+Allowlist config (`.capdelta.yml`): suppress `(package, capability)` pairs with a required justification; suppressions appear in the report as "suppressed (reason)" — they never disappear. The Action reads the config from the PR's base commit, never the PR head, so a PR cannot approve its own exception (ADR-015).
 
 **4.5 Reporter**
 - Sticky PR comment, updated in place. **Size-capped:** summary table only in the comment (GitHub truncates ~65k chars); full details go to the JSON workflow artifact and SARIF. A 200-package framework bump must not produce a 200-section comment. **First-run mode** (lockfile added, §4.1) uses the aggregate summary. **Fork PRs** (read-only token, §3): degrade to job summary + check status.

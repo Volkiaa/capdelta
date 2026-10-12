@@ -4,6 +4,7 @@ import {
   type CapabilityAnalysisRun,
 } from "../core/capability-analysis-pipeline.js";
 import { diffNpmLockfiles } from "../core/npm/lockfile-differ.js";
+import { isNormalizedRelativePosixPath } from "../core/repository-path.js";
 import {
   emptyCapdeltaConfig,
   parseCapdeltaConfig,
@@ -22,6 +23,7 @@ import {
   type GitHubCommentClient,
 } from "./action-comment-reporter.js";
 import {
+  retrieveBaseFile,
   retrieveBaseLockfile,
   validateLockfilePath,
   type GitHubContentsClient,
@@ -67,7 +69,6 @@ export interface ActionAdapters {
     newLockfile: unknown,
     config?: CapdeltaConfig,
   ): Promise<CapabilityAnalysisRun>;
-  readConfig?(path: string): Promise<string>;
   uploadJson(name: string, contents: string): Promise<ArtifactUpload>;
   uploadSarif(
     contents: string,
@@ -121,28 +122,6 @@ export async function runAction(
     return { status: "no-op" };
   }
 
-  let config = emptyCapdeltaConfig();
-  if (inputs.configPath.length > 0) {
-    if (adapters.readConfig === undefined) {
-      throw new ActionRunnerConfigurationError(
-        "config-path was provided but this Action adapter cannot read it",
-      );
-    }
-    const text = await withContext(
-      "read config",
-      () =>
-        adapters.readConfig?.(inputs.configPath) ??
-        Promise.reject(new Error("config reader unavailable")),
-    );
-    try {
-      config = parseCapdeltaConfig(text);
-    } catch (error: unknown) {
-      throw new ActionRunnerConfigurationError("config is invalid", {
-        cause: error,
-      });
-    }
-  }
-
   const baseSha =
     inputs.baseRef.length === 0
       ? context.baseSha
@@ -163,6 +142,14 @@ export async function runAction(
       adapters.readHeadLockfile(inputs.lockfilePath),
     ),
   ]);
+
+  const config = await readBasePolicy(
+    inputs.configPath,
+    baseSha,
+    changedFiles,
+    context,
+    adapters,
+  );
 
   const oldLockfile =
     base.status === "missing" ? null : parseLockfile(base.text, "base");
@@ -237,8 +224,64 @@ export async function runAction(
   };
 }
 
+const MAX_CONFIG_BYTES = 256 * 1024;
+
+/**
+ * Policy comes from the same immutable base commit as the base lockfile,
+ * never from the PR checkout: otherwise a PR could add an exception that
+ * suppresses its own findings (ADR-015). Head changes are only reported.
+ */
+async function readBasePolicy(
+  configPath: string,
+  baseSha: string,
+  changedFiles: readonly string[],
+  context: ActionContext,
+  adapters: ActionAdapters,
+): Promise<CapdeltaConfig> {
+  if (configPath.length === 0) return emptyCapdeltaConfig();
+  const file = await withContext("read base config", () =>
+    retrieveBaseFile(
+      {
+        owner: context.owner,
+        repo: context.repo,
+        path: configPath,
+        ref: baseSha,
+        maxBytes: MAX_CONFIG_BYTES,
+        label: "config",
+      },
+      adapters.contents,
+    ),
+  );
+  if (changedFiles.includes(configPath)) {
+    adapters.warn(
+      `capdelta: this PR changes ${configPath}; policy is read from the selected base commit, so those changes do not apply to this run`,
+    );
+  }
+  if (file.status === "missing") {
+    adapters.warn(
+      `capdelta: ${configPath} is not present at base ${baseSha}; no exceptions applied`,
+    );
+    return emptyCapdeltaConfig();
+  }
+  try {
+    return parseCapdeltaConfig(file.text);
+  } catch (error: unknown) {
+    throw new ActionRunnerConfigurationError("base config is invalid", {
+      cause: error,
+    });
+  }
+}
+
 function validateInputs(inputs: ActionInputs, context: ActionContext): void {
   validateLockfilePath(inputs.lockfilePath);
+  if (
+    inputs.configPath.length > 0 &&
+    !isNormalizedRelativePosixPath(inputs.configPath)
+  ) {
+    throw new ActionRunnerConfigurationError(
+      "config-path must be a normalized relative POSIX path",
+    );
+  }
   if (
     context.owner.length === 0 ||
     context.repo.length === 0 ||
