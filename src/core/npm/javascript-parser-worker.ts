@@ -2,6 +2,7 @@ import { parentPort } from "node:worker_threads";
 import { parse, type Node } from "acorn";
 import { fullAncestor } from "acorn-walk";
 import type {
+  CommentRange,
   ParserDetection,
   ParserRequest,
   ParserResponse,
@@ -11,11 +12,12 @@ type LocatedNode = Node & { start: number };
 
 function analyze(request: ParserRequest): ParserResponse {
   try {
-    const ast = parseSource(request);
+    const { ast, comments } = parseSource(request);
     const resolver = new BindingResolver(ast);
     return {
       ok: true,
       detections: detectCapabilities(resolver, request.source),
+      comments,
     };
   } catch (error: unknown) {
     const located = error as { loc?: { line?: unknown }; pos?: unknown };
@@ -661,22 +663,30 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
-function parseSource(request: ParserRequest): Node {
-  const options = {
-    ecmaVersion: "latest" as const,
-    allowHashBang: true,
-    locations: true,
-  };
-  if (request.sourceType !== "either") {
-    return parse(request.source, {
-      ...options,
-      sourceType: request.sourceType,
+function parseSource(request: ParserRequest): {
+  ast: Node;
+  comments: CommentRange[];
+} {
+  // Each attempt collects its own ranges, so a failed module attempt never
+  // leaks partial comments into the successful script parse.
+  const attempt = (sourceType: "module" | "script") => {
+    const comments: CommentRange[] = [];
+    const ast = parse(request.source, {
+      ecmaVersion: "latest",
+      allowHashBang: true,
+      locations: true,
+      sourceType,
+      onComment: (_block, _text, start, end) => {
+        comments.push([start, end]);
+      },
     });
-  }
+    return { ast, comments };
+  };
+  if (request.sourceType !== "either") return attempt(request.sourceType);
   try {
-    return parse(request.source, { ...options, sourceType: "module" });
+    return attempt("module");
   } catch {
-    return parse(request.source, { ...options, sourceType: "script" });
+    return attempt("script");
   }
 }
 

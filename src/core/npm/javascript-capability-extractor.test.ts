@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { diffManifestCapabilities } from "../capability-differ.js";
 import {
   CAPABILITY_SET_SCHEMA_VERSION,
   type CapabilitySet,
@@ -9,7 +10,9 @@ import {
 import {
   JavaScriptCapabilityExtractorError,
   extractNpmJavaScriptCapabilities,
+  mergeJavaScriptCapabilityLayer,
 } from "./javascript-capability-extractor.js";
+import { extractNpmManifestCapabilities } from "./manifest-capability-extractor.js";
 
 const manifestSet: CapabilitySet = {
   schemaVersion: CAPABILITY_SET_SCHEMA_VERSION,
@@ -557,5 +560,149 @@ describe("install-script location attribution", () => {
         ]);
       },
     );
+  });
+});
+
+describe("endpoint signals and parser comments", () => {
+  async function endpointsOf(files: Record<string, string>): Promise<string[]> {
+    let hosts: string[] = [];
+    await withPackage(files, async (root) => {
+      const result = await extractNpmJavaScriptCapabilities(
+        { root },
+        manifestSet,
+      );
+      hosts = (result.signals?.endpoints ?? []).map(
+        (item) => item.normalizedValue,
+      );
+    });
+    return hosts;
+  }
+
+  it("ignores real comments but keeps strings and templates that look like comments", async () => {
+    const hosts = await endpointsOf({
+      "index.js": [
+        "// https://line-comment.example.org",
+        "/* http://203.0.113.5 https://block-comment.example.org */",
+        'const real = "https://api.example.net/x";',
+        'const s = "/* https://string.example.com */ // https://string2.example.com";',
+        "const t = `${/* https://template-comment.example.org */ 1} https://template.example.com`;",
+        'const e = "\u{1F600}😀"; // https://after-emoji.example.org',
+        'const after = "https://after-emoji-real.example.net";',
+        "",
+      ].join("\n"),
+    });
+    expect(hosts.sort()).toEqual(
+      [
+        "after-emoji-real.example.net",
+        "api.example.net",
+        "string.example.com",
+        "string2.example.com",
+        "template.example.com",
+      ].sort(),
+    );
+  });
+
+  it("uses only the successful script attempt's comments after a module parse fails", async () => {
+    const hosts = await endpointsOf({
+      "legacy.js":
+        '// https://first.example.org\nwith (o) { x = "https://kept.example.org"; }\n',
+    });
+    expect(hosts).toEqual(["kept.example.org"]);
+  });
+
+  it.each([
+    [
+      "a URL that runs from a label into a line comment",
+      "https://label.example.org\nvoid 0;\n",
+      [],
+    ],
+    [
+      "a hashbang line",
+      "#!/usr/bin/env node https://hashbang.example.org\nconst x = 'https://kept.example.net';\n",
+      ["kept.example.net"],
+    ],
+    [
+      "a regex literal containing comment-like text",
+      "const r = /[/*]/;\nfetch('https://after-regex.example.org');\n",
+      ["after-regex.example.org"],
+    ],
+  ])("handles %s", async (_label, source, expected) => {
+    expect(await endpointsOf({ "index.js": source })).toEqual(expected);
+  });
+
+  it("still byte-scans unsupported TypeScript, comments included", async () => {
+    let result:
+      Awaited<ReturnType<typeof extractNpmJavaScriptCapabilities>> | undefined;
+    await withPackage(
+      {
+        "src/types.ts":
+          "// https://ts-comment.example.org\nexport type T = 1;\n",
+      },
+      async (root) => {
+        result = await extractNpmJavaScriptCapabilities({ root }, manifestSet);
+      },
+    );
+    expect(
+      result?.signals?.endpoints.map((item) => item.normalizedValue),
+    ).toEqual(["ts-comment.example.org"]);
+    expect(result?.diagnostics).toEqual([
+      expect.objectContaining({ kind: "unsupported-source" }),
+    ]);
+  });
+
+  it("keeps lexical candidates in comments when the file cannot be parsed", async () => {
+    const hosts = await endpointsOf({
+      "broken.js": "// https://unparsed.example.org\nconst = ;\n",
+    });
+    expect(hosts).toEqual(["unparsed.example.org"]);
+  });
+
+  it("creates no HIGH endpoint finding for a comment-only change, but does for real code", async () => {
+    const analyze = async (files: Record<string, string>, version: string) => {
+      let set:
+        Awaited<ReturnType<typeof mergeJavaScriptCapabilityLayer>> | undefined;
+      await withPackage(files, async (root) => {
+        const manifest = await extractNpmManifestCapabilities(
+          { root },
+          { ecosystem: "npm", name: "fixture", version },
+        );
+        if (manifest.status !== "analyzed")
+          throw new Error("manifest unavailable");
+        set = mergeJavaScriptCapabilityLayer(
+          manifest.set,
+          await extractNpmJavaScriptCapabilities({ root }, manifest.set),
+        );
+      });
+      if (set === undefined) throw new Error("analysis did not run");
+      return set;
+    };
+    const base = await analyze(
+      { "index.js": "module.exports = 1;\n" },
+      "2.0.0",
+    );
+    const commentOnly = await analyze(
+      {
+        "index.js": "// docs: https://docs.example.org\nmodule.exports = 1;\n",
+      },
+      "2.0.0",
+    );
+    const realCode = await analyze(
+      {
+        "index.js":
+          'module.exports = () => fetch("https://api.example.net");\n',
+      },
+      "2.0.0",
+    );
+    const highEndpoints = (next: typeof base) =>
+      (diffManifestCapabilities(base, next).signalFindings ?? []).filter(
+        (finding) => finding.kind === "new-external-endpoint",
+      );
+    expect(highEndpoints(commentOnly)).toEqual([]);
+    expect(highEndpoints(realCode)).toEqual([
+      expect.objectContaining({
+        severity: "HIGH",
+        detail: "new external domain api.example.net",
+      }),
+    ]);
   });
 });

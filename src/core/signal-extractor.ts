@@ -28,6 +28,12 @@ export interface SignalSourceInput {
   file: string;
   bytes: Uint8Array;
   parseState: SignalParseState;
+  /**
+   * Comment ranges from a successful parse of these exact bytes, as half-open
+   * UTF-16 offsets. Only applied when parseState is "parsed"; absent means no
+   * exclusion, never "comment-free".
+   */
+  commentRanges?: readonly (readonly [number, number])[];
 }
 
 export function emptySignalSet(): SignalSet {
@@ -47,7 +53,17 @@ export function observeSignalSource(input: SignalSourceInput): {
   const lineStarts = buildLineStarts(source);
   const confidence =
     input.parseState === "parsed" ? "literal" : "byte-scan-candidate";
-  const endpoints = detectEndpoints(input.file, source, lineStarts, confidence);
+  const inComment =
+    input.parseState === "parsed" && input.commentRanges !== undefined
+      ? commentLookup(input.file, input.commentRanges, source.length)
+      : (): boolean => false;
+  const endpoints = detectEndpoints(
+    input.file,
+    source,
+    lineStarts,
+    confidence,
+    inComment,
+  );
   const obfuscationPatterns = detectObfuscationPatterns(
     input.file,
     source,
@@ -86,11 +102,15 @@ function detectEndpoints(
   source: string,
   lineStarts: readonly number[],
   confidence: SignalEndpointObservation["confidence"],
+  inComment: (start: number, end: number) => boolean,
 ): SignalEndpointObservation[] {
   const found: SignalEndpointObservation[] = [];
   for (const match of source.matchAll(URL_LITERAL_RE)) {
     const value = match[0];
     const index = match.index;
+    // Documentation links in comments are not runtime endpoints; a match that
+    // runs into a comment ("https://x\n" after a label) is not one either.
+    if (inComment(index, index + match[0].length)) continue;
     let parsed: URL;
     try {
       parsed = new URL(value);
@@ -98,11 +118,14 @@ function detectEndpoints(
       // A bounded lexical candidate is not evidence of a valid endpoint.
       continue;
     }
-    const host = parsed.hostname
+    const rawHost = parsed.hostname
       .toLowerCase()
       .replace(/^\[|\]$/gu, "")
       .replace(/\.$/u, "");
-    const endpointType = endpointTypeFor(host);
+    const endpointType = endpointTypeFor(rawHost);
+    const host =
+      endpointType === "domain" ? publicStyleDomain(rawHost) : rawHost;
+    if (host === null) continue;
     if (endpointType === null || !isExternalHost(host, endpointType)) continue;
     found.push(
       endpoint(file, host, endpointType, source, lineStarts, index, confidence),
@@ -112,6 +135,7 @@ function detectEndpoints(
   for (const match of source.matchAll(IPV4_LITERAL_RE)) {
     const value = match[0];
     const index = match.index;
+    if (inComment(index, index + match[0].length)) continue;
     if (isIP(value) !== 4 || !isExternalHost(value, "ipv4")) continue;
     found.push(
       endpoint(file, value, "ipv4", source, lineStarts, index, confidence),
@@ -121,6 +145,7 @@ function detectEndpoints(
   for (const match of source.matchAll(IPV6_LITERAL_RE)) {
     const value = match[0];
     const index = match.index;
+    if (inComment(index, index + match[0].length)) continue;
     if (isIP(value) !== 6 || !isExternalHost(value, "ipv6")) continue;
     found.push(
       endpoint(
@@ -303,6 +328,72 @@ function lineForIndex(lineStarts: readonly number[], index: number): number {
     else high = middle;
   }
   return low;
+}
+
+const DOMAIN_LABEL_RE = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/u;
+const MAX_DOMAIN_LENGTH = 253;
+
+/**
+ * Public-style hostname heuristic (not a DNS definition): at least two
+ * labels, LDH labels, and an alphabetic or punycode TLD. It drops lexical
+ * artifacts the URL parser accepts ("$addr", "fs") and narrows coverage to
+ * public-looking names; single-label hosts are deliberately not reported.
+ * One recovery retries after trimming trailing punctuation, so a markdown
+ * link's "example.org)" becomes "example.org".
+ */
+function publicStyleDomain(host: string): string | null {
+  if (isPublicStyleDomain(host)) return host;
+  const trimmed = host.replace(/[)\]}>,.;:!?'"]+$/u, "");
+  return trimmed !== host && isPublicStyleDomain(trimmed) ? trimmed : null;
+}
+
+function isPublicStyleDomain(host: string): boolean {
+  if (host.length > MAX_DOMAIN_LENGTH) return false;
+  const labels = host.split(".");
+  const tld = labels.at(-1);
+  if (labels.length < 2 || tld === undefined) return false;
+  if (!labels.every((label) => DOMAIN_LABEL_RE.test(label))) return false;
+  return /^[a-z]+$/u.test(tld) || /^xn--[a-z0-9-]+$/u.test(tld);
+}
+
+/**
+ * Binary-search lookup over validated, ordered comment ranges, so a
+ * comment-heavy source cannot make endpoint scanning quadratic.
+ */
+function commentLookup(
+  file: string,
+  ranges: readonly (readonly [number, number])[],
+  sourceLength: number,
+): (start: number, end: number) => boolean {
+  let previousEnd = 0;
+  for (const [start, end] of ranges) {
+    if (
+      !Number.isSafeInteger(start) ||
+      !Number.isSafeInteger(end) ||
+      start < previousEnd ||
+      end <= start ||
+      end > sourceLength
+    ) {
+      throw new RangeError(
+        `invalid parser comment ranges for ${JSON.stringify(file)}`,
+      );
+    }
+    previousEnd = end;
+  }
+  // True when [start, end) overlaps any comment: find the first range that
+  // ends after start, then check whether it begins before end.
+  return (start, end) => {
+    let low = 0;
+    let high = ranges.length;
+    while (low < high) {
+      const middle = (low + high) >> 1;
+      const range = ranges[middle];
+      if (range !== undefined && range[1] <= start) low = middle + 1;
+      else high = middle;
+    }
+    const candidate = ranges[low];
+    return candidate !== undefined && candidate[0] < end;
+  };
 }
 
 function endpointTypeFor(
