@@ -669,4 +669,74 @@ describe("run severity classification", () => {
   it("omits the gate line when nothing can gate", () => {
     expect(renderTextRunReport(analyzedRun())).not.toContain("Gate severity");
   });
+
+  it("counts an unavailable package once at its highest failure severity", () => {
+    const run: CapabilityAnalysisRun = {
+      firstRun: false,
+      summary: { changed: 1, analyzed: 0, unavailable: 1, skipped: 0 },
+      packages: [
+        {
+          status: "unavailable",
+          changedPackage: changedPackage("oversized"),
+          failures: [
+            {
+              stage: "new-extraction",
+              failure: { kind: "file-count-limit", detail: "too many files" },
+            },
+            {
+              stage: "fetch",
+              failure: {
+                side: "new",
+                kind: "size-limit-exceeded",
+                detail: "tarball over the fetch cap",
+                url: "https://registry.npmjs.org/oversized/new.tgz",
+              },
+            },
+          ],
+        },
+      ],
+      lockfileFindings: [],
+      skipped: [],
+    };
+    const report = JSON.parse(renderJsonRunReport(run)) as {
+      summary: { analysisIssues: number; gateSeverity: Record<string, number> };
+      packages: { failures: { severity: string | null }[] }[];
+    };
+    expect(report.summary.analysisIssues).toBe(2);
+    expect(report.summary.gateSeverity.CRITICAL).toBe(1);
+    expect(
+      report.packages[0]?.failures.map((failure) => failure.severity),
+    ).toEqual(["CRITICAL", "CRITICAL"]);
+  });
+
+  it("keeps an unavailable package at a gate count of 0 without a severity", () => {
+    const run: CapabilityAnalysisRun = {
+      firstRun: false,
+      summary: { changed: 1, analyzed: 0, unavailable: 1, skipped: 0 },
+      packages: [
+        {
+          status: "unavailable",
+          changedPackage: changedPackage("flaky"),
+          failures: [
+            {
+              stage: "fetch",
+              failure: {
+                side: "new",
+                kind: "network-error",
+                detail: "connection reset",
+                url: "https://registry.npmjs.org/flaky/new.tgz",
+              },
+            },
+          ],
+        },
+      ],
+      lockfileFindings: [],
+      skipped: [],
+    };
+    const report = JSON.parse(renderJsonRunReport(run)) as {
+      summary: { gateSeverity: Record<string, number> };
+    };
+    expect(report.summary.gateSeverity.CRITICAL).toBe(0);
+    expect(renderTextRunReport(run)).not.toContain("Gate severity");
+  });
 });

@@ -62,6 +62,17 @@ export function buildRunReport(run: CapabilityAnalysisRun): JsonRunReport {
       if (issue.severity !== null) gateSeverity[issue.severity] += 1;
     }
   };
+  // ADR-016: an unavailable package gates once, at the highest severity any of
+  // its failures carries. Per-issue counting would double-count one package.
+  const countUnavailableIssues = (
+    issues: readonly JsonReportAnalysisIssue[],
+  ): void => {
+    analysisIssues += issues.length;
+    const highest = SEVERITIES.find((severity) =>
+      issues.some((issue) => issue.severity === severity),
+    );
+    if (highest !== undefined) gateSeverity[highest] += 1;
+  };
   const packages = run.packages.map((item): JsonRunPackage => {
     if (item.status === "analyzed") {
       const report = buildReport(item.diff);
@@ -87,7 +98,7 @@ export function buildRunReport(run: CapabilityAnalysisRun): JsonRunReport {
     }
 
     const failures = reportAnalysisFailures(item.failures);
-    countIssues(failures);
+    countUnavailableIssues(failures);
     return {
       status: "unavailable",
       package: reportChangedPackage(item.changedPackage),
