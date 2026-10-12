@@ -6,6 +6,8 @@ import type {
 } from "./capability-analysis-pipeline.js";
 import type { ChangedPackage } from "./contract/lockfile-diff.js";
 import { parseCapdeltaConfig } from "./capdelta-config.js";
+import { buildRunReport } from "./reporter.js";
+import { evaluateSeverityGate } from "./run-severity.js";
 import { applyUnanalyzableExceptions } from "./unanalyzable-exceptions.js";
 
 // Two canonical sha512 SRI tokens (64 bytes each), matching the parser tests.
@@ -131,7 +133,7 @@ describe("applyUnanalyzableExceptions", () => {
     expect(item.exception).toBeUndefined();
   });
 
-  it("matches an old-side failure with oldVersion and oldIntegrity", () => {
+  it("does not release on an old-side-only exception (rule C.2)", () => {
     const oldFailure: PackageAnalysisFailure = {
       stage: "old-extraction",
       failure: { kind: "invalid-archive", detail: "old artifact invalid" },
@@ -148,9 +150,62 @@ describe("applyUnanalyzableExceptions", () => {
     );
     const item = applied.packages[0];
     if (item?.status !== "unavailable") throw new Error("fixture drift");
-    expect(item.exception?.reason).toBe(
-      "[version 1.0.0] reviewed old artifact",
+    expect(item.exception).toBeUndefined();
+  });
+
+  it("releases when both sides are excepted on their own version and integrity", () => {
+    const oldFailure: PackageAnalysisFailure = {
+      stage: "old-extraction",
+      failure: { kind: "expanded-size-limit", detail: "old too big" },
+    };
+    const entries =
+      "  - package: big-native-pkg\n" +
+      "    version: 1.0.0\n" +
+      `    integrity: ${SRI_B}\n` +
+      "    kind: expanded-size-limit\n" +
+      '    justification: "reviewed old artifact"\n' +
+      "  - package: big-native-pkg\n" +
+      "    version: 2.3.4\n" +
+      `    integrity: ${SRI_A}\n` +
+      "    kind: file-count-limit\n" +
+      '    justification: "reviewed new artifact"\n';
+    const applied = applyUnanalyzableExceptions(
+      runWith([unavailable([oldFailure, NEW_FILE_COUNT])]),
+      config(entries),
     );
+    const item = applied.packages[0];
+    if (item?.status !== "unavailable") throw new Error("fixture drift");
+    expect(item.exception).toEqual({
+      reason: "[version 2.3.4] reviewed new artifact",
+    });
+    // The exception releases the gate; both failures still count.
+    const report = buildRunReport(applied);
+    expect(report.summary.gateSeverity.CRITICAL).toBe(0);
+    expect(report.summary.analysisIssues).toBe(2);
+    expect(evaluateSeverityGate(report, "CRITICAL").fail).toBe(false);
+  });
+
+  it("does not release when only the old side is excepted (rule C.2)", () => {
+    const oldFailure: PackageAnalysisFailure = {
+      stage: "old-extraction",
+      failure: { kind: "expanded-size-limit", detail: "old too big" },
+    };
+    const entries =
+      "  - package: big-native-pkg\n" +
+      "    version: 1.0.0\n" +
+      `    integrity: ${SRI_B}\n` +
+      "    kind: expanded-size-limit\n" +
+      '    justification: "reviewed old artifact"\n';
+    const applied = applyUnanalyzableExceptions(
+      runWith([unavailable([oldFailure, NEW_FILE_COUNT])]),
+      config(entries),
+    );
+    const item = applied.packages[0];
+    if (item?.status !== "unavailable") throw new Error("fixture drift");
+    expect(item.exception).toBeUndefined();
+    const report = buildRunReport(applied);
+    expect(report.summary.gateSeverity.CRITICAL).toBe(1);
+    expect(evaluateSeverityGate(report, "CRITICAL").fail).toBe(true);
   });
 
   it("keeps the package gating when only one of two CRITICAL failures matches", () => {

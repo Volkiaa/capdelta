@@ -22,10 +22,12 @@ export class UnanalyzableExceptionError extends Error {
 }
 
 /**
- * ADR-017 §2: mark an unavailable package as reviewed when every
- * severity-bearing failure matches a config entry on package, kind, the
- * failure side's exact version, and that side's exact lockfile integrity. The
- * pass never touches analyzed packages and never deletes a failure.
+ * ADR-017 §2 as amended: mark an unavailable package as reviewed only when
+ * every severity-bearing failure is a post-verification (extraction or
+ * manifest) failure that matches a config entry on the failure side's exact
+ * version and lockfile integrity, at least one match is on the **new** side,
+ * and no failure is from the fetch stage. The pass never touches analyzed
+ * packages and never deletes a failure.
  */
 export function applyUnanalyzableExceptions(
   run: CapabilityAnalysisRun,
@@ -44,8 +46,11 @@ function matchUnavailablePackage(
   item: UnavailablePackage,
   entries: readonly UnanalyzableExceptionEntry[],
 ): UnanalyzableException | null {
-  let matched: UnanalyzableExceptionEntry | null = null;
-  let severityBearing = 0;
+  // Amendment C.3: a fetch-stage failure (including `integrity-mismatch`) is
+  // decided before or without byte verification, so the package can never
+  // carry a reviewed exception.
+  if (item.failures.some((failure) => failure.stage === "fetch")) return null;
+  let matchedNew: UnanalyzableExceptionEntry | null = null;
   for (const failure of item.failures) {
     const severity = analysisIssueSeverity({
       stage: failure.stage,
@@ -54,16 +59,25 @@ function matchUnavailablePackage(
     // Only severity-bearing failures are reviewed; a transient failure
     // (network, deadline, cleanup) neither matches nor blocks an exception.
     if (severity === null) continue;
-    severityBearing += 1;
+    // Amendment C.1: every severity-bearing failure must come from the
+    // extraction or manifest stage. Fetch failures are already excluded above;
+    // this guards a future stage whose severity is raised.
+    const side = failureSide(failure);
+    if (side === null) return null;
     const entry = matchFailure(item, failure, entries);
-    // ADR-017 §2: one unmatched severity-bearing failure (including a never
-    // exceptable integrity mismatch) keeps the package gating.
+    // One unmatched severity-bearing failure (including a never-exceptable
+    // integrity mismatch) keeps the package gating.
     if (entry === null) return null;
-    matched ??= entry;
+    // Amendment C.2: the exception must bind the new subject. Track whether
+    // any matched failure is on the new side.
+    if (side === "new") matchedNew ??= entry;
   }
-  if (matched === null || severityBearing === 0) return null;
-  // The scope leads the reason so report truncation can never hide it.
-  return { reason: `[version ${matched.version}] ${matched.justification}` };
+  if (matchedNew === null) return null;
+  // The scope leads the reason so report truncation can never hide it. The
+  // reason names the new-side entry that binds the exception.
+  return {
+    reason: `[version ${matchedNew.version}] ${matchedNew.justification}`,
+  };
 }
 
 function matchFailure(

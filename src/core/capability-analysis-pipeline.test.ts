@@ -39,6 +39,9 @@ import {
   analyzeManifestPackages,
   createManifestAnalysisPipeline,
 } from "./manifest-analysis-pipeline.js";
+import type { CapdeltaConfig } from "./capdelta-config.js";
+import { buildRunReport } from "./reporter.js";
+import { evaluateSeverityGate } from "./run-severity.js";
 
 const TARBALL: VerifiedTarball = {
   integrity: "sha512-inert",
@@ -803,6 +806,155 @@ describe("analyzeChangedPackages", () => {
         },
       ],
     });
+  });
+
+  it("keeps an excepted old-side extraction failure gating when the new side is clean (amendment C.2)", async () => {
+    const oldTarball: VerifiedTarball = {
+      integrity: "sha512-old",
+      bytes: new Uint8Array([1]),
+    };
+    const newTarball: VerifiedTarball = {
+      integrity: "sha512-new",
+      bytes: new Uint8Array([2]),
+    };
+    const run = createCapabilityAnalysisPipeline({
+      fetch: (packages) =>
+        Promise.resolve(
+          packages.map((changedPackage) => ({
+            status: "verified" as const,
+            changedPackage,
+            oldTarball,
+            newTarball,
+          })),
+        ),
+      extract: (tarball) =>
+        tarball.integrity === "sha512-old"
+          ? Promise.resolve({
+              status: "rejected" as const,
+              failure: {
+                kind: "invalid-archive" as const,
+                detail: "old broken",
+              },
+            })
+          : Promise.resolve({
+              status: "extracted" as const,
+              root: "C:\\inert-fixture",
+              fileCount: 1,
+              expandedBytes: 1,
+              cleanup: () => Promise.resolve(),
+            }),
+      extractManifest: (_extracted, expected) =>
+        Promise.resolve({
+          status: "analyzed" as const,
+          set: capabilitySet(expected),
+        }),
+      extractJavaScript: () =>
+        Promise.resolve({ capabilities: [], diagnostics: [] }),
+      diff: capabilityDiff,
+    });
+    const config: CapdeltaConfig = {
+      allowlist: [],
+      unanalyzable: [
+        {
+          package: "old-fails",
+          version: "1.0.0",
+          integrity: "sha512-old",
+          kind: "invalid-archive",
+          justification: "reviewed old artifact",
+        },
+      ],
+    };
+    const result = await run(
+      lockfileDiff([changedPackage("old-fails", "1.0.0")]),
+      {
+        config,
+      },
+    );
+    const item = result.packages[0];
+    if (item?.status !== "unavailable") throw new Error("fixture drift");
+    expect(item.failures).toMatchObject([
+      { stage: "old-extraction", failure: { kind: "invalid-archive" } },
+    ]);
+    // The old-side exception cannot release the package: no new-side failure
+    // was inspected and bound.
+    expect(item.exception).toBeUndefined();
+    expect(evaluateSeverityGate(buildRunReport(result), "CRITICAL").fail).toBe(
+      true,
+    );
+  });
+
+  it("extracts the new side after an old-side failure and cleans both directories", async () => {
+    const cleanups: string[] = [];
+    const oldTarball: VerifiedTarball = {
+      integrity: "sha512-old",
+      bytes: new Uint8Array([1]),
+    };
+    const newTarball: VerifiedTarball = {
+      integrity: "sha512-new",
+      bytes: new Uint8Array([2]),
+    };
+    const run = createCapabilityAnalysisPipeline({
+      fetch: (packages) =>
+        Promise.resolve(
+          packages.map((changedPackage) => ({
+            status: "verified" as const,
+            changedPackage,
+            oldTarball,
+            newTarball,
+          })),
+        ),
+      extractManifestOnly: (tarball) =>
+        Promise.resolve({
+          status: "extracted" as const,
+          root: `manifest-${tarball.integrity}`,
+          fileCount: 1,
+          expandedBytes: 1,
+          cleanup: () => {
+            cleanups.push(`manifest:${tarball.integrity}`);
+            return Promise.resolve();
+          },
+        }),
+      extract: (tarball) =>
+        Promise.resolve({
+          status: "extracted" as const,
+          root: `full-${tarball.integrity}`,
+          fileCount: 1,
+          expandedBytes: 1,
+          cleanup: () => {
+            cleanups.push(`full:${tarball.integrity}`);
+            return Promise.resolve();
+          },
+        }),
+      extractManifest: (_extracted, expected) =>
+        expected.version === "1.0.0"
+          ? Promise.resolve({
+              status: "unavailable" as const,
+              failure: {
+                kind: "manifest-missing" as const,
+                detail: "package.json is missing",
+                evidence: null,
+              },
+            })
+          : Promise.resolve({
+              status: "analyzed" as const,
+              set: capabilitySet(expected),
+            }),
+      extractJavaScript: () =>
+        Promise.resolve({ capabilities: [], diagnostics: [] }),
+      diff: capabilityDiff,
+    });
+    const result = await run(
+      lockfileDiff([changedPackage("old-manifest-fails", "1.0.0")]),
+    );
+    expect(result.packages[0]).toMatchObject({
+      status: "unavailable",
+      failures: [{ stage: "old-manifest" }],
+    });
+    // Both full extraction roots were created and cleaned: the old side before
+    // its manifest failure, and the new side that the amendment now reaches.
+    expect(cleanups).toEqual(
+      expect.arrayContaining(["full:sha512-old", "full:sha512-new"]),
+    );
   });
 
   it("propagates lockfile facts and validates configuration and adapter contracts", async () => {

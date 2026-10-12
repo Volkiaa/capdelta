@@ -789,6 +789,8 @@ async function analyzeFetchedPackage(
   validateVerifiedBaseline(changedPackage, fetched.oldTarball);
   let oldSet: CapabilitySet | null = null;
   const issues: PackageAnalysisFailure[] = [...preflight.issues];
+  let oldFailures:
+    [PackageAnalysisFailure, ...PackageAnalysisFailure[]] | null = null;
   if (fetched.oldTarball !== null) {
     const old = await analyzeSide(
       "old",
@@ -799,14 +801,38 @@ async function analyzeFetchedPackage(
       adapters,
     );
     if (!old.ok) {
-      return {
-        status: "unavailable",
-        changedPackage,
-        failures: old.failures,
-      };
+      oldFailures = old.failures;
+    } else {
+      oldSet = old.set;
+      issues.push(...old.issues);
     }
-    oldSet = old.set;
-    issues.push(...old.issues);
+  }
+
+  if (oldFailures !== null) {
+    // ADR-017 amendment C.2: the exception must bind the new side, so still
+    // extract the new artifact and read its manifest after an old-side
+    // failure. The new side's failure, if any, is recorded too; the package
+    // stays unavailable either way. A fetch failure never reaches here, and
+    // every path below still goes through the existing cleanup handling.
+    if (isAborted(signal)) {
+      return { status: "unavailable", changedPackage, failures: oldFailures };
+    }
+    const newestAfterOldFailure = await analyzeSide(
+      "new",
+      fetched.newTarball,
+      subject(changedPackage, "new"),
+      options,
+      signal,
+      adapters,
+      preflight.newManifest,
+    );
+    return {
+      status: "unavailable",
+      changedPackage,
+      failures: newestAfterOldFailure.ok
+        ? oldFailures
+        : prependFailures(oldFailures, newestAfterOldFailure.failures),
+    };
   }
 
   if (isAborted(signal)) {
