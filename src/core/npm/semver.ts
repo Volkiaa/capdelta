@@ -80,3 +80,15 @@ export function compareSemver(a: string, b: string): -1 | 0 | 1 | null {
   }
   return 0;
 }
+
+/**
+ * Strict SemVer 2.0.0 syntax (semver.org): exact version only, no leading
+ * zeros in numeric identifiers, no "v" prefix, ranges, tags, or partials.
+ * Separate from the permissive downgrade parser above on purpose.
+ */
+const EXACT_SEMVER_RE =
+  /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/u;
+
+export function isExactSemver(value: string): boolean {
+  return EXACT_SEMVER_RE.test(value);
+}
