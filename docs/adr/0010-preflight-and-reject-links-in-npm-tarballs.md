@@ -1,6 +1,6 @@
 # ADR-010: Preflight npm tarballs and reject all link entries
 
-- **Status:** accepted; ADR-013 proposes amending the `package/` root clause
+- **Status:** accepted; the `package/` root clause is amended by ADR-013
 - **Date:** 2026-07-14
 - **Plan reference:** PLAN §3 (safe extraction), §4.2
 

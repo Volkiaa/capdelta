@@ -1,6 +1,6 @@
 # ADR-013: Analyze npm tarballs with npm's strip-one layout
 
-- **Status:** proposed (awaiting maintainer approval; amends ADR-010)
+- **Status:** accepted (amends ADR-010)
 - **Date:** 2026-10-12
 - **Plan reference:** PLAN §3 (safe extraction, evasions), §4.2
 
