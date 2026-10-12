@@ -9,7 +9,7 @@ const MAX_PACKAGES = 100;
 const METADATA_TIMEOUT_MS = 15_000;
 const MAX_METADATA_BYTES = 20 * 1024 * 1024;
 
-interface RegistryVersion {
+export interface RegistryVersion {
   version: string;
   tarball: string;
   integrity: string;
@@ -172,7 +172,7 @@ export function parseArguments(args: readonly string[]): ParsedArguments {
   return { packages, bumps };
 }
 
-async function recentVersions(
+export async function recentVersions(
   packageName: string,
   count: number,
 ): Promise<RegistryVersion[]> {
@@ -264,7 +264,7 @@ async function readCapped(
   return result;
 }
 
-function changedPackage(
+export function changedPackage(
   name: string,
   previous: RegistryVersion,
   newest: RegistryVersion,
