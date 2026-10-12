@@ -51,6 +51,25 @@ Lockfile-level facts are also surfaced: same-version integrity changes,
 downgrades, unanalyzable git/file/link sources, private registries, malformed
 entries, and first-run lockfile additions.
 
+### Attack reconstructions
+
+Defanged, synthetic reconstructions of documented npm compromises run through
+the full lockfile → fetch → static analysis → default gate path
+(`src/core/attack-reconstructions.test.ts`). They are modeled on public
+analyses, labeled as reconstructions, and never contain the original
+artifacts. Each has a benign control bump that must pass.
+
+| Incident                                                                                                                                        | Modeled delta                                                                                                                    | Why capdelta fails the default gate                                                                                                                                     |
+| ----------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [axios](https://github.com/axios/axios/issues/10636), 2026-03-31                                                                                | `axios@1.14.1` adds only a dependency; new `plain-crypto-js@4.2.1` has `postinstall: node setup.js` with an encoded string table | The new package gets a full report: CRITICAL registry `postinstall` hook, `UNKNOWN` in install code; the axios bump shows a LOW dependency addition cross-linked to it  |
+| [Shai-Hulud](https://sysdig.com/blog/shai-hulud-the-novel-self-replicating-worm-infecting-hundreds-of-npm-packages), 2025-09                    | `@ctrl/tinycolor@4.1.1` adds `postinstall: node bundle.js`; the bundle reads tokens, runs a scanner, posts to a GitHub API       | CRITICAL hook, plus `NET`/`ENV`/`PROCESS` in install code and the secret-exfiltration shape. With the bundle over the parser limit, the hook alone still fails the gate |
+| [Shai-Hulud 2.0](https://www.endorlabs.com/learn/shai-hulud-2-malware-campaign-targets-github-and-cloud-credentials-using-bun-runtime), 2025-11 | `preinstall: node setup_bun.js` loader plus an encoded payload                                                                   | CRITICAL registry `preinstall` hook                                                                                                                                     |
+
+These show that capdelta flags the modeled dependency and lifecycle deltas.
+They are not the original malware, not a measured detection rate, and not
+proof that encoded payloads are decoded. Sources and every kept or omitted
+behavior are recorded in `test/fixtures/reconstructions/inventory.json`.
+
 ## Severity means review priority
 
 capdelta reports capability gains, not a malware verdict. Shape rules can
@@ -322,6 +341,11 @@ than `registry.npmjs.org` is skipped and flagged.
   suppression stays unimplemented until a corpus containing real install-hook
   additions justifies it (PLAN §6), so a routine-looking `node-gyp rebuild`
   addition is reported at the same severity as any other new registry hook.
+- **Resource limits:** a package whose tarball exceeds the fetch or
+  extraction caps is reported as unavailable, so its install hook is never
+  read and that failure alone does not fail the default gate; `--strict`
+  does. The axios
+  reconstruction includes a test that records this boundary.
 - **Registry scope:** private registries, mirrors, git, file, and link
   dependencies are skipped and surfaced as unanalyzed.
 - **Single ecosystem and lockfile:** npm lockfile v2/v3 only, one lockfile per
@@ -375,8 +399,10 @@ npm run check:deps
 npm run check:action
 ```
 
-Tests use inert handcrafted lockfiles and tarballs. The golden pair changes from
-a benign manifest to `"postinstall": "echo test"`; package code is never run.
+Tests use inert handcrafted lockfiles and tarballs; package code is never run.
+Golden pairs cover each PLAN §4.4 severity row (`test/fixtures/golden/`), and
+attack reconstructions cover documented incidents
+(`test/fixtures/reconstructions/`).
 CI executes the suite on Node.js 20 and 22 and verifies that the committed
 Action bundle is reproducible.
 
@@ -393,9 +419,9 @@ informal run covered 20 packages and 60 bumps; see the
 [recorded results and interpretation](docs/fp-corpus-2026-07-29.md). This is a
 pre-M4 tuning exercise, not the formal M5 false-positive measurement.
 
-capdelta currently has seven direct runtime dependencies:
-`@actions/artifact`, `@actions/core`, `@actions/github`, `acorn`,
-`acorn-walk`, `jsonc-parser`, and `tar`. CI fails at 10, so the enforced
+capdelta currently has four direct runtime dependencies: `acorn`,
+`acorn-walk`, `jsonc-parser`, and `tar`. The `@actions/*` packages are
+build-time only, bundled into `dist/action`. CI fails at 10, so the enforced
 budget remains **fewer than 10**. Transitive runtime packages are reported by
 the check but are not the gate.
 

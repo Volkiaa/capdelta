@@ -1,0 +1,17 @@
+{
+  "name": "reconstruction-project",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "name": "reconstruction-project",
+      "version": "1.0.0"
+    },
+    "node_modules/reconstructed-sh2-victim": {
+      "version": "1.0.2",
+      "resolved": "https://registry.npmjs.org/reconstructed-sh2-victim/-/reconstructed-sh2-victim-1.0.2.tgz",
+      "integrity": "sha512-yrlxANgb3gYzX8Fvto1ECvuLom8mJ53mWh2cEbytDF5HkRFOsJXsKqhD5E5uTHXrMQKvEzKYfuDpPj0YKM4i5g=="
+    }
+  }
+}

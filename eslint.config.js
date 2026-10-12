@@ -10,6 +10,7 @@ export default tseslint.config(
       "node_modules/",
       // Inert golden package sources: parsed by tests, archived byte-for-byte.
       "test/fixtures/golden/*/source-*/",
+      "test/fixtures/reconstructions/*/packages/",
     ],
   },
   eslint.configs.recommended,

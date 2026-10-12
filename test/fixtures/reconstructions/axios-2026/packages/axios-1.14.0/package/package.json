@@ -1,0 +1,8 @@
+{
+  "name": "axios",
+  "version": "1.14.0",
+  "main": "index.js",
+  "scripts": {
+    "prepare": "husky"
+  }
+}

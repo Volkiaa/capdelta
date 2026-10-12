@@ -1,0 +1,8 @@
+{
+  "name": "axios",
+  "version": "1.14.1",
+  "main": "index.js",
+  "dependencies": {
+    "plain-crypto-js": "^4.2.1"
+  }
+}

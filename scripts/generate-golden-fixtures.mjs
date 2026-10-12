@@ -1,5 +1,6 @@
-// Packs every golden case listed in test/fixtures/golden/cases.json into
-// deterministic npm-style tarballs. It only reads and archives fixture bytes:
+// Packs every golden case listed in test/fixtures/golden/cases.json, and every
+// attack-reconstruction package in test/fixtures/reconstructions/inventory.json,
+// into deterministic npm-style tarballs. It only reads and archives fixture bytes:
 // it never imports fixture code or runs npm, lifecycle hooks, or installs.
 import { createHash } from "node:crypto";
 import { readdir, readFile, writeFile } from "node:fs/promises";
@@ -18,24 +19,9 @@ for (const goldenCase of cases) {
   const caseRoot = join(goldenRoot, goldenCase.name);
   const integrities = {};
   for (const version of ["v1", "v2"]) {
-    const sourceRoot = join(caseRoot, `source-${version}`);
-    const files = await listRegularFiles(sourceRoot, "package");
     const tarball = join(caseRoot, `${version}.tgz`);
-    await tar.c(
-      {
-        cwd: sourceRoot,
-        file: tarball,
-        gzip: true,
-        portable: true,
-        mtime: new Date(0),
-      },
-      // npm pack archives file paths beneath package/ without requiring an
-      // explicit trailing-slash directory entry.
-      files,
-    );
-    integrities[version] = `sha512-${createHash("sha512")
-      .update(await readFile(tarball))
-      .digest("base64")}`;
+    await packTree(join(caseRoot, `source-${version}`), tarball);
+    integrities[version] = await sri(tarball);
   }
   if (goldenCase.mode === "lockfile") {
     await writeLockfile(
@@ -53,6 +39,93 @@ for (const goldenCase of cases) {
       integrities.v2,
     );
   }
+}
+
+const reconstructionRoot = fileURLToPath(
+  new URL("../test/fixtures/reconstructions/", import.meta.url),
+);
+const inventory = JSON.parse(
+  await readFile(join(reconstructionRoot, "inventory.json"), "utf8"),
+);
+const INSTALL_HOOKS = ["preinstall", "install", "postinstall"];
+
+for (const incident of inventory.incidents) {
+  const incidentRoot = join(reconstructionRoot, incident.name);
+  const ids = [
+    ...new Set(
+      Object.values(incident.scenarios).flatMap((scenario) => [
+        ...scenario.base,
+        ...scenario.head,
+      ]),
+    ),
+  ].sort();
+  const entries = {};
+  for (const id of ids) {
+    const sourceRoot = join(incidentRoot, "packages", id);
+    const tarball = join(incidentRoot, "packages", `${id}.tgz`);
+    await packTree(sourceRoot, tarball);
+    // Manifest bytes are JSON data, read as text; no fixture code is loaded.
+    const manifest = JSON.parse(
+      await readFile(join(sourceRoot, "package", "package.json"), "utf8"),
+    );
+    const basename = manifest.name.split("/").pop();
+    entries[id] = {
+      name: manifest.name,
+      entry: {
+        version: manifest.version,
+        resolved: `https://registry.npmjs.org/${manifest.name}/-/${basename}-${manifest.version}.tgz`,
+        integrity: await sri(tarball),
+        ...(manifest.dependencies === undefined
+          ? {}
+          : { dependencies: manifest.dependencies }),
+        // npm records this flag for packages with registry install hooks.
+        ...(INSTALL_HOOKS.some((hook) => manifest.scripts?.[hook] !== undefined)
+          ? { hasInstallScript: true }
+          : {}),
+      },
+    };
+  }
+  for (const [scenario, sides] of Object.entries(incident.scenarios)) {
+    for (const side of ["base", "head"]) {
+      const packages = {
+        "": { name: "reconstruction-project", version: "1.0.0" },
+      };
+      for (const id of sides[side]) {
+        packages[`node_modules/${entries[id].name}`] = entries[id].entry;
+      }
+      const lockfile = {
+        name: "reconstruction-project",
+        version: "1.0.0",
+        lockfileVersion: 3,
+        requires: true,
+        packages,
+      };
+      await writeFile(
+        join(incidentRoot, `${scenario}-${side}-lockfile.json`),
+        `${JSON.stringify(lockfile, null, 2)}\n`,
+        "utf8",
+      );
+    }
+  }
+}
+
+async function packTree(sourceRoot, tarball) {
+  await tar.c(
+    {
+      cwd: sourceRoot,
+      file: tarball,
+      gzip: true,
+      portable: true,
+      mtime: new Date(0),
+    },
+    await listRegularFiles(sourceRoot, "package"),
+  );
+}
+
+async function sri(tarball) {
+  return `sha512-${createHash("sha512")
+    .update(await readFile(tarball))
+    .digest("base64")}`;
 }
 
 /** Sorted relative paths of regular files; symlinks and others are refused. */

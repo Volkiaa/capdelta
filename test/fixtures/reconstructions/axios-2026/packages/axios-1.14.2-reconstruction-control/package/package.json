@@ -1,0 +1,8 @@
+{
+  "name": "axios",
+  "version": "1.14.2-reconstruction-control",
+  "main": "index.js",
+  "scripts": {
+    "prepare": "husky"
+  }
+}
