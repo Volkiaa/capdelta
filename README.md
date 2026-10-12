@@ -179,14 +179,16 @@ allowlist:
 ```
 
 `version` must be one exact semver (no ranges, tags, or `v` prefix) and is
-compared literally, build metadata included. The reason then reads
-`[version 1.2.13] …`. Other versions do not match the exception, so capabilities they newly gain gate normally (capdelta reports additions, so a later release that adds nothing new produces no finding either way). A scoped entry still
-applies to every matching finding of that version until removed, and it trusts
-npm's immutable `name@version` rather than pinning reviewed bytes. Entries
-without `version` apply to every version, so a later malicious change of the
-same kind in that package would also be suppressed. Several exact versions may
-be listed for one package and capability, but scoped and unscoped entries for
-the same pair cannot be mixed.
+compared literally, build metadata included. The reason then reads `[version
+1.2.13] …`. Other versions do not match the exception, so capabilities they
+newly gain gate normally (capdelta reports additions, so a later release that
+adds nothing new produces no finding either way). A scoped entry still applies
+to every matching finding of that version until removed, and it trusts npm's
+immutable `name@version` rather than pinning reviewed bytes. Entries without
+`version` apply to every version, so a later malicious change of the same kind
+in that package would also be suppressed. Several exact versions may be listed
+for one package and capability, but scoped and unscoped entries for the same
+pair cannot be mixed.
 
 Example excerpt:
 
