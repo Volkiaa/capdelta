@@ -253,11 +253,36 @@ describe("renderSarifReport", () => {
     });
   });
 
-  it("emits nothing for unavailable packages without a severity", () => {
+  it("emits nothing for a transient failure but a rule for a non-retryable status (ADR-018)", () => {
     const run = mismatchRun([{ name: "missing", side: "new" }]);
     const item = run.packages[0];
     if (item?.status !== "unavailable") throw new Error("fixture drift");
-    const run404: CapabilityAnalysisRun = {
+    const transient: CapabilityAnalysisRun = {
+      ...run,
+      packages: [
+        {
+          ...item,
+          failures: [
+            {
+              stage: "fetch",
+              failure: {
+                side: "new",
+                kind: "network-error",
+                detail: "connection reset",
+                url: "https://registry.npmjs.org/new.tgz",
+              },
+            },
+          ],
+        },
+      ],
+    };
+    const transientSarif = JSON.parse(
+      renderSarifReport(transient),
+    ) as ParsedSarif;
+    expect(transientSarif.runs[0].results).toEqual([]);
+    expect(transientSarif.runs[0].tool.driver.rules).toEqual([]);
+
+    const notFound: CapabilityAnalysisRun = {
       ...run,
       packages: [
         {
@@ -276,9 +301,21 @@ describe("renderSarifReport", () => {
         },
       ],
     };
-    const sarif = JSON.parse(renderSarifReport(run404)) as ParsedSarif;
-    expect(sarif.runs[0].results).toEqual([]);
-    expect(sarif.runs[0].tool.driver.rules).toEqual([]);
+    const notFoundSarif = JSON.parse(
+      renderSarifReport(notFound),
+    ) as ParsedSarif;
+    expect(notFoundSarif.runs[0].results).toEqual([
+      expect.objectContaining({
+        ruleId: "CAPDELTA-HTTP-STATUS",
+        level: "error",
+      }),
+    ]);
+    expect(notFoundSarif.runs[0].tool.driver.rules).toEqual([
+      expect.objectContaining({
+        id: "CAPDELTA-HTTP-STATUS",
+        shortDescription: { text: "Package could not be analyzed" },
+      }),
+    ]);
   });
 
   it("describes an unanalyzable package without asserting malware", () => {

@@ -367,20 +367,27 @@ describe("capdelta config unanalyzable exceptions (ADR-017)", () => {
     "invalid-url",
     "unsupported-integrity",
     "integrity-mismatch",
+    // ADR-018: non-retryable HTTP statuses and invalid responses are now
+    // fetch-stage CRITICAL failures, so they are rejected with the same reason.
+    "http-status",
+    "invalid-response",
   ])("rejects the fetch-stage kind %s with its reason", (kind) => {
     expect(() => parseUnanalyzable(entry({ kind }))).toThrow(
       /fetch-stage failures occur before the artifact bytes are verified/u,
     );
   });
 
-  it.each(["network-error", "deadline-exceeded", "manifest-unreadable"])(
-    "rejects the non-unanalyzable kind %s with its reason",
-    (kind) => {
-      expect(() => parseUnanalyzable(entry({ kind }))).toThrow(
-        /not an unanalyzable failure/u,
-      );
-    },
-  );
+  it.each([
+    "network-error",
+    "timeout",
+    "http-unavailable",
+    "deadline-exceeded",
+    "manifest-unreadable",
+  ])("rejects the non-unanalyzable kind %s with its reason", (kind) => {
+    expect(() => parseUnanalyzable(entry({ kind }))).toThrow(
+      /not an unanalyzable failure/u,
+    );
+  });
 
   it.each(["expanded-size-limit", "link-entry", "manifest-missing"])(
     "accepts the post-verification kind %s",

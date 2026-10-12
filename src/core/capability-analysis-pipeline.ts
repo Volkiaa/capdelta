@@ -452,6 +452,9 @@ function resolvePipelineOptions(
         ...(options.fetcher?.cache === undefined
           ? {}
           : { cache: options.fetcher.cache }),
+        ...(options.fetcher?.sleep === undefined
+          ? {}
+          : { sleep: options.fetcher.sleep }),
         ...execution.fetch,
       },
       extractor: {

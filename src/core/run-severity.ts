@@ -1,6 +1,9 @@
 import type { FindingSeverity } from "./capability-differ.js";
 import type { LockfileFindingKind } from "./contract/lockfile-diff.js";
-import type { PackageAnalysisFailure } from "./capability-analysis-pipeline.js";
+import type {
+  CapabilityAnalysisRun,
+  PackageAnalysisFailure,
+} from "./capability-analysis-pipeline.js";
 import type { AnalysisStopKind } from "./analysis-execution-policy.js";
 import type { FetchFailureKind } from "./npm/fetcher.js";
 import type { ExtractionFailureKind } from "./npm/safe-extractor.js";
@@ -78,6 +81,11 @@ export const FETCH_STAGE_CRITICAL_KINDS: readonly FetchFailureKind[] = [
   "invalid-url",
   "unsupported-integrity",
   "integrity-mismatch",
+  // ADR-018: a non-retryable HTTP status and an invalid response are decided
+  // deterministically by the lockfile or the registry, so they are CRITICAL and
+  // unanalyzable too.
+  "http-status",
+  "invalid-response",
 ];
 
 export class SeverityGateError extends Error {
@@ -185,16 +193,19 @@ export function isUnanalyzableIssue(
 
 function fetchFailureSeverity(kind: FetchFailureKind): FindingSeverity | null {
   switch (kind) {
+    // ADR-018: a non-retryable HTTP status and an invalid response are decided
+    // by the lockfile entry or the registry, so they are CRITICAL too.
     case "integrity-mismatch":
     case "size-limit-exceeded":
     case "invalid-url":
     case "unsupported-integrity":
-      return "CRITICAL";
     case "http-status":
-    case "timeout":
-    case "aborted":
-    case "network-error":
     case "invalid-response":
+      return "CRITICAL";
+    case "timeout":
+    case "network-error":
+    case "http-unavailable":
+    case "aborted":
       return null;
     default: {
       const unclassified: never = kind;
@@ -263,6 +274,118 @@ function analysisStopSeverity(kind: AnalysisStopKind): FindingSeverity | null {
       const unclassified: never = kind;
       throw new SeverityGateError(
         `unclassified analysis stop kind ${JSON.stringify(unclassified)}`,
+      );
+    }
+  }
+}
+
+/**
+ * ADR-018: true when a run is an operational failure. A package is operational
+ * when it is unavailable because of an exhausted transient fetch failure
+ * (`timeout`, `network-error`, or `http-unavailable` after the final attempt)
+ * or a deadline/cancellation stop (`aborted`, `deadline-exceeded`, or
+ * `analysis-aborted`) at any stage. Report-only mode still fails on this.
+ */
+export function hasOperationalFailure(run: CapabilityAnalysisRun): boolean {
+  return operationalFailureCount(run) > 0;
+}
+
+/**
+ * ADR-018: how many packages are operational failures. Each package counts
+ * once, however many sides, stages, or attempts failed.
+ */
+export function operationalFailureCount(run: CapabilityAnalysisRun): number {
+  return run.packages.filter(
+    (item) =>
+      item.status === "unavailable" && item.failures.some(isOperationalFailure),
+  ).length;
+}
+
+/** ADR-018: the shared CLI and Action message for an operational failure. */
+export function operationalFailureMessage(count: number): string {
+  return `capdelta: ${String(count)} package(s) could not be fetched or analyzed before the run ended`;
+}
+
+/**
+ * ADR-018: an exhausted transient fetch failure or a stop at any stage. A
+ * deterministic fetch failure (a 404, a size cap, an integrity mismatch) is a
+ * severity issue, never an operational one.
+ */
+export function isOperationalFailure(issue: PackageAnalysisFailure): boolean {
+  switch (issue.stage) {
+    case "fetch":
+      return isOperationalFetchKind(issue.failure.kind);
+    case "analysis":
+      return isStopKind(issue.failure.kind);
+    case "old-extraction":
+    case "new-extraction":
+      return isStopKind(issue.failure.kind);
+    case "old-manifest":
+    case "new-manifest":
+      return isStopKind(issue.failure.kind);
+    case "old-cleanup":
+    case "new-cleanup":
+      return false;
+    default: {
+      const unclassified: never = issue;
+      throw new SeverityGateError(
+        `unclassified analysis failure ${JSON.stringify(unclassified)}`,
+      );
+    }
+  }
+}
+
+function isOperationalFetchKind(kind: FetchFailureKind): boolean {
+  switch (kind) {
+    case "timeout":
+    case "network-error":
+    case "http-unavailable":
+    case "aborted":
+      return true;
+    case "invalid-url":
+    case "unsupported-integrity":
+    case "http-status":
+    case "invalid-response":
+    case "size-limit-exceeded":
+    case "integrity-mismatch":
+      return false;
+    default: {
+      const unclassified: never = kind;
+      throw new SeverityGateError(
+        `unclassified fetch failure kind ${JSON.stringify(unclassified)}`,
+      );
+    }
+  }
+}
+
+function isStopKind(
+  kind:
+    AnalysisStopKind | ExtractionFailureKind | ManifestCapabilityFailureKind,
+): boolean {
+  switch (kind) {
+    case "deadline-exceeded":
+    case "analysis-aborted":
+      return true;
+    case "invalid-archive":
+    case "invalid-layout":
+    case "unsafe-path":
+    case "link-entry":
+    case "unsupported-entry":
+    case "file-count-limit":
+    case "expanded-size-limit":
+    case "decompression-ratio-limit":
+    case "filesystem-error":
+    case "manifest-missing":
+    case "manifest-too-large":
+    case "manifest-invalid-json":
+    case "manifest-invalid-root":
+    case "identity-mismatch":
+    case "manifest-unreadable":
+      return false;
+    default: {
+      const unclassified: never = kind;
+      throw new SeverityGateError(
+        `unclassified stop-bearing failure kind ${JSON.stringify(unclassified)}`,
       );
     }
   }

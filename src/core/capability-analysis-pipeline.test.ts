@@ -41,7 +41,11 @@ import {
 } from "./manifest-analysis-pipeline.js";
 import type { CapdeltaConfig } from "./capdelta-config.js";
 import { buildRunReport } from "./reporter.js";
-import { evaluateSeverityGate } from "./run-severity.js";
+import {
+  evaluateSeverityGate,
+  hasOperationalFailure,
+  operationalFailureCount,
+} from "./run-severity.js";
 
 const TARBALL: VerifiedTarball = {
   integrity: "sha512-inert",
@@ -239,6 +243,110 @@ describe("analyzeChangedPackages", () => {
       failures: [{ stage: "fetch", failure: { kind: "http-status" } }],
     });
     expect(result.packages[1]?.status).toBe("analyzed");
+  });
+
+  it("reports an exhausted transient fetch as an operational failure (ADR-018)", async () => {
+    const run = pipeline({
+      fetch: (packages) => {
+        const target = packages[0];
+        if (target === undefined) throw new Error("missing fixture package");
+        return Promise.resolve([
+          {
+            status: "unavailable" as const,
+            changedPackage: target,
+            failure: {
+              side: "new" as const,
+              kind: "network-error" as const,
+              detail: "connection reset",
+              url: target.resolvedUrl,
+            },
+          },
+        ]);
+      },
+    });
+
+    const result = await run(lockfileDiff([changedPackage("flaky")]));
+
+    expect(result.packages[0]).toMatchObject({
+      status: "unavailable",
+      failures: [{ stage: "fetch", failure: { kind: "network-error" } }],
+    });
+    expect(hasOperationalFailure(result)).toBe(true);
+    expect(operationalFailureCount(result)).toBe(1);
+  });
+
+  it("does not report a deterministic fetch failure as operational (ADR-018)", async () => {
+    const run = pipeline({
+      fetch: (packages) => {
+        const target = packages[0];
+        if (target === undefined) throw new Error("missing fixture package");
+        return Promise.resolve([
+          {
+            status: "unavailable" as const,
+            changedPackage: target,
+            failure: {
+              side: "new" as const,
+              kind: "http-status" as const,
+              detail: "HTTP 404",
+              url: target.resolvedUrl,
+            },
+          },
+        ]);
+      },
+    });
+
+    const result = await run(lockfileDiff([changedPackage("missing")]));
+
+    expect(hasOperationalFailure(result)).toBe(false);
+    expect(operationalFailureCount(result)).toBe(0);
+  });
+
+  it("keeps the run-level stop when cancellation lands before the fetch result is processed (ADR-018)", async () => {
+    const controller = new AbortController();
+    let markFetched: (() => void) | undefined;
+    const fetched = new Promise<void>((resolve) => {
+      markFetched = resolve;
+    });
+    let releaseFetch: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      releaseFetch = resolve;
+    });
+    const run = pipeline({
+      fetch: async (packages) => {
+        markFetched?.();
+        await gate;
+        const target = packages[0];
+        if (target === undefined) throw new Error("missing fixture package");
+        return [
+          {
+            status: "unavailable" as const,
+            changedPackage: target,
+            failure: {
+              side: "new" as const,
+              kind: "http-unavailable" as const,
+              detail: "HTTP 503",
+              url: target.resolvedUrl,
+            },
+          },
+        ];
+      },
+    });
+
+    const pending = run(lockfileDiff([changedPackage("slow")]), {
+      execution: { signal: controller.signal },
+    });
+    await fetched;
+    controller.abort();
+    releaseFetch?.();
+    const result = await pending;
+
+    // The transient fetch failure is superseded by the run-level stop, but the
+    // stop itself is operational, so the package still counts.
+    expect(result.packages[0]).toMatchObject({
+      status: "unavailable",
+      failures: [{ stage: "analysis", failure: { kind: "analysis-aborted" } }],
+    });
+    expect(hasOperationalFailure(result)).toBe(true);
   });
 
   it("returns extraction and manifest failures and still cleans extracted roots", async () => {
