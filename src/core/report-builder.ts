@@ -32,8 +32,9 @@ import {
 } from "./run-severity.js";
 import { createHash } from "node:crypto";
 
-const MAX_IDENTITY_CHARS = 160;
-const MAX_VALUE_CHARS = 240;
+/** Attacker-controlled text bounds shared by every report format (PLAN §3). */
+export const MAX_IDENTITY_CHARS = 160;
+export const MAX_VALUE_CHARS = 240;
 const MAX_EVIDENCE_FILE_CHARS = 200;
 const MAX_EVIDENCE_SNIPPET_CHARS = 240;
 
@@ -532,7 +533,7 @@ function crossLinkDependencies(packages: readonly JsonRunPackage[]): void {
   }
 }
 
-function truncate(value: string, maxCharacters: number): string {
+export function truncate(value: string, maxCharacters: number): string {
   const characters = Array.from(value);
   if (characters.length <= maxCharacters) return value;
   return `${characters.slice(0, maxCharacters - 1).join("")}\u2026`;

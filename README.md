@@ -221,7 +221,10 @@ The Action:
    (unsuppressed findings, lockfile findings, and integrity mismatches), while
    `summary.bySeverity` keeps every capability and signal finding, suppressed
    ones included;
-4. uploads SARIF 2.1.0 to code scanning when permissions permit;
+4. uploads SARIF 2.1.0 to code scanning when permissions permit; tarball
+   integrity mismatches appear as `CAPDELTA-INTEGRITY-MISMATCH` results located
+   at the configured `lockfile-path`, with no line, since the package itself
+   was not analyzed;
 5. creates or updates one 60,000-character-capped sticky summary comment; and
 6. applies `fail-on` only after report delivery.
 
