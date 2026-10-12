@@ -154,21 +154,33 @@ report's `summary.gateSeverity`: unsuppressed capability and signal findings,
 lockfile findings, and severity-bearing analysis issues. Tarball integrity
 mismatches, and packages capdelta cannot analyze for a reason decided by the
 artifact bytes or the lockfile entry, are CRITICAL, so the default gate fails
-until a person reviews them (ADR-016). Allowlisted findings stay in the report
-as suppressed but never fail the gate.
+until a person reviews them (ADR-016, ADR-018). That includes an integrity
+mismatch, a tarball over a cap, a non-retryable HTTP status such as 404, and an
+invalid response. Allowlisted findings stay in the report as suppressed but
+never fail the gate.
 
 `--strict` returns exit `2` when a package is unavailable, a lockfile entry is
 skipped, diagnostics remain, or cancellation/deadline leaves work incomplete.
-Without it, transient or environmental incompleteness still remains loud in the
-report but does not fail the run; severity-bearing issues such as integrity
-mismatches and unanalyzable packages go through `--fail-on`.
+Without it, other environmental incompleteness still remains loud in the report
+but does not fail the run; severity-bearing issues such as integrity mismatches
+and unanalyzable packages go through `--fail-on`. A transient fetch failure that
+outlives its retries, or a deadline/cancellation stop, is different: it is an
+operational failure (ADR-018) and exits `1` even under `--fail-on none`.
 
-| Exit | Meaning                                                                                                           |
-| ---: | ----------------------------------------------------------------------------------------------------------------- |
-|  `0` | Nothing reached the `--fail-on` threshold (without `--strict`, analysis may be incomplete), or lockfile unchanged |
-|  `1` | A finding reached the threshold, or an operational failure; see stderr                                            |
-|  `2` | `--strict` found unanalyzed content; takes precedence over the threshold                                          |
-| `64` | Invalid usage                                                                                                     |
+capdelta retries a transient fetch failure — `network-error`, `timeout`, and
+HTTP 408, 429, or 5xx — up to three attempts, with 250 ms and then 1 s of
+backoff. A retryable status that persists becomes `http-unavailable`. A
+`timeout`, `network-error`, or `http-unavailable` after the final attempt, and
+any package the deadline or cancellation left unanalyzed, fail the run
+operationally: the CLI prints `capdelta: N package(s) could not be fetched or
+analyzed before the run ended` to stderr and exits `1`.
+
+| Exit | Meaning                                                                                                     |
+| ---: | ----------------------------------------------------------------------------------------------------------- |
+|  `0` | Nothing reached the `--fail-on` threshold and no package failed operationally, or the lockfile is unchanged |
+|  `1` | A finding reached the threshold, or an operational failure; see stderr                                      |
+|  `2` | `--strict` found unanalyzed content; takes precedence over the threshold                                    |
+| `64` | Invalid usage                                                                                               |
 
 Allowlist exceptions live in `.capdelta.yml` and require a justification. The
 GitHub Action reads this file from the selected base commit (the PR base, or
@@ -330,7 +342,8 @@ The Action:
    at the configured `lockfile-path`, with no line, since the package itself
    was not analyzed;
 5. creates or updates one 60,000-character-capped sticky summary comment; and
-6. applies `fail-on` only after report delivery.
+6. applies `fail-on` only after report delivery, and fails the job for an
+   operational failure (ADR-018) even under `fail-on: none`.
 
 Fork and Dependabot PRs have read-only credentials. capdelta therefore writes
 the same inert summary to the job summary, retains the JSON artifact, relies on
@@ -442,7 +455,10 @@ than `registry.npmjs.org` is skipped and flagged.
   the default gate, but only for the exact new-side bytes it names; a tarball
   over the download cap fails before verification and cannot be excepted.
   `--strict` still returns exit 2. The axios reconstruction includes a test
-  that records this boundary.
+  that records this boundary. A non-retryable HTTP status, such as a `resolved`
+  URL that 404s, is CRITICAL in the same way (ADR-018). A transient fetch
+  failure that outlives its retries, or a package the deadline or cancellation
+  left unanalyzed, fails the run with exit 1 even under `--fail-on none`.
 - **Registry scope:** private registries, mirrors, git, file, and link
   dependencies are skipped and surfaced as unanalyzed.
 - **Single ecosystem and lockfile:** npm lockfile v2/v3 only, one lockfile per
@@ -541,6 +557,7 @@ the check but are not the gate.
 - [ADR-015: Read allowlist policy from the base commit](docs/adr/0015-policy-from-base-commit.md)
 - [ADR-016: Fail the default gate on packages capdelta cannot analyze](docs/adr/0016-fail-closed-on-unanalyzable-packages.md)
 - [ADR-017: Reviewed exceptions for unanalyzable packages](docs/adr/0017-reviewed-unanalyzable-exceptions.md)
+- [ADR-018: Fetch failures fail the run instead of passing it](docs/adr/0018-fetch-failures-fail-closed.md)
 
 The authoritative architecture and roadmap remain in
 [docs/PLAN.md](docs/PLAN.md). Session handoffs are recorded in

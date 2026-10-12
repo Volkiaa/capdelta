@@ -489,3 +489,47 @@ escapes; worth considering a CI grep for control characters in source files.
    needs a new independent corpus.
 3. A `hasInstallScript` lockfile fallback for packages the extractor cannot
    analyze (it needs its own ADR; the flag is attacker-controlled metadata).
+
+## 2026-10-12 (night) — Fail-closed gate: unanalyzable packages, reviewed exceptions, fetch failures
+
+### 1. Completed and verified
+
+- **ADR-016 (#48, merged):** unanalyzable packages are CRITICAL. Every
+  `(stage, kind)` pair is classified exhaustively in `run-severity.ts`; a
+  package capdelta cannot inspect for a reason the artifact bytes or the
+  lockfile entry decide fails the default gate. `buildRunReport` counts each
+  unavailable package once, at its highest failure severity; `--strict` is
+  unchanged. The axios-over-cap reconstruction now fails the default gate.
+- **ADR-017 (#50, merged):** reviewed `unanalyzable:` exceptions in
+  `.capdelta.yml`, read from the base commit (ADR-015). An entry binds the exact
+  new-side version and sha512 integrity and a post-verification failure kind;
+  fetch-stage kinds are rejected. Every severity-bearing failure must match, at
+  least one on the new side, or the package still gates.
+- **ADR-018 (this branch, `adr-018-fetch-fail-closed`):** bounded retries in
+  `fetchArtifact` — three attempts, 250 ms then 1 s of backoff, with the sleep
+  injectable so tests stay instant — retry `network-error`, `timeout`, and HTTP
+  408/429/5xx. A retryable status that persists becomes the new additive
+  `http-unavailable` kind; `http-status` and `invalid-response` are now CRITICAL
+  and unanalyzable (decision 3). `hasOperationalFailure(run)` in
+  `run-severity.ts` fails the CLI (exit 1) and the Action for an exhausted
+  transient fetch, or an `aborted`/`deadline-exceeded`/`analysis-aborted` stop at
+  any stage, even under `--fail-on none`; `--strict` exit 2 still takes
+  precedence.
+
+### 2. Half-done and exact resume point
+
+- M5 publication and the demo (PLAN §6): a real-PR screenshot and the blog post.
+  The permission-aware comment decision for Dependabot PRs is still open.
+- ADR-018 leaves the `hasInstallScript` lockfile fallback undone (its own ADR).
+
+### 3. ADR status
+
+- ADR-016, ADR-017, ADR-018 accepted (ADR-018 pending its PR).
+
+### 4. Open questions
+
+1. Does registry flakiness now cause repeated operational failures in real CI,
+   since an exhausted transient fetch fails the run? Revisit ADR-018 if so.
+2. Remaining M5 noise: published TypeScript sources as MEDIUM and numeric
+   matrices matching the charcode-array recognizer. Any change needs a new
+   independent corpus.

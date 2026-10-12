@@ -1,5 +1,6 @@
 package-lock.json
 dist/action/
+.opencode-task.md
 docs/PLAN.md
 LICENSE
 # Golden fixture sources are archived byte-for-byte (scripts/generate-golden-fixtures.mjs).
