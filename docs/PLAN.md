@@ -13,6 +13,9 @@ Revision 3: rev. 2 review fixes + capdiff prior-art adoptions (shape-based sever
 > policy—bounded concurrency, cancellation, cleanup, and whole-run
 > deadlines—landed early; the remaining roadmap below is unchanged. See
 > `docs/SESSIONS.md` for handoffs.
+> M5: the §7.4 measurement is recorded in `docs/m5-2026-10-12/` (default
+> gate failed on 2/90 assumed-benign bumps, both accurate install-hook
+> changes; reconstructions labeled). Publication and the demo remain.
 
 ## 1. Problem statement
 

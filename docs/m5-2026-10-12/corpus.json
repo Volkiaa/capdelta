@@ -1,0 +1,850 @@
+{
+  "schemaVersion": 1,
+  "selectedAt": "2026-10-12T14:06:27.903Z",
+  "rule": "adjacent pairs among the 4 highest eligible versions (x.y.z only, not deprecated, sha512 integrity), ordered by version number, not publish time",
+  "packages": [
+    "got",
+    "undici",
+    "ws",
+    "socket.io",
+    "superagent",
+    "fastify",
+    "koa",
+    "hono",
+    "vue",
+    "svelte",
+    "rollup",
+    "webpack",
+    "@babel/core",
+    "prettier",
+    "terser",
+    "chalk",
+    "yargs",
+    "uuid",
+    "dayjs",
+    "zod",
+    "bcrypt",
+    "sqlite3",
+    "@swc/core",
+    "puppeteer",
+    "protobufjs",
+    "@aws-sdk/client-s3",
+    "firebase-admin",
+    "stripe",
+    "@octokit/rest",
+    "pg"
+  ],
+  "pairs": [
+    {
+      "name": "got",
+      "oldVersion": "15.0.6",
+      "newVersion": "15.0.7",
+      "oldIntegrity": "sha512-6DEiZOte0BMR/QUFlk7CTBtcLpnJx/gAGnmApWtnHvM2i+LssgCaC3Kl3x+SZ/laTbYlmcaabylkwS0t97Y4BA==",
+      "newIntegrity": "sha512-HA4XUhL2xk0/sA4l3zRyOzfqPtDEiVYpzDae56WLX2aHZYF6v6hjTnuDvURIdznSTPFYW1JUdlREhZjGAF9LCQ==",
+      "oldResolvedUrl": "https://registry.npmjs.org/got/-/got-15.0.6.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/got/-/got-15.0.7.tgz"
+    },
+    {
+      "name": "got",
+      "oldVersion": "15.0.7",
+      "newVersion": "15.1.0",
+      "oldIntegrity": "sha512-HA4XUhL2xk0/sA4l3zRyOzfqPtDEiVYpzDae56WLX2aHZYF6v6hjTnuDvURIdznSTPFYW1JUdlREhZjGAF9LCQ==",
+      "newIntegrity": "sha512-DG+DAAkRtno+oDr/GBsliAkhN9+zczOPM5qXk3efDZY3qvyRnZU+NwQlb/IOY6cSnxxTR9z3aHCcShJyjb0hJA==",
+      "oldResolvedUrl": "https://registry.npmjs.org/got/-/got-15.0.7.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/got/-/got-15.1.0.tgz"
+    },
+    {
+      "name": "got",
+      "oldVersion": "15.1.0",
+      "newVersion": "16.0.0",
+      "oldIntegrity": "sha512-DG+DAAkRtno+oDr/GBsliAkhN9+zczOPM5qXk3efDZY3qvyRnZU+NwQlb/IOY6cSnxxTR9z3aHCcShJyjb0hJA==",
+      "newIntegrity": "sha512-UtzSUebtRHHAUaNB/X37X1LQgHvdSrgXUIWGUBDhLu05CYtUr9svjeN6wmG333nzdJASFUjXMOuRBjZLf8oF1w==",
+      "oldResolvedUrl": "https://registry.npmjs.org/got/-/got-15.1.0.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/got/-/got-16.0.0.tgz"
+    },
+    {
+      "name": "undici",
+      "oldVersion": "8.10.2",
+      "newVersion": "8.11.0",
+      "oldIntegrity": "sha512-/y4/bH9YNU5hi9NIrpOuvGXFcxrj3CMrV+/AYpowAYTpHn8gX/XPFjNy766FPoYY0miQhdW977JFWKGNhBdwyQ==",
+      "newIntegrity": "sha512-AdzuGcAkzhbha3GgCSoUBx2P0quwym6qdFNCQz/fDGZc8w9XJ741wHUbt2kTmfPz+ZIOMkySFkiY7RXmiDDC8w==",
+      "oldResolvedUrl": "https://registry.npmjs.org/undici/-/undici-8.10.2.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/undici/-/undici-8.11.0.tgz"
+    },
+    {
+      "name": "undici",
+      "oldVersion": "8.11.0",
+      "newVersion": "8.11.1",
+      "oldIntegrity": "sha512-AdzuGcAkzhbha3GgCSoUBx2P0quwym6qdFNCQz/fDGZc8w9XJ741wHUbt2kTmfPz+ZIOMkySFkiY7RXmiDDC8w==",
+      "newIntegrity": "sha512-TlM6uPTfw1uM14VFCB/VRq6JGtxY8+aA7vhqB9uH1vGsi/Db7ZjcagIV/wSsICKB+CxXjqtMzdW+QfYE8Ceulg==",
+      "oldResolvedUrl": "https://registry.npmjs.org/undici/-/undici-8.11.0.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/undici/-/undici-8.11.1.tgz"
+    },
+    {
+      "name": "undici",
+      "oldVersion": "8.11.1",
+      "newVersion": "8.11.2",
+      "oldIntegrity": "sha512-TlM6uPTfw1uM14VFCB/VRq6JGtxY8+aA7vhqB9uH1vGsi/Db7ZjcagIV/wSsICKB+CxXjqtMzdW+QfYE8Ceulg==",
+      "newIntegrity": "sha512-u4UB2/IrKdU6lFxumHmmo1a3fCQO5tzQllRorfoRS63txhrB7xTpSn1PftwC4qEHkOaqP95fCWW4lJzwErwzhQ==",
+      "oldResolvedUrl": "https://registry.npmjs.org/undici/-/undici-8.11.1.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/undici/-/undici-8.11.2.tgz"
+    },
+    {
+      "name": "ws",
+      "oldVersion": "8.21.1",
+      "newVersion": "8.21.2",
+      "oldIntegrity": "sha512-+0NTnW77fFN/DjQi6k/Sq/Yvk4Sgajw7urW8V+asjXnRgDs9gyGkdb7EzgfhA4goXsRIZKE28fzIXBHEzhuiWw==",
+      "newIntegrity": "sha512-54dMVAo4WIe6SKy3vBgN+9bJZqqQ8IMRevAkOLQALhi49qkkQDQfWdAZ8KQlXiEabw88ARXXdUrlvtbKQX+aKw==",
+      "oldResolvedUrl": "https://registry.npmjs.org/ws/-/ws-8.21.1.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/ws/-/ws-8.21.2.tgz"
+    },
+    {
+      "name": "ws",
+      "oldVersion": "8.21.2",
+      "newVersion": "8.21.3",
+      "oldIntegrity": "sha512-54dMVAo4WIe6SKy3vBgN+9bJZqqQ8IMRevAkOLQALhi49qkkQDQfWdAZ8KQlXiEabw88ARXXdUrlvtbKQX+aKw==",
+      "newIntegrity": "sha512-201TZ/kPWxoPr/OKWjquZR1SWKXcvxdH+e1xrx89b3YbmzLMFCLfnaG1HFIgWzJOEWZ7MvpK++odZufgYR50Rw==",
+      "oldResolvedUrl": "https://registry.npmjs.org/ws/-/ws-8.21.2.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/ws/-/ws-8.21.3.tgz"
+    },
+    {
+      "name": "ws",
+      "oldVersion": "8.21.3",
+      "newVersion": "8.22.0",
+      "oldIntegrity": "sha512-201TZ/kPWxoPr/OKWjquZR1SWKXcvxdH+e1xrx89b3YbmzLMFCLfnaG1HFIgWzJOEWZ7MvpK++odZufgYR50Rw==",
+      "newIntegrity": "sha512-Ydggc987+RO0AnWtZ/7Wq9FtNvcrL1b/RO0ud9mWjUPgDrsAAwQSF51sm2hm1XofbU/4jkpGEsLFsZZxU+1DOg==",
+      "oldResolvedUrl": "https://registry.npmjs.org/ws/-/ws-8.21.3.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/ws/-/ws-8.22.0.tgz"
+    },
+    {
+      "name": "socket.io",
+      "oldVersion": "4.8.1",
+      "newVersion": "4.8.2",
+      "oldIntegrity": "sha512-oZ7iUCxph8WYRHHcjBEc9unw3adt5CmSNlppj/5Q4k2RIrhl8Z5yY2Xr4j9zj0+wzVZ0bxmYoGSzKJnRl6A4yg==",
+      "newIntegrity": "sha512-wMAICvNHJNtnd3Jq97xROyRyFjMQ2G8QsVF6V+K6+6lztP3GaTcIaos+6E7+8jD/NoY++/vCvU9AI+bvRBNXVw==",
+      "oldResolvedUrl": "https://registry.npmjs.org/socket.io/-/socket.io-4.8.1.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/socket.io/-/socket.io-4.8.2.tgz"
+    },
+    {
+      "name": "socket.io",
+      "oldVersion": "4.8.2",
+      "newVersion": "4.8.3",
+      "oldIntegrity": "sha512-wMAICvNHJNtnd3Jq97xROyRyFjMQ2G8QsVF6V+K6+6lztP3GaTcIaos+6E7+8jD/NoY++/vCvU9AI+bvRBNXVw==",
+      "newIntegrity": "sha512-2Dd78bqzzjE6KPkD5fHZmDAKRNe3J15q+YHDrIsy9WEkqttc7GY+kT9OBLSMaPbQaEd0x1BjcmtMtXkfpc+T5A==",
+      "oldResolvedUrl": "https://registry.npmjs.org/socket.io/-/socket.io-4.8.2.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/socket.io/-/socket.io-4.8.3.tgz"
+    },
+    {
+      "name": "socket.io",
+      "oldVersion": "4.8.3",
+      "newVersion": "4.8.4",
+      "oldIntegrity": "sha512-2Dd78bqzzjE6KPkD5fHZmDAKRNe3J15q+YHDrIsy9WEkqttc7GY+kT9OBLSMaPbQaEd0x1BjcmtMtXkfpc+T5A==",
+      "newIntegrity": "sha512-9ZV9zg8vN8hO3Y25DhR7nUkJ1VDnBhq5O/JrXhFT9s6+F0gqytSASTHVfCFc2mJXaTfARroErplXlzFWwETZqQ==",
+      "oldResolvedUrl": "https://registry.npmjs.org/socket.io/-/socket.io-4.8.3.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/socket.io/-/socket.io-4.8.4.tgz"
+    },
+    {
+      "name": "superagent",
+      "oldVersion": "10.2.3",
+      "newVersion": "10.3.0",
+      "oldIntegrity": "sha512-y/hkYGeXAj7wUMjxRbB21g/l6aAEituGXM9Rwl4o20+SX3e8YOSV6BxFXl+dL3Uk0mjSL3kCbNkwURm8/gEDig==",
+      "newIntegrity": "sha512-B+4Ik7ROgVKrQsXTV0Jwp2u+PXYLSlqtDAhYnkkD+zn3yg8s/zjA2MeGayPoY/KICrbitwneDHrjSotxKL+0XQ==",
+      "oldResolvedUrl": "https://registry.npmjs.org/superagent/-/superagent-10.2.3.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/superagent/-/superagent-10.3.0.tgz"
+    },
+    {
+      "name": "superagent",
+      "oldVersion": "10.3.0",
+      "newVersion": "10.4.0",
+      "oldIntegrity": "sha512-B+4Ik7ROgVKrQsXTV0Jwp2u+PXYLSlqtDAhYnkkD+zn3yg8s/zjA2MeGayPoY/KICrbitwneDHrjSotxKL+0XQ==",
+      "newIntegrity": "sha512-QmE27Y9G7MvQR2B7S5q16IySUiZoNhhzxiU2YETs/NtfKrd5UaS5+yXzq4Doa4qDwQ36Wo6nQN3TW9Y7Wb4aew==",
+      "oldResolvedUrl": "https://registry.npmjs.org/superagent/-/superagent-10.3.0.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/superagent/-/superagent-10.4.0.tgz"
+    },
+    {
+      "name": "superagent",
+      "oldVersion": "10.4.0",
+      "newVersion": "10.4.1",
+      "oldIntegrity": "sha512-QmE27Y9G7MvQR2B7S5q16IySUiZoNhhzxiU2YETs/NtfKrd5UaS5+yXzq4Doa4qDwQ36Wo6nQN3TW9Y7Wb4aew==",
+      "newIntegrity": "sha512-PVMkMrhKrSTtFhUU8jiWuGh/gyRMKiyCTCmm0+qVzRNxlfntmRKJkDhlEXN62x3HIb33sQ4kmL8lcSdccWAchQ==",
+      "oldResolvedUrl": "https://registry.npmjs.org/superagent/-/superagent-10.4.0.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/superagent/-/superagent-10.4.1.tgz"
+    },
+    {
+      "name": "fastify",
+      "oldVersion": "5.12.2",
+      "newVersion": "5.12.3",
+      "oldIntegrity": "sha512-npAgfhAigNiLOhCZEg7uFWThMrYoiDX/7/VyzicXSrVSXz6K/KYekW+QpOk7WOnZER0U7MmjvoDHV6qO5x4wKg==",
+      "newIntegrity": "sha512-reZ8wce5VNCcufIt9AVtzZa3L4u1j8esikn7OEgHWLVpRpL5R7Y2+Xzj70OUkv5zDfzUAxXZT6cu4Rt0zr3EKA==",
+      "oldResolvedUrl": "https://registry.npmjs.org/fastify/-/fastify-5.12.2.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/fastify/-/fastify-5.12.3.tgz"
+    },
+    {
+      "name": "fastify",
+      "oldVersion": "5.12.3",
+      "newVersion": "5.12.4",
+      "oldIntegrity": "sha512-reZ8wce5VNCcufIt9AVtzZa3L4u1j8esikn7OEgHWLVpRpL5R7Y2+Xzj70OUkv5zDfzUAxXZT6cu4Rt0zr3EKA==",
+      "newIntegrity": "sha512-zATD676fP6tBMsn+jQ7Q5/cO/Qo+149TXH0dUqUKel+1/hcZxwIbnflqtPa9EjlrvpY8eCZcL3M1UYrMc31Y7g==",
+      "oldResolvedUrl": "https://registry.npmjs.org/fastify/-/fastify-5.12.3.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/fastify/-/fastify-5.12.4.tgz"
+    },
+    {
+      "name": "fastify",
+      "oldVersion": "5.12.4",
+      "newVersion": "5.12.5",
+      "oldIntegrity": "sha512-zATD676fP6tBMsn+jQ7Q5/cO/Qo+149TXH0dUqUKel+1/hcZxwIbnflqtPa9EjlrvpY8eCZcL3M1UYrMc31Y7g==",
+      "newIntegrity": "sha512-OB2k1dlxs5/NAABqeKV2FUHkSD2BbENsCak8yULVcymn3fHIPDVa9TI3SDnJSWYSllZmSYuZXy2gTnsT+Sut1A==",
+      "oldResolvedUrl": "https://registry.npmjs.org/fastify/-/fastify-5.12.4.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/fastify/-/fastify-5.12.5.tgz"
+    },
+    {
+      "name": "koa",
+      "oldVersion": "3.1.1",
+      "newVersion": "3.1.2",
+      "oldIntegrity": "sha512-KDDuvpfqSK0ZKEO2gCPedNjl5wYpfj+HNiuVRlbhd1A88S3M0ySkdf2V/EJ4NWt5dwh5PXCdcenrKK2IQJAxsg==",
+      "newIntegrity": "sha512-2LOQnFKu3m0VxpE+5sb5+BRTSKrXmNxGgxVRiKwD9s5KQB1zID/FRXhtzeV7RT1L2GVpdEEAfVuclFOMGl1ikA==",
+      "oldResolvedUrl": "https://registry.npmjs.org/koa/-/koa-3.1.1.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/koa/-/koa-3.1.2.tgz"
+    },
+    {
+      "name": "koa",
+      "oldVersion": "3.1.2",
+      "newVersion": "3.2.0",
+      "oldIntegrity": "sha512-2LOQnFKu3m0VxpE+5sb5+BRTSKrXmNxGgxVRiKwD9s5KQB1zID/FRXhtzeV7RT1L2GVpdEEAfVuclFOMGl1ikA==",
+      "newIntegrity": "sha512-TrM4/tnNY7uJ1aW55sIIa+dqBvc4V14WRIAlGcWat9wV5pRS9Wr5Zk2ZTjQP1jtfIHDoHiSbPuV08P0fUZo2pg==",
+      "oldResolvedUrl": "https://registry.npmjs.org/koa/-/koa-3.1.2.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/koa/-/koa-3.2.0.tgz"
+    },
+    {
+      "name": "koa",
+      "oldVersion": "3.2.0",
+      "newVersion": "3.2.1",
+      "oldIntegrity": "sha512-TrM4/tnNY7uJ1aW55sIIa+dqBvc4V14WRIAlGcWat9wV5pRS9Wr5Zk2ZTjQP1jtfIHDoHiSbPuV08P0fUZo2pg==",
+      "newIntegrity": "sha512-e7IpWJrnanNUroVK2taAgMxoEZvHLXdQiNjeExSu/DEIWm83jaKGBgb7tLmu2rMYpA027qFB3iLR/k3AVpFRnA==",
+      "oldResolvedUrl": "https://registry.npmjs.org/koa/-/koa-3.2.0.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/koa/-/koa-3.2.1.tgz"
+    },
+    {
+      "name": "hono",
+      "oldVersion": "4.13.10",
+      "newVersion": "4.13.11",
+      "oldIntegrity": "sha512-dQuLsa5oO+47QVMVMaaD9cIv8ctmVtK1iRvwWngkfloFJMeFeuoUFDswIqZGxmGX3hrRzREgEArjkK9OgsQEhA==",
+      "newIntegrity": "sha512-/SMX/RQNJn7oNmFwH6DtwDqcrzZU2otm1FD6OJe2cWF6cfy/F8hq0XVBv7xW3FTJshRQwuBnXHDq2kNsdZnshg==",
+      "oldResolvedUrl": "https://registry.npmjs.org/hono/-/hono-4.13.10.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/hono/-/hono-4.13.11.tgz"
+    },
+    {
+      "name": "hono",
+      "oldVersion": "4.13.11",
+      "newVersion": "4.13.12",
+      "oldIntegrity": "sha512-/SMX/RQNJn7oNmFwH6DtwDqcrzZU2otm1FD6OJe2cWF6cfy/F8hq0XVBv7xW3FTJshRQwuBnXHDq2kNsdZnshg==",
+      "newIntegrity": "sha512-6E2QDAc9Ick9Sq77ZrGS/dk2WUYni91aufTw6LJKpV7w8kW5/GxVUc650FOADOmlwg3K+f7Pun6XlV+pYmW6gw==",
+      "oldResolvedUrl": "https://registry.npmjs.org/hono/-/hono-4.13.11.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/hono/-/hono-4.13.12.tgz"
+    },
+    {
+      "name": "hono",
+      "oldVersion": "4.13.12",
+      "newVersion": "4.13.13",
+      "oldIntegrity": "sha512-6E2QDAc9Ick9Sq77ZrGS/dk2WUYni91aufTw6LJKpV7w8kW5/GxVUc650FOADOmlwg3K+f7Pun6XlV+pYmW6gw==",
+      "newIntegrity": "sha512-CQ46U0ZkAGmbT/4UxdzzGJpacP2IeKgY4a5/tOI9AABbpOMfK739wfDXmv1usCk+3RkKj1hQy4/fjhiwa2xlrA==",
+      "oldResolvedUrl": "https://registry.npmjs.org/hono/-/hono-4.13.12.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/hono/-/hono-4.13.13.tgz"
+    },
+    {
+      "name": "vue",
+      "oldVersion": "3.5.40",
+      "newVersion": "3.5.41",
+      "oldIntegrity": "sha512-+8PJ4SJXdn/cHGImF4CKdxlWHIN5Dkt7DoufRREM6h6uVCx2m7QxgcEQmmzyOK8A9mcafg7sFbJFYsdFVubTig==",
+      "newIntegrity": "sha512-2laE0p+aK+/AOPG/XL/WepOs/GlK755LJ1XECi9kDUrz1FKNw8rb2Xzlw9JS1rqEV55nb0ttsKxVlTCcd+R5cg==",
+      "oldResolvedUrl": "https://registry.npmjs.org/vue/-/vue-3.5.40.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/vue/-/vue-3.5.41.tgz"
+    },
+    {
+      "name": "vue",
+      "oldVersion": "3.5.41",
+      "newVersion": "3.5.42",
+      "oldIntegrity": "sha512-2laE0p+aK+/AOPG/XL/WepOs/GlK755LJ1XECi9kDUrz1FKNw8rb2Xzlw9JS1rqEV55nb0ttsKxVlTCcd+R5cg==",
+      "newIntegrity": "sha512-4RyHQTbQvOPs3MfvUO1Sg0YRrKNnA0mAVtvpd12Tg1fKDN7OHBUl1IqSn8zGJjK9nI3NkNp8cgTpVrSZC5TTcA==",
+      "oldResolvedUrl": "https://registry.npmjs.org/vue/-/vue-3.5.41.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/vue/-/vue-3.5.42.tgz"
+    },
+    {
+      "name": "vue",
+      "oldVersion": "3.5.42",
+      "newVersion": "3.5.43",
+      "oldIntegrity": "sha512-4RyHQTbQvOPs3MfvUO1Sg0YRrKNnA0mAVtvpd12Tg1fKDN7OHBUl1IqSn8zGJjK9nI3NkNp8cgTpVrSZC5TTcA==",
+      "newIntegrity": "sha512-o5qZoksdnjIKvW1srZ3ab7pcDNYAerBjRe54D0LBLfRdCYFrSgBHVXokMas35czQc0//lmx4/tuY4ZNQ+Rf2Ng==",
+      "oldResolvedUrl": "https://registry.npmjs.org/vue/-/vue-3.5.42.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/vue/-/vue-3.5.43.tgz"
+    },
+    {
+      "name": "svelte",
+      "oldVersion": "5.56.10",
+      "newVersion": "5.57.0",
+      "oldIntegrity": "sha512-Lcxbj8I/KAbpY+VjtY4ENQBV0dDCipfGAhqb51XQZ67CIQqXgsv/8dPkbILaj4Fb6/b6JAEM/PIVbILXgDQy2g==",
+      "newIntegrity": "sha512-NdbDn7fl4be1ViUG0oq/lvG6OZy3oENolV2ONjiqqsfVoeAfzaQAKUcEX3MrQod/Bebv1PgwET9rfXhgn9s4Kg==",
+      "oldResolvedUrl": "https://registry.npmjs.org/svelte/-/svelte-5.56.10.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/svelte/-/svelte-5.57.0.tgz"
+    },
+    {
+      "name": "svelte",
+      "oldVersion": "5.57.0",
+      "newVersion": "5.57.1",
+      "oldIntegrity": "sha512-NdbDn7fl4be1ViUG0oq/lvG6OZy3oENolV2ONjiqqsfVoeAfzaQAKUcEX3MrQod/Bebv1PgwET9rfXhgn9s4Kg==",
+      "newIntegrity": "sha512-Uqj49lWKB+iSSnneuwiYYJ7MZgkB+eXr0LXBhv4uDuAkXqnWmq65Sxflfvp0Lc6MdKjMUxGaeOKWJqz5SNiVIA==",
+      "oldResolvedUrl": "https://registry.npmjs.org/svelte/-/svelte-5.57.0.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/svelte/-/svelte-5.57.1.tgz"
+    },
+    {
+      "name": "svelte",
+      "oldVersion": "5.57.1",
+      "newVersion": "5.57.2",
+      "oldIntegrity": "sha512-Uqj49lWKB+iSSnneuwiYYJ7MZgkB+eXr0LXBhv4uDuAkXqnWmq65Sxflfvp0Lc6MdKjMUxGaeOKWJqz5SNiVIA==",
+      "newIntegrity": "sha512-1YiPCAXT0Ct6g1vOMmSLa0Nsc3QRMvtDF32ihgglGVrugIuIK38RyDiFNXVDhtQ81TJjSO57NdMw6DyYLqSGDQ==",
+      "oldResolvedUrl": "https://registry.npmjs.org/svelte/-/svelte-5.57.1.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/svelte/-/svelte-5.57.2.tgz"
+    },
+    {
+      "name": "rollup",
+      "oldVersion": "4.64.2",
+      "newVersion": "4.64.3",
+      "oldIntegrity": "sha512-RxXm0XVVV1hFI3dYe12ruaOgsYQ725lUcUWeMSQqkF9tTxVErY+fy2Ets6vWhItL9MZMSNZGbvZFc7rH/VHp2Q==",
+      "newIntegrity": "sha512-iIMWbptLYsZdGTJMH8ngApXdsCatE6bCMv2eqGIfGE1++kwh7TCWBdWKK0FKC0yx++196vGK5VdagzRXSLMa8A==",
+      "oldResolvedUrl": "https://registry.npmjs.org/rollup/-/rollup-4.64.2.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/rollup/-/rollup-4.64.3.tgz"
+    },
+    {
+      "name": "rollup",
+      "oldVersion": "4.64.3",
+      "newVersion": "4.64.4",
+      "oldIntegrity": "sha512-iIMWbptLYsZdGTJMH8ngApXdsCatE6bCMv2eqGIfGE1++kwh7TCWBdWKK0FKC0yx++196vGK5VdagzRXSLMa8A==",
+      "newIntegrity": "sha512-1DTowQbct6FOZTjZoYrZ8BwsjIwsB89HxwOn2pWPEyEKWWvKI8OrpTgmicB3fUbQzhlooCQRIn6JLUPhE0CZUA==",
+      "oldResolvedUrl": "https://registry.npmjs.org/rollup/-/rollup-4.64.3.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/rollup/-/rollup-4.64.4.tgz"
+    },
+    {
+      "name": "rollup",
+      "oldVersion": "4.64.4",
+      "newVersion": "4.64.5",
+      "oldIntegrity": "sha512-1DTowQbct6FOZTjZoYrZ8BwsjIwsB89HxwOn2pWPEyEKWWvKI8OrpTgmicB3fUbQzhlooCQRIn6JLUPhE0CZUA==",
+      "newIntegrity": "sha512-EAP5ZHcz2ijbgCWwPkpI7zh6bfsri2Ez5FtCy2dCp1k62duXzfG7DLGGh7RU2QQXWwavT+u4qpvDF/TWOiiGTw==",
+      "oldResolvedUrl": "https://registry.npmjs.org/rollup/-/rollup-4.64.4.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/rollup/-/rollup-4.64.5.tgz"
+    },
+    {
+      "name": "webpack",
+      "oldVersion": "5.110.2",
+      "newVersion": "5.110.3",
+      "oldIntegrity": "sha512-TciLrfM7zgEjqGdY851HkirDsSPQgTFsWQpl9oHqMAMYsHhEC0bKjscvjpnz+pzx10hLC8qISApGrsnrCP4UtQ==",
+      "newIntegrity": "sha512-GuizBzRvo9YPpyoNMf3ag7AzxbaW85qrRSqTha345KyJbAFPt3/cMzBM0h+RWg7SK/7DdzRLINP3LvQ0hvr4hg==",
+      "oldResolvedUrl": "https://registry.npmjs.org/webpack/-/webpack-5.110.2.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/webpack/-/webpack-5.110.3.tgz"
+    },
+    {
+      "name": "webpack",
+      "oldVersion": "5.110.3",
+      "newVersion": "5.111.0",
+      "oldIntegrity": "sha512-GuizBzRvo9YPpyoNMf3ag7AzxbaW85qrRSqTha345KyJbAFPt3/cMzBM0h+RWg7SK/7DdzRLINP3LvQ0hvr4hg==",
+      "newIntegrity": "sha512-A2R74kfE6b3eLKS91iZiol03Ebx7avmJJBOyiP+4LePW9NNeNJGQkKeSQos4dk6R4H0YAMYlv+aOrs1CyWT3eA==",
+      "oldResolvedUrl": "https://registry.npmjs.org/webpack/-/webpack-5.110.3.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/webpack/-/webpack-5.111.0.tgz"
+    },
+    {
+      "name": "webpack",
+      "oldVersion": "5.111.0",
+      "newVersion": "5.111.1",
+      "oldIntegrity": "sha512-A2R74kfE6b3eLKS91iZiol03Ebx7avmJJBOyiP+4LePW9NNeNJGQkKeSQos4dk6R4H0YAMYlv+aOrs1CyWT3eA==",
+      "newIntegrity": "sha512-cNypaz0RP+S4cvQVi1M/3bRUkvNP0xZpL0TjFx+c6jg64VbxD+2weWDgY9UnjRI6dhZgtaj8DU76GGFcJ79xPQ==",
+      "oldResolvedUrl": "https://registry.npmjs.org/webpack/-/webpack-5.111.0.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/webpack/-/webpack-5.111.1.tgz"
+    },
+    {
+      "name": "@babel/core",
+      "oldVersion": "8.0.1",
+      "newVersion": "8.0.5",
+      "oldIntegrity": "sha512-5FgxM4dLQpMJHSiVATk8foW263dVHQHBVpXYiimNECVWG01f4nFyEbQixeT6Mwvg7TayREJ2gpKl3o2RoMdnqw==",
+      "newIntegrity": "sha512-2/oWkgTbBYoqioCWAE4XJobOrzwxTDa5/XjDP3tJ1BhDr/owcd9qnXBp4xc3/2G5X4bvXM04nrxbRJxFcXAxFQ==",
+      "oldResolvedUrl": "https://registry.npmjs.org/@babel/core/-/core-8.0.1.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/@babel/core/-/core-8.0.5.tgz"
+    },
+    {
+      "name": "@babel/core",
+      "oldVersion": "8.0.5",
+      "newVersion": "8.0.6",
+      "oldIntegrity": "sha512-2/oWkgTbBYoqioCWAE4XJobOrzwxTDa5/XjDP3tJ1BhDr/owcd9qnXBp4xc3/2G5X4bvXM04nrxbRJxFcXAxFQ==",
+      "newIntegrity": "sha512-5zwYt1V4ji3mXKKRIAkohSJ29WepxNwxQi+7y7P5AcVPh1dcxnZBU2cfxHnPwS+u9+lZnXPsv30TQaF2xg+Tfg==",
+      "oldResolvedUrl": "https://registry.npmjs.org/@babel/core/-/core-8.0.5.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/@babel/core/-/core-8.0.6.tgz"
+    },
+    {
+      "name": "@babel/core",
+      "oldVersion": "8.0.6",
+      "newVersion": "8.0.7",
+      "oldIntegrity": "sha512-5zwYt1V4ji3mXKKRIAkohSJ29WepxNwxQi+7y7P5AcVPh1dcxnZBU2cfxHnPwS+u9+lZnXPsv30TQaF2xg+Tfg==",
+      "newIntegrity": "sha512-ZIsZWBG6Y1oa+8fkQVp0xeCdjCHBkXFCCIWrmg9SvejVvfcVQgKKRmGrBDWfM7rilhvnRoEuaqa5dkK7KB3pHA==",
+      "oldResolvedUrl": "https://registry.npmjs.org/@babel/core/-/core-8.0.6.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/@babel/core/-/core-8.0.7.tgz"
+    },
+    {
+      "name": "prettier",
+      "oldVersion": "3.9.7",
+      "newVersion": "3.9.8",
+      "oldIntegrity": "sha512-T3mF5P7HFzZVLDQuCUNtJj6WK1pcpLMweMNUVwGb01bLNkH9AkKxtZvmInw8K6bnn2O3d6/5RHl6zSHiBAD0Og==",
+      "newIntegrity": "sha512-WRFq3Wn3WId7LLROfMLdH7xaFr2jR62wU8nLO6rQUOLOxNZUviyJQs1M0iIhLexSFy+L+w0ch66wtoO2jRjG0A==",
+      "oldResolvedUrl": "https://registry.npmjs.org/prettier/-/prettier-3.9.7.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/prettier/-/prettier-3.9.8.tgz"
+    },
+    {
+      "name": "prettier",
+      "oldVersion": "3.9.8",
+      "newVersion": "3.9.9",
+      "oldIntegrity": "sha512-WRFq3Wn3WId7LLROfMLdH7xaFr2jR62wU8nLO6rQUOLOxNZUviyJQs1M0iIhLexSFy+L+w0ch66wtoO2jRjG0A==",
+      "newIntegrity": "sha512-Z/CJHIkdujO/OtN7nXUii0Rf3VT5SRuhjBA82Xvu2XhBUgX3nhP67T0LHceBdQLex7OOFGTox+Q5Yg8Jk2Qivg==",
+      "oldResolvedUrl": "https://registry.npmjs.org/prettier/-/prettier-3.9.8.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/prettier/-/prettier-3.9.9.tgz"
+    },
+    {
+      "name": "prettier",
+      "oldVersion": "3.9.9",
+      "newVersion": "3.9.10",
+      "oldIntegrity": "sha512-Z/CJHIkdujO/OtN7nXUii0Rf3VT5SRuhjBA82Xvu2XhBUgX3nhP67T0LHceBdQLex7OOFGTox+Q5Yg8Jk2Qivg==",
+      "newIntegrity": "sha512-skGHTH1Yb9QvaTC4hWnRTzEYtCpApF0UMBPz+t/0ZPzP8ihefo/btKd+QA7pUE0fEwA1SbS/NmhyEcstdXOIdA==",
+      "oldResolvedUrl": "https://registry.npmjs.org/prettier/-/prettier-3.9.9.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/prettier/-/prettier-3.9.10.tgz"
+    },
+    {
+      "name": "terser",
+      "oldVersion": "5.50.0",
+      "newVersion": "5.51.0",
+      "oldIntegrity": "sha512-CN9BVxWhgS/hRxtUMjtC2uRWSTcSfQFHMDWma6sKKfIivCD91sM+FOPfvwoaRMqCSrUpe1nv3jDamd9eEQ4y+w==",
+      "newIntegrity": "sha512-myiQ6aFnxDOjdiXdTlC8ngVccQD88uHXTx5RUQOSEnarDYgJMjDagwAQszcOusjvmf4YqWsxoD1+MY+oAJRmpw==",
+      "oldResolvedUrl": "https://registry.npmjs.org/terser/-/terser-5.50.0.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/terser/-/terser-5.51.0.tgz"
+    },
+    {
+      "name": "terser",
+      "oldVersion": "5.51.0",
+      "newVersion": "5.51.1",
+      "oldIntegrity": "sha512-myiQ6aFnxDOjdiXdTlC8ngVccQD88uHXTx5RUQOSEnarDYgJMjDagwAQszcOusjvmf4YqWsxoD1+MY+oAJRmpw==",
+      "newIntegrity": "sha512-jxJxk3OtMbMeoDTtrSezoFRPDFleMDzBl+mFj4gB04HGQUfKnIMllFV1TVhWdsj9o54AlaTvLuNP9yWHzGD1BA==",
+      "oldResolvedUrl": "https://registry.npmjs.org/terser/-/terser-5.51.0.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/terser/-/terser-5.51.1.tgz"
+    },
+    {
+      "name": "terser",
+      "oldVersion": "5.51.1",
+      "newVersion": "5.51.2",
+      "oldIntegrity": "sha512-jxJxk3OtMbMeoDTtrSezoFRPDFleMDzBl+mFj4gB04HGQUfKnIMllFV1TVhWdsj9o54AlaTvLuNP9yWHzGD1BA==",
+      "newIntegrity": "sha512-bWnjSNscmuI+GJze6ZupnHP8G/cTcsJF+bXCeQknk2SHQsgbNJnLrqiH9jZ2W4STPVXH2mDKKRX3iwPhc9Cn/Q==",
+      "oldResolvedUrl": "https://registry.npmjs.org/terser/-/terser-5.51.1.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/terser/-/terser-5.51.2.tgz"
+    },
+    {
+      "name": "chalk",
+      "oldVersion": "5.6.0",
+      "newVersion": "5.6.2",
+      "oldIntegrity": "sha512-46QrSQFyVSEyYAgQ22hQ+zDa60YHA4fBstHmtSApj1Y5vKtG27fWowW03jCk5KcbXEWPZUIR894aARCA/G1kfQ==",
+      "newIntegrity": "sha512-7NzBL0rN6fMUW+f7A6Io4h40qQlG+xGmtMxfbnH/K7TAtt8JQWVQK+6g0UXKMeVJoyV5EkkNsErQ8pVD3bLHbA==",
+      "oldResolvedUrl": "https://registry.npmjs.org/chalk/-/chalk-5.6.0.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/chalk/-/chalk-5.6.2.tgz"
+    },
+    {
+      "name": "chalk",
+      "oldVersion": "5.6.2",
+      "newVersion": "6.0.0",
+      "oldIntegrity": "sha512-7NzBL0rN6fMUW+f7A6Io4h40qQlG+xGmtMxfbnH/K7TAtt8JQWVQK+6g0UXKMeVJoyV5EkkNsErQ8pVD3bLHbA==",
+      "newIntegrity": "sha512-2uNTXIuTTxk7ciZgAU1BQcgnchcG0xXnrs6jzkQfj9SsRa9M2s5zE8WT96hS6KmG4MzWHSrvH43DF1m4XRkrFg==",
+      "oldResolvedUrl": "https://registry.npmjs.org/chalk/-/chalk-5.6.2.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/chalk/-/chalk-6.0.0.tgz"
+    },
+    {
+      "name": "chalk",
+      "oldVersion": "6.0.0",
+      "newVersion": "6.0.1",
+      "oldIntegrity": "sha512-2uNTXIuTTxk7ciZgAU1BQcgnchcG0xXnrs6jzkQfj9SsRa9M2s5zE8WT96hS6KmG4MzWHSrvH43DF1m4XRkrFg==",
+      "newIntegrity": "sha512-/Ce6KNm3vIbWdMlNna6RVIZ/ICQxnJxCicet5LBKK9ZffBkqzDw0xh9EiKSljdRtiIQ1S1z4YgcscUUGzNCWrA==",
+      "oldResolvedUrl": "https://registry.npmjs.org/chalk/-/chalk-6.0.0.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/chalk/-/chalk-6.0.1.tgz"
+    },
+    {
+      "name": "yargs",
+      "oldVersion": "17.7.3",
+      "newVersion": "18.0.0",
+      "oldIntegrity": "sha512-GZtjxm/J/4TSxuL3FNYjCmLktBTnIw/rVmKSIyKeYAZpmJB2ig9VauCC5xsa82GNKVKDAqpOn3KVzNt0zmrU0g==",
+      "newIntegrity": "sha512-4UEqdc2RYGHZc7Doyqkrqiln3p9X2DZVxaGbwhn2pi7MrRagKaOcIKe8L3OxYcbhXLgLFUS3zAYuQjKBQgmuNg==",
+      "oldResolvedUrl": "https://registry.npmjs.org/yargs/-/yargs-17.7.3.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/yargs/-/yargs-18.0.0.tgz"
+    },
+    {
+      "name": "yargs",
+      "oldVersion": "18.0.0",
+      "newVersion": "18.1.0",
+      "oldIntegrity": "sha512-4UEqdc2RYGHZc7Doyqkrqiln3p9X2DZVxaGbwhn2pi7MrRagKaOcIKe8L3OxYcbhXLgLFUS3zAYuQjKBQgmuNg==",
+      "newIntegrity": "sha512-2rAgRKu54VsHkqI0/tYkmluGXHD4KW7yZoycuqDQ15QOTnc2VVfy0nN/1eMhnQLO00A+dwtK20xuCnc1YGeUyg==",
+      "oldResolvedUrl": "https://registry.npmjs.org/yargs/-/yargs-18.0.0.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/yargs/-/yargs-18.1.0.tgz"
+    },
+    {
+      "name": "yargs",
+      "oldVersion": "18.1.0",
+      "newVersion": "18.2.0",
+      "oldIntegrity": "sha512-2rAgRKu54VsHkqI0/tYkmluGXHD4KW7yZoycuqDQ15QOTnc2VVfy0nN/1eMhnQLO00A+dwtK20xuCnc1YGeUyg==",
+      "newIntegrity": "sha512-9OpKOLeaoNFecEp7P6iYbzze/5CqWoH7N3SMs/6y1XF4nMvFMspEGZzJ6uFi9MmQwXhyzqYoSEKO3tvA3Z/o2w==",
+      "oldResolvedUrl": "https://registry.npmjs.org/yargs/-/yargs-18.1.0.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/yargs/-/yargs-18.2.0.tgz"
+    },
+    {
+      "name": "uuid",
+      "oldVersion": "14.0.0",
+      "newVersion": "14.0.1",
+      "oldIntegrity": "sha512-Qo+uWgilfSmAhXCMav1uYFynlQO7fMFiMVZsQqZRMIXp0O7rR7qjkj+cPvBHLgBqi960QCoo/PH2/6ZtVqKvrg==",
+      "newIntegrity": "sha512-6ZxzVpzDXDa3bJWaHilVayA+BH/1zmxCJoVgvmqJnid/gPoKHxUrS/aC/T6LGQtNHT+XHG9fXPJB4d+IrU30Ew==",
+      "oldResolvedUrl": "https://registry.npmjs.org/uuid/-/uuid-14.0.0.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/uuid/-/uuid-14.0.1.tgz"
+    },
+    {
+      "name": "uuid",
+      "oldVersion": "14.0.1",
+      "newVersion": "14.0.2",
+      "oldIntegrity": "sha512-6ZxzVpzDXDa3bJWaHilVayA+BH/1zmxCJoVgvmqJnid/gPoKHxUrS/aC/T6LGQtNHT+XHG9fXPJB4d+IrU30Ew==",
+      "newIntegrity": "sha512-xZe/16rV4aa+HGSOCiY2YeLT1OybRLrrkL/Rqaq7p7GMVXjFh+6wN4oMYgjFmnSnhY8t6Xpdl2l9qmnHYuMHwQ==",
+      "oldResolvedUrl": "https://registry.npmjs.org/uuid/-/uuid-14.0.1.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/uuid/-/uuid-14.0.2.tgz"
+    },
+    {
+      "name": "uuid",
+      "oldVersion": "14.0.2",
+      "newVersion": "14.0.3",
+      "oldIntegrity": "sha512-xZe/16rV4aa+HGSOCiY2YeLT1OybRLrrkL/Rqaq7p7GMVXjFh+6wN4oMYgjFmnSnhY8t6Xpdl2l9qmnHYuMHwQ==",
+      "newIntegrity": "sha512-Sc5u1VVln93y1Xnz4R+CunOZc7R9LUcTmhj7Rc7Eg3HVcf7rVn2FOoa812fe0W8p3jD7xeoGSYbfqCGGH2B6xw==",
+      "oldResolvedUrl": "https://registry.npmjs.org/uuid/-/uuid-14.0.2.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/uuid/-/uuid-14.0.3.tgz"
+    },
+    {
+      "name": "dayjs",
+      "oldVersion": "1.11.20",
+      "newVersion": "1.11.21",
+      "oldIntegrity": "sha512-YbwwqR/uYpeoP4pu043q+LTDLFBLApUP6VxRihdfNTqu4ubqMlGDLd6ErXhEgsyvY0K6nCs7nggYumAN+9uEuQ==",
+      "newIntegrity": "sha512-98IT+HOahAisibz/yjKbzuOBwYcjJ7BCLPzARyHiyEBmRz4fatF+KPJszEHXsGYjUG234aH/cOjW1wwTbKUZlA==",
+      "oldResolvedUrl": "https://registry.npmjs.org/dayjs/-/dayjs-1.11.20.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/dayjs/-/dayjs-1.11.21.tgz"
+    },
+    {
+      "name": "dayjs",
+      "oldVersion": "1.11.21",
+      "newVersion": "1.11.22",
+      "oldIntegrity": "sha512-98IT+HOahAisibz/yjKbzuOBwYcjJ7BCLPzARyHiyEBmRz4fatF+KPJszEHXsGYjUG234aH/cOjW1wwTbKUZlA==",
+      "newIntegrity": "sha512-1YRnxzt/AabP3GHxnaB9/b+ZScCKu5TeF+co+BWG+lnWVIwEcTFc1FVE0WLNmNO3sA6GGXL40i5qkHfbLzpwrg==",
+      "oldResolvedUrl": "https://registry.npmjs.org/dayjs/-/dayjs-1.11.21.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/dayjs/-/dayjs-1.11.22.tgz"
+    },
+    {
+      "name": "dayjs",
+      "oldVersion": "1.11.22",
+      "newVersion": "1.11.23",
+      "oldIntegrity": "sha512-1YRnxzt/AabP3GHxnaB9/b+ZScCKu5TeF+co+BWG+lnWVIwEcTFc1FVE0WLNmNO3sA6GGXL40i5qkHfbLzpwrg==",
+      "newIntegrity": "sha512-QDTCU0M0MxR3hQfnlDJfwekQiaanm1ubOD231u73WBckQ/fsamwRLiE2GBz6D3a/xF1NgfiDLJjXBa1hYOYTtQ==",
+      "oldResolvedUrl": "https://registry.npmjs.org/dayjs/-/dayjs-1.11.22.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/dayjs/-/dayjs-1.11.23.tgz"
+    },
+    {
+      "name": "zod",
+      "oldVersion": "4.6.3",
+      "newVersion": "4.6.4",
+      "oldIntegrity": "sha512-qTMC0QXIpf4iH+G0rCJl6ZjKiFpqAU9++JDN8tqts3KP58MWeJU/in9tDccsHqlOolCIrBKsiPXR8vCLhe4QhA==",
+      "newIntegrity": "sha512-AXSD6hvGdvRjajG/l1cC+d6IrhH+sjmPKtYeQdJIK8MFJl3LyClzS+o/YsVC+zQZPupAaeH5skwwm8YqYH7BqA==",
+      "oldResolvedUrl": "https://registry.npmjs.org/zod/-/zod-4.6.3.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/zod/-/zod-4.6.4.tgz"
+    },
+    {
+      "name": "zod",
+      "oldVersion": "4.6.4",
+      "newVersion": "4.6.5",
+      "oldIntegrity": "sha512-AXSD6hvGdvRjajG/l1cC+d6IrhH+sjmPKtYeQdJIK8MFJl3LyClzS+o/YsVC+zQZPupAaeH5skwwm8YqYH7BqA==",
+      "newIntegrity": "sha512-v5l/aFXZQeai4awLbOpSoHecE9UiMrnfx75tEXLjNonXVARxQ5mOeipTjROUchszUNCqnE+hqAMujRsRHsut2Q==",
+      "oldResolvedUrl": "https://registry.npmjs.org/zod/-/zod-4.6.4.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/zod/-/zod-4.6.5.tgz"
+    },
+    {
+      "name": "zod",
+      "oldVersion": "4.6.5",
+      "newVersion": "4.6.6",
+      "oldIntegrity": "sha512-v5l/aFXZQeai4awLbOpSoHecE9UiMrnfx75tEXLjNonXVARxQ5mOeipTjROUchszUNCqnE+hqAMujRsRHsut2Q==",
+      "newIntegrity": "sha512-4UmzQUF5fxvfcYHlbjBmejU+w+hbDnWFx4aS8kBx7nPBHcO2SqPbpAG8snbdg+Xse4pRefR98hgjFgIMCI/UhA==",
+      "oldResolvedUrl": "https://registry.npmjs.org/zod/-/zod-4.6.5.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/zod/-/zod-4.6.6.tgz"
+    },
+    {
+      "name": "bcrypt",
+      "oldVersion": "5.0.1",
+      "newVersion": "5.1.0",
+      "oldIntegrity": "sha512-9BTgmrhZM2t1bNuDtrtIMVSmmxZBrJ71n8Wg+YgdjHuIWYF7SjjmCPZFB+/5i/o/PIeRpwVJR3P+NrpIItUjqw==",
+      "newIntegrity": "sha512-RHBS7HI5N5tEnGTmtR/pppX0mmDSBpQ4aCBsj7CEQfYXDcO74A8sIBYcJMuCsis2E81zDxeENYhv66oZwLiA+Q==",
+      "oldResolvedUrl": "https://registry.npmjs.org/bcrypt/-/bcrypt-5.0.1.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/bcrypt/-/bcrypt-5.1.0.tgz"
+    },
+    {
+      "name": "bcrypt",
+      "oldVersion": "5.1.0",
+      "newVersion": "5.1.1",
+      "oldIntegrity": "sha512-RHBS7HI5N5tEnGTmtR/pppX0mmDSBpQ4aCBsj7CEQfYXDcO74A8sIBYcJMuCsis2E81zDxeENYhv66oZwLiA+Q==",
+      "newIntegrity": "sha512-AGBHOG5hPYZ5Xl9KXzU5iKq9516yEmvCKDg3ecP5kX2aB6UqTeXZxk2ELnDgDm6BQSMlLt9rDB4LoSMx0rYwww==",
+      "oldResolvedUrl": "https://registry.npmjs.org/bcrypt/-/bcrypt-5.1.0.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/bcrypt/-/bcrypt-5.1.1.tgz"
+    },
+    {
+      "name": "bcrypt",
+      "oldVersion": "5.1.1",
+      "newVersion": "6.0.0",
+      "oldIntegrity": "sha512-AGBHOG5hPYZ5Xl9KXzU5iKq9516yEmvCKDg3ecP5kX2aB6UqTeXZxk2ELnDgDm6BQSMlLt9rDB4LoSMx0rYwww==",
+      "newIntegrity": "sha512-cU8v/EGSrnH+HnxV2z0J7/blxH8gq7Xh2JFT6Aroax7UohdmiJJlxApMxtKfuI7z68NvvVcmR78k2LbT6efhRg==",
+      "oldResolvedUrl": "https://registry.npmjs.org/bcrypt/-/bcrypt-5.1.1.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/bcrypt/-/bcrypt-6.0.0.tgz"
+    },
+    {
+      "name": "sqlite3",
+      "oldVersion": "5.1.5",
+      "newVersion": "5.1.6",
+      "oldIntegrity": "sha512-7sP16i4wI+yKnGOO2q2ijze7EjQ9US+Vw7DYYwxfFtqNZDGgBcEw0oeDaDvUTq66uJOzVd/z6MkIg+c9erSJKg==",
+      "newIntegrity": "sha512-olYkWoKFVNSSSQNvxVUfjiVbz3YtBwTJj+mfV5zpHmqW3sELx2Cf4QCdirMelhM5Zh+KDVaKgQHqCxrqiWHybw==",
+      "oldResolvedUrl": "https://registry.npmjs.org/sqlite3/-/sqlite3-5.1.5.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/sqlite3/-/sqlite3-5.1.6.tgz"
+    },
+    {
+      "name": "sqlite3",
+      "oldVersion": "5.1.6",
+      "newVersion": "5.1.7",
+      "oldIntegrity": "sha512-olYkWoKFVNSSSQNvxVUfjiVbz3YtBwTJj+mfV5zpHmqW3sELx2Cf4QCdirMelhM5Zh+KDVaKgQHqCxrqiWHybw==",
+      "newIntegrity": "sha512-GGIyOiFaG+TUra3JIfkI/zGP8yZYLPQ0pl1bH+ODjiX57sPhrLU5sQJn1y9bDKZUFYkX1crlrPfSYt0BKKdkog==",
+      "oldResolvedUrl": "https://registry.npmjs.org/sqlite3/-/sqlite3-5.1.6.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/sqlite3/-/sqlite3-5.1.7.tgz"
+    },
+    {
+      "name": "sqlite3",
+      "oldVersion": "5.1.7",
+      "newVersion": "6.0.1",
+      "oldIntegrity": "sha512-GGIyOiFaG+TUra3JIfkI/zGP8yZYLPQ0pl1bH+ODjiX57sPhrLU5sQJn1y9bDKZUFYkX1crlrPfSYt0BKKdkog==",
+      "newIntegrity": "sha512-X0czUUMG2tmSqJpEQa3tCuZSHKIx8PwM53vLZzKp/o6Rpy25fiVfjdbnZ988M8+O3ZWR1ih0K255VumCb3MAnQ==",
+      "oldResolvedUrl": "https://registry.npmjs.org/sqlite3/-/sqlite3-5.1.7.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/sqlite3/-/sqlite3-6.0.1.tgz"
+    },
+    {
+      "name": "@swc/core",
+      "oldVersion": "1.16.12",
+      "newVersion": "1.16.13",
+      "oldIntegrity": "sha512-ksgw/DvuDrxAFi7tfdndxKSyoAls7VNkIlqlASySpe0tbPmvMH2JcAoHMbRZyE6f10EAf289blkvbe/KCOblxw==",
+      "newIntegrity": "sha512-k4uUsIMS0IwOKVsrQs48IZK75O4roV3FnuJEdL7ES+DFESftdgvz73QBqN3VUAbUmUr78We4tzG0kgYj36M22Q==",
+      "oldResolvedUrl": "https://registry.npmjs.org/@swc/core/-/core-1.16.12.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/@swc/core/-/core-1.16.13.tgz"
+    },
+    {
+      "name": "@swc/core",
+      "oldVersion": "1.16.13",
+      "newVersion": "1.16.17",
+      "oldIntegrity": "sha512-k4uUsIMS0IwOKVsrQs48IZK75O4roV3FnuJEdL7ES+DFESftdgvz73QBqN3VUAbUmUr78We4tzG0kgYj36M22Q==",
+      "newIntegrity": "sha512-D/WxLurusHsiHd8FDz9AvCuUJ1W6AXhzmG27/Db1CqCaAAdsan95HMCcTyIzCJfm1m9dAwtSm00DLOZIhCeZAA==",
+      "oldResolvedUrl": "https://registry.npmjs.org/@swc/core/-/core-1.16.13.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/@swc/core/-/core-1.16.17.tgz"
+    },
+    {
+      "name": "@swc/core",
+      "oldVersion": "1.16.17",
+      "newVersion": "1.16.18",
+      "oldIntegrity": "sha512-D/WxLurusHsiHd8FDz9AvCuUJ1W6AXhzmG27/Db1CqCaAAdsan95HMCcTyIzCJfm1m9dAwtSm00DLOZIhCeZAA==",
+      "newIntegrity": "sha512-0cYQLkpcwUngg55TDwpwrrVOU+B6zh1NFbp+oS7dVFhmYkzaARelwugo/bzPJh1FrcnppmF+KTqioCGwyqbcEw==",
+      "oldResolvedUrl": "https://registry.npmjs.org/@swc/core/-/core-1.16.17.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/@swc/core/-/core-1.16.18.tgz"
+    },
+    {
+      "name": "puppeteer",
+      "oldVersion": "25.10.0",
+      "newVersion": "25.11.0",
+      "oldIntegrity": "sha512-9ZfkiaZDQWpGPJp9XTS+Bkn/D78hPvYmtjPfIBeybn05oeY6Jj7aiSbYdfcSQD2UMvC0vE7Yi9PSDo179euRzw==",
+      "newIntegrity": "sha512-n+psxZFH/qlJ3gwTZMxTLUZoE98FAOEjT/BSxHXvPmNCGAfN/kq0UnIZ8m9RB4rAVvJr7zRHUnKKg98GLMUyyQ==",
+      "oldResolvedUrl": "https://registry.npmjs.org/puppeteer/-/puppeteer-25.10.0.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/puppeteer/-/puppeteer-25.11.0.tgz"
+    },
+    {
+      "name": "puppeteer",
+      "oldVersion": "25.11.0",
+      "newVersion": "25.12.0",
+      "oldIntegrity": "sha512-n+psxZFH/qlJ3gwTZMxTLUZoE98FAOEjT/BSxHXvPmNCGAfN/kq0UnIZ8m9RB4rAVvJr7zRHUnKKg98GLMUyyQ==",
+      "newIntegrity": "sha512-agM9cYcxbvmU17w9qtF17s7/Vv7Dhbyig6AWwIgvQQLR2dKZdPqNvRPanac7xH4iMPcNYOCfyCkwqCnR4nVOcA==",
+      "oldResolvedUrl": "https://registry.npmjs.org/puppeteer/-/puppeteer-25.11.0.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/puppeteer/-/puppeteer-25.12.0.tgz"
+    },
+    {
+      "name": "puppeteer",
+      "oldVersion": "25.12.0",
+      "newVersion": "25.13.0",
+      "oldIntegrity": "sha512-agM9cYcxbvmU17w9qtF17s7/Vv7Dhbyig6AWwIgvQQLR2dKZdPqNvRPanac7xH4iMPcNYOCfyCkwqCnR4nVOcA==",
+      "newIntegrity": "sha512-vB4KLXTT5QqlikcOQ/xV0RY18bBVtNyLUTfqJ9mW+penHyoM+5DmANYuDCI4jgBtiL0eD9I5ZFSafW6/a6Trpg==",
+      "oldResolvedUrl": "https://registry.npmjs.org/puppeteer/-/puppeteer-25.12.0.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/puppeteer/-/puppeteer-25.13.0.tgz"
+    },
+    {
+      "name": "protobufjs",
+      "oldVersion": "8.7.1",
+      "newVersion": "8.7.2",
+      "oldIntegrity": "sha512-agdGHrXNTv0IrYscJPDou/PlEJk1c/hBZ9o/B5NH2i/nSPtPqacNxzgwf1CebXxFMjMrZH5sqv9uQuw96aGt/A==",
+      "newIntegrity": "sha512-oTVHV+oelUBtiu5iTuTNNZ0eLYsXSMxry4cgr30mayNkgIZL6qZ0IOQVPuSWGcyAaXKl/XgqwWHIC3a0khYVBA==",
+      "oldResolvedUrl": "https://registry.npmjs.org/protobufjs/-/protobufjs-8.7.1.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/protobufjs/-/protobufjs-8.7.2.tgz"
+    },
+    {
+      "name": "protobufjs",
+      "oldVersion": "8.7.2",
+      "newVersion": "8.8.0",
+      "oldIntegrity": "sha512-oTVHV+oelUBtiu5iTuTNNZ0eLYsXSMxry4cgr30mayNkgIZL6qZ0IOQVPuSWGcyAaXKl/XgqwWHIC3a0khYVBA==",
+      "newIntegrity": "sha512-N3xhQ5yyBx3vQq4gubBfASzYhJGNzeDbjqBpu61g7UVylsN/qyffU96TKWD3GbbLOKF82VGNRNvv1+BFgE31Eg==",
+      "oldResolvedUrl": "https://registry.npmjs.org/protobufjs/-/protobufjs-8.7.2.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/protobufjs/-/protobufjs-8.8.0.tgz"
+    },
+    {
+      "name": "protobufjs",
+      "oldVersion": "8.8.0",
+      "newVersion": "8.8.1",
+      "oldIntegrity": "sha512-N3xhQ5yyBx3vQq4gubBfASzYhJGNzeDbjqBpu61g7UVylsN/qyffU96TKWD3GbbLOKF82VGNRNvv1+BFgE31Eg==",
+      "newIntegrity": "sha512-d9e9179bjXSJdpJ3+R9fP8hzXsnKLyxTjHLG1dUzje8a27pPyXCe6PrcRtgx2rjoM3IZzHd2vAs+6J/BsO1k7Q==",
+      "oldResolvedUrl": "https://registry.npmjs.org/protobufjs/-/protobufjs-8.8.0.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/protobufjs/-/protobufjs-8.8.1.tgz"
+    },
+    {
+      "name": "@aws-sdk/client-s3",
+      "oldVersion": "3.1146.0",
+      "newVersion": "3.1147.0",
+      "oldIntegrity": "sha512-WY0YCBzxc4muFfY6UbGpA+oib0nGT/Px2aEPGYX7pp1la2OmDLChnK81mu8H7LdYvwGU1pLAsLIa/qgad0Wd7g==",
+      "newIntegrity": "sha512-uTrcJxnJKPr8bc1z7cMxopYSQyAm2dPfiMK+UiBr51L8MzimDxHbW/d9GR6X/LFbWDpMzfFPLhB4UohDrCSaPQ==",
+      "oldResolvedUrl": "https://registry.npmjs.org/@aws-sdk/client-s3/-/client-s3-3.1146.0.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/@aws-sdk/client-s3/-/client-s3-3.1147.0.tgz"
+    },
+    {
+      "name": "@aws-sdk/client-s3",
+      "oldVersion": "3.1147.0",
+      "newVersion": "3.1148.0",
+      "oldIntegrity": "sha512-uTrcJxnJKPr8bc1z7cMxopYSQyAm2dPfiMK+UiBr51L8MzimDxHbW/d9GR6X/LFbWDpMzfFPLhB4UohDrCSaPQ==",
+      "newIntegrity": "sha512-d2AcfJCZTi4w5zJZD7H/XeVRgJy1vOD5EfO1Y3pKAwfp8pWz2dyJ8Q3vOJFbRiTIQF7c4mB+aptNUyCE4i4kqw==",
+      "oldResolvedUrl": "https://registry.npmjs.org/@aws-sdk/client-s3/-/client-s3-3.1147.0.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/@aws-sdk/client-s3/-/client-s3-3.1148.0.tgz"
+    },
+    {
+      "name": "@aws-sdk/client-s3",
+      "oldVersion": "3.1148.0",
+      "newVersion": "3.1149.0",
+      "oldIntegrity": "sha512-d2AcfJCZTi4w5zJZD7H/XeVRgJy1vOD5EfO1Y3pKAwfp8pWz2dyJ8Q3vOJFbRiTIQF7c4mB+aptNUyCE4i4kqw==",
+      "newIntegrity": "sha512-wEccG+3/ap7iIBO4DbWwqNHh2u5Qm5OCQJzJaAvtVFIoZbp0qia8HIXv4rpnNmJJEX8205mlq67F9QJ0nKlcxg==",
+      "oldResolvedUrl": "https://registry.npmjs.org/@aws-sdk/client-s3/-/client-s3-3.1148.0.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/@aws-sdk/client-s3/-/client-s3-3.1149.0.tgz"
+    },
+    {
+      "name": "firebase-admin",
+      "oldVersion": "14.2.0",
+      "newVersion": "14.3.0",
+      "oldIntegrity": "sha512-zfs5PdccEgjX479bbMmz95Rqc7ttQ4LV3qkGFlPiqOaOu/suBZc3fG52Qzn2hQjiSHkBM4NP2AZV5r2NvAt0TQ==",
+      "newIntegrity": "sha512-FUxr5HI9C0RNJW3B+CKyJOnIt5uXn/XHheyCECVTLQGSJ/MaE1Zcwf+dCaaG+xx0+VX1A4sZ1t+hc35bu73dVw==",
+      "oldResolvedUrl": "https://registry.npmjs.org/firebase-admin/-/firebase-admin-14.2.0.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/firebase-admin/-/firebase-admin-14.3.0.tgz"
+    },
+    {
+      "name": "firebase-admin",
+      "oldVersion": "14.3.0",
+      "newVersion": "14.4.0",
+      "oldIntegrity": "sha512-FUxr5HI9C0RNJW3B+CKyJOnIt5uXn/XHheyCECVTLQGSJ/MaE1Zcwf+dCaaG+xx0+VX1A4sZ1t+hc35bu73dVw==",
+      "newIntegrity": "sha512-yEx+GCsHvjH2svh4j1ATW57o8tlfjRQ0klTxvn7XCKUPXWiUQaRTHSzPSqhXtsLYSe4IwTqR7qqrh2sA45A0HA==",
+      "oldResolvedUrl": "https://registry.npmjs.org/firebase-admin/-/firebase-admin-14.3.0.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/firebase-admin/-/firebase-admin-14.4.0.tgz"
+    },
+    {
+      "name": "firebase-admin",
+      "oldVersion": "14.4.0",
+      "newVersion": "14.5.0",
+      "oldIntegrity": "sha512-yEx+GCsHvjH2svh4j1ATW57o8tlfjRQ0klTxvn7XCKUPXWiUQaRTHSzPSqhXtsLYSe4IwTqR7qqrh2sA45A0HA==",
+      "newIntegrity": "sha512-DElmgmaH9aPXu2dWXGQiDoan33UfTnbfAAKaue4fwEZxmpdaNrTk5DmuFn+vVDki2KZ6TiaC0IHRWcEzcDxB3Q==",
+      "oldResolvedUrl": "https://registry.npmjs.org/firebase-admin/-/firebase-admin-14.4.0.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/firebase-admin/-/firebase-admin-14.5.0.tgz"
+    },
+    {
+      "name": "stripe",
+      "oldVersion": "22.6.0",
+      "newVersion": "22.6.1",
+      "oldIntegrity": "sha512-Ezk+WYEEwX2DLxFrKfb6coznlCMZvCaCYMNPXNHFSZkBIEzF5Hgm7RLb38q/0h9Ol5jsUJGJRorvhzAvckgfhw==",
+      "newIntegrity": "sha512-hAKSkGeVt2u46TRYhmnvwmVHxBNtOCJnPjc+SH5sP2B2ypElYzAAY3Ljx0Ar8C2w8nfpFQiZ95qoDCDsFkXMTA==",
+      "oldResolvedUrl": "https://registry.npmjs.org/stripe/-/stripe-22.6.0.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/stripe/-/stripe-22.6.1.tgz"
+    },
+    {
+      "name": "stripe",
+      "oldVersion": "22.6.1",
+      "newVersion": "22.6.2",
+      "oldIntegrity": "sha512-hAKSkGeVt2u46TRYhmnvwmVHxBNtOCJnPjc+SH5sP2B2ypElYzAAY3Ljx0Ar8C2w8nfpFQiZ95qoDCDsFkXMTA==",
+      "newIntegrity": "sha512-PwRE2scocvXqDKPiskMa5vRJEAEkq46W69XyUYmAwrNSLr675lQnfqLwnsndAWizwgihOWw/irLmoFRo3ez7ew==",
+      "oldResolvedUrl": "https://registry.npmjs.org/stripe/-/stripe-22.6.1.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/stripe/-/stripe-22.6.2.tgz"
+    },
+    {
+      "name": "stripe",
+      "oldVersion": "22.6.2",
+      "newVersion": "23.0.0",
+      "oldIntegrity": "sha512-PwRE2scocvXqDKPiskMa5vRJEAEkq46W69XyUYmAwrNSLr675lQnfqLwnsndAWizwgihOWw/irLmoFRo3ez7ew==",
+      "newIntegrity": "sha512-MDE2A5ZVVluYURORaZEVghSmnLJc3w6aHAlZSxDQMsOjOb3V0O6ro/CiaeFlJS4N7uIVmsg98ocRsPmUK6YfyA==",
+      "oldResolvedUrl": "https://registry.npmjs.org/stripe/-/stripe-22.6.2.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/stripe/-/stripe-23.0.0.tgz"
+    },
+    {
+      "name": "@octokit/rest",
+      "oldVersion": "21.1.0",
+      "newVersion": "21.1.1",
+      "oldIntegrity": "sha512-93iLxcKDJboUpmnUyeJ6cRIi7z7cqTZT1K7kRK4LobGxwTwpsa+2tQQbRQNGy7IFDEAmrtkf4F4wBj3D5rVlJQ==",
+      "newIntegrity": "sha512-sTQV7va0IUVZcntzy1q3QqPm/r8rWtDCqpRAmb8eXXnKkjoQEtFe3Nt5GTVsHft+R6jJoHeSiVLcgcvhtue/rg==",
+      "oldResolvedUrl": "https://registry.npmjs.org/@octokit/rest/-/rest-21.1.0.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/@octokit/rest/-/rest-21.1.1.tgz"
+    },
+    {
+      "name": "@octokit/rest",
+      "oldVersion": "21.1.1",
+      "newVersion": "22.0.0",
+      "oldIntegrity": "sha512-sTQV7va0IUVZcntzy1q3QqPm/r8rWtDCqpRAmb8eXXnKkjoQEtFe3Nt5GTVsHft+R6jJoHeSiVLcgcvhtue/rg==",
+      "newIntegrity": "sha512-z6tmTu9BTnw51jYGulxrlernpsQYXpui1RK21vmXn8yF5bp6iX16yfTtJYGK5Mh1qDkvDOmp2n8sRMcQmR8jiA==",
+      "oldResolvedUrl": "https://registry.npmjs.org/@octokit/rest/-/rest-21.1.1.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/@octokit/rest/-/rest-22.0.0.tgz"
+    },
+    {
+      "name": "@octokit/rest",
+      "oldVersion": "22.0.0",
+      "newVersion": "22.0.1",
+      "oldIntegrity": "sha512-z6tmTu9BTnw51jYGulxrlernpsQYXpui1RK21vmXn8yF5bp6iX16yfTtJYGK5Mh1qDkvDOmp2n8sRMcQmR8jiA==",
+      "newIntegrity": "sha512-Jzbhzl3CEexhnivb1iQ0KJ7s5vvjMWcmRtq5aUsKmKDrRW6z3r84ngmiFKFvpZjpiU/9/S6ITPFRpn5s/3uQJw==",
+      "oldResolvedUrl": "https://registry.npmjs.org/@octokit/rest/-/rest-22.0.0.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/@octokit/rest/-/rest-22.0.1.tgz"
+    },
+    {
+      "name": "pg",
+      "oldVersion": "8.21.0",
+      "newVersion": "8.22.0",
+      "oldIntegrity": "sha512-AUP1EYJuHraQGsVoCQVIcM7TEJVGtDzxWtGFZd8rds9d+CCXlU5Js1rYgfLNvxy9iJrpHjGrRjoi/3BT9fRyiA==",
+      "newIntegrity": "sha512-8wih1vVIBMxoUM2oB4soJsD9tDnDpLv4OXBJ+EJzFsvycD+lfyIreC2gGHq78f8jbLLt+bvlPTFdFZfJkOuzAA==",
+      "oldResolvedUrl": "https://registry.npmjs.org/pg/-/pg-8.21.0.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/pg/-/pg-8.22.0.tgz"
+    },
+    {
+      "name": "pg",
+      "oldVersion": "8.22.0",
+      "newVersion": "8.23.0",
+      "oldIntegrity": "sha512-8wih1vVIBMxoUM2oB4soJsD9tDnDpLv4OXBJ+EJzFsvycD+lfyIreC2gGHq78f8jbLLt+bvlPTFdFZfJkOuzAA==",
+      "newIntegrity": "sha512-Ip2EQCngowJLGOfCwkFhPXU7/ljlhn6Rxlmy4XYfL2Y+vyRM59+8uR2xqRWKdYmbXmxCFOAmKxBuSUCdF34qLg==",
+      "oldResolvedUrl": "https://registry.npmjs.org/pg/-/pg-8.22.0.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/pg/-/pg-8.23.0.tgz"
+    },
+    {
+      "name": "pg",
+      "oldVersion": "8.23.0",
+      "newVersion": "8.23.1",
+      "oldIntegrity": "sha512-Ip2EQCngowJLGOfCwkFhPXU7/ljlhn6Rxlmy4XYfL2Y+vyRM59+8uR2xqRWKdYmbXmxCFOAmKxBuSUCdF34qLg==",
+      "newIntegrity": "sha512-aL96AHANtWjPLDOLqnhx+ngp9+UK7ETEU8VJrDCGvsSSi/mGLcWYsS6Herg7lmaBJe4uwrfqsa7gTEFaSizDoQ==",
+      "oldResolvedUrl": "https://registry.npmjs.org/pg/-/pg-8.23.0.tgz",
+      "resolvedUrl": "https://registry.npmjs.org/pg/-/pg-8.23.1.tgz"
+    }
+  ],
+  "selectionFailures": []
+}

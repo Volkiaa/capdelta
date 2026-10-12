@@ -51,6 +51,19 @@ Lockfile-level facts are also surfaced: same-version integrity changes,
 downgrades, unanalyzable git/file/link sources, private registries, malformed
 entries, and first-run lockfile additions.
 
+### Measured results (2026-10-12)
+
+At a frozen policy, on 90 assumed-benign bumps across 30 pre-registered
+packages (single-package diffs, all 90 analyzed), the default CRITICAL gate
+failed on **2 / 90**. Both were real registry install-hook command changes
+(`bcrypt` 6.0.0, `sqlite3` 5.1.7), which capdelta intends you to review; none
+was noise. One bump had a HIGH finding (a documentation link in a string
+literal), and 11 would fail `--strict` because of TypeScript sources or an
+unparseable file. This is a selected, clustered sample with single-reviewer
+labels, not an ecosystem false-positive rate. The method, frozen inputs, raw
+results, and every label are in
+[docs/m5-2026-10-12](docs/m5-2026-10-12/README.md).
+
 ### Attack reconstructions
 
 Defanged, synthetic reconstructions of documented npm compromises run through

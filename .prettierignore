@@ -5,3 +5,4 @@ LICENSE
 # Golden fixture sources are archived byte-for-byte (scripts/generate-golden-fixtures.mjs).
 test/fixtures/golden/*/source-*/
 test/fixtures/reconstructions/*/packages/
+docs/m5-2026-10-12/results.json

@@ -447,3 +447,45 @@ escapes; worth considering a CI grep for control characters in source files.
 4. Any rejected archive (links, caps) is still only unavailable, which fails
    only under `--strict`. A `hasInstallScript` lockfile fallback was discussed
    and needs its own policy design and ADR.
+
+## 2026-10-12 (evening) — Decisions executed, policy trust fix, M5 measurement
+
+### 1. Completed and verified
+
+- Maintainer decisions executed: ADR-013 accepted (#36), Action on Node 24
+  (ADR-014, #39), endpoint noise reduction (#40; 15 → 4 endpoint findings on
+  the #27 tuning diff), version-scoped allowlist entries (#41), SARIF shape
+  suppression visibility plus a Differ signal-lineage fix (#42).
+- Security fix (ADR-015): allowlist policy is read from the selected base
+  commit, never the PR head or working tree, for both the Action (#43) and the
+  CLI (#45). Before this, a PR could add an exception suppressing its own
+  findings once `config-path` was enabled.
+- Dogfood: re-pinned to `8b216e9` with `config-path` and one exception scoped to
+  `@rolldown/binding-android-arm-eabi@1.2.13` (#44); every Dependabot PR is
+  merged (#24–#28), and #27 (vitest 5) passed the gate with the exception
+  visible.
+- M5 measurement (#46 tooling; record in `docs/m5-2026-10-12/`): the default
+  gate failed on 2/90 assumed-benign bumps, both accurate install-hook changes
+  (`bcrypt` 6.0.0, `sqlite3` 5.1.7); 1 HIGH, which was noise; 11/90 bumps
+  strict-incomplete. Codex reviewed every design and diff, including the
+  measurement record.
+
+### 2. Half-done and exact resume point
+
+- M5 publication and the demo (PLAN §6): a real-PR screenshot and the blog
+  post. Dependabot PRs get only a job summary (actor-based fallback,
+  `run-action.ts`), so the PLAN §9 comment demo still needs the permission-aware
+  delivery decision.
+
+### 3. ADR status
+
+- ADR-013, ADR-014, ADR-015 accepted.
+
+### 4. Open questions
+
+1. Permission-aware comment delivery for Dependabot PRs, or amend PLAN §9?
+2. Remaining noise found by the measurement: published TypeScript sources as
+   MEDIUM, numeric matrices matching the charcode-array recognizer. Any change
+   needs a new independent corpus.
+3. A `hasInstallScript` lockfile fallback for packages the extractor cannot
+   analyze (it needs its own ADR; the flag is attacker-controlled metadata).
