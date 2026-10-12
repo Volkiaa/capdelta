@@ -455,6 +455,9 @@ function resolvePipelineOptions(
         ...(options.fetcher?.sleep === undefined
           ? {}
           : { sleep: options.fetcher.sleep }),
+        // ADR-018 decision 5: give the fetcher the run deadline so each attempt
+        // is capped at the time remaining.
+        deadlineAt: Date.now() + execution.deadlineMs,
         ...execution.fetch,
       },
       extractor: {

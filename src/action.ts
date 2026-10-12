@@ -7,11 +7,11 @@ import { isAbsolute, join, relative, resolve } from "node:path";
 import { promisify } from "node:util";
 import { gzip } from "node:zlib";
 import {
+  actionFailureMessage,
   analyzeLockfiles,
   runAction,
   type ActionContext,
 } from "./action/run-action.js";
-import { operationalFailureMessage } from "./core/run-severity.js";
 import type {
   GitHubComment,
   GitHubCommentClient,
@@ -76,24 +76,8 @@ async function main(): Promise<void> {
     );
 
     if (outcome.status === "analyzed") {
-      const failures: string[] = [];
-      if (outcome.gate.fail) {
-        failures.push(
-          `Review this change: ${String(outcome.gate.matchingCount)} finding(s) meet the ${outcome.gate.threshold} failure threshold.`,
-        );
-      }
-      // ADR-018: the Action fails the job with the same operational message as
-      // the CLI, even in report-only mode.
-      if (outcome.operationalFailure) {
-        failures.push(
-          operationalFailureMessage(outcome.operationalFailureCount),
-        );
-      }
-      if (failures.length > 0) {
-        core.setFailed(failures.join(" "));
-      } else if (outcome.strictFailure) {
-        core.setFailed("Strict mode found unanalyzed content.");
-      }
+      const message = actionFailureMessage(outcome);
+      if (message !== null) core.setFailed(message);
     }
   } catch (error: unknown) {
     core.setFailed(`capdelta: ${safeError(error)}`);

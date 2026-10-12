@@ -81,6 +81,11 @@ export interface FetcherOptions {
   signal?: AbortSignal;
   cache?: MemoryTarballCache;
   /**
+   * ADR-018: the run deadline as an epoch-millisecond timestamp. Each attempt's
+   * timeout is capped at the time remaining, so retries never extend the run.
+   */
+  deadlineAt?: number;
+  /**
    * ADR-018: injectable backoff so retry tests stay instant. The default waits
    * the real delay and resolves early when `signal` aborts.
    */
@@ -107,6 +112,7 @@ interface ResolvedOptions {
   concurrency: number;
   signal?: AbortSignal;
   cache: MemoryTarballCache;
+  deadlineAt?: number;
   sleep: (ms: number, signal?: AbortSignal) => Promise<void>;
 }
 
@@ -309,9 +315,11 @@ async function fetchArtifact(
 
   // ADR-018: bounded retries. Every attempt honors the run's abort signal, so a
   // deadline or cancellation ends the artifact operation even between attempts.
+  // A run past its deadline reports `aborted`; the pipeline's stop conversion
+  // turns that into a deadline or cancellation stop that still counts.
   let attempt = 1;
   for (;;) {
-    if (isAborted(parentSignal)) {
+    if (isAborted(parentSignal) || isPastDeadline(options)) {
       return abortedArtifact(url, parentSignal);
     }
     const outcome = await fetchAttempt(url, expected, options);
@@ -349,9 +357,18 @@ async function fetchAttempt(
   };
   parentSignal?.addEventListener("abort", abortFromParent, { once: true });
   if (isAborted(parentSignal)) abortFromParent();
-  const timeout = setTimeout(() => {
-    controller.abort(TIMEOUT_ABORT);
-  }, options.timeoutMs);
+  // ADR-018 decision 5: cap this attempt's timeout at the time remaining in the
+  // run, so a retry can never outlive the deadline.
+  const attemptTimeoutMs =
+    options.deadlineAt === undefined
+      ? options.timeoutMs
+      : Math.min(options.timeoutMs, options.deadlineAt - Date.now());
+  const timeout = setTimeout(
+    () => {
+      controller.abort(TIMEOUT_ABORT);
+    },
+    Math.max(attemptTimeoutMs, 0),
+  );
   try {
     const response = await options.fetchImpl(url, {
       signal: controller.signal,
@@ -477,15 +494,15 @@ function isRetryableHttpStatus(status: number): boolean {
 function defaultSleep(ms: number, signal?: AbortSignal): Promise<void> {
   if (signal?.aborted === true) return Promise.resolve();
   return new Promise<void>((resolve) => {
-    const timer = setTimeout(resolve, ms);
-    signal?.addEventListener(
-      "abort",
-      () => {
-        clearTimeout(timer);
-        resolve();
-      },
-      { once: true },
-    );
+    // One settle path clears the timer and removes the abort listener, so a
+    // normal completion never leaks a listener on a shared signal (ADR-018).
+    const settle = (): void => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", settle);
+      resolve();
+    };
+    const timer = setTimeout(settle, ms);
+    signal?.addEventListener("abort", settle, { once: true });
   });
 }
 
@@ -534,6 +551,14 @@ function resolveOptions(options: FetcherOptions): ResolvedOptions {
   if (options.signal !== undefined && !isAbortSignal(options.signal)) {
     throw new FetcherConfigurationError("signal must implement AbortSignal");
   }
+  if (
+    options.deadlineAt !== undefined &&
+    (!Number.isSafeInteger(options.deadlineAt) || options.deadlineAt <= 0)
+  ) {
+    throw new FetcherConfigurationError(
+      "deadlineAt must be a positive safe integer timestamp",
+    );
+  }
   return {
     fetchImpl: options.fetchImpl ?? globalThis.fetch,
     maxTarballBytes,
@@ -541,12 +566,20 @@ function resolveOptions(options: FetcherOptions): ResolvedOptions {
     concurrency,
     ...(options.signal === undefined ? {} : { signal: options.signal }),
     cache: options.cache ?? new MemoryTarballCache(),
+    ...(options.deadlineAt === undefined
+      ? {}
+      : { deadlineAt: options.deadlineAt }),
     sleep: options.sleep ?? defaultSleep,
   };
 }
 
 function isAborted(signal: AbortSignal | undefined): boolean {
   return signal?.aborted === true;
+}
+
+/** ADR-018: true once the run's deadline timestamp has been reached. */
+function isPastDeadline(options: ResolvedOptions): boolean {
+  return options.deadlineAt !== undefined && Date.now() >= options.deadlineAt;
 }
 
 function isAbortSignal(value: unknown): value is AbortSignal {

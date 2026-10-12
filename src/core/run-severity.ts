@@ -316,10 +316,8 @@ export function isOperationalFailure(issue: PackageAnalysisFailure): boolean {
     case "fetch":
       return isOperationalFetchKind(issue.failure.kind);
     case "analysis":
-      return isStopKind(issue.failure.kind);
     case "old-extraction":
     case "new-extraction":
-      return isStopKind(issue.failure.kind);
     case "old-manifest":
     case "new-manifest":
       return isStopKind(issue.failure.kind);
