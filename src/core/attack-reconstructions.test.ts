@@ -168,7 +168,12 @@ describe("reconstruction fixtures", () => {
         throw new Error(`${id} rejected: ${extraction.failure.detail}`);
       }
       try {
-        const sourceRoot = join(packageRoot, "package");
+        // Reconstruction fixtures keep exactly one root (the packer enforces it).
+        const roots = await readdir(packageRoot);
+        expect(roots).toHaveLength(1);
+        const [root] = roots;
+        if (root === undefined) throw new Error(`${id} has no root directory`);
+        const sourceRoot = join(packageRoot, root);
         const files = await listFiles(sourceRoot);
         expect(await listFiles(extraction.root)).toEqual(files);
         for (const file of files) {
@@ -399,5 +404,28 @@ describe("Shai-Hulud 2.0 (2025-11) reconstruction", () => {
     const result = await runScenario("shai-hulud-2-2025", "control");
     expectAllAnalyzed(result, 1);
     expect(evaluateSeverityGate(result.report, "CRITICAL").fail).toBe(false);
+  });
+});
+
+describe("synthetic layout evasion (ADR-013)", () => {
+  it("analyzes a hook in an archive rooted at x/ instead of reporting it unavailable", async () => {
+    // npm installs any single-root tarball (strip one component), so a root
+    // other than package/ must not hide the hook from the default gate.
+    const result = await runScenario("layout-evasion", "attack");
+    expectAllAnalyzed(result, 1);
+    const report = packageReport(
+      result.report,
+      "capdelta-fixture-layout-evasion",
+    );
+    expect(findingsOf(report, "INSTALL_HOOK")).toEqual([
+      expect.objectContaining({
+        severity: "CRITICAL",
+        capability: expect.objectContaining({
+          hook: "postinstall",
+          applicability: "registry-install",
+        }) as unknown,
+      }),
+    ]);
+    expect(evaluateSeverityGate(result.report, "CRITICAL").fail).toBe(true);
   });
 });

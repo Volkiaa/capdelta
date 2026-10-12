@@ -341,11 +341,12 @@ than `registry.npmjs.org` is skipped and flagged.
   suppression stays unimplemented until a corpus containing real install-hook
   additions justifies it (PLAN §6), so a routine-looking `node-gyp rebuild`
   addition is reported at the same severity as any other new registry hook.
-- **Resource limits:** a package whose tarball exceeds the fetch or
-  extraction caps is reported as unavailable, so its install hook is never
-  read and that failure alone does not fail the default gate; `--strict`
-  does. The axios
-  reconstruction includes a test that records this boundary.
+- **Resource limits and rejected entries:** a package whose tarball exceeds
+  the fetch or extraction caps, or contains an entry capdelta refuses (any
+  link, unsafe path, or unsupported type), is reported as unavailable. Its
+  install hook is never read, and that failure alone does not fail the default
+  gate; `--strict` does. The axios reconstruction includes a test that records
+  this boundary.
 - **Registry scope:** private registries, mirrors, git, file, and link
   dependencies are skipped and surfaced as unanalyzed.
 - **Single ecosystem and lockfile:** npm lockfile v2/v3 only, one lockfile per
@@ -439,6 +440,7 @@ the check but are not the gate.
 - [ADR-010: Preflight extraction and reject links](docs/adr/0010-preflight-and-reject-links-in-npm-tarballs.md)
 - [ADR-011: Bound extraction resources](docs/adr/0011-bound-npm-tarball-extraction-resources.md)
 - [ADR-012: Acorn parser and bounded honesty tier](docs/adr/0012-acorn-ast-parser.md)
+- [ADR-013: Analyze npm tarballs with npm's strip-one layout](docs/adr/0013-npm-strip-one-tarball-layout.md) (proposed)
 
 The authoritative architecture and roadmap remain in
 [docs/PLAN.md](docs/PLAN.md). Session handoffs are recorded in

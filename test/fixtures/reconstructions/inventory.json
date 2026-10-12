@@ -37,7 +37,10 @@
       "omitted": "The multi-megabyte webpack bundle, the real scanner, repository and workflow creation, and republishing. The harvest function is never called and its endpoint is api.github.example.test.",
       "expected": "CRITICAL install-hook-change, install-code-execution for NET, ENV, and PROCESS in bundle.js, and secret-exfiltration; a parser-limit simulation still fails the gate on the hook alone.",
       "scenarios": {
-        "attack": { "base": ["tinycolor-4.1.0"], "head": ["tinycolor-4.1.1"] },
+        "attack": {
+          "base": ["tinycolor-4.1.0"],
+          "head": ["tinycolor-4.1.1"]
+        },
         "control": {
           "base": ["tinycolor-4.1.0"],
           "head": ["tinycolor-4.2.0-reconstruction-control"]
@@ -56,10 +59,31 @@
       "omitted": "Bun download and installation, the 480,000+ line obfuscated payload, runner registration, and all execution. The victim package name is synthetic.",
       "expected": "CRITICAL install-hook-change for the registry preinstall hook with package.json evidence; the default gate fails.",
       "scenarios": {
-        "attack": { "base": ["victim-1.0.0"], "head": ["victim-1.0.1"] },
+        "attack": {
+          "base": ["victim-1.0.0"],
+          "head": ["victim-1.0.1"]
+        },
         "control": {
           "base": ["victim-1.0.0"],
           "head": ["victim-1.0.2-control"]
+        }
+      }
+    },
+    {
+      "name": "layout-evasion",
+      "title": "Synthetic layout evasion (not a historical incident)",
+      "date": "n/a: regression for ADR-013",
+      "sources": [
+        "https://github.com/npm/pacote/blob/main/lib/fetcher.js",
+        "https://github.com/isaacs/node-tar/blob/main/src/unpack.ts"
+      ],
+      "kept": "npm installs a tarball rooted at any top-level directory (pacote extracts with strip: 1), so a hook in x/package.json runs on install.",
+      "omitted": "Everything else: the package is a minimal synthetic stand-in, and hook.js returns a constant.",
+      "expected": "Before ADR-013 the x/-rooted version was rejected as invalid-layout, so it was unavailable and passed the default gate. It must now be analyzed with a CRITICAL registry postinstall hook.",
+      "scenarios": {
+        "attack": {
+          "base": ["evasion-1.0.0"],
+          "head": ["evasion-1.0.1"]
         }
       }
     }

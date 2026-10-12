@@ -1,0 +1,8 @@
+{
+  "name": "capdelta-fixture-layout-evasion",
+  "version": "1.0.1",
+  "main": "index.js",
+  "scripts": {
+    "postinstall": "node hook.js"
+  }
+}
