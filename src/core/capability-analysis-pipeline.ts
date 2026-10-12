@@ -54,6 +54,7 @@ import {
   emptyCapdeltaConfig,
   type CapdeltaConfig,
 } from "./capdelta-config.js";
+import { applyUnanalyzableExceptions } from "./unanalyzable-exceptions.js";
 
 export type AnalysisSide = "old" | "new";
 
@@ -88,6 +89,12 @@ export interface UnavailablePackage {
   status: "unavailable";
   changedPackage: ChangedPackage;
   failures: readonly [PackageAnalysisFailure, ...PackageAnalysisFailure[]];
+  /**
+   * ADR-017: set by `applyUnanalyzableExceptions` when every severity-bearing
+   * failure was reviewed against the exact bytes. The failures stay in the
+   * report; this only releases the package from the severity gate.
+   */
+  exception?: { reason: string };
 }
 
 export type PackageAnalysisResult = AnalyzedPackage | UnavailablePackage;
@@ -354,7 +361,7 @@ export function createCapabilityAnalysisPipeline(
       const analyzed = packages.filter(
         (result) => result.status === "analyzed",
       ).length;
-      return {
+      const run: CapabilityAnalysisRun = {
         firstRun: lockfileDiff.firstRun,
         summary: {
           changed: lockfileDiff.changed.length,
@@ -378,6 +385,7 @@ export function createCapabilityAnalysisPipeline(
             startedPackages < fetched.length,
         },
       };
+      return applyUnanalyzableExceptions(run, resolved.config);
     } finally {
       control.dispose();
     }

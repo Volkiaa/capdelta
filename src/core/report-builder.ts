@@ -64,10 +64,14 @@ export function buildRunReport(run: CapabilityAnalysisRun): JsonRunReport {
   };
   // ADR-016: an unavailable package gates once, at the highest severity any of
   // its failures carries. Per-issue counting would double-count one package.
+  // ADR-017: a reviewed exception releases the package from the gate, but its
+  // failures still count as analysis issues and stay in the report.
   const countUnavailableIssues = (
     issues: readonly JsonReportAnalysisIssue[],
+    excepted: boolean,
   ): void => {
     analysisIssues += issues.length;
+    if (excepted) return;
     const highest = SEVERITIES.find((severity) =>
       issues.some((issue) => issue.severity === severity),
     );
@@ -98,11 +102,19 @@ export function buildRunReport(run: CapabilityAnalysisRun): JsonRunReport {
     }
 
     const failures = reportAnalysisFailures(item.failures);
-    countUnavailableIssues(failures);
+    const excepted = item.exception !== undefined;
+    countUnavailableIssues(failures, excepted);
     return {
       status: "unavailable",
       package: reportChangedPackage(item.changedPackage),
       failures,
+      ...(item.exception === undefined
+        ? {}
+        : {
+            exception: {
+              reason: truncate(item.exception.reason, MAX_VALUE_CHARS),
+            },
+          }),
     };
   });
   crossLinkDependencies(packages);

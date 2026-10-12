@@ -167,6 +167,12 @@ export type JsonRunPackage =
         JsonReportAnalysisIssue,
         ...JsonReportAnalysisIssue[],
       ];
+      /**
+       * ADR-017: present when every severity-bearing failure is a reviewed
+       * exception. The failures keep their severity and stay in the report;
+       * the package adds nothing to `gateSeverity`.
+       */
+      exception?: { reason: string };
     };
 
 export interface JsonRunReport {
@@ -191,7 +197,8 @@ export interface JsonRunReport {
      * What the severity gate evaluates: unsuppressed capability and signal
      * findings, lockfile findings, and severity-bearing analysis issues. An
      * unavailable package contributes one count, at the highest severity among
-     * its failures (ADR-016); analyzed issues count individually.
+     * its failures (ADR-016); analyzed issues count individually. A package
+     * with a reviewed `exception` (ADR-017) contributes nothing.
      */
     gateSeverity: SeverityCounts;
   };
