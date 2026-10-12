@@ -9,6 +9,7 @@ describe("CLI options", () => {
       base: "main",
       format: "text",
       configPath: null,
+      failOn: "CRITICAL",
       strict: false,
     });
     expect(
@@ -18,8 +19,18 @@ describe("CLI options", () => {
       base: "origin/main",
       format: "json",
       configPath: null,
+      failOn: "CRITICAL",
       strict: false,
     });
+  });
+
+  it("parses a case-insensitive --fail-on threshold", () => {
+    expect(
+      parseCliArguments(["--base", "main", "--fail-on", "high"]),
+    ).toMatchObject({ failOn: "HIGH" });
+    expect(
+      parseCliArguments(["--fail-on", "none", "--base", "main"]),
+    ).toMatchObject({ failOn: "none" });
   });
 
   it("accepts help without inventing a base revision", () => {
@@ -28,6 +39,7 @@ describe("CLI options", () => {
       base: null,
       format: "text",
       configPath: null,
+      failOn: "CRITICAL",
       strict: false,
     });
     expect(CLI_HELP).toContain("Usage: capdelta --base <ref>");
@@ -50,6 +62,19 @@ describe("CLI options", () => {
       message: "--format may only be provided once",
     },
     { argv: ["--unknown"], message: 'unknown argument "--unknown"' },
+    { argv: ["--fail-on"], message: "--fail-on requires a severity or none" },
+    {
+      argv: ["--fail-on", "--strict"],
+      message: "--fail-on requires a severity or none",
+    },
+    {
+      argv: ["--fail-on", "urgent"],
+      message: "--fail-on must be CRITICAL, HIGH, MEDIUM, LOW, INFO, or none",
+    },
+    {
+      argv: ["--fail-on", "HIGH", "--fail-on", "LOW"],
+      message: "--fail-on may only be provided once",
+    },
   ])("rejects invalid usage: $message", ({ argv, message }) => {
     expect(() => parseCliArguments(argv)).toThrow(new CliUsageError(message));
   });

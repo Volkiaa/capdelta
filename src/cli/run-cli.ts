@@ -10,7 +10,13 @@ import {
   parseCapdeltaConfig,
 } from "../core/capdelta-config.js";
 import { diffNpmLockfiles } from "../core/npm/lockfile-differ.js";
-import { renderJsonRunReport, renderTextRunReport } from "../core/reporter.js";
+import {
+  buildRunReport,
+  formatJsonRunReport,
+  formatTextRunReport,
+  type JsonRunReport,
+} from "../core/reporter.js";
+import { evaluateSeverityGate } from "../core/run-severity.js";
 import {
   CliOperationalError,
   CliUsageError,
@@ -62,11 +68,23 @@ export async function executeCli(
       args.configPath === null,
       runtime,
     );
-    if (args.strict && analysis !== null && hasUnanalyzedContent(analysis)) {
+    // Unchanged lockfile: the PLAN §2 fast path has nothing to gate.
+    if (analysis === null) return 0;
+
+    // The report is already delivered; gate and strict only pick the exit.
+    const gate = evaluateSeverityGate(analysis.report, args.failOn);
+    if (gate.fail) {
+      runtime.stderr(
+        `capdelta: ${String(gate.matchingCount)} finding(s) at or above ${args.failOn} (highest: ${gate.highest ?? "none"})\n`,
+      );
+    }
+    if (args.strict && hasUnanalyzedContent(analysis.run)) {
       runtime.stderr("capdelta: strict mode found unanalyzed content\n");
+      // PLAN §4.5 promises exit 2 for unanalyzed content, even when the
+      // severity gate also failed; stderr above still names both causes.
       return STRICT_ANALYSIS_EXIT_CODE;
     }
-    return 0;
+    return gate.exitCode;
   } catch (error: unknown) {
     const exitCode = error instanceof CliUsageError ? USAGE_ERROR_EXIT_CODE : 1;
     runtime.stderr(`capdelta: ${terminalSafeError(error)}\n`);
@@ -81,7 +99,7 @@ async function analyzeCheckout(
   configPath: string,
   allowMissingConfig: boolean,
   runtime: CliRuntime,
-): Promise<CapabilityAnalysisRun | null> {
+): Promise<{ run: CapabilityAnalysisRun; report: JsonRunReport } | null> {
   const maxLockfileBytes = resolveMaxLockfileBytes(runtime.maxLockfileBytes);
   const inspection = await inspectGitLockfileChange(base, runtime.cwd);
   if (!inspection.changed) return null;
@@ -101,12 +119,13 @@ async function analyzeCheckout(
       ? { config }
       : { fetcher: { fetchImpl: runtime.fetchImpl }, config },
   );
+  const report = buildRunReport(analysis);
   runtime.stdout(
     format === "json"
-      ? renderJsonRunReport(analysis)
-      : renderTextRunReport(analysis),
+      ? formatJsonRunReport(report)
+      : formatTextRunReport(report),
   );
-  return analysis;
+  return { run: analysis, report };
 }
 
 async function readConfig(

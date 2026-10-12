@@ -117,6 +117,80 @@ function lockfileWithGolden(
   };
 }
 
+async function goldenBytes(): Promise<{ oldBytes: Buffer; newBytes: Buffer }> {
+  const [oldBytes, newBytes] = await Promise.all([
+    readFile(join(GOLDEN_ROOT, "v1.tgz")),
+    readFile(join(GOLDEN_ROOT, "v2.tgz")),
+  ]);
+  return { oldBytes, newBytes };
+}
+
+/** Serves inert golden tarballs by URL; anything else is a 404. */
+function goldenFetch(oldBytes: Uint8Array, newBytes: Uint8Array): typeof fetch {
+  const responses = new Map<string, Uint8Array>([
+    [
+      "https://registry.npmjs.org/golden-fixture/-/golden-fixture-1.0.0.tgz",
+      oldBytes,
+    ],
+    [
+      "https://registry.npmjs.org/golden-fixture/-/golden-fixture-2.0.0.tgz",
+      newBytes,
+    ],
+  ]);
+  return (input) => {
+    const url = input instanceof Request ? input.url : input.toString();
+    const bytes = responses.get(url);
+    if (bytes === undefined) {
+      return Promise.resolve(new Response("not found", { status: 404 }));
+    }
+    return Promise.resolve(
+      new Response(bytes, {
+        status: 200,
+        headers: { "content-length": String(bytes.length) },
+      }),
+    );
+  };
+}
+
+async function runInProcess(
+  cwd: string,
+  argv: readonly string[],
+  fetchImpl?: typeof fetch,
+): Promise<ProcessResult & { order: ("stdout" | "stderr")[] }> {
+  let stdout = "";
+  let stderr = "";
+  // Callback order, so tests can prove the report precedes gate diagnostics.
+  const order: ("stdout" | "stderr")[] = [];
+  const exitCode = await executeCli(argv, {
+    cwd,
+    stdout: (value) => {
+      stdout += value;
+      order.push("stdout");
+    },
+    stderr: (value) => {
+      stderr += value;
+      order.push("stderr");
+    },
+    ...(fetchImpl === undefined ? {} : { fetchImpl }),
+  });
+  return { exitCode, stdout, stderr, order };
+}
+
+/** Commits `base` as HEAD, then leaves `head` as the working-tree lockfile. */
+async function withBump<T>(
+  base: Readonly<Record<string, unknown>>,
+  head: Readonly<Record<string, unknown>>,
+  body: (cwd: string) => Promise<T>,
+): Promise<T> {
+  const cwd = await createRepository(base);
+  try {
+    await writeLockfile(cwd, head);
+    return await body(cwd);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+}
+
 describe("capdelta CLI", () => {
   it("runs the built executable and exposes the package bin help", async () => {
     const result = await spawnCli(process.cwd(), ["--help"]);
@@ -288,56 +362,191 @@ describe("capdelta CLI", () => {
   });
 
   it("runs the inert golden package through the complete CLI pipeline", async () => {
-    const [oldBytes, newBytes, expectedText] = await Promise.all([
-      readFile(join(GOLDEN_ROOT, "v1.tgz")),
-      readFile(join(GOLDEN_ROOT, "v2.tgz")),
-      readFile(join(GOLDEN_ROOT, "expected-run.txt"), "utf8"),
-    ]);
-    const oldUrl =
-      "https://registry.npmjs.org/golden-fixture/-/golden-fixture-1.0.0.tgz";
-    const newUrl =
-      "https://registry.npmjs.org/golden-fixture/-/golden-fixture-2.0.0.tgz";
-    const responses = new Map<string, Uint8Array>([
-      [oldUrl, oldBytes],
-      [newUrl, newBytes],
-    ]);
-    const fetchImpl: typeof fetch = (input) => {
-      const url = input instanceof Request ? input.url : input.toString();
-      const bytes = responses.get(url);
-      if (bytes === undefined) {
-        return Promise.resolve(new Response("not found", { status: 404 }));
-      }
-      return Promise.resolve(
-        new Response(bytes, {
-          status: 200,
-          headers: { "content-length": String(bytes.length) },
-        }),
-      );
-    };
-
-    const cwd = await createRepository(
-      lockfileWithGolden("1.0.0", sri(oldBytes)),
+    const { oldBytes, newBytes } = await goldenBytes();
+    const expectedText = await readFile(
+      join(GOLDEN_ROOT, "expected-run.txt"),
+      "utf8",
     );
-    try {
-      await writeLockfile(cwd, lockfileWithGolden("2.0.0", sri(newBytes)));
-      let stdout = "";
-      let stderr = "";
-      const exitCode = await executeCli(["--base", "HEAD"], {
-        cwd,
-        stdout: (value) => {
-          stdout += value;
-        },
-        stderr: (value) => {
-          stderr += value;
-        },
-        fetchImpl,
-      });
+    await withBump(
+      lockfileWithGolden("1.0.0", sri(oldBytes)),
+      lockfileWithGolden("2.0.0", sri(newBytes)),
+      async (cwd) => {
+        const result = await runInProcess(
+          cwd,
+          ["--base", "HEAD"],
+          goldenFetch(oldBytes, newBytes),
+        );
+        // The report is delivered in full before the default CRITICAL gate
+        // fails the run (PLAN §4.5).
+        expect(result).toEqual({
+          exitCode: 1,
+          stdout: expectedText,
+          stderr:
+            "capdelta: 1 finding(s) at or above CRITICAL (highest: CRITICAL)\n",
+          order: ["stdout", "stderr"],
+        });
+      },
+    );
+  });
 
-      expect(exitCode).toBe(0);
-      expect(stderr).toBe("");
-      expect(stdout).toBe(expectedText);
-    } finally {
-      await rm(cwd, { recursive: true, force: true });
-    }
+  it.each([
+    { failOn: "none", exitCode: 0, stderr: "" },
+    {
+      failOn: "high",
+      exitCode: 1,
+      stderr: "capdelta: 2 finding(s) at or above HIGH (highest: CRITICAL)\n",
+    },
+  ])(
+    "applies --fail-on $failOn to the golden bump",
+    async ({ failOn, exitCode, stderr }) => {
+      const { oldBytes, newBytes } = await goldenBytes();
+      await withBump(
+        lockfileWithGolden("1.0.0", sri(oldBytes)),
+        lockfileWithGolden("2.0.0", sri(newBytes)),
+        async (cwd) => {
+          const result = await runInProcess(
+            cwd,
+            ["--base", "HEAD", "--fail-on", failOn],
+            goldenFetch(oldBytes, newBytes),
+          );
+          expect(result.exitCode).toBe(exitCode);
+          expect(result.stderr).toBe(stderr);
+          expect(result.stdout).toContain(
+            "Gate severity: CRITICAL: 1, HIGH: 1.",
+          );
+        },
+      );
+    },
+  );
+
+  it("passes the default gate below CRITICAL and fails an inclusive INFO gate", async () => {
+    // A downgrade is an INFO lockfile finding; the 404 leaves the package
+    // unavailable, which is incompleteness rather than a severity.
+    const encoder = new TextEncoder();
+    await withBump(
+      lockfileWithGolden("2.0.0", sri(encoder.encode("inert v2"))),
+      lockfileWithGolden("1.0.0", sri(encoder.encode("inert v1"))),
+      async (cwd) => {
+        const fetchNone: typeof fetch = () =>
+          Promise.resolve(new Response("not found", { status: 404 }));
+        const defaultGate = await runInProcess(
+          cwd,
+          ["--base", "HEAD"],
+          fetchNone,
+        );
+        expect(defaultGate.exitCode).toBe(0);
+        expect(defaultGate.stderr).toBe("");
+        expect(defaultGate.stdout).toContain("[INFO] [version-downgrade]");
+        expect(defaultGate.stdout).toContain("[fetch/http-status]");
+
+        const infoGate = await runInProcess(
+          cwd,
+          ["--base", "HEAD", "--fail-on", "INFO"],
+          fetchNone,
+        );
+        expect(infoGate.exitCode).toBe(1);
+        expect(infoGate.stderr).toBe(
+          "capdelta: 1 finding(s) at or above INFO (highest: INFO)\n",
+        );
+      },
+    );
+  });
+
+  it("fails CRITICAL on an integrity mismatch and lets strict take precedence", async () => {
+    const { oldBytes, newBytes } = await goldenBytes();
+    const wrongIntegrity = sri(new TextEncoder().encode("not the tarball"));
+    await withBump(
+      lockfileWithGolden("1.0.0", sri(oldBytes)),
+      lockfileWithGolden("2.0.0", wrongIntegrity),
+      async (cwd) => {
+        const fetchImpl = goldenFetch(oldBytes, newBytes);
+        const gated = await runInProcess(cwd, ["--base", "HEAD"], fetchImpl);
+        expect(gated.exitCode).toBe(1);
+        expect(gated.stdout).toContain("[CRITICAL] [fetch/integrity-mismatch]");
+        expect(gated.stderr).toBe(
+          "capdelta: 1 finding(s) at or above CRITICAL (highest: CRITICAL)\n",
+        );
+
+        const strict = await runInProcess(
+          cwd,
+          ["--base", "HEAD", "--strict"],
+          fetchImpl,
+        );
+        expect(strict.exitCode).toBe(2);
+        expect(strict.stderr).toBe(
+          [
+            "capdelta: 1 finding(s) at or above CRITICAL (highest: CRITICAL)",
+            "capdelta: strict mode found unanalyzed content",
+            "",
+          ].join("\n"),
+        );
+
+        const reportOnlyStrict = await runInProcess(
+          cwd,
+          ["--base", "HEAD", "--fail-on", "none", "--strict"],
+          fetchImpl,
+        );
+        expect(reportOnlyStrict.exitCode).toBe(2);
+        expect(reportOnlyStrict.stderr).toBe(
+          "capdelta: strict mode found unanalyzed content\n",
+        );
+      },
+    );
+  });
+
+  it("keeps an allowlisted CRITICAL finding visible but out of the gate", async () => {
+    const { oldBytes, newBytes } = await goldenBytes();
+    await withBump(
+      lockfileWithGolden("1.0.0", sri(oldBytes)),
+      lockfileWithGolden("2.0.0", sri(newBytes)),
+      async (cwd) => {
+        await writeFile(
+          join(cwd, ".capdelta.yml"),
+          'allowlist:\n  - package: golden-fixture\n    capability: INSTALL_HOOK\n    justification: "reviewed inert fixture hook"\n',
+          "utf8",
+        );
+        const result = await runInProcess(
+          cwd,
+          ["--base", "HEAD", "--format", "json"],
+          goldenFetch(oldBytes, newBytes),
+        );
+        expect(result.exitCode).toBe(0);
+        expect(result.stderr).toBe("");
+        const report = JSON.parse(result.stdout) as {
+          summary: { bySeverity: object; gateSeverity: object };
+          packages: { report: { findings: { suppression?: object }[] } }[];
+        };
+        expect(report.summary.bySeverity).toMatchObject({ CRITICAL: 1 });
+        expect(report.summary.gateSeverity).toMatchObject({
+          CRITICAL: 0,
+          HIGH: 1,
+        });
+        expect(report.packages[0]?.report.findings[0]?.suppression).toEqual({
+          reason: "reviewed inert fixture hook",
+        });
+      },
+    );
+  });
+
+  it("rejects an invalid threshold before reading Git or the network", async () => {
+    // A missing directory would make Git fail, and this fetch throws: a 64
+    // exit proves parsing rejected the threshold before either was touched.
+    const missingCwd = join(
+      tmpdir(),
+      `capdelta-missing-${String(process.pid)}`,
+    );
+    const unreachable: typeof fetch = () => {
+      throw new Error("network must not be reached");
+    };
+    const result = await runInProcess(
+      missingCwd,
+      ["--base", "HEAD", "--fail-on", "urgent"],
+      unreachable,
+    );
+    expect(result.exitCode).toBe(64);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain(
+      "--fail-on must be CRITICAL, HIGH, MEDIUM, LOW, INFO, or none",
+    );
   });
 });
