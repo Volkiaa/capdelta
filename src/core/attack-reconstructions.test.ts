@@ -1,7 +1,17 @@
 import { createHash } from "node:crypto";
-import { readdir, readFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
+import * as tar from "tar";
 import { describe, expect, it } from "vitest";
 import {
   analyzeChangedPackages,
@@ -249,11 +259,12 @@ describe("axios npm compromise (2026-03-31) reconstruction", () => {
     expect(evaluateSeverityGate(result.report, "CRITICAL").fail).toBe(false);
   });
 
-  it("documents the resource-limit boundary: an over-cap dropper is only unavailable", async () => {
-    // Current behavior, recorded honestly: when the new artifact exceeds an
-    // extraction cap, its manifest is never read, so no install-hook CRITICAL
-    // exists. The run stays loud (unavailable + strict incompleteness) but the
-    // default gate passes. Only plain-crypto-js (4 files) exceeds this cap.
+  it("fails the default gate when a resource cap hides the dropper", async () => {
+    // ADR-016: when the new artifact exceeds an extraction cap, its manifest is
+    // never read, so no install-hook CRITICAL exists. The package is
+    // unanalyzable, which is CRITICAL in its own right, so the default gate
+    // fails until a person reviews it. Only plain-crypto-js (4 files) exceeds
+    // this cap.
     const result = await runScenario("axios-2026", "attack", {
       extractor: { maxFileCount: 3 },
     });
@@ -277,16 +288,107 @@ describe("axios npm compromise (2026-03-31) reconstruction", () => {
           stage: "new-extraction",
           side: "new",
           kind: "file-count-limit",
-          severity: null,
+          severity: "CRITICAL",
         }),
       ],
     });
     expect(packageReport(result.report, "axios").package.newVersion).toBe(
       "1.14.1",
     );
-    expect(result.report.summary.gateSeverity.CRITICAL).toBe(0);
-    expect(evaluateSeverityGate(result.report, "CRITICAL").fail).toBe(false);
+    expect(result.report.summary.gateSeverity.CRITICAL).toBe(1);
+    expect(evaluateSeverityGate(result.report, "CRITICAL")).toMatchObject({
+      fail: true,
+      exitCode: 1,
+      highest: "CRITICAL",
+    });
     expect(hasUnanalyzedContent(result.run)).toBe(true);
+  });
+
+  it("fails the default gate on a rejected link entry", async () => {
+    // Inert, built in-test: one symlink the extractor must refuse and a data
+    // manifest. Nothing here is executable or imported.
+    const work = await mkdtemp(join(tmpdir(), "capdelta-link-"));
+    try {
+      await mkdir(join(work, "package"), { recursive: true });
+      await writeFile(
+        join(work, "package", "package.json"),
+        '{"name":"link-bomb","version":"1.0.0"}\n',
+        "utf8",
+      );
+      await symlink("../../outside", join(work, "package", "link"));
+      const archive = join(work, "link-bomb.tgz");
+      await tar.c(
+        {
+          cwd: work,
+          file: archive,
+          gzip: true,
+          portable: true,
+          mtime: new Date(0),
+        },
+        ["package"],
+      );
+      const bytes = await readFile(archive);
+      const integrity = `sha512-${createHash("sha512").update(bytes).digest("base64")}`;
+      const url = "https://registry.npmjs.org/link-bomb/-/link-bomb-1.0.0.tgz";
+      const base = {
+        name: "link-project",
+        version: "1.0.0",
+        lockfileVersion: 3,
+        requires: true,
+        packages: { "": { name: "link-project", version: "1.0.0" } },
+      };
+      const head = {
+        ...base,
+        packages: {
+          "": { name: "link-project", version: "1.0.0" },
+          "node_modules/link-bomb": {
+            version: "1.0.0",
+            resolved: url,
+            integrity,
+          },
+        },
+      };
+      const fetchImpl: typeof fetch = (input) => {
+        const requestUrl =
+          input instanceof Request ? input.url : input.toString();
+        if (requestUrl !== url) {
+          return Promise.resolve(new Response("not found", { status: 404 }));
+        }
+        return Promise.resolve(
+          new Response(bytes, {
+            status: 200,
+            headers: { "content-length": String(bytes.length) },
+          }),
+        );
+      };
+
+      const run = await analyzeChangedPackages(diffNpmLockfiles(base, head), {
+        fetcher: { fetchImpl },
+      });
+      const report = buildRunReport(run);
+      expect(report.summary).toMatchObject({
+        changedPackages: 1,
+        analyzedPackages: 0,
+        unavailablePackages: 1,
+      });
+      const item = report.packages[0];
+      if (item?.status !== "unavailable") {
+        throw new Error("link-entry fixture must be unavailable");
+      }
+      expect(item.failures[0]).toMatchObject({
+        stage: "new-extraction",
+        side: "new",
+        kind: "link-entry",
+        severity: "CRITICAL",
+      });
+      expect(evaluateSeverityGate(report, "CRITICAL")).toMatchObject({
+        fail: true,
+        exitCode: 1,
+      });
+      expect(hasUnanalyzedContent(run)).toBe(true);
+    } finally {
+      await rm(work, { recursive: true, force: true });
+    }
   });
 });
 

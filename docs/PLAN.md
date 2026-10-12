@@ -146,7 +146,7 @@ Allowlist config (`.capdelta.yml`): suppress `(package, capability)` pairs with 
 - SARIF 2.1.0 → GitHub code-scanning tab.
 - All attacker-controlled strings escaped/truncated; never rendered as links (§3 output injection).
 - Framing rule in all copy: **"review this change,"** never "malware detected."
-- Exit code: fail only at/above configurable threshold (default: CRITICAL fails; everything else comments). **`--strict` (adopted from capdiff):** exit 2 if any file could not be parsed or any package could not be analyzed — the CI-grade form of degrade-loudly for teams that want unanalyzed = failed.
+- Exit code: fail only at/above configurable threshold (default: CRITICAL fails; everything else comments). **`--strict` (adopted from capdiff):** exit 2 if any file could not be parsed or any package could not be analyzed — the CI-grade form of degrade-loudly for teams that want unanalyzed = failed. Amended by ADR-016: packages that cannot be analyzed for an artifact- or lockfile-controlled reason are CRITICAL by default.
 
 **4.6 Action packaging**
 - node24 JavaScript Action (amended from node20 by ADR-014; GitHub removed the Node 20 Actions runtime). Inputs: `lockfile-path`, `fail-on`, `config-path`, `base-ref`.

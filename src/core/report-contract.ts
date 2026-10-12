@@ -189,7 +189,9 @@ export interface JsonRunReport {
     bySeverity: SeverityCounts;
     /**
      * What the severity gate evaluates: unsuppressed capability and signal
-     * findings, lockfile findings, and severity-bearing analysis issues.
+     * findings, lockfile findings, and severity-bearing analysis issues. An
+     * unavailable package contributes one count, at the highest severity among
+     * its failures (ADR-016); analyzed issues count individually.
      */
     gateSeverity: SeverityCounts;
   };

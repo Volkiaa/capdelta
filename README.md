@@ -151,15 +151,17 @@ Usage: capdelta --base <ref> [--format text|json] [--config path] [--fail-on sev
 `--fail-on` sets an inclusive severity threshold: `CRITICAL` (default), `HIGH`,
 `MEDIUM`, `LOW`, `INFO`, or `none` for report-only use. It evaluates the
 report's `summary.gateSeverity`: unsuppressed capability and signal findings,
-lockfile findings, and tarball integrity mismatches, which are CRITICAL even
-though the package cannot be analyzed. Allowlisted findings stay in the report
+lockfile findings, and severity-bearing analysis issues. Tarball integrity
+mismatches, and packages capdelta cannot analyze for a reason decided by the
+artifact bytes or the lockfile entry, are CRITICAL, so the default gate fails
+until a person reviews them (ADR-016). Allowlisted findings stay in the report
 as suppressed but never fail the gate.
 
 `--strict` returns exit `2` when a package is unavailable, a lockfile entry is
 skipped, diagnostics remain, or cancellation/deadline leaves work incomplete.
-Without it, incompleteness alone remains loud in the report but does not fail
-the run; severity-bearing records such as integrity mismatches still go
-through `--fail-on`.
+Without it, transient or environmental incompleteness still remains loud in the
+report but does not fail the run; severity-bearing issues such as integrity
+mismatches and unanalyzable packages go through `--fail-on`.
 
 | Exit | Meaning                                                                                                           |
 | ---: | ----------------------------------------------------------------------------------------------------------------- |
@@ -394,9 +396,10 @@ than `registry.npmjs.org` is skipped and flagged.
 - **Resource limits and rejected entries:** a package whose tarball exceeds
   the fetch or extraction caps, or contains an entry capdelta refuses (any
   link, unsafe path, or unsupported type), is reported as unavailable. Its
-  install hook is never read, and that failure alone does not fail the default
-  gate; `--strict` does. The axios reconstruction includes a test that records
-  this boundary.
+  install hook is never read. Such an artifact- or lockfile-controlled failure
+  is CRITICAL by default: capdelta did not inspect the package, so the default
+  gate fails until a person reviews it (ADR-016). `--strict` still returns
+  exit 2. The axios reconstruction includes a test that records this boundary.
 - **Registry scope:** private registries, mirrors, git, file, and link
   dependencies are skipped and surfaced as unanalyzed.
 - **Single ecosystem and lockfile:** npm lockfile v2/v3 only, one lockfile per
@@ -493,6 +496,7 @@ the check but are not the gate.
 - [ADR-013: Analyze npm tarballs with npm's strip-one layout](docs/adr/0013-npm-strip-one-tarball-layout.md)
 - [ADR-014: Run the GitHub Action on Node 24](docs/adr/0014-node24-action-runtime.md)
 - [ADR-015: Read allowlist policy from the base commit](docs/adr/0015-policy-from-base-commit.md)
+- [ADR-016: Fail the default gate on packages capdelta cannot analyze](docs/adr/0016-fail-closed-on-unanalyzable-packages.md)
 
 The authoritative architecture and roadmap remain in
 [docs/PLAN.md](docs/PLAN.md). Session handoffs are recorded in

@@ -119,6 +119,48 @@ describe("renderActionComment", () => {
     expect(Array.from(body).length).toBeLessThanOrEqual(60_000);
   });
 
+  it("labels unanalyzable issues in the analysis gaps table", () => {
+    const report = adversarialReport();
+    report.summary = {
+      ...report.summary,
+      changedPackages: 1,
+      analyzedPackages: 0,
+      unavailablePackages: 1,
+      capabilityFindings: 0,
+      analysisIssues: 1,
+      bySeverity: { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0, INFO: 0 },
+      gateSeverity: { CRITICAL: 1, HIGH: 0, MEDIUM: 0, LOW: 0, INFO: 0 },
+    };
+    report.packages = [
+      {
+        status: "unavailable",
+        package: {
+          ecosystem: "npm",
+          name: "oversized",
+          oldVersion: "1.0.0",
+          newVersion: "2.0.0",
+          newPackage: false,
+        },
+        failures: [
+          {
+            stage: "new-extraction",
+            side: "new",
+            kind: "expanded-size-limit",
+            detail: "expanded size over the extraction cap",
+            url: null,
+            evidence: null,
+            severity: "CRITICAL",
+          },
+        ],
+      },
+    ];
+
+    const body = renderActionComment(report);
+    expect(body).toContain("could not analyze&#58; new&#45;extraction");
+    // Capability findings and integrity mismatches keep their own wording.
+    expect(body).not.toContain("could not analyze&#58; new&#45;cleanup");
+  });
+
   it("uses explicit aggregate framing for first-run mode", () => {
     expect(renderActionComment(adversarialReport(true))).toContain(
       "**First run:** no base lockfile was found.",

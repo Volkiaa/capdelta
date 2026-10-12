@@ -494,6 +494,46 @@ describe("capdelta CLI", () => {
     );
   });
 
+  it("fails the default gate on an unanalyzable package and lets strict take precedence", async () => {
+    // Inert bytes: the fetch integrity matches, so the tarball downloads and
+    // then the extractor refuses it. capdelta could not analyze it (ADR-016).
+    const { oldBytes } = await goldenBytes();
+    const brokenBytes = new TextEncoder().encode("inert, not a tarball");
+    await withBump(
+      lockfileWithGolden("1.0.0", sri(oldBytes)),
+      lockfileWithGolden("2.0.0", sri(brokenBytes)),
+      async (cwd) => {
+        const fetchImpl = goldenFetch(oldBytes, brokenBytes);
+
+        const gated = await runInProcess(cwd, ["--base", "HEAD"], fetchImpl);
+        expect(gated.exitCode).toBe(1);
+        expect(gated.stdout).toContain(
+          "[CRITICAL] could not analyze: [new-extraction/invalid-archive]",
+        );
+        expect(gated.stderr).toBe(
+          "capdelta: 1 finding(s) at or above CRITICAL (highest: CRITICAL)\n",
+        );
+        // The report is delivered in full before the gate fails the run.
+        expect(gated.order).toEqual(["stdout", "stderr"]);
+
+        const strict = await runInProcess(
+          cwd,
+          ["--base", "HEAD", "--strict"],
+          fetchImpl,
+        );
+        expect(strict.exitCode).toBe(2);
+        expect(strict.stderr).toBe(
+          [
+            "capdelta: 1 finding(s) at or above CRITICAL (highest: CRITICAL)",
+            "capdelta: strict mode found unanalyzed content",
+            "",
+          ].join("\n"),
+        );
+        expect(strict.order).toEqual(["stdout", "stderr", "stderr"]);
+      },
+    );
+  });
+
   describe("allowlist policy comes from the base commit (ADR-015)", () => {
     const EXCEPTION =
       'allowlist:\n  - package: golden-fixture\n    capability: INSTALL_HOOK\n    version: 2.0.0\n    justification: "reviewed inert fixture hook"\n';

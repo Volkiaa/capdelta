@@ -4,7 +4,10 @@ import type {
   JsonReportSignalFinding,
   JsonRunReport,
 } from "../core/reporter.js";
-import { assessRunSeverity } from "../core/run-severity.js";
+import {
+  assessRunSeverity,
+  isUnanalyzableIssue,
+} from "../core/run-severity.js";
 
 export const COMMENT_MARKER = "<!-- capdelta:capability-report:v2 -->";
 const LEGACY_COMMENT_MARKERS = ["<!-- capdelta:manifest-report:v1 -->"];
@@ -248,10 +251,14 @@ function buildComment(
       "",
       "| Package | Stage | Detail | Source |",
       "| --- | --- | --- | --- |",
-      ...issues.map(
-        ({ packageName, issue }) =>
-          `| ${escapeMarkdownText(packageName, MAX_IDENTITY_CHARS)} | ${escapeMarkdownText(issue.stage, MAX_IDENTITY_CHARS)} | ${escapeMarkdownText(issue.detail, MAX_DETAIL_CHARS)} | ${escapeMarkdownText(issue.url ?? "not available", MAX_DETAIL_CHARS)} |`,
-      ),
+      ...issues.map(({ packageName, issue }) => {
+        // ADR-016: label issues capdelta could not inspect, distinct from
+        // integrity mismatches and from capability findings.
+        const stage = isUnanalyzableIssue(issue)
+          ? `could not analyze: ${issue.stage}`
+          : issue.stage;
+        return `| ${escapeMarkdownText(packageName, MAX_IDENTITY_CHARS)} | ${escapeMarkdownText(stage, MAX_IDENTITY_CHARS)} | ${escapeMarkdownText(issue.detail, MAX_DETAIL_CHARS)} | ${escapeMarkdownText(issue.url ?? "not available", MAX_DETAIL_CHARS)} |`;
+      }),
     );
   }
 

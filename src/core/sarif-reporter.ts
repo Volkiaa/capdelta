@@ -15,7 +15,7 @@ import {
   truncate,
 } from "./report-builder.js";
 import { isNormalizedRelativePosixPath } from "./repository-path.js";
-import { analysisIssueSeverity } from "./run-severity.js";
+import { isUnanalyzableIssue, analysisIssueSeverity } from "./run-severity.js";
 
 export const SARIF_VERSION = "2.1.0" as const;
 const SARIF_SCHEMA = "https://json.schemastore.org/sarif-2.1.0.json";
@@ -59,6 +59,9 @@ export function renderSarifReport(
   }
   const results: SarifResult[] = [];
   const ruleIds = new Set<string>();
+  // ADR-016: unanalyzable rule IDs get distinct rule text. Derived from the
+  // same classification that assigns severity; never a hand-written list.
+  const unanalyzableRuleIds = new Set<string>();
   for (const item of run.packages) {
     // Severity-bearing issues (PLAN §4.2 integrity mismatches) gate the run,
     // so they must reach code scanning even when the package is unavailable.
@@ -77,6 +80,14 @@ export function renderSarifReport(
         lockfilePath,
       );
       ruleIds.add(result.ruleId);
+      if (
+        isUnanalyzableIssue({
+          stage: issue.stage,
+          kind: issue.failure.kind,
+        })
+      ) {
+        unanalyzableRuleIds.add(result.ruleId);
+      }
       results.push(result);
     }
     if (item.status !== "analyzed") continue;
@@ -181,8 +192,10 @@ export function renderSarifReport(
   );
   const rules = [...ruleIds].sort(compareText).map((id) => ({
     id,
-    shortDescription: { text: ruleDescription(id) },
-    help: { text: ruleHelp(id) },
+    shortDescription: {
+      text: ruleDescription(id, unanalyzableRuleIds.has(id)),
+    },
+    help: { text: ruleHelp(id, unanalyzableRuleIds.has(id)) },
   }));
   return `${JSON.stringify(
     {
@@ -341,7 +354,10 @@ function sarifLevel(severity: FindingSeverity): "error" | "warning" | "note" {
   return "note";
 }
 
-function ruleDescription(id: string): string {
+function ruleDescription(id: string, unanalyzable: boolean): string {
+  if (unanalyzable) {
+    return "Package could not be analyzed";
+  }
   if (id === INTEGRITY_RULE_ID) {
     return "Downloaded artifact does not match lockfile integrity";
   }
@@ -350,7 +366,10 @@ function ruleDescription(id: string): string {
   return "Capability gained";
 }
 
-function ruleHelp(id: string): string {
+function ruleHelp(id: string, unanalyzable: boolean): string {
+  if (unanalyzable) {
+    return "capdelta did not inspect this artifact, so the default gate fails until a person reviews it. This result does not assert malware.";
+  }
   if (id === INTEGRITY_RULE_ID) {
     return "The downloaded bytes differ from the lockfile integrity hash, so capdelta did not analyze them. Review where this lockfile entry and its registry response came from. This result does not assert malware.";
   }
