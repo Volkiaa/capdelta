@@ -3,6 +3,17 @@ import type { CapabilityAnalysisRun } from "./capability-analysis-pipeline.js";
 import type { ChangedPackage } from "./contract/lockfile-diff.js";
 import { ReporterContractError } from "./report-builder.js";
 import { renderSarifReport } from "./sarif-reporter.js";
+import {
+  applyCapabilityAllowlist,
+  parseCapdeltaConfig,
+} from "./capdelta-config.js";
+import {
+  diffCapabilities,
+  type CapabilityDiffResult,
+} from "./capability-differ.js";
+import { buildRunReport } from "./report-builder.js";
+import { buildSignalSet, observeSignalSource } from "./signal-extractor.js";
+import type { Capability, CapabilitySet } from "./contract/capability-set.js";
 
 function changed(name: string, oldVersion: string | null): ChangedPackage {
   return {
@@ -443,6 +454,220 @@ describe("renderSarifReport", () => {
     expect(sarif.runs[0].results[0]).toMatchObject({
       ruleId: "CAPDELTA-INTEGRITY-MISMATCH",
       properties: { side: "old", version: "1.0.0" },
+    });
+  });
+
+  describe("shape suppression visibility", () => {
+    const capability = (
+      kind: "NATIVE" | "DYNAMIC_CODE" | "NET" | "ENV" | "PROCESS",
+      file: string,
+      snippet: string,
+    ): Capability => ({
+      kind,
+      location: { kind: "runtime" },
+      evidence: [{ file, line: 1, snippet }],
+    });
+    const native = capability(
+      "NATIVE",
+      "binding.node",
+      "<native binary: binding.node>",
+    );
+    const dynamic = capability(
+      "DYNAMIC_CODE",
+      "index.js",
+      "new Function(code)",
+    );
+    const net = capability("NET", "net.js", "fetch(url)");
+    const env = capability("ENV", "env.js", "process.env.TOKEN");
+    const process = capability("PROCESS", "index.js", "spawnSync(cmd)");
+    const set = (
+      version: string,
+      capabilities: readonly Capability[],
+    ): CapabilitySet => ({
+      schemaVersion: 1,
+      subject: { ecosystem: "npm", name: "binding", version },
+      completeness: "complete",
+      capabilities,
+      diagnostics: [],
+    });
+    // A run whose identity matches its diff, so buildRunReport accepts it and
+    // labeling can be checked against the real gate counts.
+    const runFor = (diff: CapabilityDiffResult): CapabilityAnalysisRun => ({
+      firstRun: false,
+      summary: { changed: 1, analyzed: 1, unavailable: 0, skipped: 0 },
+      packages: [
+        {
+          status: "analyzed",
+          changedPackage: {
+            ...changed("binding", "1.0.0"),
+            newVersion: "1.2.13",
+          },
+          diff,
+          issues: [],
+        },
+      ],
+      lockfileFindings: [],
+      skipped: [],
+    });
+    const analyze = (newSet: CapabilitySet, config: string) => {
+      const run = runFor(
+        applyCapabilityAllowlist(
+          diffCapabilities(set("1.0.0", []), newSet),
+          parseCapdeltaConfig(config),
+        ),
+      );
+      return {
+        results: (JSON.parse(renderSarifReport(run)) as ParsedSarif).runs[0]
+          .results,
+        gate: buildRunReport(run).summary.gateSeverity,
+      };
+    };
+    const entry = (kind: string, reason: string) =>
+      `  - package: binding\n    capability: ${kind}\n    version: 1.2.13\n    justification: "${reason}"\n`;
+    const config = (...entries: string[]) =>
+      entries.length === 0
+        ? "allowlist: []\n"
+        : `allowlist:\n${entries.join("")}`;
+    const statusOf = (
+      result: ParsedSarif["runs"][0]["results"][number] | undefined,
+    ) =>
+      (result?.properties.suppression as { status?: string } | undefined)
+        ?.status ?? "none";
+
+    it("labels a fully suppressed native shape with its reviewed reason", () => {
+      const { results, gate } = analyze(
+        set("1.2.13", [native]),
+        config(entry("NATIVE", "reviewed prebuilt binding")),
+      );
+      expect(results).toEqual([
+        expect.objectContaining({
+          ruleId: "CAPDELTA-SHAPE-DYNAMIC-OR-NATIVE-CODE",
+          level: "error",
+          properties: expect.objectContaining({
+            suppression: {
+              status: "all",
+              reasons: ["[version 1.2.13] reviewed prebuilt binding"],
+            },
+          }) as unknown,
+        }),
+      ]);
+      expect(results[0]?.message.text).toContain(
+        "Suppressed ([version 1.2.13] reviewed prebuilt binding)",
+      );
+      expect(gate.CRITICAL).toBe(0);
+    });
+
+    it("labels each per-capability shape independently", () => {
+      // dynamic-or-native-code is one shape per gained capability.
+      const { results, gate } = analyze(
+        set("1.2.13", [native, dynamic]),
+        config(entry("NATIVE", "reviewed prebuilt binding")),
+      );
+      expect(results.map(statusOf).sort()).toEqual(["all", "none"]);
+      expect(gate.CRITICAL).toBe(1);
+    });
+
+    it("never presents a partly suppressed multi-member shape as reviewed", () => {
+      const { results, gate } = analyze(
+        set("1.2.13", [net, env]),
+        config(entry("NET", "reviewed telemetry")),
+      );
+      const shape = results.find(
+        (result) => result.ruleId === "CAPDELTA-SHAPE-SECRET-EXFILTRATION",
+      );
+      expect(shape?.properties.suppression).toEqual({
+        status: "partial",
+        reasons: ["[version 1.2.13] reviewed telemetry"],
+      });
+      expect(shape?.message.text).toContain(
+        "1 of 2 participants suppressed ([version 1.2.13] reviewed telemetry); the others still gate.",
+      );
+      expect(gate.CRITICAL).toBe(1);
+    });
+
+    describe("obfuscated-execution (signal and capability participants)", () => {
+      const obfuscated = (): CapabilitySet => ({
+        ...set("1.2.13", [process]),
+        signals: buildSignalSet([
+          observeSignalSource({
+            file: "index.js",
+            bytes: new TextEncoder().encode(
+              "const t = [0x63, 0x61, 0x70, 0x64, 0x65, 0x6c, 0x74, 0x61];\n",
+            ),
+            parseState: "parsed",
+          }),
+        ]),
+      });
+      const PROCESS_REASON = "[version 1.2.13] reviewed process";
+      const TABLE_REASON = "[version 1.2.13] reviewed table";
+
+      it.each([
+        // Both participants are CRITICAL members, so the gate counts two.
+        ["neither", [], undefined, 2],
+        [
+          "the capability only",
+          [entry("PROCESS", "reviewed process")],
+          { status: "partial", reasons: [PROCESS_REASON] },
+          1,
+        ],
+        [
+          "the signal only",
+          [entry("obfuscation-pattern-added", "reviewed table")],
+          { status: "partial", reasons: [TABLE_REASON] },
+          1,
+        ],
+        [
+          "both",
+          [
+            entry("PROCESS", "reviewed process"),
+            entry("obfuscation-pattern-added", "reviewed table"),
+          ],
+          { status: "all", reasons: [PROCESS_REASON, TABLE_REASON] },
+          0,
+        ],
+      ] as const)(
+        "labels %s suppressed consistently with the gate",
+        (_label, entries, expected, critical) => {
+          const { results, gate } = analyze(obfuscated(), config(...entries));
+          const shapes = results.filter(
+            (result) => result.ruleId === "CAPDELTA-SHAPE-OBFUSCATED-EXECUTION",
+          );
+          expect(shapes).toHaveLength(1);
+          expect(shapes[0]?.properties.suppression).toEqual(expected);
+          expect(gate.CRITICAL).toBe(critical);
+          // The shape covers its signal: no duplicate standalone signal result.
+          expect(
+            results.filter((result) =>
+              result.ruleId.startsWith("CAPDELTA-SIGNAL-"),
+            ),
+          ).toEqual([]);
+        },
+      );
+    });
+
+    it("bounds long reasons and deduplicates identical bounded reasons", () => {
+      const long = "r".repeat(300);
+      const { results } = analyze(
+        set("1.2.13", [net, env]),
+        config(entry("NET", `${long}A`), entry("ENV", `${long}B`)),
+      );
+      const shape = results.find(
+        (result) => result.ruleId === "CAPDELTA-SHAPE-SECRET-EXFILTRATION",
+      );
+      const suppression = shape?.properties.suppression as {
+        status: string;
+        reasons: string[];
+      };
+      expect(suppression.status).toBe("all");
+      // Two distinct reasons bound to the same text are shown once.
+      expect(suppression.reasons).toHaveLength(1);
+      expect(Array.from(suppression.reasons[0] ?? "")).toHaveLength(240);
+    });
+
+    it("emits no suppression label without an allowlist match", () => {
+      const { results } = analyze(set("1.2.13", [native]), config());
+      expect(results[0]?.properties.suppression).toBeUndefined();
+      expect(results[0]?.message.text).not.toContain("uppressed");
     });
   });
 });

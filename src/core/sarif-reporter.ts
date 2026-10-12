@@ -81,14 +81,28 @@ export function renderSarifReport(
     }
     if (item.status !== "analyzed") continue;
     const subject = item.diff.subject;
+    // Shape participants are the findings' own capability objects, so a
+    // reviewed allowlist suppression can be carried onto the shape result.
+    const memberSuppression = new Map(
+      item.diff.findings.map((finding) => [
+        finding.capability,
+        finding.suppression?.reason,
+      ]),
+    );
     for (const shape of item.diff.shapes ?? []) {
       const ruleId = `CAPDELTA-SHAPE-${shape.ruleId.toUpperCase()}`;
       ruleIds.add(ruleId);
+      const suppression = shapeSuppression([
+        ...shape.capabilities.map((capability) =>
+          memberSuppression.get(capability),
+        ),
+        ...(shape.signals ?? []).map((finding) => finding.suppression?.reason),
+      ]);
       results.push(
         resultFor(
           ruleId,
           shape.severity,
-          `Review this change: ${shape.ruleId} capability shape in ${subject.name}@${subject.version}.`,
+          `Review this change: ${shape.ruleId} capability shape in ${subject.name}@${subject.version}.${suppression.text}`,
           [
             ...shape.capabilities.flatMap((capability) => capability.evidence),
             ...(shape.signals ?? []).flatMap((finding) => finding.evidence),
@@ -101,6 +115,7 @@ export function renderSarifReport(
               (capability) => capability.kind,
             ),
             signals: (shape.signals ?? []).map((finding) => finding.kind),
+            ...suppression.properties,
           },
         ),
       );
@@ -340,6 +355,35 @@ function ruleHelp(id: string): string {
     return "The downloaded bytes differ from the lockfile integrity hash, so capdelta did not analyze them. Review where this lockfile entry and its registry response came from. This result does not assert malware.";
   }
   return "Review the static capability delta and its bounded evidence. This result does not assert malware.";
+}
+
+/**
+ * Labels a shape from its participants' reviewed suppressions, the same
+ * per-member notion the gate counts. A partly suppressed shape is never
+ * presented as reviewed: its unsuppressed participants still gate. The
+ * alert level is unchanged; dismissing alerts is a separate decision.
+ */
+function shapeSuppression(reasons: readonly (string | undefined)[]): {
+  text: string;
+  properties: Record<string, unknown>;
+} {
+  const suppressed = reasons.filter(
+    (reason): reason is string => reason !== undefined,
+  );
+  if (suppressed.length === 0) return { text: "", properties: {} };
+  // Deduplicate the bounded display strings; participant counts still use
+  // every suppressed participant.
+  const unique = [
+    ...new Set(suppressed.map((reason) => truncate(reason, MAX_VALUE_CHARS))),
+  ];
+  const status = suppressed.length === reasons.length ? "all" : "partial";
+  return {
+    text:
+      status === "all"
+        ? ` Suppressed (${unique.join("; ")})`
+        : ` ${String(suppressed.length)} of ${String(reasons.length)} participants suppressed (${unique.join("; ")}); the others still gate.`,
+    properties: { suppression: { status, reasons: unique } },
+  };
 }
 
 function suppressionText(reason: string | undefined): string {
