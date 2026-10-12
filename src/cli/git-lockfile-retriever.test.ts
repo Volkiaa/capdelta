@@ -4,7 +4,7 @@ import {
   type spawn,
 } from "node:child_process";
 import { EventEmitter } from "node:events";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough, type Readable } from "node:stream";
@@ -13,6 +13,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { CliOperationalError } from "./cli-errors.js";
 import {
   inspectGitLockfileChange,
+  pathChanged,
+  readGitBaseFile,
   readGitBaseLockfile,
 } from "./git-lockfile-retriever.js";
 
@@ -147,6 +149,81 @@ describe("Git lockfile retriever", () => {
     await expect(
       readGitBaseLockfile(inspection.commit, cwd, 1024),
     ).resolves.toBeNull();
+  });
+
+  describe("readGitBaseFile (generic policy reads)", () => {
+    async function committed(
+      files: Record<string, string>,
+    ): Promise<{ cwd: string; commit: string }> {
+      const cwd = await createRepository(false);
+      for (const [file, text] of Object.entries(files)) {
+        await mkdir(join(cwd, file, ".."), { recursive: true });
+        await writeFile(join(cwd, file), text, "utf8");
+      }
+      await git(cwd, "add", ".");
+      await git(cwd, "commit", "--quiet", "-m", "test: policy files");
+      return { cwd, commit: (await git(cwd, "rev-parse", "HEAD")).trim() };
+    }
+
+    it("matches pathspec metacharacters literally", async () => {
+      const { cwd, commit } = await committed({
+        "a*.yml": "star",
+        "abc.yml": "abc",
+      });
+      await expect(readGitBaseFile(commit, cwd, "a*.yml", 1024)).resolves.toBe(
+        "star",
+      );
+      await expect(
+        readGitBaseFile(commit, cwd, ":(glob)*.yml", 1024),
+      ).resolves.toBeNull();
+    });
+
+    it("resolves paths relative to a subdirectory cwd", async () => {
+      const { cwd, commit } = await committed({
+        ".capdelta.yml": "root",
+        "sub/.capdelta.yml": "sub",
+      });
+      await expect(
+        readGitBaseFile(commit, join(cwd, "sub"), ".capdelta.yml", 1024),
+      ).resolves.toBe("sub");
+      await expect(
+        readGitBaseFile(commit, cwd, ".capdelta.yml", 1024),
+      ).resolves.toBe("root");
+    });
+
+    it("rejects a directory or symlink entry and an oversized blob", async () => {
+      const cwd = await createRepository(false);
+      await mkdir(join(cwd, "dir.yml"));
+      await writeFile(join(cwd, "dir.yml", "x"), "x", "utf8");
+      await writeFile(join(cwd, "target.yml"), "target", "utf8");
+      await symlink("target.yml", join(cwd, "link.yml"));
+      await writeFile(join(cwd, "big.yml"), "#".repeat(2048), "utf8");
+      await git(cwd, "add", ".");
+      await git(cwd, "commit", "--quiet", "-m", "test: entries");
+      const commit = (await git(cwd, "rev-parse", "HEAD")).trim();
+      for (const path of ["dir.yml", "link.yml"]) {
+        await expect(readGitBaseFile(commit, cwd, path, 1024)).rejects.toThrow(
+          "is not a regular Git blob",
+        );
+      }
+      await expect(
+        readGitBaseFile(commit, cwd, "big.yml", 1024),
+      ).rejects.toBeInstanceOf(CliOperationalError);
+    });
+
+    it("reports working-tree changes without parsing them", async () => {
+      const { cwd, commit } = await committed({ ".capdelta.yml": "base" });
+      await expect(pathChanged(commit, cwd, ".capdelta.yml")).resolves.toBe(
+        false,
+      );
+      await writeFile(join(cwd, ".capdelta.yml"), "{ not yaml", "utf8");
+      await expect(pathChanged(commit, cwd, ".capdelta.yml")).resolves.toBe(
+        true,
+      );
+      await expect(pathChanged(commit, cwd, "new.yml")).resolves.toBe(false);
+      await writeFile(join(cwd, "new.yml"), "x", "utf8");
+      await expect(pathChanged(commit, cwd, "new.yml")).resolves.toBe(true);
+    });
   });
 
   it("degrades loudly when the validated blob exceeds its limit", async () => {

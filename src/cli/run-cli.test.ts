@@ -494,38 +494,133 @@ describe("capdelta CLI", () => {
     );
   });
 
-  it("keeps an allowlisted CRITICAL finding visible but out of the gate", async () => {
-    const { oldBytes, newBytes } = await goldenBytes();
-    await withBump(
-      lockfileWithGolden("1.0.0", sri(oldBytes)),
-      lockfileWithGolden("2.0.0", sri(newBytes)),
-      async (cwd) => {
-        await writeFile(
-          join(cwd, ".capdelta.yml"),
-          'allowlist:\n  - package: golden-fixture\n    capability: INSTALL_HOOK\n    justification: "reviewed inert fixture hook"\n',
-          "utf8",
-        );
+  describe("allowlist policy comes from the base commit (ADR-015)", () => {
+    const EXCEPTION =
+      'allowlist:\n  - package: golden-fixture\n    capability: INSTALL_HOOK\n    version: 2.0.0\n    justification: "reviewed inert fixture hook"\n';
+
+    /** Base commit holds the v1 lockfile (and optionally a config); head bumps to v2. */
+    async function scenario(
+      baseConfig: string | null,
+      body: (cwd: string, fetchImpl: typeof fetch) => Promise<void>,
+      configDir = "",
+    ): Promise<void> {
+      const { oldBytes, newBytes } = await goldenBytes();
+      const cwd = await createRepository(
+        lockfileWithGolden("1.0.0", sri(oldBytes)),
+      );
+      try {
+        if (baseConfig !== null) {
+          await mkdir(join(cwd, configDir), { recursive: true });
+          await writeFile(
+            join(cwd, configDir, ".capdelta.yml"),
+            baseConfig,
+            "utf8",
+          );
+          await git(cwd, "add", ".");
+          await git(cwd, "commit", "--quiet", "-m", "test: reviewed exception");
+        }
+        await writeLockfile(cwd, lockfileWithGolden("2.0.0", sri(newBytes)));
+        await body(cwd, goldenFetch(oldBytes, newBytes));
+      } finally {
+        await rm(cwd, { recursive: true, force: true });
+      }
+    }
+
+    it("ignores an exception that exists only in the working tree", async () => {
+      await scenario(null, async (cwd, fetchImpl) => {
+        await writeFile(join(cwd, ".capdelta.yml"), EXCEPTION, "utf8");
         const result = await runInProcess(
           cwd,
           ["--base", "HEAD", "--format", "json"],
-          goldenFetch(oldBytes, newBytes),
+          fetchImpl,
         );
-        expect(result.exitCode).toBe(0);
-        expect(result.stderr).toBe("");
-        const report = JSON.parse(result.stdout) as {
-          summary: { bySeverity: object; gateSeverity: object };
-          packages: { report: { findings: { suppression?: object }[] } }[];
+        expect(result.exitCode).toBe(1);
+        expect(result.stdout).not.toContain("reviewed inert fixture hook");
+        expect(result.stderr).toContain(".capdelta.yml differs from base");
+        expect(result.stderr).toContain("is not present at base");
+      });
+    });
+
+    it("applies the exception committed at base, even if the working tree removes it", async () => {
+      await scenario(EXCEPTION, async (cwd, fetchImpl) => {
+        const clean = await runInProcess(
+          cwd,
+          ["--base", "HEAD", "--format", "json"],
+          fetchImpl,
+        );
+        expect(clean.exitCode).toBe(0);
+        expect(clean.stderr).toBe("");
+        const report = JSON.parse(clean.stdout) as {
+          summary: { gateSeverity: { CRITICAL: number } };
         };
-        expect(report.summary.bySeverity).toMatchObject({ CRITICAL: 1 });
-        expect(report.summary.gateSeverity).toMatchObject({
-          CRITICAL: 0,
-          HIGH: 1,
-        });
-        expect(report.packages[0]?.report.findings[0]?.suppression).toEqual({
-          reason: "reviewed inert fixture hook",
-        });
-      },
-    );
+        expect(report.summary.gateSeverity.CRITICAL).toBe(0);
+        expect(clean.stdout).toContain(
+          "[version 2.0.0] reviewed inert fixture hook",
+        );
+
+        await rm(join(cwd, ".capdelta.yml"));
+        const edited = await runInProcess(
+          cwd,
+          ["--base", "HEAD", "--format", "json"],
+          fetchImpl,
+        );
+        expect(edited.exitCode).toBe(0);
+        expect(edited.stderr).toContain(".capdelta.yml differs from base");
+      });
+    });
+
+    it("resolves the config path relative to the CLI's cwd", async () => {
+      await scenario(
+        EXCEPTION,
+        async (cwd, fetchImpl) => {
+          const result = await runInProcess(
+            cwd,
+            ["--base", "HEAD", "--config", "policy/.capdelta.yml"],
+            fetchImpl,
+          );
+          expect(result.exitCode).toBe(0);
+        },
+        "policy",
+      );
+    });
+
+    it("warns for an explicit config missing at base and stays quiet for the default", async () => {
+      await scenario(null, async (cwd, fetchImpl) => {
+        const implicit = await runInProcess(
+          cwd,
+          ["--base", "HEAD", "--fail-on", "none"],
+          fetchImpl,
+        );
+        expect(implicit.stderr).toBe("");
+        const explicit = await runInProcess(
+          cwd,
+          ["--base", "HEAD", "--fail-on", "none", "--config", "missing.yml"],
+          fetchImpl,
+        );
+        expect(explicit.stderr).toContain("missing.yml is not present at base");
+      });
+    });
+
+    it("fails on an invalid base config or an unsafe config path", async () => {
+      await scenario("allowlist:\n  - package: x\n", async (cwd, fetchImpl) => {
+        const invalid = await runInProcess(cwd, ["--base", "HEAD"], fetchImpl);
+        expect(invalid.exitCode).toBe(1);
+        expect(invalid.stderr).toContain(
+          "base config .capdelta.yml is invalid",
+        );
+        for (const unsafe of ["../outside.yml", "/etc/capdelta.yml"]) {
+          const result = await runInProcess(
+            cwd,
+            ["--base", "HEAD", "--config", unsafe],
+            fetchImpl,
+          );
+          expect(result.exitCode).toBe(1);
+          expect(result.stderr).toContain(
+            "must be a normalized relative POSIX path",
+          );
+        }
+      });
+    });
   });
 
   it("rejects an invalid threshold before reading Git or the network", async () => {

@@ -21,6 +21,7 @@ import {
   CliOperationalError,
   CliUsageError,
   terminalSafeError,
+  terminalSafeText,
 } from "./cli-errors.js";
 import {
   CLI_HELP,
@@ -30,6 +31,8 @@ import {
 } from "./cli-options.js";
 import {
   inspectGitLockfileChange,
+  pathChanged,
+  readGitBaseFile,
   readGitBaseLockfile,
 } from "./git-lockfile-retriever.js";
 
@@ -111,7 +114,12 @@ async function analyzeCheckout(
   const oldLockfile =
     baseText === null ? null : parseLockfile(baseText, "base");
   const headLockfile = parseLockfile(headText, "head");
-  const config = await readConfig(runtime.cwd, configPath, allowMissingConfig);
+  const config = await readBaseConfig(
+    inspection.commit,
+    runtime,
+    configPath,
+    allowMissingConfig,
+  );
   const lockfileDiff = diffNpmLockfiles(oldLockfile, headLockfile);
   const analysis = await analyzeChangedPackages(
     lockfileDiff,
@@ -128,61 +136,56 @@ async function analyzeCheckout(
   return { run: analysis, report };
 }
 
-async function readConfig(
-  cwd: string,
-  configPath: string,
-  allowMissing: boolean,
-): Promise<ReturnType<typeof emptyCapdeltaConfig>> {
-  const path = resolve(cwd, configPath);
-  let metadata;
-  try {
-    metadata = await lstat(path);
-  } catch (error: unknown) {
-    if (allowMissing && isMissing(error)) return emptyCapdeltaConfig();
-    throw new CliOperationalError(`cannot inspect config ${configPath}`, {
-      cause: error,
-    });
-  }
-  if (!metadata.isFile() || metadata.isSymbolicLink()) {
-    throw new CliOperationalError(
-      `config ${configPath} must be a regular file, not a symlink`,
-    );
-  }
-  const maxBytes = 256 * 1024;
-  if (metadata.size > maxBytes) {
-    throw new CliOperationalError(
-      `config ${configPath} exceeds the ${String(maxBytes)} byte limit`,
-    );
-  }
-  let bytes: Buffer;
-  try {
-    bytes = await readFile(path);
-  } catch (error: unknown) {
-    throw new CliOperationalError(`cannot read config ${configPath}`, {
-      cause: error,
-    });
-  }
-  if (bytes.length > maxBytes) {
-    throw new CliOperationalError(
-      `config ${configPath} exceeds the ${String(maxBytes)} byte limit`,
-    );
-  }
-  try {
-    return parseCapdeltaConfig(decodeUtf8(bytes, `config ${configPath}`));
-  } catch (error: unknown) {
-    throw new CliOperationalError(`config ${configPath} is invalid`, {
-      cause: error,
-    });
-  }
-}
+const MAX_CONFIG_BYTES = 256 * 1024;
 
-function isMissing(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    error.code === "ENOENT"
+/**
+ * Policy comes from the same base commit as the base lockfile, never the
+ * working tree, so a change under review cannot approve its own exception
+ * (ADR-015). Working-tree changes are only reported; head YAML is never
+ * parsed.
+ */
+async function readBaseConfig(
+  commit: string,
+  runtime: CliRuntime,
+  configPath: string,
+  isDefault: boolean,
+): Promise<ReturnType<typeof emptyCapdeltaConfig>> {
+  const text = await readGitBaseFile(
+    commit,
+    runtime.cwd,
+    configPath,
+    MAX_CONFIG_BYTES,
   );
+  // Diagnostic only: a failed comparison must not discard valid base policy.
+  let changed = false;
+  try {
+    changed = await pathChanged(commit, runtime.cwd, configPath);
+  } catch (error: unknown) {
+    if (!(error instanceof CliOperationalError)) throw error;
+    runtime.stderr(
+      `capdelta: could not compare ${terminalSafeText(configPath)} with base ${commit}; the base version is used: ${terminalSafeError(error)}\n`,
+    );
+  }
+  if (changed) {
+    runtime.stderr(
+      `capdelta: ${terminalSafeText(configPath)} differs from base ${commit}; the base version is used\n`,
+    );
+  }
+  if (text === null) {
+    if (!isDefault || changed) {
+      runtime.stderr(
+        `capdelta: ${terminalSafeText(configPath)} is not present at base ${commit}; no exceptions applied\n`,
+      );
+    }
+    return emptyCapdeltaConfig();
+  }
+  try {
+    return parseCapdeltaConfig(text);
+  } catch (error: unknown) {
+    throw new CliOperationalError(`base config ${configPath} is invalid`, {
+      cause: error,
+    });
+  }
 }
 
 function resolveMaxLockfileBytes(value: number | undefined): number {

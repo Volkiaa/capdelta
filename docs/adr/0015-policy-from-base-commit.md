@@ -12,9 +12,11 @@ suppresses its own CRITICAL findings and passes the gate it is meant to face.
 
 ## Decision
 
-The Action reads the allowlist from the same immutable base commit as the base
-lockfile (the PR base SHA, or the resolved `base-ref`), through the Contents
-API with a 256 KiB cap. It never reads or parses head content:
+The Action and the CLI read the allowlist from the selected immutable base
+commit, the same one used for the base lockfile, and never parse head content.
+The Action uses the PR base SHA or the resolved `base-ref` and reads through the
+Contents API; the CLI uses the resolved `--base` commit and reads the Git
+object. Both cap the file at 256 KiB:
 
 - Absent at base: no exceptions apply, with a warning.
 - Changed by the PR: a warning that those changes do not apply to this run.
@@ -35,5 +37,7 @@ Reviewed exceptions are merged first; the dependency PR is then re-run.
   base-commit pin, not the entry type, is what keeps the policy trusted.
 - The workflow, Action pin, `config-path`, base selection, and threshold must
   themselves be trusted; a PR-controlled workflow is out of scope.
-- The CLI still reads the working tree; moving it to the base commit is the
-  next increment.
+- The CLI follows the same rule: it reads `--config` at the resolved `--base`
+  commit (one regular Git blob, literal pathspec, read by object ID) and only
+  reports working-tree changes. `--config` is now a cwd-relative repository
+  path; absolute and out-of-repository paths are rejected.

@@ -1,4 +1,5 @@
 import { spawn, type ChildProcessByStdio } from "node:child_process";
+import { isNormalizedRelativePosixPath } from "../core/repository-path.js";
 import type { Readable } from "node:stream";
 import {
   CliOperationalError,
@@ -73,8 +74,30 @@ async function lockfileChanged(
   cwd: string,
   runtime: GitProcessRuntime,
 ): Promise<boolean> {
+  return pathChanged(commit, cwd, LOCKFILE_NAME, runtime);
+}
+
+/**
+ * Whether the working tree differs from the base commit at one path (tracked
+ * diff, or a new untracked file). capdelta never parses the working-tree
+ * content; Git compares it internally.
+ */
+export async function pathChanged(
+  commit: string,
+  cwd: string,
+  path: string,
+  runtime: GitProcessRuntime = {},
+): Promise<boolean> {
   const tracked = await runGit(
-    ["diff", "--quiet", "--no-ext-diff", commit, "--", LOCKFILE_NAME],
+    [
+      "--literal-pathspecs",
+      "diff",
+      "--quiet",
+      "--no-ext-diff",
+      commit,
+      "--",
+      path,
+    ],
     cwd,
     GIT_METADATA_OUTPUT_BYTES,
     runtime,
@@ -82,19 +105,26 @@ async function lockfileChanged(
   if (tracked.exitCode === 1) return true;
   if (tracked.exitCode !== 0) {
     throw new CliOperationalError(
-      `cannot compare ${LOCKFILE_NAME} with the base revision: ${gitDetail(tracked)}`,
+      `cannot compare ${path} with the base revision: ${gitDetail(tracked)}`,
     );
   }
 
   const untracked = await runGit(
-    ["ls-files", "--others", "--exclude-standard", "--", LOCKFILE_NAME],
+    [
+      "--literal-pathspecs",
+      "ls-files",
+      "--others",
+      "--exclude-standard",
+      "--",
+      path,
+    ],
     cwd,
     GIT_METADATA_OUTPUT_BYTES,
     runtime,
   );
   if (untracked.exitCode !== 0) {
     throw new CliOperationalError(
-      `cannot inspect untracked ${LOCKFILE_NAME}: ${gitDetail(untracked)}`,
+      `cannot inspect untracked ${path}: ${gitDetail(untracked)}`,
     );
   }
   return untracked.stdout.length > 0;
@@ -106,27 +136,46 @@ export async function readGitBaseLockfile(
   maxBytes: number,
   runtime: GitProcessRuntime = {},
 ): Promise<string | null> {
+  return readGitBaseFile(commit, cwd, LOCKFILE_NAME, maxBytes, runtime);
+}
+
+/**
+ * Reads one cwd-relative path at an immutable commit: exactly one regular
+ * blob entry, matched literally (no pathspec magic), read by object ID.
+ * Returns null only when the path is absent at that commit.
+ */
+export async function readGitBaseFile(
+  commit: string,
+  cwd: string,
+  path: string,
+  maxBytes: number,
+  runtime: GitProcessRuntime = {},
+): Promise<string | null> {
+  if (!isNormalizedRelativePosixPath(path)) {
+    throw new CliOperationalError(
+      `${JSON.stringify(path)} must be a normalized relative POSIX path`,
+    );
+  }
   const tree = await runGit(
-    ["ls-tree", "-z", commit, "--", LOCKFILE_NAME],
+    ["--literal-pathspecs", "ls-tree", "-z", commit, "--", path],
     cwd,
     GIT_METADATA_OUTPUT_BYTES,
     runtime,
   );
   if (tree.exitCode !== 0) {
     throw new CliOperationalError(
-      `cannot inspect base ${LOCKFILE_NAME}: ${gitDetail(tree)}`,
+      `cannot inspect base ${path}: ${gitDetail(tree)}`,
     );
   }
   if (tree.stdout.length === 0) return null;
-  const metadata = decodeUtf8(tree.stdout, `base ${LOCKFILE_NAME} metadata`);
+  const metadata = decodeUtf8(tree.stdout, `base ${path} metadata`);
+  const tab = metadata.indexOf("\t");
   const blobId =
-    /^100\d{3} blob ([0-9a-f]{40,64})\tpackage-lock\.json\0$/iu.exec(
-      metadata,
-    )?.[1];
+    tab > 0 && metadata.slice(tab + 1) === `${path}\0`
+      ? /^100\d{3} blob ([0-9a-f]{40,64})$/iu.exec(metadata.slice(0, tab))?.[1]
+      : undefined;
   if (blobId === undefined) {
-    throw new CliOperationalError(
-      `base ${LOCKFILE_NAME} is not a regular Git blob`,
-    );
+    throw new CliOperationalError(`base ${path} is not a regular Git blob`);
   }
 
   // Read the exact object whose mode and type were validated above. Using
@@ -140,10 +189,10 @@ export async function readGitBaseLockfile(
   );
   if (shown.exitCode !== 0) {
     throw new CliOperationalError(
-      `cannot read base ${LOCKFILE_NAME}: ${gitDetail(shown)}`,
+      `cannot read base ${path}: ${gitDetail(shown)}`,
     );
   }
-  return decodeUtf8(shown.stdout, `base ${LOCKFILE_NAME}`);
+  return decodeUtf8(shown.stdout, `base ${path}`);
 }
 
 async function runGit(
