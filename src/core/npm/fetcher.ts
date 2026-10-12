@@ -14,7 +14,10 @@ export type TarballSide = "old" | "new";
 export type FetchFailureKind =
   | "invalid-url"
   | "unsupported-integrity"
+  /** A non-retryable HTTP status (404, 403, ...). Decided by the registry. */
   | "http-status"
+  /** A retryable status (408, 429, 5xx) that persisted after the last attempt. */
+  | "http-unavailable"
   | "timeout"
   | "aborted"
   | "network-error"
@@ -77,6 +80,11 @@ export interface FetcherOptions {
   /** Whole-analysis cooperative cancellation propagated by the pipeline. */
   signal?: AbortSignal;
   cache?: MemoryTarballCache;
+  /**
+   * ADR-018: injectable backoff so retry tests stay instant. The default waits
+   * the real delay and resolves early when `signal` aborts.
+   */
+  sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
 }
 
 export class FetcherError extends Error {
@@ -99,6 +107,7 @@ interface ResolvedOptions {
   concurrency: number;
   signal?: AbortSignal;
   cache: MemoryTarballCache;
+  sleep: (ms: number, signal?: AbortSignal) => Promise<void>;
 }
 
 interface ArtifactSuccess {
@@ -115,9 +124,28 @@ interface ArtifactFailure {
 
 type ArtifactResult = ArtifactSuccess | ArtifactFailure;
 
+interface AttemptSuccess {
+  ok: true;
+  tarball: VerifiedTarball;
+}
+
+interface AttemptFailure {
+  ok: false;
+  kind: FetchFailureKind;
+  detail: string;
+  /** False for deterministic failures: retrying only adds latency. */
+  retryable: boolean;
+}
+
+type AttemptResult = AttemptSuccess | AttemptFailure;
+
 const DEFAULT_MAX_TARBALL_BYTES = 50 * 1024 * 1024;
 const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_CONCURRENCY = 8;
+/** ADR-018: at most three attempts in total. */
+const FETCH_ATTEMPTS = 3;
+/** ADR-018: 250 ms after the first failure, then 1 s after the second. */
+const RETRY_BACKOFF_MS = [250, 1_000] as const;
 const SHA512_BYTES = 64;
 const SRI_TOKEN = /^sha512-([A-Za-z0-9+/]+={0,2})$/;
 const TIMEOUT_ABORT = Symbol("capdelta fetch timeout");
@@ -234,12 +262,7 @@ async function fetchArtifact(
 ): Promise<ArtifactResult> {
   const parentSignal = options.signal;
   if (parentSignal?.aborted === true) {
-    return {
-      ok: false,
-      kind: "aborted",
-      detail: analysisStopDetail(parentSignal),
-      url,
-    };
+    return abortedArtifact(url, parentSignal);
   }
   if (!isHttpsUrl(url)) {
     return {
@@ -284,6 +307,42 @@ async function fetchArtifact(
     options.cache.delete(token);
   }
 
+  // ADR-018: bounded retries. Every attempt honors the run's abort signal, so a
+  // deadline or cancellation ends the artifact operation even between attempts.
+  let attempt = 1;
+  for (;;) {
+    if (isAborted(parentSignal)) {
+      return abortedArtifact(url, parentSignal);
+    }
+    const outcome = await fetchAttempt(url, expected, options);
+    if (outcome.ok) {
+      options.cache.set(outcome.tarball.integrity, outcome.tarball.bytes);
+      return { ok: true, tarball: outcome.tarball };
+    }
+    if (!outcome.retryable || attempt >= FETCH_ATTEMPTS) {
+      return { ok: false, kind: outcome.kind, detail: outcome.detail, url };
+    }
+    const backoffMs = RETRY_BACKOFF_MS[attempt - 1];
+    if (backoffMs === undefined) {
+      throw new FetcherError(
+        `missing backoff for fetch attempt ${String(attempt)}`,
+      );
+    }
+    await options.sleep(backoffMs, parentSignal);
+    attempt += 1;
+  }
+}
+
+/**
+ * One download attempt with its own timeout controller, wired to the run's
+ * abort signal. The outcome carries whether the failure is retryable.
+ */
+async function fetchAttempt(
+  url: string,
+  expected: readonly string[],
+  options: ResolvedOptions,
+): Promise<AttemptResult> {
+  const parentSignal = options.signal;
   const controller = new AbortController();
   const abortFromParent = (): void => {
     if (!controller.signal.aborted) controller.abort(PARENT_ABORT);
@@ -299,12 +358,10 @@ async function fetchArtifact(
     });
     if (!response.ok) {
       controller.abort(REJECTED_RESPONSE_ABORT);
-      return {
-        ok: false,
-        kind: "http-status",
-        detail: `tarball request returned HTTP ${String(response.status)}`,
-        url,
-      };
+      const detail = `tarball request returned HTTP ${String(response.status)}`;
+      return isRetryableHttpStatus(response.status)
+        ? { ok: false, kind: "http-unavailable", detail, retryable: true }
+        : { ok: false, kind: "http-status", detail, retryable: false };
     }
     const declaredLength = response.headers.get("content-length");
     if (
@@ -316,7 +373,7 @@ async function fetchArtifact(
         ok: false,
         kind: "size-limit-exceeded",
         detail: `declared tarball size exceeds ${String(options.maxTarballBytes)} bytes`,
-        url,
+        retryable: false,
       };
     }
     if (response.body === null) {
@@ -324,7 +381,7 @@ async function fetchArtifact(
         ok: false,
         kind: "invalid-response",
         detail: "response has no body",
-        url,
+        retryable: false,
       };
     }
     const bytes = await readCappedBody(
@@ -337,7 +394,7 @@ async function fetchArtifact(
         ok: false,
         kind: "size-limit-exceeded",
         detail: `tarball exceeds ${String(options.maxTarballBytes)} bytes while streaming`,
-        url,
+        retryable: false,
       };
     }
     if (!matchesAnyIntegrity(bytes, expected)) {
@@ -345,19 +402,20 @@ async function fetchArtifact(
         ok: false,
         kind: "integrity-mismatch",
         detail: "downloaded bytes do not match lockfile sha512 integrity",
-        url,
+        retryable: false,
       };
     }
-    const matched = matchingIntegrity(bytes, expected);
-    options.cache.set(matched, bytes);
-    return { ok: true, tarball: { integrity: matched, bytes } };
+    return {
+      ok: true,
+      tarball: { integrity: matchingIntegrity(bytes, expected), bytes },
+    };
   } catch (error: unknown) {
     if (controller.signal.reason === TIMEOUT_ABORT) {
       return {
         ok: false,
         kind: "timeout",
         detail: "tarball request timed out",
-        url,
+        retryable: true,
       };
     }
     if (controller.signal.reason === SIZE_LIMIT_ABORT) {
@@ -365,7 +423,7 @@ async function fetchArtifact(
         ok: false,
         kind: "size-limit-exceeded",
         detail: `tarball exceeds ${String(options.maxTarballBytes)} bytes while streaming`,
-        url,
+        retryable: false,
       };
     }
     if (controller.signal.reason === PARENT_ABORT) {
@@ -376,7 +434,7 @@ async function fetchArtifact(
           parentSignal === undefined
             ? "analysis aborted"
             : analysisStopDetail(parentSignal),
-        url,
+        retryable: false,
       };
     }
     // Recovery is structured failure, not a swallowed error: this package is
@@ -388,12 +446,47 @@ async function fetchArtifact(
         error instanceof Error
           ? `tarball request failed: ${error.name}`
           : "tarball request failed",
-      url,
+      retryable: true,
     };
   } finally {
     clearTimeout(timeout);
     parentSignal?.removeEventListener("abort", abortFromParent);
   }
+}
+
+/** A run deadline or caller cancellation stopped the artifact operation. */
+function abortedArtifact(
+  url: string,
+  signal: AbortSignal | undefined,
+): ArtifactFailure {
+  return {
+    ok: false,
+    kind: "aborted",
+    detail:
+      signal === undefined ? "analysis aborted" : analysisStopDetail(signal),
+    url,
+  };
+}
+
+/** ADR-018: 408, 429, and every 5xx are transient; other 4xx are not. */
+function isRetryableHttpStatus(status: number): boolean {
+  return status === 408 || status === 429 || (status >= 500 && status <= 599);
+}
+
+/** Real backoff; resolves early when the run's abort signal fires. */
+function defaultSleep(ms: number, signal?: AbortSignal): Promise<void> {
+  if (signal?.aborted === true) return Promise.resolve();
+  return new Promise<void>((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    signal?.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(timer);
+        resolve();
+      },
+      { once: true },
+    );
+  });
 }
 
 async function readCappedBody(
@@ -448,6 +541,7 @@ function resolveOptions(options: FetcherOptions): ResolvedOptions {
     concurrency,
     ...(options.signal === undefined ? {} : { signal: options.signal }),
     cache: options.cache ?? new MemoryTarballCache(),
+    sleep: options.sleep ?? defaultSleep,
   };
 }
 
