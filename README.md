@@ -335,6 +335,12 @@ than `registry.npmjs.org` is skipped and flagged.
 - **Source coverage:** TypeScript source is diagnosed as unsupported in v0.1.
 - **Signal coverage:** URL-domain diffs, entropy, minified-blob growth, and
   obfuscation recognizers are implemented with provisional thresholds.
+- **Endpoint heuristics:** in files that parse, URLs and IPs inside comments
+  are ignored, so an endpoint that code recovers from its own comment text at
+  runtime may be missed. Files that do not parse are still byte-scanned,
+  comments included. Domains must look public (two or more letter-digit-hyphen
+  labels with an alphabetic or punycode TLD); single-label hosts are not
+  reported.
 - **Script semantics:** install hooks are never executed. Only conservative
   literal `node path.js` entrypoints receive install-code attribution.
 - **Routine hooks:** no install command is ranked down. Benign-pattern

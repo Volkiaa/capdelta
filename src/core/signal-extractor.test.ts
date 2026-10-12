@@ -111,4 +111,104 @@ describe("signal extractor", () => {
       },
     ]);
   });
+
+  describe("endpoint noise controls", () => {
+    const hosts = (text: string, state: "parsed" | "unparseable" = "parsed") =>
+      buildSignalSet([source("index.js", text, state)]).endpoints.map(
+        (item) => item.normalizedValue,
+      );
+
+    it.each([
+      ["a template placeholder", "x = 'http://$addr/';"],
+      ["a single-label host", "x = 'https://@fs/path';"],
+      ["an underscore label", "x = 'https://a_b.example.com/';"],
+      ["a numeric TLD", "x = 'https://example.123/';"],
+      ["a bare punycode TLD", "x = 'https://example.xn--/';"],
+      ["an oversized domain", `x = 'https://${"a.".repeat(130)}com/';`],
+    ])("drops %s", (_label, text) => {
+      expect(hosts(text)).toEqual([]);
+    });
+
+    it.each([
+      [
+        "markdown trailing parenthesis",
+        "x = '[u](http://underscorejs.org)';",
+        "underscorejs.org",
+      ],
+      [
+        "port and credentials",
+        "x = 'https://user:pw@api.example.com:8443/';",
+        "api.example.com",
+      ],
+      ["root dot", "x = 'https://api.example.com./';", "api.example.com"],
+      [
+        "punycode",
+        "x = 'https://xn--bcher-kva.example/';",
+        "xn--bcher-kva.example",
+      ],
+      [
+        "IDN converted by URL",
+        "x = 'https://bücher.example/';",
+        "xn--bcher-kva.example",
+      ],
+      [
+        "reserved test TLD",
+        "x = 'https://c2.example.test/';",
+        "c2.example.test",
+      ],
+    ])("keeps %s", (_label, text, expected) => {
+      expect(hosts(text)).toEqual([expected]);
+    });
+
+    it("leaves IP classification unchanged by the domain heuristic", () => {
+      expect(
+        hosts(
+          "a = 'http://203.0.113.9/'; b = 'https://[2001:db8::7]/'; c = 'http://10.0.0.1';",
+        ),
+      ).toEqual(["203.0.113.9", "2001:db8::7"]);
+    });
+
+    it("skips endpoints inside parser comment ranges, only for parsed sources", () => {
+      const text =
+        "// https://docs.example.org\nfetch('https://api.example.net');\n";
+      const ranges = [[0, 27]] as const;
+      const observe = (parseState: "parsed" | "unparseable") =>
+        buildSignalSet([
+          observeSignalSource({
+            file: "index.js",
+            bytes: new TextEncoder().encode(text),
+            parseState,
+            commentRanges: ranges,
+          }),
+        ]).endpoints.map((item) => item.normalizedValue);
+      expect(observe("parsed")).toEqual(["api.example.net"]);
+      // Without a trusted parse, the lexical byte scan keeps every candidate.
+      expect(observe("unparseable")).toEqual([
+        "api.example.net",
+        "docs.example.org",
+      ]);
+    });
+
+    it.each([
+      [
+        "overlapping",
+        [
+          [0, 5],
+          [3, 8],
+        ],
+      ],
+      ["empty", [[4, 4]]],
+      ["out of bounds", [[0, 999]]],
+      ["non-integer", [[0.5, 3]]],
+    ] as const)("rejects %s comment ranges loudly", (_label, ranges) => {
+      expect(() =>
+        observeSignalSource({
+          file: "index.js",
+          bytes: new TextEncoder().encode("const x = 1; // comment\n"),
+          parseState: "parsed",
+          commentRanges: ranges,
+        }),
+      ).toThrow(RangeError);
+    });
+  });
 });

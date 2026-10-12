@@ -212,11 +212,16 @@ export async function extractNpmJavaScriptCapabilities(
         resolvedOptions.signal,
       );
       throwIfStopped(resolvedOptions.signal);
-      signalInputs.push({
-        file,
-        bytes,
-        parseState: response.ok ? "parsed" : "unparseable",
-      });
+      signalInputs.push(
+        response.ok
+          ? {
+              file,
+              bytes,
+              parseState: "parsed",
+              commentRanges: response.comments,
+            }
+          : { file, bytes, parseState: "unparseable" },
+      );
       if (!response.ok) {
         diagnostics.push({
           kind: "unparseable-source",
