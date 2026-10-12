@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "reviewer": "Claude (single-reviewer adjudication; cross-checked by a Codex review of this record, not independently re-labeled)",
+  "categories": {
+    "accurate-review-worthy": "a real capability change the PLAN §4.4 policy intends a human to review",
+    "noise": "a reported change that does not reflect new runtime behavior",
+    "detector-bug": "a finding caused by a capdelta defect",
+    "uncertain": "evidence insufficient to decide"
+  },
+  "labels": [
+    {
+      "bump": "bcrypt 5.1.1 -> 6.0.0",
+      "finding": "CRITICAL INSTALL_HOOK install changed",
+      "label": "accurate-review-worthy",
+      "reason": "registry install hook changed from \"node-pre-gyp install --fallback-to-build\" to \"node-gyp-build\" in a major release"
+    },
+    {
+      "bump": "sqlite3 5.1.6 -> 5.1.7",
+      "finding": "CRITICAL INSTALL_HOOK install changed",
+      "label": "accurate-review-worthy",
+      "reason": "registry install hook changed from \"node-pre-gyp install --fallback-to-build\" to \"prebuild-install -r napi || node-gyp rebuild\" in a patch release"
+    },
+    {
+      "bump": "yargs 17.7.3 -> 18.0.0",
+      "finding": "HIGH new external domain stackoverflow.com",
+      "label": "noise",
+      "reason": "documentation link inside a shell-completion script embedded as a JS string literal (build/lib/completion-templates.js:16); not a runtime endpoint"
+    },
+    {
+      "bump": "webpack 5.110.3 -> 5.111.0",
+      "finding": "MEDIUM obfuscation-pattern-added x2",
+      "label": "noise",
+      "reason": "numeric CSS matrices in lib/css/syntax.js (MATRIX3D identity) and lib/css/data.js (toSrgb) matched the charcode-array recognizer; not encoded strings"
+    },
+    {
+      "bump": "zod 4.6.3 -> 4.6.6 (3 bumps)",
+      "finding": "MEDIUM unparseable-file x86, unparseable-bytes-growth x3",
+      "label": "noise",
+      "reason": "published TypeScript sources are reported as unparseable; v0.1 parses JavaScript only"
+    },
+    {
+      "bump": "bcrypt 5.1.0 -> 5.1.1",
+      "finding": "MEDIUM unparseable-file + unparseable-bytes-growth (example file)",
+      "label": "uncertain",
+      "reason": "not adjudicated: an unparseable example file; non-gating"
+    },
+    {
+      "bump": "bcrypt 5.1.1 -> 6.0.0",
+      "finding": "MEDIUM ENV added in test/repetitions.test.js",
+      "label": "uncertain",
+      "reason": "not adjudicated: real process.env access, located in published test code; non-gating"
+    },
+    {
+      "bump": "sqlite3 5.1.7 -> 6.0.1",
+      "finding": "MEDIUM FS_WRITE added in deps/extract.js",
+      "label": "uncertain",
+      "reason": "not adjudicated: a real filesystem write in a build-dependency extraction script; non-gating"
+    }
+  ]
+}
