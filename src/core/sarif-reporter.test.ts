@@ -323,6 +323,42 @@ describe("renderSarifReport", () => {
     expect(text).not.toMatch(/malware detected/iu);
   });
 
+  it("marks an excepted package's failures with a reviewed suppression (ADR-017)", () => {
+    const run = mismatchRun([{ name: "oversized", side: "new" }]);
+    const item = run.packages[0];
+    if (item?.status !== "unavailable") throw new Error("fixture drift");
+    const excepted: CapabilityAnalysisRun = {
+      ...run,
+      packages: [
+        {
+          ...item,
+          exception: { reason: "[version 2.0.0] reviewed oversized fixture" },
+          failures: [
+            {
+              stage: "new-extraction",
+              failure: {
+                kind: "expanded-size-limit",
+                detail: "expanded size over the extraction cap",
+              },
+            },
+          ],
+        },
+      ],
+    };
+    const sarif = JSON.parse(renderSarifReport(excepted)) as ParsedSarif;
+    expect(sarif.runs[0].results[0]).toMatchObject({
+      ruleId: "CAPDELTA-EXPANDED-SIZE-LIMIT",
+      // The reviewed exception never downgrades the SARIF alert level.
+      level: "error",
+      properties: {
+        suppression: "[version 2.0.0] reviewed oversized fixture",
+      },
+    });
+    expect(sarif.runs[0].results[0]?.message.text).toContain(
+      "Suppressed ([version 2.0.0] reviewed oversized fixture)",
+    );
+  });
+
   it("orders mismatch results deterministically", () => {
     const forward = renderSarifReport(
       mismatchRun([

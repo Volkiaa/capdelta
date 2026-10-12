@@ -185,6 +185,11 @@ export function formatTextRunReport(report: JsonRunReport): string {
       `Unavailable package: ${reportPackageIdentity(item.package)}`,
       ...item.failures.map((failure) => `- ${analysisIssueText(failure)}`),
     );
+    if (item.exception !== undefined) {
+      // ADR-017: the package is still unanalyzed; the reviewed exception only
+      // releases it from the severity gate.
+      lines.push(`reviewed exception: ${quote(item.exception.reason)}`);
+    }
   }
 
   if (report.lockfileFindings.length > 0) {

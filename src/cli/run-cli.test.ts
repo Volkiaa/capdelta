@@ -534,6 +534,48 @@ describe("capdelta CLI", () => {
     );
   });
 
+  it("releases a reviewed unanalyzable exception; strict still returns 2 (ADR-017)", async () => {
+    // Inert bytes that fetch-verify but fail extraction (ADR-016), with a
+    // reviewed exception for the exact new-side bytes committed at base.
+    const { oldBytes } = await goldenBytes();
+    const brokenBytes = new TextEncoder().encode("inert, not a tarball");
+    const cwd = await createRepository(
+      lockfileWithGolden("1.0.0", sri(oldBytes)),
+    );
+    try {
+      await writeFile(
+        join(cwd, ".capdelta.yml"),
+        "unanalyzable:\n" +
+          "  - package: golden-fixture\n" +
+          "    version: 2.0.0\n" +
+          `    integrity: ${sri(brokenBytes)}\n` +
+          "    kind: invalid-archive\n" +
+          '    justification: "reviewed inert broken fixture"\n',
+        "utf8",
+      );
+      await git(cwd, "add", ".");
+      await git(cwd, "commit", "--quiet", "-m", "test: reviewed exception");
+      await writeLockfile(cwd, lockfileWithGolden("2.0.0", sri(brokenBytes)));
+      const fetchImpl = goldenFetch(oldBytes, brokenBytes);
+
+      const gated = await runInProcess(cwd, ["--base", "HEAD"], fetchImpl);
+      expect(gated.exitCode).toBe(0);
+      expect(gated.stderr).toBe("");
+      expect(gated.stdout).toContain("reviewed exception:");
+      expect(gated.stdout).toContain("reviewed inert broken fixture");
+
+      const strict = await runInProcess(
+        cwd,
+        ["--base", "HEAD", "--strict"],
+        fetchImpl,
+      );
+      expect(strict.exitCode).toBe(2);
+      expect(strict.stderr).toContain("strict mode found unanalyzed content");
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
   describe("allowlist policy comes from the base commit (ADR-015)", () => {
     const EXCEPTION =
       'allowlist:\n  - package: golden-fixture\n    capability: INSTALL_HOOK\n    version: 2.0.0\n    justification: "reviewed inert fixture hook"\n';
