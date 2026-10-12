@@ -503,6 +503,8 @@ describe("capdelta CLI", () => {
         expect(infoGate.stderr).toBe(
           "capdelta: 1 finding(s) at or above INFO (highest: INFO)\n" + message,
         );
+        // The report is delivered before both failure causes.
+        expect(infoGate.order).toEqual(["stdout", "stderr", "stderr"]);
 
         const strict = await runInProcess(
           cwd,
@@ -514,6 +516,27 @@ describe("capdelta CLI", () => {
         expect(strict.stderr).toBe(
           `${message}capdelta: strict mode found unanalyzed content\n`,
         );
+
+        // Gate failure plus operational failure plus --strict: exit 2 wins,
+        // and stderr still names every cause after the report.
+        const strictBoth = await runInProcess(
+          cwd,
+          ["--base", "HEAD", "--fail-on", "INFO", "--strict"],
+          fetch503,
+          instantSleep,
+        );
+        expect(strictBoth.exitCode).toBe(2);
+        expect(strictBoth.stderr).toBe(
+          "capdelta: 1 finding(s) at or above INFO (highest: INFO)\n" +
+            message +
+            "capdelta: strict mode found unanalyzed content\n",
+        );
+        expect(strictBoth.order).toEqual([
+          "stdout",
+          "stderr",
+          "stderr",
+          "stderr",
+        ]);
       },
     );
   });

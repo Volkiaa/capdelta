@@ -12,6 +12,7 @@ import {
 } from "../core/capdelta-config.js";
 import { diffCapabilities } from "../core/capability-differ.js";
 import {
+  actionFailureMessage,
   runAction,
   type ActionAdapters,
   type ActionContext,
@@ -338,6 +339,68 @@ describe("runAction", () => {
       gate: { fail: true },
       operationalFailure: false,
       operationalFailureCount: 0,
+    });
+  });
+
+  describe("actionFailureMessage (ADR-018)", () => {
+    const passing = {
+      fail: false,
+      matchingCount: 0,
+      threshold: "CRITICAL",
+    } as const;
+    const failing = {
+      fail: true,
+      matchingCount: 2,
+      threshold: "HIGH",
+    } as const;
+    const operationalMessage =
+      "capdelta: 3 package(s) could not be fetched or analyzed before the run ended";
+
+    it("returns null when the run passes", () => {
+      expect(
+        actionFailureMessage({
+          gate: passing,
+          operationalFailure: false,
+          operationalFailureCount: 0,
+          strictFailure: false,
+        }),
+      ).toBeNull();
+    });
+
+    it("reports a strict failure as the fallback", () => {
+      expect(
+        actionFailureMessage({
+          gate: passing,
+          operationalFailure: false,
+          operationalFailureCount: 0,
+          strictFailure: true,
+        }),
+      ).toBe("Strict mode found unanalyzed content.");
+    });
+
+    it("reports an operational failure alone, even in report-only mode", () => {
+      expect(
+        actionFailureMessage({
+          gate: passing,
+          operationalFailure: true,
+          operationalFailureCount: 3,
+          strictFailure: false,
+        }),
+      ).toBe(operationalMessage);
+    });
+
+    it("joins the gate and operational messages so neither is hidden", () => {
+      expect(
+        actionFailureMessage({
+          gate: failing,
+          operationalFailure: true,
+          operationalFailureCount: 3,
+          strictFailure: false,
+        }),
+      ).toBe(
+        "Review this change: 2 finding(s) meet the HIGH failure threshold. " +
+          operationalMessage,
+      );
     });
   });
 

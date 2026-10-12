@@ -1,12 +1,21 @@
 import { createHash } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ChangedPackage } from "../contract/lockfile-diff.js";
+import {
+  resolveAnalysisExecutionPolicy,
+  startAnalysisRun,
+} from "../analysis-execution-policy.js";
 import {
   FetcherConfigurationError,
   FetcherContractError,
   MemoryTarballCache,
   fetchChangedPackages,
 } from "./fetcher.js";
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+});
 
 function bytes(...values: number[]): Uint8Array {
   return new Uint8Array(values);
@@ -346,8 +355,11 @@ describe("fetchChangedPackages", () => {
     });
   });
 
-  it("reports a stalled response aborted by the run deadline (ADR-018)", async () => {
-    const controller = new AbortController();
+  it("reports a stalled response aborted by the real run deadline (ADR-018)", async () => {
+    vi.useFakeTimers();
+    const control = startAnalysisRun(
+      resolveAnalysisExecutionPolicy({ deadlineMs: 25 }),
+    );
     let calls = 0;
     const pending = fetchChangedPackages(
       [
@@ -358,8 +370,47 @@ describe("fetchChangedPackages", () => {
         }),
       ],
       {
-        signal: controller.signal,
+        signal: control.signal,
         timeoutMs: 60_000,
+        fetchImpl: (_input, init) => {
+          calls += 1;
+          return new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener("abort", () => {
+              reject(new DOMException("aborted", "AbortError"));
+            });
+          });
+        },
+      },
+    );
+
+    vi.advanceTimersByTime(25);
+    const results = await pending;
+    control.dispose();
+
+    expect(calls).toBe(1);
+    expect(results[0]).toMatchObject({
+      status: "unavailable",
+      failure: {
+        kind: "aborted",
+        detail: "analysis wall-clock deadline exceeded",
+      },
+    });
+  });
+
+  it("caps each attempt's timeout at the time remaining in the run (ADR-018)", async () => {
+    vi.useFakeTimers();
+    let calls = 0;
+    const pending = fetchChangedPackages(
+      [
+        changedPackage({
+          oldVersion: null,
+          oldIntegrity: null,
+          oldResolvedUrl: null,
+        }),
+      ],
+      {
+        timeoutMs: 60_000,
+        deadlineAt: Date.now() + 30,
         sleep: instantSleep,
         fetchImpl: (_input, init) => {
           calls += 1;
@@ -372,7 +423,92 @@ describe("fetchChangedPackages", () => {
       },
     );
 
+    // Only the capped 30 ms elapses; the 60 s attempt timeout never fires.
+    await vi.advanceTimersByTimeAsync(30);
+    const results = await pending;
+
+    expect(calls).toBe(1);
+    expect(results[0]).toMatchObject({
+      status: "unavailable",
+      failure: { kind: "aborted" },
+    });
+  });
+
+  it("cancels a failed response body before the next attempt (ADR-018)", async () => {
+    const newest = bytes(4, 5, 6);
+    let calls = 0;
+    let cancelled = 0;
+    const order: string[] = [];
+    const results = await fetchChangedPackages(
+      [
+        changedPackage({
+          oldVersion: null,
+          oldIntegrity: null,
+          oldResolvedUrl: null,
+        }),
+      ],
+      {
+        fetchImpl: (_input, init) => {
+          calls += 1;
+          order.push(`fetch-${String(calls)}`);
+          if (calls > 1) return Promise.resolve(new Response(newest));
+          const body = new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(bytes(1));
+            },
+            cancel() {
+              cancelled += 1;
+              order.push("cancel");
+            },
+          });
+          const response = new Response(body, { status: 503 });
+          // A real fetch cancels the aborted body; model that contract here.
+          init?.signal?.addEventListener(
+            "abort",
+            () => {
+              void response.body?.cancel();
+            },
+            { once: true },
+          );
+          return Promise.resolve(response);
+        },
+        sleep: instantSleep,
+      },
+    );
+
+    expect(results[0]?.status).toBe("verified");
+    expect(calls).toBe(2);
+    expect(cancelled).toBe(1);
+    // The failed body is cancelled before the retry is requested.
+    expect(order).toEqual(["fetch-1", "cancel", "fetch-2"]);
+  });
+
+  it("aborts the real backoff when the run signal aborts (ADR-018)", async () => {
+    vi.useFakeTimers();
+    const controller = new AbortController();
+    let calls = 0;
+    const pending = fetchChangedPackages(
+      [
+        changedPackage({
+          oldVersion: null,
+          oldIntegrity: null,
+          oldResolvedUrl: null,
+        }),
+      ],
+      {
+        signal: controller.signal,
+        fetchImpl: () => {
+          calls += 1;
+          return Promise.reject(new TypeError("fetch failed"));
+        },
+      },
+    );
+
+    // Let the first attempt fail and enter the real 250 ms backoff, then cancel.
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls).toBe(1);
     controller.abort();
+    await vi.advanceTimersByTimeAsync(0);
     const results = await pending;
 
     expect(calls).toBe(1);
@@ -380,6 +516,49 @@ describe("fetchChangedPackages", () => {
       status: "unavailable",
       failure: { kind: "aborted", detail: "analysis aborted by caller" },
     });
+  });
+
+  it("removes the backoff abort listener after a normal completion (ADR-018)", async () => {
+    vi.useFakeTimers();
+    const addSpy = vi.spyOn(AbortSignal.prototype, "addEventListener");
+    const removeSpy = vi.spyOn(AbortSignal.prototype, "removeEventListener");
+    const controller = new AbortController();
+    let calls = 0;
+    const pending = fetchChangedPackages(
+      [
+        changedPackage({
+          oldVersion: null,
+          oldIntegrity: null,
+          oldResolvedUrl: null,
+        }),
+      ],
+      {
+        signal: controller.signal,
+        fetchImpl: () => {
+          calls += 1;
+          return Promise.reject(new TypeError("fetch failed"));
+        },
+      },
+    );
+
+    // Two complete backoffs (250 ms and 1 s) then the final attempt.
+    await vi.advanceTimersByTimeAsync(1_500);
+    const results = await pending;
+
+    expect(calls).toBe(3);
+    expect(results[0]).toMatchObject({
+      status: "unavailable",
+      failure: { kind: "network-error" },
+    });
+    const abortAdds = addSpy.mock.calls.filter(
+      ([type]) => type === "abort",
+    ).length;
+    const abortRemoves = removeSpy.mock.calls.filter(
+      ([type]) => type === "abort",
+    ).length;
+    // Both the per-attempt parent wiring and each backoff are balanced.
+    expect(abortRemoves).toBe(abortAdds);
+    expect(abortAdds).toBeGreaterThan(0);
   });
 
   it("reports a timeout as a package-local failure", async () => {
@@ -593,6 +772,9 @@ describe("fetchChangedPackages", () => {
   it("throws for invalid options and broken ADR-006 old-side contracts", async () => {
     await expect(
       fetchChangedPackages([], { maxTarballBytes: 0 }),
+    ).rejects.toBeInstanceOf(FetcherConfigurationError);
+    await expect(
+      fetchChangedPackages([], { deadlineAt: 0 }),
     ).rejects.toBeInstanceOf(FetcherConfigurationError);
     await expect(
       fetchChangedPackages([

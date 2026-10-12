@@ -349,6 +349,48 @@ describe("analyzeChangedPackages", () => {
     expect(hasOperationalFailure(result)).toBe(true);
   });
 
+  it("fails operationally when a stalled response hits the real run deadline (ADR-018)", async () => {
+    vi.useFakeTimers();
+    const run = analyzeChangedPackages(
+      lockfileDiff([changedPackage("stalled")]),
+      {
+        execution: { deadlineMs: 25 },
+        fetcher: {
+          timeoutMs: 60_000,
+          fetchImpl: (_input, init) =>
+            new Promise<Response>((_resolve, reject) => {
+              init?.signal?.addEventListener("abort", () => {
+                reject(new DOMException("aborted", "AbortError"));
+              });
+            }),
+        },
+      },
+    );
+
+    vi.advanceTimersByTime(25);
+    const result = await run;
+
+    expect(result.budget).toMatchObject({
+      deadlineExceeded: true,
+      partial: true,
+    });
+    expect(
+      result.packages.map((item) =>
+        item.status === "unavailable" ? item.failures.at(-1) : null,
+      ),
+    ).toEqual([
+      {
+        stage: "analysis",
+        failure: {
+          kind: "deadline-exceeded",
+          detail: "analysis wall-clock deadline exceeded",
+        },
+      },
+    ]);
+    expect(hasOperationalFailure(result)).toBe(true);
+    expect(operationalFailureCount(result)).toBe(1);
+  });
+
   it("returns extraction and manifest failures and still cleans extracted roots", async () => {
     let cleanupCalls = 0;
     const extractionFailure = pipeline({
