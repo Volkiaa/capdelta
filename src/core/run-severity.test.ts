@@ -5,6 +5,7 @@ import type { JsonReportAnalysisIssue } from "./report-contract.js";
 import {
   SeverityGateConfigurationError,
   SeverityGateError,
+  UNANALYZABLE_FAILURE_KINDS,
   analysisIssueSeverity,
   assessRunSeverity,
   evaluateSeverityGate,
@@ -170,6 +171,20 @@ describe("run severity classification", () => {
         kind: "manifest-missing",
       }),
     ).toThrow(SeverityGateError);
+  });
+
+  // ADR-017 §1: the exported constant must be exactly the kinds the ADR-016
+  // classification marks unanalyzable anywhere, minus `unsupported-integrity`.
+  // Derived here over the same exhaustive (stage, kind) table, so a new kind or
+  // a reclassification cannot silently drift from the exception allow-set.
+  it("derives UNANALYZABLE_FAILURE_KINDS from the classification", () => {
+    const derived = new Set<string>();
+    for (const [stage, kind] of ISSUE_CASES) {
+      if (isUnanalyzableIssue({ stage, kind })) derived.add(kind);
+    }
+    expect(derived).toEqual(
+      new Set<string>([...UNANALYZABLE_FAILURE_KINDS, "unsupported-integrity"]),
+    );
   });
 });
 

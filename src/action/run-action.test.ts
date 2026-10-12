@@ -270,6 +270,7 @@ describe("runAction", () => {
           justification: "documented endpoint",
         },
       ],
+      unanalyzable: [],
     };
 
     /** Serves the lockfile and, optionally, a base config, by path. */
@@ -353,6 +354,7 @@ describe("runAction", () => {
         expect.anything(),
         {
           allowlist: [],
+          unanalyzable: [],
         },
       );
       expect(vi.mocked(runtime.warn).mock.calls.flat()).toEqual([

@@ -55,11 +55,15 @@ describe("capdelta config", () => {
           justification: "documented telemetry endpoint",
         },
       ],
+      unanalyzable: [],
     });
   });
 
   it("accepts an explicit empty allowlist", () => {
-    expect(parseCapdeltaConfig("allowlist: []\n")).toEqual({ allowlist: [] });
+    expect(parseCapdeltaConfig("allowlist: []\n")).toEqual({
+      allowlist: [],
+      unanalyzable: [],
+    });
   });
 
   it("requires known capabilities and non-empty justifications", () => {
@@ -241,5 +245,149 @@ describe("capdelta config", () => {
       expect(gate("1.2.13")).toBe(0);
       expect(gate("1.2.14")).toBe(1);
     });
+  });
+});
+
+// Two canonical sha512 SRI tokens (64 bytes each) for the ADR-017 parser and
+// matching tests. They are arbitrary constants, not any real artifact's hash.
+const SRI_A =
+  "sha512-BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBw==";
+const SRI_B =
+  "sha512-CQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQ==";
+
+describe("capdelta config unanalyzable exceptions (ADR-017)", () => {
+  /** Builds a valid entry, dropping fields set to `null` or adding extras. */
+  function entry(overrides: Record<string, string | null> = {}): string {
+    const base: readonly [string, string][] = [
+      ["package", "big-native-pkg"],
+      ["version", "2.3.4"],
+      ["integrity", SRI_A],
+      ["kind", "expanded-size-limit"],
+      ["justification", "reviewed upstream provenance"],
+    ];
+    const lines: string[] = [];
+    for (const [key, fallback] of base) {
+      const value = key in overrides ? overrides[key] : fallback;
+      if (value === null || value === undefined) continue;
+      lines.push(`${lines.length === 0 ? "  - " : "    "}${key}: ${value}`);
+    }
+    for (const [key, value] of Object.entries(overrides)) {
+      if (value === null || base.some(([name]) => name === key)) continue;
+      lines.push(`${lines.length === 0 ? "  - " : "    "}${key}: ${value}`);
+    }
+    return `${lines.join("\n")}\n`;
+  }
+
+  function parseUnanalyzable(...entries: string[]) {
+    return parseCapdeltaConfig(`unanalyzable:\n${entries.join("")}`);
+  }
+
+  const allowlistEntry =
+    '  - package: fixture\n    capability: NET\n    justification: "reviewed"\n';
+
+  it("parses both keys in either order", () => {
+    const expected = {
+      allowlist: [
+        { package: "fixture", capability: "NET", justification: "reviewed" },
+      ],
+      unanalyzable: [
+        {
+          package: "big-native-pkg",
+          version: "2.3.4",
+          integrity: SRI_A,
+          kind: "expanded-size-limit",
+          justification: "reviewed upstream provenance",
+        },
+      ],
+    };
+    expect(
+      parseCapdeltaConfig(
+        `allowlist:\n${allowlistEntry}unanalyzable:\n${entry()}`,
+      ),
+    ).toEqual(expected);
+    expect(
+      parseCapdeltaConfig(
+        `unanalyzable:\n${entry()}allowlist:\n${allowlistEntry}`,
+      ),
+    ).toEqual(expected);
+  });
+
+  it("accepts an explicit empty unanalyzable list", () => {
+    expect(parseCapdeltaConfig("unanalyzable: []\n")).toEqual({
+      allowlist: [],
+      unanalyzable: [],
+    });
+    expect(parseCapdeltaConfig("allowlist: []\nunanalyzable: []\n")).toEqual({
+      allowlist: [],
+      unanalyzable: [],
+    });
+  });
+
+  it.each(["package", "version", "integrity", "kind", "justification"])(
+    "rejects a missing %s",
+    (field) => {
+      expect(() => parseUnanalyzable(entry({ [field]: null }))).toThrow(
+        CapdeltaConfigContractError,
+      );
+    },
+  );
+
+  it("rejects an unknown field", () => {
+    expect(() => parseUnanalyzable(entry({ bogus: "x" }))).toThrow(
+      CapdeltaConfigParseError,
+    );
+  });
+
+  it.each(["1.2", "v2.3.4", "^2.3.4", "latest", "02.3.4"])(
+    "rejects the non-exact semver %s",
+    (version) => {
+      expect(() => parseUnanalyzable(entry({ version }))).toThrow(
+        CapdeltaConfigParseError,
+      );
+    },
+  );
+
+  it.each([
+    "sha1-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+    "garbage",
+    SRI_A.split("").reverse().join(""),
+  ])("rejects the non-sha512 integrity %s", (integrity) => {
+    expect(() => parseUnanalyzable(entry({ integrity }))).toThrow(
+      CapdeltaConfigContractError,
+    );
+  });
+
+  it("accepts multiple canonical sha512 tokens", () => {
+    const config = parseUnanalyzable(entry({ integrity: `${SRI_A} ${SRI_B}` }));
+    expect(config.unanalyzable[0]?.integrity).toBe(`${SRI_A} ${SRI_B}`);
+  });
+
+  it.each([
+    ["integrity-mismatch", /integrity-mismatch cannot be excepted/u],
+    ["unsupported-integrity", /unsupported-integrity cannot be excepted/u],
+    ["network-error", /unsupported kind/u],
+  ])("rejects kind %s", (kind, message) => {
+    expect(() => parseUnanalyzable(entry({ kind }))).toThrow(message);
+  });
+
+  it("rejects a duplicate tuple", () => {
+    expect(() => parseUnanalyzable(entry(), entry())).toThrow(
+      CapdeltaConfigContractError,
+    );
+  });
+
+  it("allows the same package and version with a different kind", () => {
+    expect(
+      parseUnanalyzable(entry(), entry({ kind: "link-entry" })).unanalyzable,
+    ).toHaveLength(2);
+  });
+
+  it("rejects a duplicate top-level key", () => {
+    expect(() => parseCapdeltaConfig("allowlist: []\nallowlist: []\n")).toThrow(
+      CapdeltaConfigParseError,
+    );
+    expect(() =>
+      parseCapdeltaConfig("unanalyzable: []\nunanalyzable: []\n"),
+    ).toThrow(CapdeltaConfigParseError);
   });
 });

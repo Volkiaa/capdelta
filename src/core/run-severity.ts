@@ -39,6 +39,34 @@ export const SEVERITIES: readonly FindingSeverity[] = [
   "INFO",
 ];
 
+/**
+ * ADR-017: every failure kind ADR-016 classifies as "unanalyzable" in at least
+ * one stage, except `unsupported-integrity`. That kind means there is no usable
+ * sha512 to bind a reviewed exception to, so it can never be excepted. Derived
+ * from the classification below; `run-severity.test.ts` re-derives the set from
+ * `analysisIssueSeverity` over every `(stage, kind)` pair.
+ */
+export type UnanalyzableFailureKind =
+  FetchFailureKind | ExtractionFailureKind | ManifestCapabilityFailureKind;
+
+export const UNANALYZABLE_FAILURE_KINDS: readonly UnanalyzableFailureKind[] = [
+  "size-limit-exceeded",
+  "invalid-url",
+  "invalid-archive",
+  "invalid-layout",
+  "unsafe-path",
+  "link-entry",
+  "unsupported-entry",
+  "file-count-limit",
+  "expanded-size-limit",
+  "decompression-ratio-limit",
+  "manifest-missing",
+  "manifest-too-large",
+  "manifest-invalid-json",
+  "manifest-invalid-root",
+  "identity-mismatch",
+];
+
 export class SeverityGateError extends Error {
   constructor(message: string) {
     super(message);
