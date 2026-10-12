@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 5,
+  "package": {
+    "ecosystem": "npm",
+    "name": "golden-dynamic-code",
+    "oldVersion": "1.0.0",
+    "newVersion": "2.0.0",
+    "newPackage": false
+  },
+  "reportId": "capdelta-7e932fb5c0ee5efdcdb8",
+  "summary": {
+    "findings": 1,
+    "capabilityFindings": 1,
+    "signalFindings": 0,
+    "diagnostics": 0,
+    "bySeverity": {
+      "CRITICAL": 1,
+      "HIGH": 0,
+      "MEDIUM": 0,
+      "LOW": 0,
+      "INFO": 0
+    }
+  },
+  "findings": [
+    {
+      "severity": "CRITICAL",
+      "change": "added",
+      "capability": {
+        "kind": "DYNAMIC_CODE",
+        "location": {
+          "kind": "runtime"
+        },
+        "evidence": [
+          {
+            "file": "index.js",
+            "line": 3,
+            "snippet": "return new Function(\"return 1;\");"
+          }
+        ]
+      },
+      "previous": null
+    }
+  ],
+  "signalFindings": [],
+  "shapes": [
+    {
+      "ruleId": "dynamic-or-native-code",
+      "severity": "CRITICAL",
+      "capabilities": [
+        {
+          "kind": "DYNAMIC_CODE",
+          "location": {
+            "kind": "runtime"
+          },
+          "evidence": [
+            {
+              "file": "index.js",
+              "line": 3,
+              "snippet": "return new Function(\"return 1;\");"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "diagnostics": []
+}

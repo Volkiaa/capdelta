@@ -1,0 +1,10 @@
+capdelta manifest capability report
+Package: "golden-install-code-network" ("npm") "1.0.0" -> "2.0.0"
+Review this change: 1 finding (CRITICAL: 1); 0 diagnostics.
+
+Capability shapes:
+- [CRITICAL] "install-code-execution" (1 capability)
+
+Findings:
+- [CRITICAL] "NET" capability added in "install-script" code
+  Evidence: "install.js":2 — "import https from \"node:https\";"

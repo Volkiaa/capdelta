@@ -3,7 +3,15 @@ import tseslint from "typescript-eslint";
 import prettier from "eslint-config-prettier";
 
 export default tseslint.config(
-  { ignores: ["dist/", "coverage/", "node_modules/"] },
+  {
+    ignores: [
+      "dist/",
+      "coverage/",
+      "node_modules/",
+      // Inert golden package sources: parsed by tests, archived byte-for-byte.
+      "test/fixtures/golden/*/source-*/",
+    ],
+  },
   eslint.configs.recommended,
   ...tseslint.configs.strictTypeChecked,
   ...tseslint.configs.stylisticTypeChecked,

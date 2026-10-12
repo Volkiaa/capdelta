@@ -1,0 +1,8 @@
+{
+  "name": "golden-dependency-added",
+  "version": "2.0.0",
+  "type": "module",
+  "dependencies": {
+    "golden-new-dependency": "^1.0.0"
+  }
+}

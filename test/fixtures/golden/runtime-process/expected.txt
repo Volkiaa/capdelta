@@ -1,0 +1,7 @@
+capdelta manifest capability report
+Package: "golden-runtime-process" ("npm") "1.0.0" -> "2.0.0"
+Review this change: 1 finding (HIGH: 1); 0 diagnostics.
+
+Findings:
+- [HIGH] "PROCESS" capability added in "runtime" code
+  Evidence: "index.js":2 — "import { spawnSync } from \"node:child_process\";"

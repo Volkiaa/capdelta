@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 5,
+  "package": {
+    "ecosystem": "npm",
+    "name": "golden-runtime-env",
+    "oldVersion": "1.0.0",
+    "newVersion": "2.0.0",
+    "newPackage": false
+  },
+  "reportId": "capdelta-e5bfba92190a33140c08",
+  "summary": {
+    "findings": 1,
+    "capabilityFindings": 1,
+    "signalFindings": 0,
+    "diagnostics": 0,
+    "bySeverity": {
+      "CRITICAL": 0,
+      "HIGH": 0,
+      "MEDIUM": 1,
+      "LOW": 0,
+      "INFO": 0
+    }
+  },
+  "findings": [
+    {
+      "severity": "MEDIUM",
+      "change": "added",
+      "capability": {
+        "kind": "ENV",
+        "location": {
+          "kind": "runtime"
+        },
+        "evidence": [
+          {
+            "file": "index.js",
+            "line": 3,
+            "snippet": "return process.env.CAPDELTA_FIXTURE_MODE ?? \"default\";"
+          }
+        ]
+      },
+      "previous": null
+    }
+  ],
+  "signalFindings": [],
+  "shapes": [],
+  "diagnostics": []
+}

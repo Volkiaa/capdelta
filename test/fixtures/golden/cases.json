@@ -1,0 +1,112 @@
+[
+  {
+    "name": "install-code-network",
+    "row": "NET / PROCESS / ENV / FS_SENSITIVE in install-script code",
+    "severity": "CRITICAL",
+    "mode": "package",
+    "packageName": "golden-install-code-network",
+    "oldVersion": "1.0.0",
+    "newVersion": "2.0.0"
+  },
+  {
+    "name": "secret-exfiltration",
+    "row": "NET + (ENV or FS_SENSITIVE) in the same package",
+    "severity": "CRITICAL",
+    "mode": "package",
+    "packageName": "golden-secret-exfiltration",
+    "oldVersion": "1.0.0",
+    "newVersion": "2.0.0"
+  },
+  {
+    "name": "obfuscated-execution",
+    "row": "Obfuscation signal + (PROCESS or DYNAMIC_CODE)",
+    "severity": "CRITICAL",
+    "mode": "package",
+    "packageName": "golden-obfuscated-execution",
+    "oldVersion": "1.0.0",
+    "newVersion": "2.0.0"
+  },
+  {
+    "name": "install-script-added",
+    "row": "Install script added or content changed",
+    "severity": "CRITICAL",
+    "mode": "package",
+    "packageName": "golden-fixture",
+    "oldVersion": "1.0.0",
+    "newVersion": "2.0.0"
+  },
+  {
+    "name": "dynamic-code",
+    "row": "DYNAMIC_CODE or NATIVE added",
+    "severity": "CRITICAL",
+    "mode": "package",
+    "packageName": "golden-dynamic-code",
+    "oldVersion": "1.0.0",
+    "newVersion": "2.0.0"
+  },
+  {
+    "name": "runtime-process",
+    "row": "NET, PROCESS, or FS_SENSITIVE added",
+    "severity": "HIGH",
+    "mode": "package",
+    "packageName": "golden-runtime-process",
+    "oldVersion": "1.0.0",
+    "newVersion": "2.0.0"
+  },
+  {
+    "name": "new-external-domain",
+    "row": "New external domain in literals",
+    "severity": "HIGH",
+    "mode": "package",
+    "packageName": "golden-new-external-domain",
+    "oldVersion": "1.0.0",
+    "newVersion": "2.0.0"
+  },
+  {
+    "name": "integrity-changed-version-same",
+    "row": "Integrity changed, version identical",
+    "severity": "HIGH",
+    "mode": "lockfile",
+    "packageName": "golden-integrity",
+    "oldVersion": "1.0.0",
+    "newVersion": "1.0.0",
+    "oldResolvedUrl": "https://registry.npmjs.org/golden-integrity/-/golden-integrity-1.0.0.tgz",
+    "newResolvedUrl": "https://registry.npmjs.org/golden-integrity/-/golden-integrity-1.0.0-repacked.tgz"
+  },
+  {
+    "name": "runtime-env",
+    "row": "ENV or FS_WRITE added",
+    "severity": "MEDIUM",
+    "mode": "package",
+    "packageName": "golden-runtime-env",
+    "oldVersion": "1.0.0",
+    "newVersion": "2.0.0"
+  },
+  {
+    "name": "entropy-jump",
+    "row": "Entropy jump / unparseable-blob growth",
+    "severity": "MEDIUM",
+    "mode": "package",
+    "packageName": "golden-entropy-jump",
+    "oldVersion": "1.0.0",
+    "newVersion": "2.0.0"
+  },
+  {
+    "name": "fs-read-unknown",
+    "row": "FS_READ, UNKNOWN require",
+    "severity": "LOW",
+    "mode": "package",
+    "packageName": "golden-fs-read-unknown",
+    "oldVersion": "1.0.0",
+    "newVersion": "2.0.0"
+  },
+  {
+    "name": "dependency-added",
+    "row": "New dependency added (cross-link verified by reporter.test.ts)",
+    "severity": "LOW",
+    "mode": "package",
+    "packageName": "golden-dependency-added",
+    "oldVersion": "1.0.0",
+    "newVersion": "2.0.0"
+  }
+]

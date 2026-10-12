@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 5,
+  "package": {
+    "ecosystem": "npm",
+    "name": "golden-install-code-network",
+    "oldVersion": "1.0.0",
+    "newVersion": "2.0.0",
+    "newPackage": false
+  },
+  "reportId": "capdelta-2fc51fdb266ec4f8d8bb",
+  "summary": {
+    "findings": 1,
+    "capabilityFindings": 1,
+    "signalFindings": 0,
+    "diagnostics": 0,
+    "bySeverity": {
+      "CRITICAL": 1,
+      "HIGH": 0,
+      "MEDIUM": 0,
+      "LOW": 0,
+      "INFO": 0
+    }
+  },
+  "findings": [
+    {
+      "severity": "CRITICAL",
+      "change": "added",
+      "capability": {
+        "kind": "NET",
+        "location": {
+          "kind": "install-script",
+          "hook": "postinstall",
+          "applicability": "registry-install"
+        },
+        "evidence": [
+          {
+            "file": "install.js",
+            "line": 2,
+            "snippet": "import https from \"node:https\";"
+          }
+        ]
+      },
+      "previous": null
+    }
+  ],
+  "signalFindings": [],
+  "shapes": [
+    {
+      "ruleId": "install-code-execution",
+      "severity": "CRITICAL",
+      "capabilities": [
+        {
+          "kind": "NET",
+          "location": {
+            "kind": "install-script",
+            "hook": "postinstall",
+            "applicability": "registry-install"
+          },
+          "evidence": [
+            {
+              "file": "install.js",
+              "line": 2,
+              "snippet": "import https from \"node:https\";"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "diagnostics": []
+}

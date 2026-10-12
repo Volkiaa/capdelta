@@ -48,6 +48,17 @@ Tests must accompany behavior changes. Use inert handcrafted fixtures and exact
 golden outputs where the plan requires them (PLAN §7). If behavior is difficult
 to test, raise the design problem before merging it.
 
+Golden pairs live in `test/fixtures/golden/`, one per PLAN §4.4 severity row,
+listed in `cases.json`. Each case keeps reviewed `source-v1/` and `source-v2/`
+package trees beside the committed `v1.tgz` and `v2.tgz` archives. After
+editing a source tree, run `node scripts/generate-golden-fixtures.mjs`; it only
+packs bytes (no npm, no lifecycle scripts) and is byte-reproducible. Tests
+check that each archive matches its sources. Expected reports are never
+rewritten by tests: regenerate them deliberately, review the diff, and keep each
+case's structural row assertion in `src/core/reporter.golden.test.ts` passing.
+Fixture code sits in functions nothing calls, uses reserved hosts such as
+`example.test`, and is parsed by tests but never imported or executed.
+
 ## Dependencies and commits
 
 The project permits fewer than ten direct runtime dependencies (PLAN §10).
