@@ -158,7 +158,7 @@ describe("capdelta CLI", () => {
       expect(result.exitCode).toBe(0);
       expect(result.stderr).toBe("");
       expect(JSON.parse(result.stdout)).toMatchObject({
-        schemaVersion: 4,
+        schemaVersion: 5,
         firstRun: false,
         summary: {
           changedPackages: 0,

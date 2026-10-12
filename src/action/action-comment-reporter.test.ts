@@ -15,7 +15,7 @@ const PAYLOAD =
 
 function adversarialReport(firstRun = false): JsonRunReport {
   return {
-    schemaVersion: 4,
+    schemaVersion: 5,
     firstRun,
     summary: {
       changedPackages: 1,
@@ -27,12 +27,13 @@ function adversarialReport(firstRun = false): JsonRunReport {
       analysisIssues: 1,
       lockfileFindings: 0,
       bySeverity: { CRITICAL: 1, HIGH: 0, MEDIUM: 0, LOW: 0, INFO: 0 },
+      gateSeverity: { CRITICAL: 1, HIGH: 0, MEDIUM: 0, LOW: 0, INFO: 0 },
     },
     packages: [
       {
         status: "analyzed",
         report: {
-          schemaVersion: 4,
+          schemaVersion: 5,
           package: {
             ecosystem: "npm",
             name: PAYLOAD,
@@ -75,6 +76,7 @@ function adversarialReport(firstRun = false): JsonRunReport {
             detail: PAYLOAD,
             url: `javascript:${PAYLOAD}`,
             evidence: null,
+            severity: null,
           },
         ],
       },
@@ -196,6 +198,13 @@ describe("renderActionComment", () => {
           analyzedPackages: 2,
           capabilityFindings: 2,
           bySeverity: {
+            CRITICAL: 1,
+            HIGH: 0,
+            MEDIUM: 0,
+            LOW: 0,
+            INFO: 1,
+          },
+          gateSeverity: {
             CRITICAL: 1,
             HIGH: 0,
             MEDIUM: 0,

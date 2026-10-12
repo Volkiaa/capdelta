@@ -22,7 +22,7 @@ import type { FetchFailureKind } from "./npm/fetcher.js";
 import type { ManifestCapabilityFailureKind } from "./npm/manifest-capability-extractor.js";
 import type { ExtractionFailureKind } from "./npm/safe-extractor.js";
 
-export const REPORT_SCHEMA_VERSION = 4 as const;
+export const REPORT_SCHEMA_VERSION = 5 as const;
 
 export interface ReportPackage {
   ecosystem: string;
@@ -134,6 +134,8 @@ export interface JsonReportAnalysisIssue {
   detail: string;
   url: string | null;
   evidence: ReportEvidence | null;
+  /** Non-null only for issues that are severities themselves (PLAN §4.2). */
+  severity: FindingSeverity | null;
 }
 
 export interface JsonReportLockfileFinding {
@@ -142,6 +144,7 @@ export interface JsonReportLockfileFinding {
   path: string;
   oldVersion: string | null;
   newVersion: string;
+  severity: FindingSeverity;
 }
 
 export interface JsonReportSkippedPackage {
@@ -179,7 +182,16 @@ export interface JsonRunReport {
     analysisDiagnostics: number;
     analysisIssues: number;
     lockfileFindings: number;
+    /**
+     * Capability and signal findings of analyzed packages, including
+     * suppressed ones; excludes lockfile findings and analysis issues.
+     */
     bySeverity: SeverityCounts;
+    /**
+     * What the severity gate evaluates: unsuppressed capability and signal
+     * findings, lockfile findings, and severity-bearing analysis issues.
+     */
+    gateSeverity: SeverityCounts;
   };
   packages: readonly JsonRunPackage[];
   lockfileFindings: readonly JsonReportLockfileFinding[];

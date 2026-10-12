@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "firstRun": false,
   "summary": {
     "changedPackages": 1,
@@ -17,13 +17,20 @@
       "MEDIUM": 0,
       "LOW": 0,
       "INFO": 0
+    },
+    "gateSeverity": {
+      "CRITICAL": 1,
+      "HIGH": 1,
+      "MEDIUM": 0,
+      "LOW": 0,
+      "INFO": 0
     }
   },
   "packages": [
     {
       "status": "analyzed",
       "report": {
-        "schemaVersion": 4,
+        "schemaVersion": 5,
         "package": {
           "ecosystem": "npm",
           "name": "golden-fixture",

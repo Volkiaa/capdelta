@@ -2,6 +2,7 @@ capdelta capability analysis report
 Mode: comparison
 Packages: 1 changed; 1 analyzed; 0 unavailable; 0 lockfile skips.
 Signals: 2 findings (CRITICAL: 1, HIGH: 1); 0 lockfile findings; 0 analysis issues; 0 analysis diagnostics.
+Gate severity: CRITICAL: 1, HIGH: 1.
 
 capdelta manifest capability report
 Package: "golden-fixture" ("npm") "1.0.0" -> "2.0.0"

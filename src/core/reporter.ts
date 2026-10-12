@@ -137,6 +137,11 @@ export function renderTextRunReport(run: CapabilityAnalysisRun): string {
     `Signals: ${count(report.summary.capabilityFindings + (report.summary.signalFindings ?? 0), "finding")}${severitySummary.length === 0 ? "" : ` (${severitySummary})`}; ${count(report.summary.lockfileFindings, "lockfile finding")}; ${count(report.summary.analysisIssues, "analysis issue")}; ${count(report.summary.analysisDiagnostics, "analysis diagnostic")}.`,
   ];
 
+  const gateSummary = severityCountsText(report.summary.gateSeverity);
+  if (gateSummary.length > 0) {
+    lines.push(`Gate severity: ${gateSummary}.`);
+  }
+
   if (report.budget?.partial === true) {
     const stopDescription = report.budget.deadlineExceeded
       ? `${String(report.budget.deadlineMs)}ms wall-clock budget ended`
@@ -173,7 +178,7 @@ export function renderTextRunReport(run: CapabilityAnalysisRun): string {
       "Lockfile findings:",
       ...report.lockfileFindings.map(
         (finding) =>
-          `- [${finding.kind}] ${quote(finding.name)} at ${quote(finding.path)}: ${finding.oldVersion === null ? "<new package>" : quote(finding.oldVersion)} -> ${quote(finding.newVersion)}`,
+          `- [${finding.severity}] [${finding.kind}] ${quote(finding.name)} at ${quote(finding.path)}: ${finding.oldVersion === null ? "<new package>" : quote(finding.oldVersion)} -> ${quote(finding.newVersion)}`,
       ),
     );
   }
@@ -219,7 +224,8 @@ function analysisIssueText(issue: JsonReportAnalysisIssue): string {
     issue.url === null ? null : `URL ${quote(issue.url)}`,
     issue.evidence === null ? null : `Evidence ${evidenceText(issue.evidence)}`,
   ].filter((item): item is string => item !== null);
-  return `[${issue.stage}/${issue.kind}] ${quote(issue.detail)}${context.length === 0 ? "" : `; ${context.join("; ")}`}`;
+  const severity = issue.severity === null ? "" : `[${issue.severity}] `;
+  return `${severity}[${issue.stage}/${issue.kind}] ${quote(issue.detail)}${context.length === 0 ? "" : `; ${context.join("; ")}`}`;
 }
 
 function findingDescription(finding: JsonReportFinding): string {
