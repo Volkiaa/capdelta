@@ -208,6 +208,69 @@ describe("applyUnanalyzableExceptions", () => {
     expect(evaluateSeverityGate(report, "CRITICAL").fail).toBe(true);
   });
 
+  it("does not release when the entries are swapped across sides", () => {
+    const oldFailure: PackageAnalysisFailure = {
+      stage: "old-extraction",
+      failure: { kind: "invalid-archive", detail: "old artifact invalid" },
+    };
+    const entries =
+      // The old-side failure's entry carries the NEW side's version/integrity.
+      "  - package: big-native-pkg\n" +
+      "    version: 2.3.4\n" +
+      `    integrity: ${SRI_A}\n` +
+      "    kind: invalid-archive\n" +
+      '    justification: "swapped"\n' +
+      // The new-side failure's entry carries the OLD side's version/integrity.
+      "  - package: big-native-pkg\n" +
+      "    version: 1.0.0\n" +
+      `    integrity: ${SRI_B}\n` +
+      "    kind: file-count-limit\n" +
+      '    justification: "swapped"\n';
+    const applied = applyUnanalyzableExceptions(
+      runWith([unavailable([oldFailure, NEW_FILE_COUNT])]),
+      config(entries),
+    );
+    const item = applied.packages[0];
+    if (item?.status !== "unavailable") throw new Error("fixture drift");
+    expect(item.exception).toBeUndefined();
+  });
+
+  it("keeps gating when a non-mismatch fetch failure accompanies a matched new-side failure (rule C.3)", () => {
+    const overSize: PackageAnalysisFailure = {
+      stage: "fetch",
+      failure: {
+        side: "old",
+        kind: "size-limit-exceeded",
+        detail: "old tarball over the download cap",
+        url: "https://registry.npmjs.org/big-native-pkg/-/big-native-pkg-1.0.0.tgz",
+      },
+    };
+    const applied = applyUnanalyzableExceptions(
+      runWith([unavailable([NEW_FILE_COUNT, overSize])]),
+      config(MATCHING_ENTRY),
+    );
+    const item = applied.packages[0];
+    if (item?.status !== "unavailable") throw new Error("fixture drift");
+    expect(item.exception).toBeUndefined();
+    const report = buildRunReport(applied);
+    expect(report.summary.gateSeverity.CRITICAL).toBe(1);
+    expect(evaluateSeverityGate(report, "CRITICAL").fail).toBe(true);
+  });
+
+  it("keeps gating when a matched new-side failure has an unmatched old-side failure", () => {
+    const oldFailure: PackageAnalysisFailure = {
+      stage: "old-extraction",
+      failure: { kind: "invalid-archive", detail: "old artifact invalid" },
+    };
+    const applied = applyUnanalyzableExceptions(
+      runWith([unavailable([oldFailure, NEW_FILE_COUNT])]),
+      config(MATCHING_ENTRY),
+    );
+    const item = applied.packages[0];
+    if (item?.status !== "unavailable") throw new Error("fixture drift");
+    expect(item.exception).toBeUndefined();
+  });
+
   it("keeps the package gating when only one of two CRITICAL failures matches", () => {
     const second: PackageAnalysisFailure = {
       stage: "new-manifest",

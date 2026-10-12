@@ -205,9 +205,16 @@ export function parseCapdeltaConfig(text: string): CapdeltaConfig {
   );
   const tuples = new Set<string>();
   for (const entry of unanalyzable) {
-    const tuple = [entry.package, entry.version, entry.integrity, entry.kind]
-      .join("\0")
-      .toLowerCase();
+    // SRI base64 is case-sensitive, so the tuple keeps `integrity` (and the
+    // exact semver `version`) byte-for-byte; only the always-lowercase package
+    // and kind fields are folded. Folding the whole key would treat two
+    // distinct integrities that differ only by case as one duplicate.
+    const tuple = [
+      entry.package.toLowerCase(),
+      entry.version,
+      entry.integrity,
+      entry.kind,
+    ].join("\0");
     if (tuples.has(tuple)) {
       throw new CapdeltaConfigContractError(
         `duplicate unanalyzable entry for ${JSON.stringify(entry.package)} version ${entry.version} kind ${entry.kind}`,

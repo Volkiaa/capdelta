@@ -397,6 +397,17 @@ describe("capdelta config unanalyzable exceptions (ADR-017)", () => {
     );
   });
 
+  it("does not treat integrities differing only by case as duplicates", () => {
+    // SRI base64 is case-sensitive, so flipping one letter's case describes a
+    // different hash, not a repeat of the same entry.
+    const caseFlipped = `sha512-${SRI_A.slice(7, 8).toLowerCase()}${SRI_A.slice(8)}`;
+    expect(caseFlipped).not.toBe(SRI_A);
+    expect(
+      parseUnanalyzable(entry(), entry({ integrity: caseFlipped }))
+        .unanalyzable,
+    ).toHaveLength(2);
+  });
+
   it("allows the same package and version with a different kind", () => {
     expect(
       parseUnanalyzable(entry(), entry({ kind: "link-entry" })).unanalyzable,
