@@ -401,3 +401,49 @@ escapes; worth considering a CI grep for control characters in source files.
 4. Cosmetic: "capabilitys" in text reports; the per-package header still
    says "manifest capability report"; `npm run check:action` deletes
    `dist/action` before building, so a failed build leaves the tree dirty.
+
+## 2026-10-12 (later) — Attack reconstructions, dogfood re-pin, layout evasion
+
+### 1. Completed and verified
+
+- **Attack reconstructions (#34, merged):** defanged, labeled reconstructions
+  of the axios 2026 compromise and both Shai-Hulud waves run through lockfile
+  diff → fetch → analysis → the default CRITICAL gate, with benign controls
+  (`src/core/attack-reconstructions.test.ts`; sources and kept/omitted
+  behavior in `test/fixtures/reconstructions/inventory.json`). Each attack
+  fails the gate; a parser-limit variant still fails on the hook.
+- **Dogfood re-pin (#35, merged):** the workflow pinned 89f87e0, a
+  manifest-only build (report schema v1). It now pins 95e7ae3.
+- **Dependabot:** #25 (tsx), #26 (typescript-eslint), and #28 (eslint) were
+  merged after full capdelta analysis; their HIGH findings were documentation
+  URLs in comments. `main` re-verified afterwards (325 tests, all checks).
+
+### 2. Half-done and exact resume point
+
+- **#36 awaits maintainer approval** (ADR-013, proposed; amends ADR-010). npm
+  installs tarballs rooted at any directory; capdelta required `package/`, so
+  real `@types/*` bumps were unavailable and an `x/`-rooted malicious version
+  evaded the default gate. The layout-evasion test fails on `main`.
+- **#24 (@types/node):** capdelta reports it unavailable because of that bug.
+  Re-run (`@dependabot rebase`) after #36 merges, then decide.
+- **#27 (vitest 4 → 5, major):** capdelta fails CRITICAL on the new native
+  binary in `@rolldown/binding-android-arm-eabi` (vite 8 / rolldown). This is
+  correct per PLAN §4.4. Merging needs a reviewed `.capdelta.yml` allowlist
+  entry with a justification, or a decision to hold.
+
+### 3. ADR status
+
+- ADR-013 proposed (#36), not accepted.
+
+### 4. Open questions
+
+1. Accept ADR-013 and merge #36?
+2. The runner forces the Action's `node20` runtime onto Node 24 (GitHub's
+   deprecation). PLAN §4.6 says node20, so moving `action.yml` to node24 needs
+   a PLAN amendment.
+3. Dogfood evidence for M5 signal tuning: the vitest bump produced HIGH
+   "domains" from comments and malformed hosts (`$addr`, `fs`,
+   `underscorejs.org)`), and TypeScript sources as MEDIUM unparseable files.
+4. Any rejected archive (links, caps) is still only unavailable, which fails
+   only under `--strict`. A `hasInstallScript` lockfile fallback was discussed
+   and needs its own policy design and ADR.
