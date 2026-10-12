@@ -173,7 +173,9 @@ export async function runAction(
       : adapters.analyze(oldLockfile, headLockfile, config),
   );
   const json = renderJsonRunReport(analysis);
-  const sarif = renderSarifReport(analysis);
+  const sarif = renderSarifReport(analysis, {
+    lockfilePath: inputs.lockfilePath,
+  });
   const report = parseRenderedReport(json);
 
   const artifact = await withContext("upload JSON report artifact", () =>

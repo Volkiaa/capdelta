@@ -1,3 +1,4 @@
+import { isNormalizedRelativePosixPath } from "../core/repository-path.js";
 const DEFAULT_MAX_LOCKFILE_BYTES = 50 * 1024 * 1024;
 const COMMIT_ID = /^[0-9a-f]{40,64}$/iu;
 
@@ -118,13 +119,7 @@ function validateRequest(request: BaseLockfileRequest): void {
 }
 
 export function validateLockfilePath(path: string): void {
-  if (
-    path.length === 0 ||
-    path.startsWith("/") ||
-    path.includes("\\") ||
-    path.includes("\0") ||
-    path.split("/").some((segment) => segment === ".." || segment === "")
-  ) {
+  if (!isNormalizedRelativePosixPath(path)) {
     throw new GitHubContentsConfigurationError(
       "lockfile path must be a normalized relative POSIX path",
     );

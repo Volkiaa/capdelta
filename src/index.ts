@@ -165,6 +165,7 @@ export {
   type SeverityCounts,
 } from "./core/reporter.js";
 export { SARIF_VERSION, renderSarifReport } from "./core/sarif-reporter.js";
+export type { SarifReportOptions } from "./core/sarif-reporter.js";
 export {
   ExtractorConfigurationError,
   ExtractorError,

@@ -107,6 +107,65 @@ describe("runAction", () => {
     );
   });
 
+  it("uploads integrity-mismatch SARIF located at the configured lockfile", async () => {
+    const lockfilePath = "apps/web/package-lock.json";
+    const tampered: CapabilityAnalysisRun = {
+      firstRun: false,
+      summary: { changed: 1, analyzed: 0, unavailable: 1, skipped: 0 },
+      packages: [
+        {
+          status: "unavailable",
+          changedPackage: {
+            name: "tampered",
+            oldVersion: "1.0.0",
+            newVersion: "1.0.1",
+            oldIntegrity: "sha512-old",
+            newIntegrity: "sha512-new",
+            oldResolvedUrl: "https://registry.npmjs.org/tampered/old.tgz",
+            resolvedUrl: "https://registry.npmjs.org/tampered/new.tgz",
+          },
+          failures: [
+            {
+              stage: "fetch",
+              failure: {
+                side: "new",
+                kind: "integrity-mismatch",
+                detail:
+                  "downloaded bytes do not match lockfile sha512 integrity",
+                url: "https://registry.npmjs.org/tampered/new.tgz",
+              },
+            },
+          ],
+        },
+      ],
+      lockfileFindings: [],
+      skipped: [],
+    };
+    const runtime = adapters(tampered);
+    vi.mocked(runtime.listChangedFiles).mockResolvedValue([lockfilePath]);
+
+    await expect(
+      runAction({ ...inputs, lockfilePath }, context, runtime),
+    ).resolves.toMatchObject({
+      status: "analyzed",
+      gate: { fail: true, threshold: "CRITICAL" },
+      sarifUploaded: true,
+    });
+    const uploaded = vi.mocked(runtime.uploadSarif).mock.calls[0]?.[0];
+    if (uploaded === undefined) throw new Error("SARIF was not uploaded");
+    const sarif = JSON.parse(uploaded) as {
+      runs: [{ results: { ruleId: string; locations: unknown[] }[] }];
+    };
+    expect(sarif.runs[0].results).toEqual([
+      expect.objectContaining({
+        ruleId: "CAPDELTA-INTEGRITY-MISMATCH",
+        locations: [
+          { physicalLocation: { artifactLocation: { uri: lockfilePath } } },
+        ],
+      }),
+    ]);
+  });
+
   it("uses a missing base lockfile as first-run mode", async () => {
     const runtime = adapters(emptyRun(true));
     vi.mocked(runtime.contents.getContent).mockResolvedValue({

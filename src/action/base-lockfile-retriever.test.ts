@@ -126,6 +126,8 @@ describe("retrieveBaseLockfile", () => {
       "../package-lock.json",
       "a\\b",
       "a//b",
+      "./package-lock.json",
+      "nested/./package-lock.json",
     ]) {
       await expect(
         retrieveBaseLockfile({ owner: "o", repo: "r", path, ref: REF }, client),
