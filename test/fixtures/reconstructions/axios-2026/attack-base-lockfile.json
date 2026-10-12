@@ -1,0 +1,17 @@
+{
+  "name": "reconstruction-project",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "name": "reconstruction-project",
+      "version": "1.0.0"
+    },
+    "node_modules/axios": {
+      "version": "1.14.0",
+      "resolved": "https://registry.npmjs.org/axios/-/axios-1.14.0.tgz",
+      "integrity": "sha512-aNHQkhWavL2y0M3kP5vIgVDOmNf50a2YMM3QtJobwor1B47A+BrKRS++sDenDaBMK3mM04x5RIg6gp9jC+dO1w=="
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "reconstruction-project",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "name": "reconstruction-project",
+      "version": "1.0.0"
+    },
+    "node_modules/@ctrl/tinycolor": {
+      "version": "4.2.0-reconstruction-control",
+      "resolved": "https://registry.npmjs.org/@ctrl/tinycolor/-/tinycolor-4.2.0-reconstruction-control.tgz",
+      "integrity": "sha512-kSd3OG18B+UzvZckxlwYa1l7M/JYJ5O5IxppoS6LJKcX8WjEDqi4/0fW7QNEupaf1UwosQQVWMwlt78frShznw=="
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "name": "reconstruction-project",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "name": "reconstruction-project",
+      "version": "1.0.0"
+    },
+    "node_modules/axios": {
+      "version": "1.14.1",
+      "resolved": "https://registry.npmjs.org/axios/-/axios-1.14.1.tgz",
+      "integrity": "sha512-9AXKQFjUM2wtdjuqWH5IohcJqgLihPeqEsY4IeQ0YM7p7rqspw/ALUN+44os0YK5sSGrmqs80FDoKQrYy2Uigg==",
+      "dependencies": {
+        "plain-crypto-js": "^4.2.1"
+      }
+    },
+    "node_modules/plain-crypto-js": {
+      "version": "4.2.1",
+      "resolved": "https://registry.npmjs.org/plain-crypto-js/-/plain-crypto-js-4.2.1.tgz",
+      "integrity": "sha512-4hIzuzUVJZ5y9UzF2wNiqkC2SDjRZxaHOaQirl2S/j5OZQKD4G/yhEXuKPgrrWdIbPzZYbM3y6st1mX/YldOyQ==",
+      "hasInstallScript": true
+    }
+  }
+}

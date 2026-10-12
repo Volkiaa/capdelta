@@ -1,0 +1,67 @@
+{
+  "notice": "DEFANGED SYNTHETIC RECONSTRUCTIONS (PLAN §7.4 fallback). Package names and versions are public identifiers from documented incidents; every file is synthetic, modeled on public analyses, and never the original artifact. Fixtures are parsed by tests only: never imported, installed, executed, or published. Hosts use .example.test, and commands are nonexistent fixture names.",
+  "incidents": [
+    {
+      "name": "axios-2026",
+      "title": "axios npm compromise: capability laundering through a new dependency",
+      "date": "2026-03-31 00:21 UTC (axios@1.14.1); plain-crypto-js@4.2.0 decoy staged 2026-03-30",
+      "sources": [
+        "https://github.com/axios/axios/issues/10636",
+        "https://www.stepsecurity.io/blog/axios-compromised-on-npm-malicious-versions-drop-remote-access-trojan",
+        "https://socket.dev/blog/axios-npm-package-compromised"
+      ],
+      "kept": "axios source unchanged; axios package.json adds \"plain-crypto-js\": \"^4.2.1\" and drops \"prepare\": \"husky\"; plain-crypto-js@4.2.1 is new to the tree with \"postinstall\": \"node setup.js\" and a package.md decoy; setup.js uses an encoded string table (reverse, _ to =, base64, XOR) decoded at runtime into computed require() calls and an execSync sink.",
+      "omitted": "Real decoded strings, C2 contact, payload download, and self-deletion. The table decodes to inert fixture values and the entry function is never called.",
+      "expected": "plain-crypto-js gets a full new-package report with a CRITICAL registry postinstall hook and UNKNOWN in install-script code; the axios bump shows a LOW dependency addition cross-linked to that report; the default CRITICAL gate fails.",
+      "scenarios": {
+        "attack": {
+          "base": ["axios-1.14.0"],
+          "head": ["axios-1.14.1", "plain-crypto-js-4.2.1"]
+        },
+        "control": {
+          "base": ["axios-1.14.0"],
+          "head": ["axios-1.14.2-reconstruction-control"]
+        }
+      }
+    },
+    {
+      "name": "shai-hulud-2025",
+      "title": "Shai-Hulud worm, September 2025 wave: postinstall bundle",
+      "date": "2025-09 (@ctrl/tinycolor 4.1.1 and 4.1.2 were both compromised; controls use synthetic versions)",
+      "sources": [
+        "https://www.stepsecurity.io/blog/ctrl-tinycolor-and-40-npm-packages-compromised",
+        "https://sysdig.com/blog/shai-hulud-the-novel-self-replicating-worm-infecting-hundreds-of-npm-packages",
+        "https://securelist.com/shai-hulud-worm-infects-500-npm-packages-in-a-supply-chain-attack/117547/"
+      ],
+      "kept": "\"postinstall\": \"node bundle.js\" added to an otherwise unchanged package; bundle.js reads GITHUB_TOKEN and NPM_TOKEN, runs a secret-scanner process, and posts to a GitHub API endpoint.",
+      "omitted": "The multi-megabyte webpack bundle, the real scanner, repository and workflow creation, and republishing. The harvest function is never called and its endpoint is api.github.example.test.",
+      "expected": "CRITICAL install-hook-change, install-code-execution for NET, ENV, and PROCESS in bundle.js, and secret-exfiltration; a parser-limit simulation still fails the gate on the hook alone.",
+      "scenarios": {
+        "attack": { "base": ["tinycolor-4.1.0"], "head": ["tinycolor-4.1.1"] },
+        "control": {
+          "base": ["tinycolor-4.1.0"],
+          "head": ["tinycolor-4.2.0-reconstruction-control"]
+        }
+      }
+    },
+    {
+      "name": "shai-hulud-2-2025",
+      "title": "Shai-Hulud 2.0, November 2025 wave: preinstall Bun loader",
+      "date": "around 2025-11-24 (Endor Labs)",
+      "sources": [
+        "https://www.endorlabs.com/learn/shai-hulud-2-malware-campaign-targets-github-and-cloud-credentials-using-bun-runtime",
+        "https://socket.dev/npm/package/@commute/market-data/diff/1.0.2"
+      ],
+      "kept": "\"preinstall\": \"node setup_bun.js\" loader that hands bun_environment.js to another runtime; an encoded payload with a dynamic-evaluation sink.",
+      "omitted": "Bun download and installation, the 480,000+ line obfuscated payload, runner registration, and all execution. The victim package name is synthetic.",
+      "expected": "CRITICAL install-hook-change for the registry preinstall hook with package.json evidence; the default gate fails.",
+      "scenarios": {
+        "attack": { "base": ["victim-1.0.0"], "head": ["victim-1.0.1"] },
+        "control": {
+          "base": ["victim-1.0.0"],
+          "head": ["victim-1.0.2-control"]
+        }
+      }
+    }
+  ]
+}
