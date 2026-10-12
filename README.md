@@ -101,7 +101,7 @@ built entrypoint during development.
 ### CLI behavior
 
 ```text
-Usage: capdelta --base <ref> [--format text|json] [--config path] [--strict]
+Usage: capdelta --base <ref> [--format text|json] [--config path] [--fail-on severity] [--strict]
 ```
 
 - The base ref is resolved to an immutable commit. Git is invoked with argument
@@ -112,12 +112,29 @@ Usage: capdelta --base <ref> [--format text|json] [--config path] [--strict]
   aggregate-only; JSON retains every package report.
 - Expected package-local failures and partial-analysis diagnostics remain in
   the report instead of disappearing.
-- Exit `0` means analysis completed, even if findings need review. Exit `1`
-  means an operational failure. Exit `64` means invalid usage.
+- When analysis runs, the full report is written before the exit code is
+  decided. Invalid usage, operational failures, and the unchanged-lockfile
+  fast path produce no report.
+
+`--fail-on` sets an inclusive severity threshold: `CRITICAL` (default), `HIGH`,
+`MEDIUM`, `LOW`, `INFO`, or `none` for report-only use. It evaluates the
+report's `summary.gateSeverity`: unsuppressed capability and signal findings,
+lockfile findings, and tarball integrity mismatches, which are CRITICAL even
+though the package cannot be analyzed. Allowlisted findings stay in the report
+as suppressed but never fail the gate.
 
 `--strict` returns exit `2` when a package is unavailable, a lockfile entry is
 skipped, diagnostics remain, or cancellation/deadline leaves work incomplete.
-Without it, those gaps remain loud in the report but do not change the exit code.
+Without it, incompleteness alone remains loud in the report but does not fail
+the run; severity-bearing records such as integrity mismatches still go
+through `--fail-on`.
+
+| Exit | Meaning                                                                                                           |
+| ---: | ----------------------------------------------------------------------------------------------------------------- |
+|  `0` | Nothing reached the `--fail-on` threshold (without `--strict`, analysis may be incomplete), or lockfile unchanged |
+|  `1` | A finding reached the threshold, or an operational failure; see stderr                                            |
+|  `2` | `--strict` found unanalyzed content; takes precedence over the threshold                                          |
+| `64` | Invalid usage                                                                                                     |
 
 Allowlist exceptions live in `.capdelta.yml` and require a justification:
 

@@ -1,11 +1,22 @@
+import {
+  parseFailOn,
+  SeverityGateConfigurationError,
+  type FailOn,
+} from "../core/run-severity.js";
 import { CliUsageError } from "./cli-errors.js";
 
-/** BSD sysexits EX_USAGE; strict incomplete-analysis failures use exit 2. */
+/**
+ * BSD sysexits EX_USAGE; strict incomplete-analysis failures use exit 2.
+ * Severity-gate failures and operational errors share exit 1; stderr names
+ * the cause.
+ */
 export const USAGE_ERROR_EXIT_CODE = 64;
 export const STRICT_ANALYSIS_EXIT_CODE = 2;
+/** PLAN §4.5: only CRITICAL fails by default. */
+export const DEFAULT_FAIL_ON: FailOn = "CRITICAL";
 
 export const CLI_HELP = [
-  "Usage: capdelta --base <ref> [--format text|json] [--config path] [--strict]",
+  "Usage: capdelta --base <ref> [--format text|json] [--config path] [--fail-on severity] [--strict]",
   "",
   "Compare the checkout's package-lock.json with a Git base revision.",
   "",
@@ -13,7 +24,10 @@ export const CLI_HELP = [
   "  --base <ref>          Git revision used as the baseline (required)",
   "  --format text|json    Report format (default: text)",
   "  --config <path>       Allowlist config (default: .capdelta.yml)",
-  "  --strict              Exit 2 when any content is unanalyzed",
+  "  --fail-on <severity>  Exit 1 at or above CRITICAL, HIGH, MEDIUM, LOW, INFO,",
+  "                        or never with none (default: CRITICAL)",
+  "  --strict              Exit 2 when any content is unanalyzed; takes",
+  "                        precedence over --fail-on",
   "  --help                Show this help",
   "",
 ].join("\n");
@@ -23,6 +37,7 @@ export interface CliArguments {
   base: string | null;
   format: "text" | "json";
   configPath: string | null;
+  failOn: FailOn;
   strict: boolean;
 }
 
@@ -32,6 +47,7 @@ export function parseCliArguments(argv: readonly string[]): CliArguments {
   let format: "text" | "json" = "text";
   let formatSeen = false;
   let configPath: string | null = null;
+  let failOn: FailOn | null = null;
   let strict = false;
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -76,6 +92,14 @@ export function parseCliArguments(argv: readonly string[]): CliArguments {
       index += 1;
       continue;
     }
+    if (argument === "--fail-on") {
+      if (failOn !== null) {
+        throw new CliUsageError("--fail-on may only be provided once");
+      }
+      failOn = parseFailOnArgument(argv[index + 1]);
+      index += 1;
+      continue;
+    }
     if (argument === "--strict") {
       if (strict) throw new CliUsageError("--strict may only be provided once");
       strict = true;
@@ -84,5 +108,29 @@ export function parseCliArguments(argv: readonly string[]): CliArguments {
     throw new CliUsageError(`unknown argument ${JSON.stringify(argument)}`);
   }
 
-  return { help, base, format, configPath, strict };
+  return {
+    help,
+    base,
+    format,
+    configPath,
+    failOn: failOn ?? DEFAULT_FAIL_ON,
+    strict,
+  };
+}
+
+function parseFailOnArgument(value: string | undefined): FailOn {
+  if (value === undefined || value.startsWith("--")) {
+    throw new CliUsageError("--fail-on requires a severity or none");
+  }
+  try {
+    return parseFailOn(value);
+  } catch (error: unknown) {
+    // Only the known parse failure is a user mistake; anything else is a bug.
+    if (error instanceof SeverityGateConfigurationError) {
+      throw new CliUsageError(
+        "--fail-on must be CRITICAL, HIGH, MEDIUM, LOW, INFO, or none",
+      );
+    }
+    throw error;
+  }
 }

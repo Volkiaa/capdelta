@@ -8,12 +8,17 @@ import type {
   JsonReport,
   JsonReportAnalysisIssue,
   JsonReportFinding,
+  JsonRunReport,
   ReportEvidence,
   ReportPackage,
   SeverityCounts,
 } from "./report-contract.js";
 
-export { ReporterContractError, ReporterError } from "./report-builder.js";
+export {
+  buildRunReport,
+  ReporterContractError,
+  ReporterError,
+} from "./report-builder.js";
 export { REPORT_SCHEMA_VERSION } from "./report-contract.js";
 export type {
   JsonReport,
@@ -118,7 +123,12 @@ function renderTextReportFromBuilt(report: JsonReport): string[] {
 
 /** Stable machine-readable report for one complete capability-analysis run. */
 export function renderJsonRunReport(run: CapabilityAnalysisRun): string {
-  return `${JSON.stringify(buildRunReport(run), null, 2)}\n`;
+  return formatJsonRunReport(buildRunReport(run));
+}
+
+/** Formats an already-built run report, so callers can also gate on it. */
+export function formatJsonRunReport(report: JsonRunReport): string {
+  return `${JSON.stringify(report, null, 2)}\n`;
 }
 
 /**
@@ -126,7 +136,11 @@ export function renderJsonRunReport(run: CapabilityAnalysisRun): string {
  * JSON retains every package detail (PLAN §4.1).
  */
 export function renderTextRunReport(run: CapabilityAnalysisRun): string {
-  const report = buildRunReport(run);
+  return formatTextRunReport(buildRunReport(run));
+}
+
+/** Formats an already-built run report, so callers can also gate on it. */
+export function formatTextRunReport(report: JsonRunReport): string {
   const severitySummary = severityCountsText(report.summary.bySeverity);
   const lines = [
     "capdelta capability analysis report",
