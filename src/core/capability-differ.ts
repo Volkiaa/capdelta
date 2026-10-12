@@ -127,10 +127,13 @@ export function diffCapabilities(
     oldSet?.signals ?? null,
     newSet.signals ?? emptySignalSet(),
   );
-  const shapes = evaluateShapes(gains, signalFindings);
-  const findings = classifyGains(gains, shapes);
+  const evaluatedShapes = evaluateShapes(gains, signalFindings);
+  const findings = classifyGains(gains, evaluatedShapes);
   findings.sort(compareFindings);
-  const classifiedSignals = classifySignalFindings(signalFindings, shapes);
+  const { signals: classifiedSignals, shapes } = classifySignalFindings(
+    signalFindings,
+    evaluatedShapes,
+  );
 
   const diagnostics: CapabilityDiffDiagnostic[] = [];
   if (oldSet !== null) {
@@ -439,22 +442,43 @@ function evaluateShapes(
   return shapes;
 }
 
+/**
+ * Raises shape-covered signals to the shape severity and re-points each
+ * shape at those classified objects, so shapes and findings share identity
+ * (the allowlist and SARIF coverage resolve participants by identity).
+ */
 function classifySignalFindings(
   findings: readonly SignalFinding[],
   shapes: readonly ShapeFinding[],
-): SignalFinding[] {
+): { signals: SignalFinding[]; shapes: ShapeFinding[] } {
   const shaped = new Set(shapes.flatMap((shape) => shape.signals ?? []));
-  return findings
-    .map((finding) =>
-      shaped.has(finding)
+  const classified = new Map<SignalFinding, SignalFinding>();
+  const signals = findings
+    .map((finding) => {
+      const result = shaped.has(finding)
         ? { ...finding, severity: "CRITICAL" as const }
-        : finding,
-    )
+        : finding;
+      classified.set(finding, result);
+      return result;
+    })
     .sort((left, right) => {
       const severity =
         SEVERITY_ORDER[left.severity] - SEVERITY_ORDER[right.severity];
       return severity !== 0 ? severity : compareText(left.detail, right.detail);
     });
+  return {
+    signals,
+    shapes: shapes.map((shape) =>
+      shape.signals === undefined
+        ? shape
+        : {
+            ...shape,
+            signals: shape.signals.map(
+              (finding) => classified.get(finding) ?? finding,
+            ),
+          },
+    ),
+  };
 }
 
 function classifyGains(

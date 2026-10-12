@@ -78,7 +78,7 @@
       "signals": [
         {
           "kind": "obfuscation-pattern-added",
-          "severity": "MEDIUM",
+          "severity": "CRITICAL",
           "change": "added",
           "detail": "hex-byte-array with 8 elements added",
           "evidence": [
