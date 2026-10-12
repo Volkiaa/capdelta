@@ -281,6 +281,48 @@ describe("renderSarifReport", () => {
     expect(sarif.runs[0].tool.driver.rules).toEqual([]);
   });
 
+  it("describes an unanalyzable package without asserting malware", () => {
+    const run = mismatchRun([{ name: "oversized", side: "new" }]);
+    const item = run.packages[0];
+    if (item?.status !== "unavailable") throw new Error("fixture drift");
+    const overCap: CapabilityAnalysisRun = {
+      ...run,
+      packages: [
+        {
+          ...item,
+          failures: [
+            {
+              stage: "new-extraction",
+              failure: {
+                kind: "expanded-size-limit",
+                detail: "expanded size over the extraction cap",
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    const text = renderSarifReport(overCap);
+    const sarif = JSON.parse(text) as ParsedSarif;
+    expect(sarif.runs[0].results).toEqual([
+      expect.objectContaining({
+        ruleId: "CAPDELTA-EXPANDED-SIZE-LIMIT",
+        level: "error",
+      }),
+    ]);
+    expect(sarif.runs[0].tool.driver.rules).toEqual([
+      expect.objectContaining({
+        id: "CAPDELTA-EXPANDED-SIZE-LIMIT",
+        shortDescription: { text: "Package could not be analyzed" },
+      }),
+    ]);
+    expect(text).toContain(
+      "capdelta did not inspect this artifact, so the default gate fails until a person reviews it. This result does not assert malware.",
+    );
+    expect(text).not.toMatch(/malware detected/iu);
+  });
+
   it("orders mismatch results deterministically", () => {
     const forward = renderSarifReport(
       mismatchRun([

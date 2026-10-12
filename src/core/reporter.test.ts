@@ -709,6 +709,37 @@ describe("run severity classification", () => {
     ).toEqual(["CRITICAL", "CRITICAL"]);
   });
 
+  it("labels unanalyzable issues could not analyze without touching mismatches", () => {
+    const run: CapabilityAnalysisRun = {
+      firstRun: false,
+      summary: { changed: 1, analyzed: 0, unavailable: 1, skipped: 0 },
+      packages: [
+        {
+          status: "unavailable",
+          changedPackage: changedPackage("oversized"),
+          failures: [
+            {
+              stage: "new-extraction",
+              failure: { kind: "file-count-limit", detail: "too many files" },
+            },
+          ],
+        },
+      ],
+      lockfileFindings: [],
+      skipped: [],
+    };
+    expect(renderTextRunReport(run)).toContain(
+      '[CRITICAL] could not analyze: [new-extraction/file-count-limit] "too many files"',
+    );
+
+    // An integrity mismatch keeps its own wording.
+    const mismatch = renderTextRunReport(severityRun());
+    expect(mismatch).toContain(
+      '- [CRITICAL] [fetch/integrity-mismatch] "downloaded bytes do not match lockfile sha512 integrity"',
+    );
+    expect(mismatch).not.toContain("could not analyze");
+  });
+
   it("keeps an unavailable package at a gate count of 0 without a severity", () => {
     const run: CapabilityAnalysisRun = {
       firstRun: false,

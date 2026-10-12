@@ -4,6 +4,7 @@ import type {
 } from "./capability-differ.js";
 import type { CapabilityAnalysisRun } from "./capability-analysis-pipeline.js";
 import { buildReport, buildRunReport } from "./report-builder.js";
+import { isUnanalyzableIssue } from "./run-severity.js";
 import type {
   JsonReport,
   JsonReportAnalysisIssue,
@@ -239,7 +240,10 @@ function analysisIssueText(issue: JsonReportAnalysisIssue): string {
     issue.evidence === null ? null : `Evidence ${evidenceText(issue.evidence)}`,
   ].filter((item): item is string => item !== null);
   const severity = issue.severity === null ? "" : `[${issue.severity}] `;
-  return `${severity}[${issue.stage}/${issue.kind}] ${quote(issue.detail)}${context.length === 0 ? "" : `; ${context.join("; ")}`}`;
+  // ADR-016: label issues capdelta could not inspect, distinct from integrity
+  // mismatches and from capability findings.
+  const label = isUnanalyzableIssue(issue) ? "could not analyze: " : "";
+  return `${severity}${label}[${issue.stage}/${issue.kind}] ${quote(issue.detail)}${context.length === 0 ? "" : `; ${context.join("; ")}`}`;
 }
 
 function findingDescription(finding: JsonReportFinding): string {
