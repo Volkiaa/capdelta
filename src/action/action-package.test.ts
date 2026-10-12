@@ -36,7 +36,7 @@ describe("Action package", () => {
     expect(workflow).toContain("security-events: write");
     expect(workflow).toContain("persist-credentials: false");
     expect(workflow).toContain(
-      "Volkiaa/capdelta@89f87e0007b128496c5818005c884c1ac2f3ea74",
+      "Volkiaa/capdelta@95e7ae3cd9534876a5d90b6b93e4101488a24037",
     );
     expect(workflow).not.toContain("uses: ./");
     await expect(
