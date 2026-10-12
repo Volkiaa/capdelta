@@ -404,7 +404,7 @@ Tests use inert handcrafted lockfiles and tarballs; package code is never run.
 Golden pairs cover each PLAN §4.4 severity row (`test/fixtures/golden/`), and
 attack reconstructions cover documented incidents
 (`test/fixtures/reconstructions/`).
-CI executes the suite on Node.js 20 and 22 and verifies that the committed
+CI executes the suite on Node.js 20, 22, and 24 and verifies that the committed
 Action bundle is reproducible.
 
 The post-M3 false-positive harness inspects adjacent recent, nondeprecated,
@@ -441,6 +441,7 @@ the check but are not the gate.
 - [ADR-011: Bound extraction resources](docs/adr/0011-bound-npm-tarball-extraction-resources.md)
 - [ADR-012: Acorn parser and bounded honesty tier](docs/adr/0012-acorn-ast-parser.md)
 - [ADR-013: Analyze npm tarballs with npm's strip-one layout](docs/adr/0013-npm-strip-one-tarball-layout.md)
+- [ADR-014: Run the GitHub Action on Node 24](docs/adr/0014-node24-action-runtime.md)
 
 The authoritative architecture and roadmap remain in
 [docs/PLAN.md](docs/PLAN.md). Session handoffs are recorded in

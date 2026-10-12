@@ -7,9 +7,9 @@ import { describe, expect, it } from "vitest";
 const ROOT = resolve(import.meta.dirname, "..", "..");
 
 describe("Action package", () => {
-  it("targets Node 20 without placing workflow permissions in action metadata", async () => {
+  it("targets Node 24 without placing workflow permissions in action metadata", async () => {
     const metadata = await readFile(resolve(ROOT, "action.yml"), "utf8");
-    expect(metadata).toContain("using: node20");
+    expect(metadata).toContain("using: node24");
     expect(metadata).toContain("main: dist/action/index.js");
     expect(metadata).not.toMatch(/^permissions:/mu);
     expect(metadata).not.toContain("permissions:");

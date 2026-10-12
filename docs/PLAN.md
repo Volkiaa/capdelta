@@ -146,7 +146,7 @@ Allowlist config (`.capdelta.yml`): suppress `(package, capability)` pairs with 
 - Exit code: fail only at/above configurable threshold (default: CRITICAL fails; everything else comments). **`--strict` (adopted from capdiff):** exit 2 if any file could not be parsed or any package could not be analyzed — the CI-grade form of degrade-loudly for teams that want unanalyzed = failed.
 
 **4.6 Action packaging**
-- node20 JavaScript Action. Inputs: `lockfile-path`, `fail-on`, `config-path`, `base-ref`.
+- node24 JavaScript Action (amended from node20 by ADR-014; GitHub removed the Node 20 Actions runtime). Inputs: `lockfile-path`, `fail-on`, `config-path`, `base-ref`.
 - **Minimal token permissions, documented verbatim in the README:** `pull-requests: write` (comment), `contents: read`, and — only from M3 when SARIF ships — `security-events: write`. Nothing else requested, and nothing requested before it's used.
 - Also a plain CLI (`npx capdelta --base main`) — CI-agnostic.
 
