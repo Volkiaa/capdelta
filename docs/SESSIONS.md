@@ -340,3 +340,64 @@ escapes; worth considering a CI grep for control characters in source files.
    only after a corpus run contains targeted hook additions?
 2. Should the next M5 chunk be formal corpus measurement or publication/release
    evidence first?
+
+## 2026-10-12 — Post-M4 verification, severity gate, golden rows
+
+### 1. Completed and verified
+
+- **Correction to the 2026-07-29 M4 entry.** It describes
+  `src/core/benign-install-script.ts` and "242 tests / 28 files". Commit
+  9da9afb on the PR #20 branch removed that recognizer and its tests before
+  the squash-merge (57d3803), because the post-M3 corpus had no install-hook
+  additions to justify suppression (PLAN §6, `docs/fp-corpus-2026-07-29.md`).
+  `main` therefore had 230 tests / 27 files; running vitest at 153c097 (243)
+  and 9da9afb (230) confirmed the drop comes from that removal. The README
+  was already correct (README.md:298).
+- **End-to-end check of `main`** with real registry tarballs (static only):
+  no-op fast path, a benign `ms` bump, a new `esbuild` with a `postinstall`
+  (5 CRITICAL), an integrity mismatch, and `--strict`. Two PLAN divergences
+  were found: the CLI had no severity gate (PLAN §4.5), and integrity
+  mismatches were CRITICAL only inside the Action gate (PLAN §4.2).
+- **Stacked PRs, reviewed by a Codex session as design and code reviewer,**
+  squash-merged to `main` in order (e345dc4, 6ca7126, 375d1f9, 527f0b2). After
+  each rebase, GitHub started no CI run for the force-pushed head; each merged
+  tree was confirmed identical to its CI-green reviewed tree and re-verified
+  locally:
+  - #29 `feat(core)`: shared severity classification in
+    `src/core/run-severity.ts`; report schema v5 with `summary.gateSeverity`.
+  - #30 `feat(cli)`: `--fail-on` (default CRITICAL); exit 0/1/2/64, with
+    `--strict` exit 2 taking precedence.
+  - #31 `feat(sarif)`: `CAPDELTA-INTEGRITY-MISMATCH` results located at the
+    configured lockfile (GitHub does not display locationless results), with
+    attacker text bounded like the JSON report.
+  - #32 `test(core)`: one golden pair per PLAN §4.4 row (12 cases, shared
+    inventory `test/fixtures/golden/cases.json`), meeting PLAN §7.2.
+
+### 2. Half-done and exact resume point
+
+- M5 (PLAN §6, §7.4): the true-positive reconstruction corpus and a
+  formal FP measurement, then README numbers and publication.
+- A live GitHub SARIF upload has not been checked to confirm that the
+  file-located integrity results display.
+
+### 3. ADR status
+
+- No ADR. The gate, classification, and SARIF work implement existing PLAN
+  §4.2/§4.5 behavior; goldens implement §7.2.
+
+### 4. Open questions
+
+1. Dependabot PRs never get a sticky comment: `run-action.ts:182-187` takes
+   the read-only path for actor `dependabot[bot]` without checking the
+   token's permissions, while the dogfood workflow requests
+   `pull-requests: write`. PLAN §9 requires a real Dependabot PR comment as
+   the demo. Choose permission-aware delivery, or amend §9 (README.md:317
+   already cites PR #7's comment).
+2. The URL-domain signal scans comments (`signal-extractor.ts:20`), so
+   documentation links become HIGH findings. Measure in M5 before changing.
+3. Existing capability/signal SARIF results use an undefined
+   `CAPDELTA_PACKAGE_ROOT` base and synthetic paths, and their text is not
+   truncated. Lockfile findings have no SARIF results.
+4. Cosmetic: "capabilitys" in text reports; the per-package header still
+   says "manifest capability report"; `npm run check:action` deletes
+   `dist/action` before building, so a failed build leaves the tree dirty.
