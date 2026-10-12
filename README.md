@@ -159,7 +159,10 @@ Allowlist exceptions live in `.capdelta.yml` and require a justification. The
 GitHub Action reads this file from the selected base commit (the PR base, or
 `base-ref`), never from the PR head, so a pull request cannot add an exception
 that suppresses its own findings. Normally you merge a reviewed exception
-first, then re-run the dependency PR (ADR-015). The CLI still reads it from the working tree for now.
+first, then re-run the dependency PR (ADR-015).
+The CLI likewise reads `--config` (default `.capdelta.yml`, relative to the
+current directory) from the `--base` commit and only reports working-tree
+changes to it.
 
 Example:
 
