@@ -3,9 +3,10 @@
 Working name: `capdelta` — **verified free on npm (registry 404) and effectively unclaimed on GitHub** (one dormant adjacent research repo) as of 2026-07-14. `depdiff` is taken (same-concept npm package + 15 repos); `capdiff` is an active same-concept cargo tool (telcharr/capdiff, studied as prior art — see §4.4, §8).
 Revision 3: rev. 2 review fixes + capdiff prior-art adoptions (shape-based severity, FS_SENSITIVE, evidence format, baseline snapshot to v0.2, --strict, benign-pattern suppression).
 
-> **Implementation status (non-normative, 2026-07-29):** M0-M4 are complete.
-> M4 includes provisional routine install-script recognizers, malformed
-> archive/source property tests, and install-script-first manifest scheduling.
+> **Implementation status (non-normative, 2026-10-12):** M0-M4 are complete
+> except benign-pattern suppression, which was removed in PR #20 (commit
+> 9da9afb) until FP data justifies it (§6). M4 includes malformed
+> archive/source property tests and install-script-first manifest scheduling.
 > The required post-M3 legitimate-bump false-positive corpus run completed on
 > 2026-07-29: all 60 selected bumps were analyzed, with no CRITICAL-gate
 > failures. See `docs/fp-corpus-2026-07-29.md`. M4's unified execution
