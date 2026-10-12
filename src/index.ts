@@ -32,6 +32,11 @@ export {
   type SignalFindingSeverity,
 } from "./core/signal-differ.js";
 export {
+  EXCEPTABLE_UNANALYZABLE_KINDS,
+  FETCH_STAGE_CRITICAL_KINDS,
+  type ExceptableUnanalyzableKind,
+} from "./core/run-severity.js";
+export {
   CapabilityAnalysisPipelineConfigurationError,
   CapabilityAnalysisPipelineContractError,
   CapabilityAnalysisPipelineError,
@@ -64,7 +69,13 @@ export {
   type CapabilityAllowlistEntry,
   type CapdeltaConfig,
   type FindingSuppression,
+  type UnanalyzableExceptionEntry,
 } from "./core/capdelta-config.js";
+export {
+  UnanalyzableExceptionError,
+  applyUnanalyzableExceptions,
+  type UnanalyzableException,
+} from "./core/unanalyzable-exceptions.js";
 export {
   CAPABILITY_SET_SCHEMA_VERSION,
   type AnalysisDiagnostic,

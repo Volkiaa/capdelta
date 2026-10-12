@@ -770,4 +770,75 @@ describe("run severity classification", () => {
     expect(report.summary.gateSeverity.CRITICAL).toBe(0);
     expect(renderTextRunReport(run)).not.toContain("Gate severity");
   });
+
+  it("releases a reviewed exception from the gate but keeps its issues", () => {
+    const run: CapabilityAnalysisRun = {
+      firstRun: false,
+      summary: { changed: 1, analyzed: 0, unavailable: 1, skipped: 0 },
+      packages: [
+        {
+          status: "unavailable",
+          changedPackage: changedPackage("oversized"),
+          failures: [
+            {
+              stage: "new-extraction",
+              failure: { kind: "file-count-limit", detail: "too many files" },
+            },
+          ],
+          exception: { reason: "[version 2.0.0] reviewed oversized fixture" },
+        },
+      ],
+      lockfileFindings: [],
+      skipped: [],
+    };
+    const report = JSON.parse(renderJsonRunReport(run)) as {
+      summary: { analysisIssues: number; gateSeverity: Record<string, number> };
+      packages: {
+        exception?: { reason: string };
+        failures: { severity: string | null }[];
+      }[];
+    };
+    // ADR-017: the exception releases the gate; the failures stay loud.
+    expect(report.summary.gateSeverity.CRITICAL).toBe(0);
+    expect(report.summary.analysisIssues).toBe(1);
+    expect(report.packages[0]?.exception).toEqual({
+      reason: "[version 2.0.0] reviewed oversized fixture",
+    });
+    expect(report.packages[0]?.failures[0]?.severity).toBe("CRITICAL");
+    expect(renderTextRunReport(run)).toContain(
+      'reviewed exception: "[version 2.0.0] reviewed oversized fixture"',
+    );
+    const text = renderTextRunReport(run);
+    expect(text).toContain(
+      "could not analyze: [new-extraction/file-count-limit]",
+    );
+  });
+
+  it("bounds a reviewed exception reason like every other report value", () => {
+    const run: CapabilityAnalysisRun = {
+      firstRun: false,
+      summary: { changed: 1, analyzed: 0, unavailable: 1, skipped: 0 },
+      packages: [
+        {
+          status: "unavailable",
+          changedPackage: changedPackage("oversized"),
+          failures: [
+            {
+              stage: "new-extraction",
+              failure: { kind: "file-count-limit", detail: "too many files" },
+            },
+          ],
+          exception: { reason: `[version 2.0.0] ${"x".repeat(400)}` },
+        },
+      ],
+      lockfileFindings: [],
+      skipped: [],
+    };
+    const report = JSON.parse(renderJsonRunReport(run)) as {
+      packages: { exception?: { reason: string } }[];
+    };
+    expect(
+      Array.from(report.packages[0]?.exception?.reason ?? ""),
+    ).toHaveLength(240);
+  });
 });

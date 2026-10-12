@@ -262,6 +262,21 @@ function buildComment(
     );
   }
 
+  const exceptions = collectExceptions(report);
+  if (exceptions.length > 0) {
+    // ADR-017: the package is still unanalyzed and still returns exit 2 under
+    // --strict; the reviewed exception only releases the severity gate.
+    lines.push(
+      "",
+      "### Reviewed exceptions",
+      "",
+      ...exceptions.map(
+        ({ packageName, reason }) =>
+          `- ${escapeMarkdownText(packageName, MAX_IDENTITY_CHARS)}: reviewed exception: ${escapeMarkdownText(reason, MAX_DETAIL_CHARS)}`,
+      ),
+    );
+  }
+
   const shownFindings = findings.length;
   const totalFindings =
     report.summary.capabilityFindings + (report.summary.signalFindings ?? 0);
@@ -340,6 +355,16 @@ function collectIssues(
       issue,
     }));
   });
+}
+
+function collectExceptions(
+  report: JsonRunReport,
+): { packageName: string; reason: string }[] {
+  return report.packages.flatMap((item) =>
+    item.status === "unavailable" && item.exception !== undefined
+      ? [{ packageName: item.package.name, reason: item.exception.reason }]
+      : [],
+  );
 }
 
 function findingText(

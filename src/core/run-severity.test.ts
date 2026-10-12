@@ -3,6 +3,8 @@ import type { FindingSeverity } from "./capability-differ.js";
 import type { JsonRunReport, SeverityCounts } from "./reporter.js";
 import type { JsonReportAnalysisIssue } from "./report-contract.js";
 import {
+  EXCEPTABLE_UNANALYZABLE_KINDS,
+  FETCH_STAGE_CRITICAL_KINDS,
   SeverityGateConfigurationError,
   SeverityGateError,
   analysisIssueSeverity,
@@ -170,6 +172,37 @@ describe("run severity classification", () => {
         kind: "manifest-missing",
       }),
     ).toThrow(SeverityGateError);
+  });
+
+  // ADR-017 amendment A: the exported exception set must be exactly the kinds
+  // the ADR-016 classification marks CRITICAL in the extraction and manifest
+  // stages. Derived here over the same exhaustive (stage, kind) table, so a new
+  // kind or a reclassification cannot silently drift from the exception
+  // allow-set.
+  it("derives EXCEPTABLE_UNANALYZABLE_KINDS from the extraction and manifest stages", () => {
+    const derived = new Set<string>();
+    for (const [stage, kind, severity] of ISSUE_CASES) {
+      if (
+        severity === "CRITICAL" &&
+        (stage === "old-extraction" ||
+          stage === "new-extraction" ||
+          stage === "old-manifest" ||
+          stage === "new-manifest")
+      ) {
+        derived.add(kind);
+      }
+    }
+    expect(derived).toEqual(new Set<string>(EXCEPTABLE_UNANALYZABLE_KINDS));
+  });
+
+  // ADR-017 amendment A: fetch-stage CRITICAL kinds can never be excepted, so
+  // the parser rejects them with a distinct reason. Derived from the same table.
+  it("derives FETCH_STAGE_CRITICAL_KINDS from the fetch stage", () => {
+    const derived = new Set<string>();
+    for (const [stage, kind, severity] of ISSUE_CASES) {
+      if (stage === "fetch" && severity === "CRITICAL") derived.add(kind);
+    }
+    expect(derived).toEqual(new Set<string>(FETCH_STAGE_CRITICAL_KINDS));
   });
 });
 

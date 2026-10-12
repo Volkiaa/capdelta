@@ -63,6 +63,10 @@ export function renderSarifReport(
   // same classification that assigns severity; never a hand-written list.
   const unanalyzableRuleIds = new Set<string>();
   for (const item of run.packages) {
+    // ADR-017: a reviewed exception releases the package from the gate, so its
+    // failure results are labeled like suppressed capability findings.
+    const exceptionReason =
+      item.status === "unavailable" ? item.exception?.reason : undefined;
     // Severity-bearing issues (PLAN §4.2 integrity mismatches) gate the run,
     // so they must reach code scanning even when the package is unavailable.
     for (const issue of item.status === "analyzed"
@@ -78,6 +82,7 @@ export function renderSarifReport(
         issue,
         severity,
         lockfilePath,
+        exceptionReason,
       );
       ruleIds.add(result.ruleId);
       if (
@@ -276,6 +281,7 @@ function issueResult(
   issue: PackageAnalysisFailure,
   severity: FindingSeverity,
   lockfilePath: string | undefined,
+  exceptionReason: string | undefined,
 ): SarifResult {
   const side =
     issue.stage === "fetch"
@@ -300,10 +306,14 @@ function issueResult(
   const name = truncate(changedPackage.name, MAX_IDENTITY_CHARS);
   const boundedVersion = truncate(version, MAX_IDENTITY_CHARS);
   const detail = truncate(issue.failure.detail, MAX_VALUE_CHARS);
+  const reason =
+    exceptionReason === undefined
+      ? undefined
+      : truncate(exceptionReason, MAX_VALUE_CHARS);
   const result = resultFor(
     `CAPDELTA-${issue.failure.kind.toUpperCase()}`,
     severity,
-    `Review this change: ${detail}${artifact} of ${name}@${boundedVersion}; capdelta did not analyze it.`,
+    `Review this change: ${detail}${artifact} of ${name}@${boundedVersion}; capdelta did not analyze it.${suppressionText(reason)}`,
     [],
     name,
     boundedVersion,
@@ -316,6 +326,7 @@ function issueResult(
         issue.stage === "fetch"
           ? truncate(issue.failure.url, MAX_VALUE_CHARS)
           : null,
+      ...(reason === undefined ? {} : { suppression: reason }),
     },
   );
   if (lockfilePath === undefined) return result;

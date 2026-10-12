@@ -488,7 +488,13 @@ function isHttpsUrl(value: string): boolean {
   }
 }
 
-function parseSha512Integrity(integrity: string): string[] {
+/**
+ * Canonical sha512 SRI token(s) for the fetcher's verification. Exported so the
+ * config parser (ADR-017) validates an exception's `integrity` with the exact
+ * same check rather than a reimplementation. Returns `[]` when any token is
+ * not a canonical sha512 SRI.
+ */
+export function parseSha512Integrity(integrity: string): string[] {
   const tokens = integrity.trim().split(/\s+/);
   if (tokens.length === 0 || tokens[0] === "") return [];
   const canonical: string[] = [];

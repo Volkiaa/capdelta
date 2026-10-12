@@ -39,6 +39,47 @@ export const SEVERITIES: readonly FindingSeverity[] = [
   "INFO",
 ];
 
+/**
+ * ADR-017 amendment A: the extraction- and manifest-stage failure kinds ADR-016
+ * classifies as CRITICAL. These failures are decided after the fetcher verified
+ * the artifact bytes against the lockfile sha512, so a reviewed exception can
+ * bind to them. Fetch-stage failures are excluded because they occur before or
+ * without verification. `run-severity.test.ts` re-derives this set from
+ * `analysisIssueSeverity` over the extraction and manifest stages.
+ */
+export type ExceptableUnanalyzableKind =
+  ExtractionFailureKind | ManifestCapabilityFailureKind;
+
+export const EXCEPTABLE_UNANALYZABLE_KINDS: readonly ExceptableUnanalyzableKind[] =
+  [
+    "invalid-archive",
+    "invalid-layout",
+    "unsafe-path",
+    "link-entry",
+    "unsupported-entry",
+    "file-count-limit",
+    "expanded-size-limit",
+    "decompression-ratio-limit",
+    "manifest-missing",
+    "manifest-too-large",
+    "manifest-invalid-json",
+    "manifest-invalid-root",
+    "identity-mismatch",
+  ];
+
+/**
+ * ADR-017 amendment A: the fetch-stage failure kinds ADR-016 classifies as
+ * CRITICAL. They are decided before or without byte verification, so they can
+ * never carry a reviewed exception. The config parser rejects them with that
+ * reason. `run-severity.test.ts` re-derives this set from the fetch stage.
+ */
+export const FETCH_STAGE_CRITICAL_KINDS: readonly FetchFailureKind[] = [
+  "size-limit-exceeded",
+  "invalid-url",
+  "unsupported-integrity",
+  "integrity-mismatch",
+];
+
 export class SeverityGateError extends Error {
   constructor(message: string) {
     super(message);

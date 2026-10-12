@@ -21,6 +21,7 @@ import {
 } from "./capability-analysis-pipeline.js";
 import { diffNpmLockfiles } from "./npm/lockfile-differ.js";
 import { extractVerifiedTarball } from "./npm/safe-extractor.js";
+import { parseCapdeltaConfig } from "./capdelta-config.js";
 import {
   buildRunReport,
   type JsonReport,
@@ -48,6 +49,13 @@ interface Incident {
 const INVENTORY = JSON.parse(
   await readFile(join(ROOT, "inventory.json"), "utf8"),
 ) as { incidents: Incident[] };
+
+// Reviewed fixture integrities, copied from the committed axios attack
+// lockfiles. The exception must bind to these exact bytes (ADR-017).
+const PLAIN_CRYPTO_INTEGRITY =
+  "sha512-4hIzuzUVJZ5y9UzF2wNiqkC2SDjRZxaHOaQirl2S/j5OZQKD4G/yhEXuKPgrrWdIbPzZYbM3y6st1mX/YldOyQ==";
+const AXIOS_INTEGRITY =
+  "sha512-9AXKQFjUM2wtdjuqWH5IohcJqgLihPeqEsY4IeQ0YM7p7rqspw/ALUN+44os0YK5sSGrmqs80FDoKQrYy2Uigg==";
 
 interface ScenarioResult {
   run: CapabilityAnalysisRun;
@@ -302,6 +310,58 @@ describe("axios npm compromise (2026-03-31) reconstruction", () => {
       highest: "CRITICAL",
     });
     expect(hasUnanalyzedContent(result.run)).toBe(true);
+  });
+
+  it("passes the default gate on the over-cap dropper with a reviewed exception (ADR-017)", async () => {
+    // Same cap as the ADR-016 boundary test above, but plain-crypto-js 4.2.1
+    // and its exact fixture bytes are excepted for file-count-limit.
+    const reviewed = parseCapdeltaConfig(
+      "unanalyzable:\n" +
+        "  - package: plain-crypto-js\n" +
+        "    version: 4.2.1\n" +
+        `    integrity: ${PLAIN_CRYPTO_INTEGRITY}\n` +
+        "    kind: file-count-limit\n" +
+        '    justification: "reviewed oversized fixture"\n',
+    );
+    const withException = await runScenario("axios-2026", "attack", {
+      extractor: { maxFileCount: 3 },
+      config: reviewed,
+    });
+    const dropper = withException.report.packages.find(
+      (item) => item.status === "unavailable",
+    );
+    if (dropper?.status !== "unavailable") {
+      throw new Error("plain-crypto-js must be unavailable under the cap");
+    }
+    expect(dropper.failures[0]).toMatchObject({
+      kind: "file-count-limit",
+      severity: "CRITICAL",
+    });
+    expect(dropper.exception?.reason).toContain("reviewed oversized fixture");
+    expect(withException.report.summary.gateSeverity.CRITICAL).toBe(0);
+    expect(
+      evaluateSeverityGate(withException.report, "CRITICAL"),
+    ).toMatchObject({
+      fail: false,
+      exitCode: 0,
+    });
+    // The package is still unanalyzed, so --strict still returns 2.
+    expect(hasUnanalyzedContent(withException.run)).toBe(true);
+
+    // A swapped tarball (different integrity) cannot inherit the exception.
+    const swapped = await runScenario("axios-2026", "attack", {
+      extractor: { maxFileCount: 3 },
+      config: parseCapdeltaConfig(
+        "unanalyzable:\n" +
+          "  - package: plain-crypto-js\n" +
+          "    version: 4.2.1\n" +
+          `    integrity: ${AXIOS_INTEGRITY}\n` +
+          "    kind: file-count-limit\n" +
+          '    justification: "reviewed oversized fixture"\n',
+      ),
+    });
+    expect(evaluateSeverityGate(swapped.report, "CRITICAL").fail).toBe(true);
+    expect(hasUnanalyzedContent(swapped.run)).toBe(true);
   });
 
   it("fails the default gate on a rejected link entry", async () => {

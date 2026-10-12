@@ -214,6 +214,45 @@ in that package would also be suppressed. Several exact versions may be listed
 for one package and capability, but scoped and unscoped entries for the same
 pair cannot be mixed.
 
+A package capdelta cannot analyze at all — an oversized tarball, a refused
+entry, or a missing manifest — fails the default gate (ADR-016). Release a
+reviewed one with a top-level `unanalyzable:` exception, bound to the exact
+bytes that were reviewed:
+
+```yaml
+unanalyzable:
+  - package: big-native-pkg
+    version: 2.3.4
+    integrity: "sha512-…" # exact lockfile integrity of the reviewed artifact
+    kind: expanded-size-limit # one unanalyzable failure kind
+    justification: "Ships 80 MB of prebuilt binaries; reviewed upstream release notes and provenance."
+```
+
+Every field is required. Get `integrity` by copying the `integrity` field of
+that package and version's `node_modules/...` entry in `package-lock.json`.
+`version` must be one exact semver, and `integrity` must be one or more
+canonical sha512 SRI tokens. `kind` must be a post-verification failure kind —
+one of the extraction- or manifest-stage kinds ADR-016 classifies as CRITICAL,
+such as `expanded-size-limit`, `file-count-limit`, `link-entry`, or
+`manifest-missing`. Fetch-stage kinds (`size-limit-exceeded`, `invalid-url`,
+`unsupported-integrity`, `integrity-mismatch`) happen before or without byte
+verification, so they can never be excepted and are rejected. The same
+`(package, version, integrity, kind)` tuple may not appear twice.
+
+The entry must bind the **new** artifact, not just the old one. A package is
+released only when every severity-bearing failure is a post-verification
+failure that matches an entry on its own side's version and integrity, and at
+least one match is on the new side. An old-side-only exception never releases a
+package, because the new bytes were never inspected. The exception then releases
+only those exact bytes from the severity gate; every new version and every
+swapped tarball needs a fresh review, and `--strict` still returns exit `2`
+because the package remains unanalyzed.
+
+Known cost: a tarball over the _download_ cap fails at fetch time with
+`size-limit-exceeded`, so it can no longer be excepted. Raising the fetch cap is
+the fix, but neither the CLI nor the GitHub Action exposes it today, so that is
+a code change rather than a configuration one.
+
 Example excerpt:
 
 ```text
@@ -398,8 +437,12 @@ than `registry.npmjs.org` is skipped and flagged.
   link, unsafe path, or unsupported type), is reported as unavailable. Its
   install hook is never read. Such an artifact- or lockfile-controlled failure
   is CRITICAL by default: capdelta did not inspect the package, so the default
-  gate fails until a person reviews it (ADR-016). `--strict` still returns
-  exit 2. The axios reconstruction includes a test that records this boundary.
+  gate fails until a person reviews it (ADR-016). A reviewed `unanalyzable:`
+  exception (ADR-017) can release an extraction- or manifest-stage failure from
+  the default gate, but only for the exact new-side bytes it names; a tarball
+  over the download cap fails before verification and cannot be excepted.
+  `--strict` still returns exit 2. The axios reconstruction includes a test
+  that records this boundary.
 - **Registry scope:** private registries, mirrors, git, file, and link
   dependencies are skipped and surfaced as unanalyzed.
 - **Single ecosystem and lockfile:** npm lockfile v2/v3 only, one lockfile per
@@ -497,6 +540,7 @@ the check but are not the gate.
 - [ADR-014: Run the GitHub Action on Node 24](docs/adr/0014-node24-action-runtime.md)
 - [ADR-015: Read allowlist policy from the base commit](docs/adr/0015-policy-from-base-commit.md)
 - [ADR-016: Fail the default gate on packages capdelta cannot analyze](docs/adr/0016-fail-closed-on-unanalyzable-packages.md)
+- [ADR-017: Reviewed exceptions for unanalyzable packages](docs/adr/0017-reviewed-unanalyzable-exceptions.md)
 
 The authoritative architecture and roadmap remain in
 [docs/PLAN.md](docs/PLAN.md). Session handoffs are recorded in
