@@ -37,7 +37,7 @@ outputs:
     description: Highest observed severity, or none
 
 runs:
-  using: node20
+  using: node24
   main: dist/action/index.js
 
 branding:
