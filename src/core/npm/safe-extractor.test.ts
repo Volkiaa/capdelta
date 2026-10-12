@@ -3,11 +3,31 @@ import { readFile } from "node:fs/promises";
 import { gzipSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import type { VerifiedTarball } from "./fetcher.js";
+import { extractNpmJavaScriptCapabilities } from "./javascript-capability-extractor.js";
+import { extractNpmManifestCapabilities } from "./manifest-capability-extractor.js";
 import {
   ExtractorConfigurationError,
   extractVerifiedManifest,
   extractVerifiedTarball,
+  type ExtractedTarball,
+  type ExtractionResult,
 } from "./safe-extractor.js";
+
+/** Runs body on a successful extraction and always cleans it up. */
+async function withExtraction(
+  pending: Promise<ExtractionResult>,
+  body: (extraction: ExtractedTarball) => Promise<void> | void,
+): Promise<void> {
+  const result = await pending;
+  if (result.status !== "extracted") {
+    throw new Error(`expected extraction: ${result.failure.detail}`);
+  }
+  try {
+    await body(result);
+  } finally {
+    await result.cleanup();
+  }
+}
 
 interface TarEntry {
   path: string;
@@ -93,6 +113,10 @@ function regularFile(path: string, text = "inert fixture"): TarEntry {
   return { path, body: new TextEncoder().encode(text) };
 }
 
+function directory(path: string): TarEntry {
+  return { path, type: "5" };
+}
+
 describe("extractVerifiedTarball", () => {
   it("manifest-preflights safely write only package.json", async () => {
     const result = await extractVerifiedManifest(
@@ -160,13 +184,182 @@ describe("extractVerifiedTarball", () => {
     },
   );
 
-  it("rejects an npm archive whose entries are not rooted under package/", async () => {
+  it("rejects an archive with nothing beneath a top-level directory", async () => {
+    // npm drops top-level files and bare roots, so nothing would be installed.
     const result = await extractVerifiedTarball(
-      tarball([regularFile("index.js")]),
+      tarball([directory("node/"), regularFile("index.js")]),
     );
     expect(result).toMatchObject({
       status: "rejected",
       failure: { kind: "invalid-layout" },
+    });
+  });
+
+  describe("npm strip-one layout semantics (ADR-013)", () => {
+    const READ = (root: string, file: string) =>
+      readFile(`${root}/${file}`, "utf8");
+
+    it("rejects a file header ending in a slash (node-tar strict parse)", async () => {
+      const result = await extractVerifiedTarball(
+        tarball([
+          regularFile("x/package.json", "{}"),
+          regularFile("x/index.js/"),
+        ]),
+      );
+      expect(result).toMatchObject({
+        status: "rejected",
+        failure: { kind: "invalid-archive" },
+      });
+    });
+
+    it("extracts a non-package root with explicit directory entries, like @types/*", async () => {
+      const archive = tarball([
+        directory("node/"),
+        regularFile("node/package.json", '{"name":"@types/fixture"}'),
+        directory("node/sub/"),
+        regularFile("node/sub/data.d.ts", "export {};"),
+      ]);
+      await withExtraction(
+        extractVerifiedTarball(archive),
+        async ({ root }) => {
+          await expect(READ(root, "package.json")).resolves.toBe(
+            '{"name":"@types/fixture"}',
+          );
+          await expect(READ(root, "sub/data.d.ts")).resolves.toBe("export {};");
+        },
+      );
+      await withExtraction(extractVerifiedManifest(archive), ({ root }) => {
+        expect(existsSync(`${root}/package.json`)).toBe(true);
+        expect(existsSync(`${root}/sub`)).toBe(false);
+      });
+    });
+
+    it.each([
+      ["benign first, hook last", ["a", "b"], "b"],
+      ["hook first, benign last", ["b", "a"], "a"],
+    ] as const)(
+      "merges mixed roots with the last manifest winning (%s)",
+      async (_label, order, winner) => {
+        const manifests = {
+          a: '{"name":"fixture","version":"1.0.0"}',
+          b: '{"name":"fixture","version":"1.0.0","scripts":{"postinstall":"node x.js"}}',
+        };
+        const archive = tarball(
+          order.map((root) =>
+            regularFile(`${root}/package.json`, manifests[root]),
+          ),
+        );
+        for (const extract of [
+          extractVerifiedTarball,
+          extractVerifiedManifest,
+        ]) {
+          await withExtraction(extract(archive), async ({ root }) => {
+            await expect(READ(root, "package.json")).resolves.toBe(
+              manifests[winner],
+            );
+          });
+        }
+      },
+    );
+
+    it("keeps the last bytes for a colliding code file across roots", async () => {
+      await withExtraction(
+        extractVerifiedTarball(
+          tarball([
+            regularFile("a/package.json", "{}"),
+            regularFile("a/index.js", "first"),
+            regularFile("b/index.js", "last"),
+          ]),
+        ),
+        async ({ root }) => {
+          await expect(READ(root, "index.js")).resolves.toBe("last");
+        },
+      );
+    });
+
+    it.each([
+      ["package.json", "a/package.json", "b/package.json/"],
+      ["a code file", "a/index.js", "b/index.js/"],
+    ])(
+      "never lets a later directory header replace an installed %s",
+      async (_label, file, shadow) => {
+        // pacote ignores Directory headers, so npm keeps the file.
+        const archive = tarball([
+          regularFile("a/package.json", '{"name":"fixture","version":"1.0.0"}'),
+          regularFile(file, "kept"),
+          directory(shadow),
+        ]);
+        await withExtraction(
+          extractVerifiedTarball(archive),
+          async ({ root }) => {
+            await expect(READ(root, file.slice(2))).resolves.toBe("kept");
+          },
+        );
+      },
+    );
+
+    it("analyzes the retained code when a directory header tries to shadow it", async () => {
+      const archive = tarball([
+        regularFile("a/package.json", '{"name":"fixture","version":"1.0.0"}'),
+        regularFile(
+          "a/index.js",
+          'const cp = require("node:child_process");\nmodule.exports = () => cp.spawnSync("capdelta-fixture-nonexistent-command");\n',
+        ),
+        directory("b/index.js/"),
+      ]);
+      await withExtraction(
+        extractVerifiedTarball(archive),
+        async (extraction) => {
+          const manifest = await extractNpmManifestCapabilities(extraction, {
+            ecosystem: "npm",
+            name: "fixture",
+            version: "1.0.0",
+          });
+          if (manifest.status !== "analyzed")
+            throw new Error("manifest unavailable");
+          const layer = await extractNpmJavaScriptCapabilities(
+            extraction,
+            manifest.set,
+          );
+          expect(
+            layer.capabilities.map((capability) => capability.kind),
+          ).toContain("PROCESS");
+        },
+      );
+    });
+
+    it("ignores a top-level file instead of using it as the manifest", async () => {
+      const archive = tarball([
+        regularFile("package.json", '{"name":"top-level-decoy"}'),
+        regularFile("x/package.json", '{"name":"installed"}'),
+      ]);
+      for (const extract of [extractVerifiedTarball, extractVerifiedManifest]) {
+        await withExtraction(extract(archive), async ({ root }) => {
+          await expect(READ(root, "package.json")).resolves.toBe(
+            '{"name":"installed"}',
+          );
+        });
+      }
+    });
+
+    it.each([
+      ["a doubled directory terminator", directory("x/sub//")],
+      ["traversal in the stripped root", regularFile("../package.json")],
+      ["traversal after the root", regularFile("x/../package.json")],
+      ["a dot root", regularFile("./package.json")],
+      ["a drive path exposed by stripping", regularFile("x/C:/package.json")],
+      [
+        "a drive-relative path exposed by stripping",
+        regularFile("x/C:package.json"),
+      ],
+    ])("still rejects %s as unsafe in both passes", async (_label, entry) => {
+      const archive = tarball([regularFile("x/package.json", "{}"), entry]);
+      for (const extract of [extractVerifiedTarball, extractVerifiedManifest]) {
+        await expect(extract(archive)).resolves.toMatchObject({
+          status: "rejected",
+          failure: { kind: "unsafe-path" },
+        });
+      }
     });
   });
 

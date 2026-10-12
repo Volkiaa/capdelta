@@ -66,7 +66,10 @@ for (const incident of inventory.incidents) {
     await packTree(sourceRoot, tarball);
     // Manifest bytes are JSON data, read as text; no fixture code is loaded.
     const manifest = JSON.parse(
-      await readFile(join(sourceRoot, "package", "package.json"), "utf8"),
+      await readFile(
+        join(sourceRoot, await soleRoot(sourceRoot), "package.json"),
+        "utf8",
+      ),
     );
     const basename = manifest.name.split("/").pop();
     entries[id] = {
@@ -118,8 +121,34 @@ async function packTree(sourceRoot, tarball) {
       portable: true,
       mtime: new Date(0),
     },
-    await listRegularFiles(sourceRoot, "package"),
+    (await topLevelRoots(sourceRoot)).flatMap((files) => files),
   );
+}
+
+/** Reconstruction fixtures keep one root, so their manifest is unambiguous. */
+async function soleRoot(sourceRoot) {
+  const roots = await readdir(sourceRoot);
+  if (roots.length !== 1) {
+    throw new Error(`${sourceRoot} must contain exactly one root directory`);
+  }
+  return roots[0];
+}
+
+/**
+ * Each top-level directory is an archive root, normally just package/. A
+ * fixture may use another root (e.g. x/) to exercise npm's strip-one layout.
+ */
+async function topLevelRoots(sourceRoot) {
+  const entries = await readdir(sourceRoot, { withFileTypes: true });
+  const roots = entries
+    .map((entry) => {
+      if (!entry.isDirectory()) {
+        throw new Error(`fixture root entry ${entry.name} is not a directory`);
+      }
+      return entry.name;
+    })
+    .sort();
+  return Promise.all(roots.map((root) => listRegularFiles(sourceRoot, root)));
 }
 
 async function sri(tarball) {

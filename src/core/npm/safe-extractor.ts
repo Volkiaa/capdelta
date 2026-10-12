@@ -29,7 +29,10 @@ export interface ExtractionFailure {
 
 export interface ExtractedTarball {
   status: "extracted";
-  /** Fresh, private directory containing the contents beneath npm's package/. */
+  /**
+   * Fresh, private directory holding the package as npm installs it: every
+   * entry with its first path component stripped (ADR-013).
+   */
   root: string;
   fileCount: number;
   expandedBytes: number;
@@ -81,7 +84,6 @@ const DEFAULT_MAX_FILE_COUNT = 10_000;
 const DEFAULT_MAX_EXPANDED_BYTES = 250 * 1024 * 1024;
 const DEFAULT_MAX_DECOMPRESSION_RATIO = 100;
 const MAX_META_ENTRY_BYTES = 64 * 1024;
-const PACKAGE_ROOT = "package";
 const ALLOWED_ENTRY_TYPES = new Set(["File", "OldFile", "Directory"]);
 
 /** A deliberate rejection caused by attacker-controlled archive contents. */
@@ -206,6 +208,7 @@ async function preflight(
   throwIfStopped(options.signal);
   let fileCount = 0;
   let expandedBytes = 0;
+  let installedFiles = 0;
   await tar.t({
     file: archivePath,
     strict: true,
@@ -221,7 +224,13 @@ async function preflight(
       const entry = rawEntry as ReadEntry;
       if (entry.meta) return true;
       try {
-        validateArchiveEntry(entry);
+        // Directory headers are validated and counted but never installed.
+        if (
+          validateArchiveEntry(entry) !== null &&
+          entry.type !== "Directory"
+        ) {
+          installedFiles += 1;
+        }
         fileCount += 1;
         if (fileCount > options.maxFileCount) {
           this.abort(
@@ -255,6 +264,14 @@ async function preflight(
     },
   });
   throwIfStopped(options.signal);
+  if (installedFiles === 0) {
+    // Only bare roots, directory headers, or top-level files npm drops:
+    // nothing of the package would be installed, so nothing to analyze.
+    throw new ArchiveRejectedError(
+      "invalid-layout",
+      "archive has no files beneath a top-level directory",
+    );
+  }
   return { fileCount, expandedBytes };
 }
 
@@ -270,8 +287,9 @@ async function extract(
     cwd: root,
     strict: true,
     gzip: true,
-    // The npm registry tarball layout is package/<contents>. Requiring it in
-    // preflight means strip: 1 cannot relocate a malicious path unexpectedly.
+    // npm (pacote) strips exactly one leading component from every entry,
+    // whatever its name (ADR-013). Preflight already validated every
+    // remaining component, so strip cannot relocate a path outside root.
     strip: 1,
     preservePaths: false,
     preserveOwner: false,
@@ -281,20 +299,28 @@ async function extract(
     maxMetaEntrySize: MAX_META_ENTRY_BYTES,
     maxDecompressionRatio: options.maxDecompressionRatio,
     ...(options.signal === undefined ? {} : { signal: options.signal }),
-    filter(this: tar.Parser, path) {
+    filter(this: tar.Parser, path, rawEntry) {
       if (options.signal?.aborted === true) {
         this.abort(new ExtractionStoppedError(options.signal));
         return false;
       }
-      return (
-        !manifestOnly || path.replaceAll("\\", "/") === "package/package.json"
-      );
+      const entry = rawEntry as ReadEntry;
+      // Same mapping as preflight. Like pacote, never write Directory
+      // headers: a later "b/index.js/" header must not replace an installed
+      // index.js file. node-tar creates parent directories for files. A
+      // manifest-only pass keeps every root's package.json in archive order,
+      // so the last one wins exactly as in a full extraction.
+      if (entry.type === "Directory") return false;
+      const effective = effectivePath(path, entry.type);
+      if (effective === null) return false;
+      return !manifestOnly || effective === "package.json";
     },
   });
   throwIfStopped(options.signal);
 }
 
-function validateArchiveEntry(entry: ReadEntry): void {
+/** Returns the entry's installed path, or null when strip-one drops it. */
+function validateArchiveEntry(entry: ReadEntry): string | null {
   if (!ALLOWED_ENTRY_TYPES.has(entry.type)) {
     if (entry.type === "Link" || entry.type === "SymbolicLink") {
       throw new ArchiveRejectedError(
@@ -307,10 +333,14 @@ function validateArchiveEntry(entry: ReadEntry): void {
       `archive contains unsupported ${entry.type} entry`,
     );
   }
-  validatePackagePath(entry.path);
+  return effectivePath(entry.path, entry.type);
 }
 
-function validatePackagePath(rawPath: string): void {
+/**
+ * Validates every component of a raw archive path, then applies npm's
+ * strip-one mapping. Only a Directory entry may end in a single "/".
+ */
+function effectivePath(rawPath: string, type: string): string | null {
   if (
     rawPath.includes("\0") ||
     rawPath.includes("\\") ||
@@ -323,7 +353,11 @@ function validatePackagePath(rawPath: string): void {
       "archive entry has an absolute or unsafe path",
     );
   }
-  const segments = rawPath.split("/");
+  const path =
+    type === "Directory" && rawPath.endsWith("/")
+      ? rawPath.slice(0, -1)
+      : rawPath;
+  const segments = path.split("/");
   if (
     segments.some(
       (segment) => segment === "" || segment === "." || segment === "..",
@@ -334,12 +368,23 @@ function validatePackagePath(rawPath: string): void {
       "archive entry has empty, dot, or parent path segment",
     );
   }
-  if (segments[0] !== PACKAGE_ROOT) {
+  // A bare root directory or a top-level file has no installed path.
+  if (segments.length === 1) return null;
+  const effective = segments.slice(1).join("/");
+  // Stripping the root must not expose an absolute or drive-qualified path
+  // (x/C:/package.json becomes C:/package.json). Reject it, stricter than
+  // pacote's normalization.
+  if (
+    posix.isAbsolute(effective) ||
+    win32.isAbsolute(effective) ||
+    /^[A-Za-z]:/u.test(effective)
+  ) {
     throw new ArchiveRejectedError(
-      "invalid-layout",
-      "npm tarball entries must be rooted beneath package/",
+      "unsafe-path",
+      "archive entry exposes an absolute path after its root is stripped",
     );
   }
+  return effective;
 }
 
 function resolveOptions(options: ExtractorOptions): ResolvedOptions {
