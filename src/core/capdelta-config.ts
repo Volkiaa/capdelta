@@ -1,12 +1,19 @@
 import type { CodeCapabilityKind } from "./contract/capability-set.js";
 import type { CapabilityDiffResult } from "./capability-differ.js";
 import type { SignalFindingKind } from "./signal-differ.js";
+import { isExactSemver } from "./npm/semver.js";
 
 /** A reviewed exception to the default severity gate (PLAN §4.4). */
 export interface CapabilityAllowlistEntry {
   package: string;
   capability: AllowlistedCapability;
   justification: string;
+  /**
+   * Exact target version this exception was reviewed for. When set, the
+   * entry suppresses findings only for that version. Unset keeps the legacy
+   * all-versions behavior.
+   */
+  version?: string;
 }
 
 export interface CapdeltaConfig {
@@ -120,15 +127,29 @@ export function parseCapdeltaConfig(text: string): CapdeltaConfig {
   const normalized = entries.map((entry, index) =>
     normalizeEntry(entry, index),
   );
-  const seen = new Set<string>();
+  // Order-independent: several exact versions may coexist for one
+  // package/capability, but a repeated tuple or a scoped/unscoped mixture
+  // (which would make one entry silently override the other) is rejected.
+  const scopes = new Map<string, Set<string | undefined>>();
   for (const entry of normalized) {
-    const key = `${entry.package}\0${entry.capability}`;
-    if (seen.has(key)) {
+    const pair = `${entry.package}\0${entry.capability}`;
+    const label = `${JSON.stringify(entry.package)} / ${entry.capability}`;
+    const versions = scopes.get(pair) ?? new Set<string | undefined>();
+    if (versions.has(entry.version)) {
       throw new CapdeltaConfigContractError(
-        `duplicate allowlist entry for ${JSON.stringify(entry.package)} / ${entry.capability}`,
+        `duplicate allowlist entry for ${label}${entry.version === undefined ? "" : ` version ${entry.version}`}`,
       );
     }
-    seen.add(key);
+    if (
+      versions.size > 0 &&
+      (entry.version === undefined || versions.has(undefined))
+    ) {
+      throw new CapdeltaConfigContractError(
+        `allowlist entries for ${label} mix version-scoped and unscoped exceptions`,
+      );
+    }
+    versions.add(entry.version);
+    scopes.set(pair, versions);
   }
   return { allowlist: normalized };
 }
@@ -142,7 +163,12 @@ function assignField(
   if (separator <= 0) failParse(lineNumber, "expected field: value");
   const key = expression.slice(0, separator).trim();
   const rawValue = expression.slice(separator + 1).trim();
-  if (key !== "package" && key !== "capability" && key !== "justification") {
+  if (
+    key !== "package" &&
+    key !== "capability" &&
+    key !== "justification" &&
+    key !== "version"
+  ) {
     failParse(lineNumber, `unknown allowlist field ${JSON.stringify(key)}`);
   }
   if (target[key] !== undefined)
@@ -158,6 +184,15 @@ function assignField(
       return;
     case "justification":
       target.justification = parsed;
+      return;
+    case "version":
+      if (!isExactSemver(parsed)) {
+        failParse(
+          lineNumber,
+          `version must be one exact semver, not a range or tag: ${JSON.stringify(parsed)}`,
+        );
+      }
+      target.version = parsed;
       return;
   }
 }
@@ -213,10 +248,16 @@ function normalizeEntry(
       `allowlist entry ${String(index + 1)} requires a non-empty justification`,
     );
   }
+  if (entry.version !== undefined && !isExactSemver(entry.version)) {
+    throw new CapdeltaConfigContractError(
+      `allowlist entry ${String(index + 1)} version must be one exact semver`,
+    );
+  }
   return {
     package: entry.package,
     capability: entry.capability,
     justification: entry.justification,
+    ...(entry.version === undefined ? {} : { version: entry.version }),
   };
 }
 
@@ -235,9 +276,20 @@ export function applyCapabilityAllowlist(
 ): CapabilityDiffResult {
   const reasons = new Map<string, string>();
   for (const entry of config.allowlist) {
-    if (entry.package === result.subject.name) {
-      reasons.set(entry.capability, entry.justification);
+    if (entry.package !== result.subject.name) continue;
+    if (
+      entry.version !== undefined &&
+      entry.version !== result.subject.version
+    ) {
+      continue;
     }
+    // The scope leads the reason so report truncation can never hide it.
+    reasons.set(
+      entry.capability,
+      entry.version === undefined
+        ? entry.justification
+        : `[version ${entry.version}] ${entry.justification}`,
+    );
   }
   if (reasons.size === 0) return result;
   const signalFindings = result.signalFindings;
