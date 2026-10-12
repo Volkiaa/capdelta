@@ -62,7 +62,7 @@ before the run ended` to stderr and exits 1.
      once, however many sides or attempts failed.
 
 5. **Retry bounds.** Retries never extend the run past its deadline.
-   - Each attempt's timeout is capped at the time remaining.
+   - The run abort signal, which fires at the run deadline, ends any in-flight attempt; an attempt never outlives the deadline even if its own timeout is longer (Codex review: acceptable because the production fetch honors abort).
    - Backoff sleeps can be aborted.
    - A failed response body is cancelled before the next attempt.
    - The run's abort signal bounds the whole artifact operation, every attempt
