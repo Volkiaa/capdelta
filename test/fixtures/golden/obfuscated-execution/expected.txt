@@ -1,0 +1,14 @@
+capdelta manifest capability report
+Package: "golden-obfuscated-execution" ("npm") "1.0.0" -> "2.0.0"
+Review this change: 2 findings (CRITICAL: 2); 0 diagnostics.
+
+Capability shapes:
+- [CRITICAL] "obfuscated-execution" (1 capability)
+
+Findings:
+- [CRITICAL] "PROCESS" capability added in "runtime" code
+  Evidence: "index.js":2 — "import { spawnSync } from \"node:child_process\";"
+
+Signals:
+- [CRITICAL] "hex-byte-array with 8 elements added"
+  Evidence: "index.js":4 — "const table = [0x63, 0x61, 0x70, 0x64, 0x65, 0x6c, 0x74, 0x61];"

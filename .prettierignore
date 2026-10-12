@@ -2,3 +2,5 @@ package-lock.json
 dist/action/
 docs/PLAN.md
 LICENSE
+# Golden fixture sources are archived byte-for-byte (scripts/generate-golden-fixtures.mjs).
+test/fixtures/golden/*/source-*/

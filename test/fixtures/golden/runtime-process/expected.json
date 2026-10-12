@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 5,
+  "package": {
+    "ecosystem": "npm",
+    "name": "golden-runtime-process",
+    "oldVersion": "1.0.0",
+    "newVersion": "2.0.0",
+    "newPackage": false
+  },
+  "reportId": "capdelta-7249393dfecd65c91418",
+  "summary": {
+    "findings": 1,
+    "capabilityFindings": 1,
+    "signalFindings": 0,
+    "diagnostics": 0,
+    "bySeverity": {
+      "CRITICAL": 0,
+      "HIGH": 1,
+      "MEDIUM": 0,
+      "LOW": 0,
+      "INFO": 0
+    }
+  },
+  "findings": [
+    {
+      "severity": "HIGH",
+      "change": "added",
+      "capability": {
+        "kind": "PROCESS",
+        "location": {
+          "kind": "runtime"
+        },
+        "evidence": [
+          {
+            "file": "index.js",
+            "line": 2,
+            "snippet": "import { spawnSync } from \"node:child_process\";"
+          }
+        ]
+      },
+      "previous": null
+    }
+  ],
+  "signalFindings": [],
+  "shapes": [],
+  "diagnostics": []
+}

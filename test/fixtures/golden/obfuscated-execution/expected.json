@@ -1,0 +1,96 @@
+{
+  "schemaVersion": 5,
+  "package": {
+    "ecosystem": "npm",
+    "name": "golden-obfuscated-execution",
+    "oldVersion": "1.0.0",
+    "newVersion": "2.0.0",
+    "newPackage": false
+  },
+  "reportId": "capdelta-e845b380961132288cf5",
+  "summary": {
+    "findings": 2,
+    "capabilityFindings": 1,
+    "signalFindings": 1,
+    "diagnostics": 0,
+    "bySeverity": {
+      "CRITICAL": 2,
+      "HIGH": 0,
+      "MEDIUM": 0,
+      "LOW": 0,
+      "INFO": 0
+    }
+  },
+  "findings": [
+    {
+      "severity": "CRITICAL",
+      "change": "added",
+      "capability": {
+        "kind": "PROCESS",
+        "location": {
+          "kind": "runtime"
+        },
+        "evidence": [
+          {
+            "file": "index.js",
+            "line": 2,
+            "snippet": "import { spawnSync } from \"node:child_process\";"
+          }
+        ]
+      },
+      "previous": null
+    }
+  ],
+  "signalFindings": [
+    {
+      "kind": "obfuscation-pattern-added",
+      "severity": "CRITICAL",
+      "change": "added",
+      "detail": "hex-byte-array with 8 elements added",
+      "evidence": [
+        {
+          "file": "index.js",
+          "line": 4,
+          "snippet": "const table = [0x63, 0x61, 0x70, 0x64, 0x65, 0x6c, 0x74, 0x61];"
+        }
+      ]
+    }
+  ],
+  "shapes": [
+    {
+      "ruleId": "obfuscated-execution",
+      "severity": "CRITICAL",
+      "capabilities": [
+        {
+          "kind": "PROCESS",
+          "location": {
+            "kind": "runtime"
+          },
+          "evidence": [
+            {
+              "file": "index.js",
+              "line": 2,
+              "snippet": "import { spawnSync } from \"node:child_process\";"
+            }
+          ]
+        }
+      ],
+      "signals": [
+        {
+          "kind": "obfuscation-pattern-added",
+          "severity": "MEDIUM",
+          "change": "added",
+          "detail": "hex-byte-array with 8 elements added",
+          "evidence": [
+            {
+              "file": "index.js",
+              "line": 4,
+              "snippet": "const table = [0x63, 0x61, 0x70, 0x64, 0x65, 0x6c, 0x74, 0x61];"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "diagnostics": []
+}

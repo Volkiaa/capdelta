@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 5,
+  "package": {
+    "ecosystem": "npm",
+    "name": "golden-dependency-added",
+    "oldVersion": "1.0.0",
+    "newVersion": "2.0.0",
+    "newPackage": false
+  },
+  "reportId": "capdelta-bd638c70dca8fbfa7062",
+  "summary": {
+    "findings": 1,
+    "capabilityFindings": 1,
+    "signalFindings": 0,
+    "diagnostics": 0,
+    "bySeverity": {
+      "CRITICAL": 0,
+      "HIGH": 0,
+      "MEDIUM": 0,
+      "LOW": 1,
+      "INFO": 0
+    }
+  },
+  "findings": [
+    {
+      "severity": "LOW",
+      "change": "added",
+      "capability": {
+        "kind": "DEPENDENCY",
+        "name": "golden-new-dependency",
+        "requirement": "^1.0.0",
+        "evidence": [
+          {
+            "file": "package.json",
+            "line": 6,
+            "snippet": "\"golden-new-dependency\": \"^1.0.0\""
+          }
+        ]
+      },
+      "previous": null
+    }
+  ],
+  "signalFindings": [],
+  "shapes": [],
+  "diagnostics": []
+}

@@ -1,0 +1,8 @@
+{
+  "name": "golden-install-code-network",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "postinstall": "node install.js"
+  }
+}

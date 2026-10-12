@@ -1,0 +1,7 @@
+capdelta manifest capability report
+Package: "golden-entropy-jump" ("npm") "1.0.0" -> "2.0.0"
+Review this change: 1 finding (MEDIUM: 1); 0 diagnostics.
+
+Signals:
+- [MEDIUM] "data.js entropy rose from 965 to 7088 millibits/byte (+6123)"
+  Evidence: "data.js":1 — ""

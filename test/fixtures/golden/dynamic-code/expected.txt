@@ -1,0 +1,10 @@
+capdelta manifest capability report
+Package: "golden-dynamic-code" ("npm") "1.0.0" -> "2.0.0"
+Review this change: 1 finding (CRITICAL: 1); 0 diagnostics.
+
+Capability shapes:
+- [CRITICAL] "dynamic-or-native-code" (1 capability)
+
+Findings:
+- [CRITICAL] "DYNAMIC_CODE" capability added in "runtime" code
+  Evidence: "index.js":3 — "return new Function(\"return 1;\");"

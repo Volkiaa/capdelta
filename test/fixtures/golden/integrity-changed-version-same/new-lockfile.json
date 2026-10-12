@@ -1,0 +1,17 @@
+{
+  "name": "golden-lockfile-project",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "name": "golden-lockfile-project",
+      "version": "1.0.0"
+    },
+    "node_modules/golden-integrity": {
+      "version": "1.0.0",
+      "resolved": "https://registry.npmjs.org/golden-integrity/-/golden-integrity-1.0.0-repacked.tgz",
+      "integrity": "sha512-Sx55C+cggzRiAGYyrcF2HkOsjzENvejzJ5EWyZpQgXG+fqNAht8PwRENfTb27vB4LA6CihWMeBrom9Mx7NDEJQ=="
+    }
+  }
+}

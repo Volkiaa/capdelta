@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 5,
+  "package": {
+    "ecosystem": "npm",
+    "name": "golden-entropy-jump",
+    "oldVersion": "1.0.0",
+    "newVersion": "2.0.0",
+    "newPackage": false
+  },
+  "reportId": "capdelta-99ad6bccfb0ef6fcae03",
+  "summary": {
+    "findings": 1,
+    "capabilityFindings": 0,
+    "signalFindings": 1,
+    "diagnostics": 0,
+    "bySeverity": {
+      "CRITICAL": 0,
+      "HIGH": 0,
+      "MEDIUM": 1,
+      "LOW": 0,
+      "INFO": 0
+    }
+  },
+  "findings": [],
+  "signalFindings": [
+    {
+      "kind": "entropy-jump",
+      "severity": "MEDIUM",
+      "change": "changed",
+      "detail": "data.js entropy rose from 965 to 7088 millibits/byte (+6123)",
+      "evidence": [
+        {
+          "file": "data.js",
+          "line": 1,
+          "snippet": ""
+        }
+      ]
+    }
+  ],
+  "shapes": [],
+  "diagnostics": []
+}

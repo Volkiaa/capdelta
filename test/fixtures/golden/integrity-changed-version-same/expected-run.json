@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 5,
+  "firstRun": false,
+  "summary": {
+    "changedPackages": 1,
+    "analyzedPackages": 1,
+    "unavailablePackages": 0,
+    "skippedLockfileEntries": 0,
+    "capabilityFindings": 0,
+    "signalFindings": 0,
+    "analysisDiagnostics": 0,
+    "analysisIssues": 0,
+    "lockfileFindings": 1,
+    "bySeverity": {
+      "CRITICAL": 0,
+      "HIGH": 0,
+      "MEDIUM": 0,
+      "LOW": 0,
+      "INFO": 0
+    },
+    "gateSeverity": {
+      "CRITICAL": 0,
+      "HIGH": 1,
+      "MEDIUM": 0,
+      "LOW": 0,
+      "INFO": 0
+    }
+  },
+  "packages": [
+    {
+      "status": "analyzed",
+      "report": {
+        "schemaVersion": 5,
+        "package": {
+          "ecosystem": "npm",
+          "name": "golden-integrity",
+          "oldVersion": "1.0.0",
+          "newVersion": "1.0.0",
+          "newPackage": false
+        },
+        "reportId": "capdelta-e2152e8dbf1a95e89b4a",
+        "summary": {
+          "findings": 0,
+          "capabilityFindings": 0,
+          "signalFindings": 0,
+          "diagnostics": 0,
+          "bySeverity": {
+            "CRITICAL": 0,
+            "HIGH": 0,
+            "MEDIUM": 0,
+            "LOW": 0,
+            "INFO": 0
+          }
+        },
+        "findings": [],
+        "signalFindings": [],
+        "shapes": [],
+        "diagnostics": []
+      },
+      "issues": []
+    }
+  ],
+  "lockfileFindings": [
+    {
+      "kind": "integrity-changed-version-same",
+      "name": "golden-integrity",
+      "path": "node_modules/golden-integrity",
+      "oldVersion": "1.0.0",
+      "newVersion": "1.0.0",
+      "severity": "HIGH"
+    }
+  ],
+  "skipped": [],
+  "budget": {
+    "deadlineMs": 300000,
+    "prioritization": "install-script-first",
+    "startedPackages": 1,
+    "completedPackages": 1,
+    "unstartedPackages": 0,
+    "deadlineExceeded": false,
+    "partial": false
+  }
+}
