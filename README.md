@@ -155,7 +155,13 @@ through `--fail-on`.
 |  `2` | `--strict` found unanalyzed content; takes precedence over the threshold                                          |
 | `64` | Invalid usage                                                                                                     |
 
-Allowlist exceptions live in `.capdelta.yml` and require a justification:
+Allowlist exceptions live in `.capdelta.yml` and require a justification. The
+GitHub Action reads this file from the selected base commit (the PR base, or
+`base-ref`), never from the PR head, so a pull request cannot add an exception
+that suppresses its own findings. Normally you merge a reviewed exception
+first, then re-run the dependency PR (ADR-015). The CLI still reads it from the working tree for now.
+
+Example:
 
 ```yaml
 allowlist:
@@ -246,7 +252,7 @@ revision. Review and update pins deliberately when adopting a newer revision.
 | `lockfile-path` | `package-lock.json`   | One repository-relative npm lockfile                                        |
 | `fail-on`       | `CRITICAL`            | Inclusive threshold: `CRITICAL`, `HIGH`, `MEDIUM`, `LOW`, `INFO`, or `none` |
 | `base-ref`      | PR base SHA           | Optional base Git ref override                                              |
-| `config-path`   | empty                 | Optional repository-relative `.capdelta.yml` allowlist                      |
+| `config-path`   | empty                 | Optional `.capdelta.yml` path, read from the base commit, not the PR head   |
 | `strict`        | `false`               | Fails the Action when any changed content remains unanalyzed                |
 
 Outputs are `status` (`no-op`, `passed`, or `failed`), `artifact-id`,
@@ -470,6 +476,7 @@ the check but are not the gate.
 - [ADR-012: Acorn parser and bounded honesty tier](docs/adr/0012-acorn-ast-parser.md)
 - [ADR-013: Analyze npm tarballs with npm's strip-one layout](docs/adr/0013-npm-strip-one-tarball-layout.md)
 - [ADR-014: Run the GitHub Action on Node 24](docs/adr/0014-node24-action-runtime.md)
+- [ADR-015: Read allowlist policy from the base commit](docs/adr/0015-policy-from-base-commit.md)
 
 The authoritative architecture and roadmap remain in
 [docs/PLAN.md](docs/PLAN.md). Session handoffs are recorded in

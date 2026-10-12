@@ -16,7 +16,7 @@ inputs:
     required: false
     default: CRITICAL
   config-path:
-    description: Optional path to .capdelta.yml allowlist configuration
+    description: Optional repository-relative .capdelta.yml path, read from the base commit (never the PR head)
     required: false
     default: ""
   strict:

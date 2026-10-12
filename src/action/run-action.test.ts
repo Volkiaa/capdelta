@@ -3,6 +3,12 @@
 import { describe, expect, it, vi } from "vitest";
 import type { CapabilityAnalysisRun } from "../core/capability-analysis-pipeline.js";
 import {
+  applyCapabilityAllowlist,
+  emptyCapdeltaConfig,
+  type CapdeltaConfig,
+} from "../core/capdelta-config.js";
+import { diffCapabilities } from "../core/capability-differ.js";
+import {
   runAction,
   type ActionAdapters,
   type ActionContext,
@@ -253,34 +259,283 @@ describe("runAction", () => {
     expect(runtime.comments.createComment).toHaveBeenCalledOnce();
   });
 
-  it("loads allowlist config and contextualizes artifact failures", async () => {
-    const configured = adapters();
-    configured.readConfig = vi
-      .fn()
-      .mockResolvedValue(
-        'allowlist:\n  - package: fixture\n    capability: NET\n    justification: "documented endpoint"\n',
+  describe("allowlist policy comes from the base commit (ADR-015)", () => {
+    const CONFIG =
+      'allowlist:\n  - package: fixture\n    capability: NET\n    justification: "documented endpoint"\n';
+    const ALLOWLIST = {
+      allowlist: [
+        {
+          package: "fixture",
+          capability: "NET",
+          justification: "documented endpoint",
+        },
+      ],
+    };
+
+    /** Serves the lockfile and, optionally, a base config, by path. */
+    function withBaseConfig(config: string | null | Error) {
+      const runtime = adapters();
+      vi.mocked(runtime.listChangedFiles).mockResolvedValue([
+        "package-lock.json",
+      ]);
+      vi.mocked(runtime.contents.getContent).mockImplementation((request) => {
+        if (request.path === ".capdelta.yml") {
+          if (config instanceof Error) return Promise.reject(config);
+          if (config === null) {
+            return Promise.reject(
+              Object.assign(new Error("Not Found"), { status: 404 }),
+            );
+          }
+          return Promise.resolve({
+            status: 200,
+            data: {
+              type: "file",
+              size: Buffer.byteLength(config),
+              encoding: "base64",
+              content: Buffer.from(config).toString("base64"),
+            },
+          });
+        }
+        return Promise.resolve({
+          status: 200,
+          data: {
+            type: "file",
+            size: Buffer.byteLength(EMPTY_LOCKFILE),
+            encoding: "base64",
+            content: Buffer.from(EMPTY_LOCKFILE).toString("base64"),
+          },
+        });
+      });
+      return runtime;
+    }
+    const configured = { ...inputs, configPath: ".capdelta.yml" };
+
+    it("applies the base commit's policy, read at the base SHA", async () => {
+      const runtime = withBaseConfig(CONFIG);
+      await expect(
+        runAction(configured, context, runtime),
+      ).resolves.toMatchObject({
+        status: "analyzed",
+      });
+      expect(runtime.contents.getContent).toHaveBeenCalledWith(
+        { owner: "owner", repo: "repo", path: ".capdelta.yml", ref: SHA },
+        "object",
       );
-    await expect(
-      runAction(
-        { ...inputs, configPath: ".capdelta.yml" },
-        context,
-        configured,
-      ),
-    ).resolves.toMatchObject({ status: "analyzed" });
-    expect(configured.analyze).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.anything(),
-      {
-        allowlist: [
+      expect(runtime.analyze).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        ALLOWLIST,
+      );
+      expect(runtime.warn).not.toHaveBeenCalled();
+    });
+
+    it("reads policy at an overridden base-ref's resolved commit", async () => {
+      const override = "c".repeat(40);
+      const runtime = withBaseConfig(CONFIG);
+      vi.mocked(runtime.resolveCommit).mockResolvedValue(override);
+      await runAction({ ...configured, baseRef: "release" }, context, runtime);
+      expect(runtime.contents.getContent).toHaveBeenCalledWith(
+        expect.objectContaining({ path: ".capdelta.yml", ref: override }),
+        "object",
+      );
+    });
+
+    it("ignores a PR-added config: no exceptions apply, with warnings", async () => {
+      // The PR adds .capdelta.yml; the base has none. Its content is never read.
+      const runtime = withBaseConfig(null);
+      vi.mocked(runtime.listChangedFiles).mockResolvedValue([
+        "package-lock.json",
+        ".capdelta.yml",
+      ]);
+      await runAction(configured, context, runtime);
+      expect(runtime.analyze).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        {
+          allowlist: [],
+        },
+      );
+      expect(vi.mocked(runtime.warn).mock.calls.flat()).toEqual([
+        "capdelta: this PR changes .capdelta.yml; policy is read from the selected base commit, so those changes do not apply to this run",
+        `capdelta: .capdelta.yml is not present at base ${SHA}; no exceptions applied`,
+      ]);
+    });
+
+    it("keeps base policy when the PR edits the config", async () => {
+      const runtime = withBaseConfig(CONFIG);
+      vi.mocked(runtime.listChangedFiles).mockResolvedValue([
+        "package-lock.json",
+        ".capdelta.yml",
+      ]);
+      await runAction(configured, context, runtime);
+      expect(runtime.analyze).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        ALLOWLIST,
+      );
+      expect(runtime.warn).toHaveBeenCalledOnce();
+    });
+
+    it("fails loudly on invalid base policy or a failed read, never using empty policy", async () => {
+      await expect(
+        runAction(
+          configured,
+          context,
+          withBaseConfig("allowlist:\n  - package: x\n"),
+        ),
+      ).rejects.toThrow("base config is invalid");
+      const serverError = Object.assign(new Error("boom"), { status: 500 });
+      const runtime = withBaseConfig(serverError);
+      await expect(runAction(configured, context, runtime)).rejects.toThrow(
+        "failed to read base config",
+      );
+      expect(runtime.analyze).not.toHaveBeenCalled();
+    });
+
+    it("rejects an unsafe config-path input", async () => {
+      await expect(
+        runAction(
+          { ...inputs, configPath: "../outside.yml" },
+          context,
+          adapters(),
+        ),
+      ).rejects.toThrow("config-path must be a normalized relative POSIX path");
+    });
+
+    describe("gate effect with a real Differ and allowlist", () => {
+      const EXCEPTION =
+        'allowlist:\n  - package: binding\n    capability: NATIVE\n    version: 1.2.13\n    justification: "reviewed prebuilt binding"\n';
+      /** A newly added native binary, run through the real Differ + allowlist. */
+      const nativeRun = (config: CapdeltaConfig): CapabilityAnalysisRun => ({
+        firstRun: false,
+        summary: { changed: 1, analyzed: 1, unavailable: 0, skipped: 0 },
+        packages: [
           {
-            package: "fixture",
-            capability: "NET",
-            justification: "documented endpoint",
+            status: "analyzed",
+            changedPackage: {
+              name: "binding",
+              oldVersion: null,
+              newVersion: "1.2.13",
+              oldIntegrity: null,
+              newIntegrity: "sha512-new",
+              oldResolvedUrl: null,
+              resolvedUrl:
+                "https://registry.npmjs.org/binding/-/binding-1.2.13.tgz",
+            },
+            diff: applyCapabilityAllowlist(
+              diffCapabilities(null, {
+                schemaVersion: 1,
+                subject: {
+                  ecosystem: "npm",
+                  name: "binding",
+                  version: "1.2.13",
+                },
+                completeness: "complete",
+                capabilities: [
+                  {
+                    kind: "NATIVE",
+                    location: { kind: "runtime" },
+                    evidence: [
+                      {
+                        file: "binding.node",
+                        line: 1,
+                        snippet: "<native binary: binding.node>",
+                      },
+                    ],
+                  },
+                ],
+                diagnostics: [],
+              }),
+              config,
+            ),
+            issues: [],
           },
         ],
+        lockfileFindings: [],
+        skipped: [],
+      });
+      const run = async (
+        baseConfig: string | null,
+        changed: readonly string[],
+      ) => {
+        const runtime = withBaseConfig(baseConfig);
+        vi.mocked(runtime.listChangedFiles).mockResolvedValue(changed);
+        vi.mocked(runtime.analyze).mockImplementation((_old, _head, config) =>
+          Promise.resolve(nativeRun(config ?? emptyCapdeltaConfig())),
+        );
+        const outcome = await runAction(configured, context, runtime);
+        const json = vi.mocked(runtime.uploadJson).mock.calls[0]?.[1] ?? "";
+        return { outcome, json };
+      };
+
+      it("keeps the gate failing when only the PR adds the exception", async () => {
+        const { outcome, json } = await run(null, [
+          "package-lock.json",
+          ".capdelta.yml",
+        ]);
+        expect(outcome).toMatchObject({
+          gate: { fail: true, matchingCount: 1 },
+        });
+        expect(json).not.toContain("reviewed prebuilt binding");
+      });
+
+      it.each([
+        ["unchanged by the PR", ["package-lock.json"]],
+        ["edited or removed by the PR", ["package-lock.json", ".capdelta.yml"]],
+      ])(
+        "passes with the reviewed exception at base, %s",
+        async (_label, changed) => {
+          const { outcome, json } = await run(EXCEPTION, changed);
+          expect(outcome).toMatchObject({
+            gate: { fail: false, matchingCount: 0 },
+          });
+          expect(json).toContain("[version 1.2.13] reviewed prebuilt binding");
+        },
+      );
+    });
+
+    it.each([
+      ["metadata size", 256 * 1024 + 1, "small"],
+      ["decoded content", 10, "large"],
+    ])(
+      "rejects a base config over 256 KiB by %s before analysis",
+      async (_label, size, body) => {
+        const runtime = withBaseConfig(CONFIG);
+        const content = body === "large" ? "#".repeat(256 * 1024 + 1) : CONFIG;
+        vi.mocked(runtime.contents.getContent).mockImplementation((request) =>
+          Promise.resolve({
+            status: 200,
+            data: {
+              type: "file",
+              size:
+                request.path === ".capdelta.yml"
+                  ? size
+                  : Buffer.byteLength(EMPTY_LOCKFILE),
+              encoding: "base64",
+              content: Buffer.from(
+                request.path === ".capdelta.yml" ? content : EMPTY_LOCKFILE,
+              ).toString("base64"),
+            },
+          }),
+        );
+        await expect(runAction(configured, context, runtime)).rejects.toThrow(
+          "failed to read base config",
+        );
+        expect(runtime.analyze).not.toHaveBeenCalled();
       },
     );
 
+    it("does not read policy on the unchanged-lockfile fast path", async () => {
+      const runtime = withBaseConfig(CONFIG);
+      vi.mocked(runtime.listChangedFiles).mockResolvedValue([".capdelta.yml"]);
+      await expect(runAction(configured, context, runtime)).resolves.toEqual({
+        status: "no-op",
+      });
+      expect(runtime.contents.getContent).not.toHaveBeenCalled();
+    });
+  });
+
+  it("contextualizes artifact failures", async () => {
     const runtime = adapters();
     vi.mocked(runtime.uploadJson).mockRejectedValue(new Error("service down"));
     await expect(runAction(inputs, context, runtime)).rejects.toThrow(

@@ -26,6 +26,13 @@ export interface BaseLockfileRequest extends GitHubContentsRequest {
   maxBytes?: number;
 }
 
+/** A bounded repository file read at an immutable commit. */
+export interface BaseFileRequest extends GitHubContentsRequest {
+  maxBytes: number;
+  /** Names the file in errors, e.g. "lockfile" or "config". */
+  label: string;
+}
+
 export type BaseLockfileResult =
   | { status: "found"; ref: string; text: string }
   | { status: "missing"; ref: string };
@@ -59,14 +66,34 @@ export async function retrieveBaseLockfile(
   request: BaseLockfileRequest,
   client: GitHubContentsClient,
 ): Promise<BaseLockfileResult> {
+  return retrieveBaseFile(
+    {
+      ...request,
+      maxBytes: request.maxBytes ?? DEFAULT_MAX_LOCKFILE_BYTES,
+      label: "lockfile",
+    },
+    client,
+  );
+}
+
+/**
+ * Reads one regular file at an immutable commit through the Contents API.
+ * Only a genuine 404 is absence; every other failure is loud. Note: the API
+ * dereferences a symlink that targets a regular file; the commit pin, not
+ * entry type, is what keeps the content trusted.
+ */
+export async function retrieveBaseFile(
+  request: BaseFileRequest,
+  client: GitHubContentsClient,
+): Promise<BaseLockfileResult> {
   validateRequest(request);
-  const maxBytes = request.maxBytes ?? DEFAULT_MAX_LOCKFILE_BYTES;
+  const { maxBytes, label } = request;
 
   const metadata = await requestContent(client, request, "object");
   if (metadata.status === 404) return { status: "missing", ref: request.ref };
   requireSuccess(metadata.status, "inspect", request.path);
 
-  const file = parseFileMetadata(metadata.data, maxBytes);
+  const file = parseFileMetadata(metadata.data, maxBytes, label);
   let bytes: Uint8Array;
   if (file.encoding === "base64") {
     bytes = decodeBase64(file.content);
@@ -78,7 +105,7 @@ export async function retrieveBaseLockfile(
 
   if (bytes.byteLength > maxBytes) {
     throw new GitHubContentsContractError(
-      `base lockfile exceeds the ${String(maxBytes)} byte limit`,
+      `base ${label} exceeds the ${String(maxBytes)} byte limit`,
     );
   }
 
@@ -89,13 +116,13 @@ export async function retrieveBaseLockfile(
       text: new TextDecoder("utf-8", { fatal: true }).decode(bytes),
     };
   } catch (error: unknown) {
-    throw new GitHubContentsContractError("base lockfile is not valid UTF-8", {
+    throw new GitHubContentsContractError(`base ${label} is not valid UTF-8`, {
       cause: error,
     });
   }
 }
 
-function validateRequest(request: BaseLockfileRequest): void {
+function validateRequest(request: BaseFileRequest): void {
   for (const [field, value] of [
     ["owner", request.owner],
     ["repo", request.repo],
@@ -109,8 +136,12 @@ function validateRequest(request: BaseLockfileRequest): void {
       "ref must be an immutable full commit ID",
     );
   }
-  validateLockfilePath(request.path);
-  const maxBytes = request.maxBytes ?? DEFAULT_MAX_LOCKFILE_BYTES;
+  if (!isNormalizedRelativePosixPath(request.path)) {
+    throw new GitHubContentsConfigurationError(
+      `${request.label} path must be a normalized relative POSIX path`,
+    );
+  }
+  const maxBytes = request.maxBytes;
   if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) {
     throw new GitHubContentsConfigurationError(
       "maxBytes must be a positive safe integer",
@@ -128,16 +159,19 @@ export function validateLockfilePath(path: string): void {
 
 async function requestContent(
   client: GitHubContentsClient,
-  request: GitHubContentsRequest,
+  request: BaseFileRequest,
   mediaType: "object" | "raw",
 ): Promise<GitHubContentsResponse> {
+  // Only the Contents API fields reach the client; local limits and labels
+  // must never be forwarded as request parameters.
+  const { owner, repo, path, ref } = request;
   try {
-    return await client.getContent(request, mediaType);
+    return await client.getContent({ owner, repo, path, ref }, mediaType);
   } catch (error: unknown) {
     const status = statusFrom(error);
     if (status === 404) return { status, data: null };
     throw new GitHubContentsApiError(
-      `GitHub Contents API failed while ${mediaType === "object" ? "inspecting" : "reading"} the base lockfile`,
+      `GitHub Contents API failed while ${mediaType === "object" ? "inspecting" : "reading"} the base ${request.label}`,
       status,
       { cause: error },
     );
@@ -164,7 +198,11 @@ interface FileMetadata {
   content: string;
 }
 
-function parseFileMetadata(data: unknown, maxBytes: number): FileMetadata {
+function parseFileMetadata(
+  data: unknown,
+  maxBytes: number,
+  label: string,
+): FileMetadata {
   if (!isRecord(data) || data.type !== "file") {
     throw new GitHubContentsContractError(
       "GitHub Contents API response is not a regular file",
@@ -177,7 +215,7 @@ function parseFileMetadata(data: unknown, maxBytes: number): FileMetadata {
   }
   if ((data.size as number) > maxBytes) {
     throw new GitHubContentsContractError(
-      `base lockfile exceeds the ${String(maxBytes)} byte limit`,
+      `base ${label} exceeds the ${String(maxBytes)} byte limit`,
     );
   }
   if (data.encoding === "base64" && typeof data.content === "string") {
