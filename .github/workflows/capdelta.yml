@@ -21,7 +21,8 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
-      - uses: Volkiaa/capdelta@395a0d6c6d809ba0ab8faa3b8521ece5dcbe0f7c
+      - uses: Volkiaa/capdelta@8b216e9d75b5e6d579e47d628ab9adac6eacda9d
         with:
           github-token: ${{ github.token }}
           fail-on: CRITICAL
+          config-path: .capdelta.yml
