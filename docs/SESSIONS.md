@@ -359,7 +359,10 @@ escapes; worth considering a CI grep for control characters in source files.
   were found: the CLI had no severity gate (PLAN §4.5), and integrity
   mismatches were CRITICAL only inside the Action gate (PLAN §4.2).
 - **Stacked PRs, reviewed by a Codex session as design and code reviewer,**
-  open and not merged:
+  squash-merged to `main` in order (e345dc4, 6ca7126, 375d1f9, 527f0b2). After
+  each rebase, GitHub started no CI run for the force-pushed head; each merged
+  tree was confirmed identical to its CI-green reviewed tree and re-verified
+  locally:
   - #29 `feat(core)`: shared severity classification in
     `src/core/run-severity.ts`; report schema v5 with `summary.gateSeverity`.
   - #30 `feat(cli)`: `--fail-on` (default CRITICAL); exit 0/1/2/64, with
@@ -372,9 +375,7 @@ escapes; worth considering a CI grep for control characters in source files.
 
 ### 2. Half-done and exact resume point
 
-- Merge #29 → #30 → #31 → #32 in order; each later PR is based on the
-  previous branch.
-- Then M5 (PLAN §6, §7.4): the true-positive reconstruction corpus and a
+- M5 (PLAN §6, §7.4): the true-positive reconstruction corpus and a
   formal FP measurement, then README numbers and publication.
 - A live GitHub SARIF upload has not been checked to confirm that the
   file-located integrity results display.
