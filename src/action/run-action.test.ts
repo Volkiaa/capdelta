@@ -1,7 +1,10 @@
 /* Test assertions intentionally inspect mocked object methods without binding. */
 /* eslint-disable @typescript-eslint/unbound-method */
 import { describe, expect, it, vi } from "vitest";
-import type { CapabilityAnalysisRun } from "../core/capability-analysis-pipeline.js";
+import type {
+  CapabilityAnalysisRun,
+  PackageAnalysisFailure,
+} from "../core/capability-analysis-pipeline.js";
 import {
   applyCapabilityAllowlist,
   emptyCapdeltaConfig,
@@ -23,6 +26,47 @@ function emptyRun(firstRun = false): CapabilityAnalysisRun {
     firstRun,
     summary: { changed: 0, analyzed: 0, unavailable: 0, skipped: 0 },
     packages: [],
+    lockfileFindings: [],
+    skipped: [],
+  };
+}
+
+function fetchFailure(
+  kind: "network-error" | "integrity-mismatch",
+): PackageAnalysisFailure {
+  return {
+    stage: "fetch",
+    failure: {
+      side: "new",
+      kind,
+      detail: kind === "network-error" ? "connection reset" : "mismatch",
+      url: "https://registry.npmjs.org/flaky/-/flaky-1.1.0.tgz",
+    },
+  };
+}
+
+/** ADR-018: one unavailable package with the given fetch failures. */
+function unavailableRun(
+  failures: readonly [PackageAnalysisFailure, ...PackageAnalysisFailure[]],
+): CapabilityAnalysisRun {
+  return {
+    firstRun: false,
+    summary: { changed: 1, analyzed: 0, unavailable: 1, skipped: 0 },
+    packages: [
+      {
+        status: "unavailable",
+        changedPackage: {
+          name: "flaky",
+          oldVersion: "1.0.0",
+          newVersion: "1.1.0",
+          oldIntegrity: "sha512-old",
+          newIntegrity: "sha512-new",
+          oldResolvedUrl: "https://registry.npmjs.org/flaky/-/flaky-1.0.0.tgz",
+          resolvedUrl: "https://registry.npmjs.org/flaky/-/flaky-1.1.0.tgz",
+        },
+        failures,
+      },
+    ],
     lockfileFindings: [],
     skipped: [],
   };
@@ -257,6 +301,44 @@ describe("runAction", () => {
     });
     expect(runtime.uploadJson).toHaveBeenCalledOnce();
     expect(runtime.comments.createComment).toHaveBeenCalledOnce();
+  });
+
+  it("fails operationally for a transient fetch failure, even with fail-on none (ADR-018)", async () => {
+    const runtime = adapters(unavailableRun([fetchFailure("network-error")]));
+    await expect(
+      runAction({ ...inputs, failOn: "none" }, context, runtime),
+    ).resolves.toMatchObject({
+      status: "analyzed",
+      gate: { fail: false },
+      operationalFailure: true,
+      operationalFailureCount: 1,
+    });
+    expect(runtime.setOutput).toHaveBeenCalledWith("status", "failed");
+  });
+
+  it("reports a gate failure and an operational failure together (ADR-018)", async () => {
+    const runtime = adapters(
+      unavailableRun([
+        fetchFailure("integrity-mismatch"),
+        fetchFailure("network-error"),
+      ]),
+    );
+    await expect(runAction(inputs, context, runtime)).resolves.toMatchObject({
+      gate: { fail: true },
+      operationalFailure: true,
+      operationalFailureCount: 1,
+    });
+  });
+
+  it("does not flag a deterministic fetch failure as operational (ADR-018)", async () => {
+    const runtime = adapters(
+      unavailableRun([fetchFailure("integrity-mismatch")]),
+    );
+    await expect(runAction(inputs, context, runtime)).resolves.toMatchObject({
+      gate: { fail: true },
+      operationalFailure: false,
+      operationalFailureCount: 0,
+    });
   });
 
   describe("allowlist policy comes from the base commit (ADR-015)", () => {

@@ -30,6 +30,8 @@ import {
 } from "./base-lockfile-retriever.js";
 import {
   evaluateSeverityGate,
+  hasOperationalFailure,
+  operationalFailureCount,
   parseFailOn,
   type GateDecision,
 } from "../core/run-severity.js";
@@ -90,6 +92,9 @@ export type ActionOutcome =
       gate: GateDecision;
       sarifUploaded: boolean;
       strictFailure: boolean;
+      /** ADR-018: a transient fetch or stop left the analysis incomplete. */
+      operationalFailure: boolean;
+      operationalFailureCount: number;
     };
 
 export class ActionRunnerError extends Error {
@@ -208,8 +213,15 @@ export async function runAction(
   const gate = evaluateSeverityGate(report, threshold);
   const strictFailure =
     inputs.strict === true && hasUnanalyzedContent(analysis);
+  // ADR-018: an operational failure fails the job even in report-only mode,
+  // independent of the severity gate.
+  const operationalFailure = hasOperationalFailure(analysis);
+  const operationalFailures = operationalFailureCount(analysis);
 
-  adapters.setOutput("status", gate.fail ? "failed" : "passed");
+  adapters.setOutput(
+    "status",
+    gate.fail || operationalFailure ? "failed" : "passed",
+  );
   adapters.setOutput("artifact-id", String(artifact.id));
   adapters.setOutput("highest-severity", gate.highest ?? "none");
   adapters.setOutput("strict-failed", strictFailure ? "true" : "false");
@@ -221,6 +233,8 @@ export async function runAction(
     gate,
     sarifUploaded,
     strictFailure,
+    operationalFailure,
+    operationalFailureCount: operationalFailures,
   };
 }
 
