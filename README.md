@@ -199,8 +199,11 @@ The Action:
 1. takes the no-op path when the configured lockfile did not change;
 2. retrieves the base lockfile through the GitHub Contents API at an immutable
    base commit;
-3. uploads the complete schema-v4 JSON report as the `capdelta-report`
-   artifact;
+3. uploads the complete schema-v5 JSON report as the `capdelta-report`
+   artifact; `summary.gateSeverity` holds exactly what `fail-on` evaluates
+   (unsuppressed findings, lockfile findings, and integrity mismatches), while
+   `summary.bySeverity` keeps every capability and signal finding, suppressed
+   ones included;
 4. uploads SARIF 2.1.0 to code scanning when permissions permit;
 5. creates or updates one 60,000-character-capped sticky summary comment; and
 6. applies `fail-on` only after report delivery.

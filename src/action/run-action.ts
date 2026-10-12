@@ -30,7 +30,7 @@ import {
   evaluateSeverityGate,
   parseFailOn,
   type GateDecision,
-} from "./severity-gate.js";
+} from "../core/run-severity.js";
 
 export interface ActionInputs {
   lockfilePath: string;

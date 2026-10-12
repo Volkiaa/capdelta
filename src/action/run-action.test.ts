@@ -99,7 +99,7 @@ describe("runAction", () => {
     );
     expect(runtime.uploadJson).toHaveBeenCalledWith(
       "capdelta-report",
-      expect.stringContaining('"schemaVersion": 4'),
+      expect.stringContaining('"schemaVersion": 5'),
     );
     expect(runtime.uploadSarif).toHaveBeenCalledWith(
       expect.stringContaining('"version": "2.1.0"'),

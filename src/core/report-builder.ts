@@ -6,7 +6,6 @@ import type {
 import type {
   CapabilityDiffDiagnostic,
   CapabilityDiffResult,
-  FindingSeverity,
 } from "./capability-differ.js";
 import type {
   CapabilityAnalysisRun,
@@ -24,21 +23,19 @@ import {
   type ReportCapability,
   type ReportEvidence,
   type ReportPackage,
-  type SeverityCounts,
 } from "./report-contract.js";
+import {
+  analysisIssueSeverity,
+  emptySeverityCounts,
+  lockfileFindingSeverity,
+  SEVERITIES,
+} from "./run-severity.js";
 import { createHash } from "node:crypto";
 
 const MAX_IDENTITY_CHARS = 160;
 const MAX_VALUE_CHARS = 240;
 const MAX_EVIDENCE_FILE_CHARS = 200;
 const MAX_EVIDENCE_SNIPPET_CHARS = 240;
-const SEVERITIES: readonly FindingSeverity[] = [
-  "CRITICAL",
-  "HIGH",
-  "MEDIUM",
-  "LOW",
-  "INFO",
-];
 
 export class ReporterError extends Error {
   constructor(message: string) {
@@ -53,10 +50,17 @@ export class ReporterContractError extends ReporterError {}
 export function buildRunReport(run: CapabilityAnalysisRun): JsonRunReport {
   validateRun(run);
   const bySeverity = emptySeverityCounts();
+  const gateSeverity = emptySeverityCounts();
   let capabilityFindings = 0;
   let signalFindings = 0;
   let analysisDiagnostics = 0;
   let analysisIssues = 0;
+  const countIssues = (issues: readonly JsonReportAnalysisIssue[]): void => {
+    analysisIssues += issues.length;
+    for (const issue of issues) {
+      if (issue.severity !== null) gateSeverity[issue.severity] += 1;
+    }
+  };
   const packages = run.packages.map((item): JsonRunPackage => {
     if (item.status === "analyzed") {
       const report = buildReport(item.diff);
@@ -67,13 +71,22 @@ export function buildRunReport(run: CapabilityAnalysisRun): JsonRunReport {
       for (const severity of SEVERITIES) {
         bySeverity[severity] += report.summary.bySeverity[severity];
       }
+      // Suppressions stay visible in the report but never gate (PLAN §4.4).
+      for (const finding of [
+        ...report.findings,
+        ...(report.signalFindings ?? []),
+      ]) {
+        if (finding.suppression === undefined) {
+          gateSeverity[finding.severity] += 1;
+        }
+      }
       const issues = item.issues.map(reportAnalysisIssue);
-      analysisIssues += issues.length;
+      countIssues(issues);
       return { status: "analyzed", report, issues };
     }
 
     const failures = reportAnalysisFailures(item.failures);
-    analysisIssues += failures.length;
+    countIssues(failures);
     return {
       status: "unavailable",
       package: reportChangedPackage(item.changedPackage),
@@ -81,6 +94,18 @@ export function buildRunReport(run: CapabilityAnalysisRun): JsonRunReport {
     };
   });
   crossLinkDependencies(packages);
+  const lockfileFindings = run.lockfileFindings.map((finding) => ({
+    kind: finding.kind,
+    name: truncate(finding.name, MAX_IDENTITY_CHARS),
+    path: truncate(finding.path, MAX_EVIDENCE_FILE_CHARS),
+    oldVersion:
+      finding.oldVersion === null
+        ? null
+        : truncate(finding.oldVersion, MAX_IDENTITY_CHARS),
+    newVersion: truncate(finding.newVersion, MAX_IDENTITY_CHARS),
+    severity: lockfileFindingSeverity(finding.kind),
+  }));
+  for (const finding of lockfileFindings) gateSeverity[finding.severity] += 1;
 
   return {
     schemaVersion: REPORT_SCHEMA_VERSION,
@@ -96,18 +121,10 @@ export function buildRunReport(run: CapabilityAnalysisRun): JsonRunReport {
       analysisIssues,
       lockfileFindings: run.lockfileFindings.length,
       bySeverity,
+      gateSeverity,
     },
     packages,
-    lockfileFindings: run.lockfileFindings.map((finding) => ({
-      kind: finding.kind,
-      name: truncate(finding.name, MAX_IDENTITY_CHARS),
-      path: truncate(finding.path, MAX_EVIDENCE_FILE_CHARS),
-      oldVersion:
-        finding.oldVersion === null
-          ? null
-          : truncate(finding.oldVersion, MAX_IDENTITY_CHARS),
-      newVersion: truncate(finding.newVersion, MAX_IDENTITY_CHARS),
-    })),
+    lockfileFindings,
     skipped: run.skipped.map((skipped) => ({
       name: truncate(skipped.name, MAX_IDENTITY_CHARS),
       path: truncate(skipped.path, MAX_EVIDENCE_FILE_CHARS),
@@ -201,6 +218,13 @@ function reportAnalysisFailures(
 function reportAnalysisIssue(
   issue: PackageAnalysisFailure,
 ): JsonReportAnalysisIssue {
+  const facts = reportAnalysisIssueFacts(issue);
+  return { ...facts, severity: analysisIssueSeverity(facts) };
+}
+
+function reportAnalysisIssueFacts(
+  issue: PackageAnalysisFailure,
+): Omit<JsonReportAnalysisIssue, "severity"> {
   if (issue.stage === "analysis") {
     return {
       stage: issue.stage,
@@ -477,10 +501,6 @@ function reportSignalFinding(
           },
         }),
   };
-}
-
-function emptySeverityCounts(): SeverityCounts {
-  return { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0, INFO: 0 };
 }
 
 function reportId(subject: PackageSubject): string {

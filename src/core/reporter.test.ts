@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { CapabilityDiffResult } from "./capability-differ.js";
 import type { CapabilityAnalysisRun } from "./capability-analysis-pipeline.js";
+import type { Capability } from "./contract/capability-set.js";
 import type { ChangedPackage } from "./contract/lockfile-diff.js";
 import {
   ReporterContractError,
@@ -292,7 +293,7 @@ describe("manifest Reporter", () => {
     };
 
     expect(JSON.parse(renderJsonRunReport(run))).toMatchObject({
-      schemaVersion: 4,
+      schemaVersion: 5,
       packages: [
         {
           status: "unavailable",
@@ -442,5 +443,230 @@ describe("manifest Reporter", () => {
     expect(() => renderTextRunReport(badIdentity)).toThrow(
       ReporterContractError,
     );
+  });
+});
+
+describe("run severity classification", () => {
+  function severityRun(): CapabilityAnalysisRun {
+    const installNet: Capability = {
+      kind: "NET",
+      location: {
+        kind: "install-script",
+        hook: "postinstall",
+        applicability: "registry-install",
+      },
+      evidence: [{ file: "install.js", line: 2, snippet: 'require("https")' }],
+    };
+    const runtimeNet: Capability = {
+      kind: "NET",
+      location: { kind: "runtime" },
+      evidence: [{ file: "index.js", line: 2, snippet: "fetch(url)" }],
+    };
+    const diff: CapabilityDiffResult = {
+      ...emptyResult(),
+      findings: [
+        {
+          severity: "MEDIUM",
+          change: "added",
+          capability: {
+            kind: "FS_WRITE",
+            location: { kind: "runtime" },
+            evidence: [{ file: "index.js", line: 1, snippet: "writeFile()" }],
+          },
+          previous: null,
+          suppression: { reason: "reviewed build helper" },
+        },
+        {
+          severity: "CRITICAL",
+          change: "added",
+          capability: installNet,
+          previous: null,
+        },
+        {
+          severity: "HIGH",
+          change: "added",
+          capability: runtimeNet,
+          previous: null,
+        },
+      ],
+      signalFindings: [
+        {
+          kind: "new-external-endpoint",
+          severity: "HIGH",
+          change: "added",
+          detail: "new external domain reviewed.example",
+          evidence: [{ file: "index.js", line: 3, snippet: "reviewed" }],
+          suppression: { reason: "first-party telemetry host" },
+        },
+        {
+          kind: "entropy-jump",
+          severity: "MEDIUM",
+          change: "changed",
+          detail: "entropy jump in index.js",
+          evidence: [{ file: "index.js", line: 1, snippet: "index.js" }],
+        },
+      ],
+      // The shape already raised its member to CRITICAL; the shape record
+      // itself is not an extra gate finding.
+      shapes: [
+        {
+          ruleId: "install-code-execution",
+          severity: "CRITICAL",
+          capabilities: [installNet],
+        },
+      ],
+    };
+    return {
+      firstRun: false,
+      summary: { changed: 4, analyzed: 1, unavailable: 3, skipped: 0 },
+      packages: [
+        {
+          status: "analyzed",
+          changedPackage: changedPackage(),
+          diff,
+          issues: [
+            {
+              stage: "new-cleanup",
+              failure: { kind: "cleanup-failed", detail: "cleanup failed" },
+            },
+          ],
+        },
+        {
+          status: "unavailable",
+          changedPackage: changedPackage("tampered"),
+          failures: [
+            {
+              stage: "fetch",
+              failure: {
+                side: "old",
+                kind: "integrity-mismatch",
+                detail:
+                  "downloaded bytes do not match lockfile sha512 integrity",
+                url: "https://registry.npmjs.org/tampered/old.tgz",
+              },
+            },
+          ],
+        },
+        {
+          status: "unavailable",
+          changedPackage: changedPackage("tampered-new"),
+          failures: [
+            {
+              stage: "fetch",
+              failure: {
+                side: "new",
+                kind: "integrity-mismatch",
+                detail:
+                  "downloaded bytes do not match lockfile sha512 integrity",
+                url: "https://registry.npmjs.org/tampered-new/new.tgz",
+              },
+            },
+            {
+              stage: "new-cleanup",
+              failure: { kind: "cleanup-failed", detail: "cleanup failed" },
+            },
+          ],
+        },
+        {
+          status: "unavailable",
+          changedPackage: changedPackage("missing"),
+          failures: [
+            {
+              stage: "fetch",
+              failure: {
+                side: "new",
+                kind: "http-status",
+                detail: "HTTP 404",
+                url: "https://registry.npmjs.org/missing/new.tgz",
+              },
+            },
+          ],
+        },
+      ],
+      lockfileFindings: [
+        {
+          kind: "integrity-changed-version-same",
+          name: "repacked",
+          path: "node_modules/repacked",
+          oldVersion: "1.0.0",
+          newVersion: "1.0.0",
+        },
+        {
+          kind: "version-downgrade",
+          name: "older",
+          path: "node_modules/older",
+          oldVersion: "2.0.0",
+          newVersion: "1.0.0",
+        },
+      ],
+      skipped: [],
+    };
+  }
+
+  it("counts each gate-bearing record once and keeps bySeverity semantics", () => {
+    const report = JSON.parse(renderJsonRunReport(severityRun())) as {
+      summary: Record<string, unknown>;
+      packages: { status: string; issues?: unknown[]; failures?: unknown[] }[];
+      lockfileFindings: { severity: string }[];
+    };
+
+    expect(report.summary).toMatchObject({
+      // All capability/signal findings, suppressed included.
+      bySeverity: { CRITICAL: 1, HIGH: 2, MEDIUM: 2, LOW: 0, INFO: 0 },
+      // Unsuppressed findings + lockfile findings + integrity failures.
+      // One CRITICAL finding + one per integrity mismatch, either side; the
+      // cleanup failure sharing a failures array adds nothing.
+      gateSeverity: { CRITICAL: 3, HIGH: 2, MEDIUM: 1, LOW: 0, INFO: 1 },
+    });
+    expect(report.packages.map((item) => item.issues ?? item.failures)).toEqual(
+      [
+        [expect.objectContaining({ kind: "cleanup-failed", severity: null })],
+        [
+          expect.objectContaining({
+            kind: "integrity-mismatch",
+            side: "old",
+            severity: "CRITICAL",
+          }),
+        ],
+        [
+          expect.objectContaining({
+            kind: "integrity-mismatch",
+            side: "new",
+            severity: "CRITICAL",
+          }),
+          expect.objectContaining({ kind: "cleanup-failed", severity: null }),
+        ],
+        [expect.objectContaining({ kind: "http-status", severity: null })],
+      ],
+    );
+    expect(report.lockfileFindings.map((finding) => finding.severity)).toEqual([
+      "HIGH",
+      "INFO",
+    ]);
+  });
+
+  it("renders gate severities in comparison and first-run text", () => {
+    const text = renderTextRunReport(severityRun());
+    expect(text).toContain(
+      "Gate severity: CRITICAL: 3, HIGH: 2, MEDIUM: 1, INFO: 1.",
+    );
+    expect(text).toContain(
+      '- [CRITICAL] [fetch/integrity-mismatch] "downloaded bytes do not match lockfile sha512 integrity"',
+    );
+    expect(text).toContain('- [fetch/http-status] "HTTP 404"');
+    expect(text).toContain(
+      '- [HIGH] [integrity-changed-version-same] "repacked"',
+    );
+    expect(text).toContain(`suppressed ("reviewed build helper")`);
+
+    const firstRun = severityRun();
+    firstRun.firstRun = true;
+    expect(renderTextRunReport(firstRun)).toContain(
+      "Gate severity: CRITICAL: 3, HIGH: 2, MEDIUM: 1, INFO: 1.",
+    );
+  });
+
+  it("omits the gate line when nothing can gate", () => {
+    expect(renderTextRunReport(analyzedRun())).not.toContain("Gate severity");
   });
 });

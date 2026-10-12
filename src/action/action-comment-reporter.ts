@@ -4,7 +4,7 @@ import type {
   JsonReportSignalFinding,
   JsonRunReport,
 } from "../core/reporter.js";
-import { assessRunSeverity } from "./severity-gate.js";
+import { assessRunSeverity } from "../core/run-severity.js";
 
 export const COMMENT_MARKER = "<!-- capdelta:capability-report:v2 -->";
 const LEGACY_COMMENT_MARKERS = ["<!-- capdelta:manifest-report:v1 -->"];
