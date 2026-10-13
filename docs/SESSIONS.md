@@ -607,3 +607,45 @@ escapes; worth considering a CI grep for control characters in source files.
 1. Should the PR comment's guidance derive from the rows actually displayed
    (after the row cap) rather than every CRITICAL/HIGH class in the report?
 2. Should lockfile findings gain their own guidance class?
+
+## 2026-10-13 (afternoon) — ADR-019: read what npm installs, fail on every unread package
+
+### 1. Completed and verified
+
+- **Finding guidance was merged** as four PRs, #52–#55. The earlier entry describes it.
+- **ADR-019** (`docs/adr/0019-read-what-npm-installs.md`) came out of Codex's finding-guidance review. Codex
+  design-reviewed and security-reviewed each part. It shipped as three PRs:
+  - **#56, mode normalization.** Every extracted file is written with mode `0o600` from the tar `filter`, the same
+    mechanism pacote's `#entryMode` uses.
+    - Before, a mode-000 `package.json` or `.js` file could not be read by an unprivileged runner. npm installs those
+      files readable anyway, so this was a detection evasion.
+    - New reconstruction: `mode-evasion`. A negative control was verified as uid 1000: it fails with main's old
+      extractor and passes with the fix.
+  - **#57, the `manifest-not-regular` kind.** It is CRITICAL and can be covered by a reviewed exception bound to the
+    exact bytes. It covers a `package.json` that is a directory, implied by a `package/package.json/child.js` entry.
+    - New reconstruction: `manifest-directory`.
+    - On the new side, the same layout yields `manifest-missing`, which is also CRITICAL, because of the manifest-only
+      filter.
+  - **#58, operational failures.** Residual `filesystem-error` (extraction and cleanup both failed) and
+    `manifest-unreadable` now make the run exit 1, even with `--fail-on none`. They keep severity null, so
+    `gateSeverity` doesn't move, and they can never be excepted.
+    - The message drops "before the run ended".
+    - ADR-018 gets a "superseded in part" note.
+- Every PR was verified locally on its own commit, passed CI on Node 20, 22 and 24, and changed no existing
+  `gateSeverity`. The final suite has 645 tests.
+- New `HANDOFF.md` at the repo root: the entry point for the next session.
+
+### 2. Half-done and exact resume point
+
+- Nothing half-done. Next is the permission-aware Dependabot comment and SARIF demo (PLAN §9); see `HANDOFF.md`.
+
+### 3. ADR status
+
+- ADR-019 is accepted and fully implemented. It supersedes ADR-018's operational message, and adds a note to
+  ADR-016's kind list.
+
+### 4. Open questions
+
+1. Should the new side also report `manifest-not-regular` instead of `manifest-missing`? Both are CRITICAL, and Codex
+   judged it acceptable.
+2. The open questions from the finding-guidance entry still stand.
