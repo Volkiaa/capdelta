@@ -284,17 +284,20 @@ function analysisStopSeverity(kind: AnalysisStopKind): FindingSeverity | null {
 /**
  * ADR-018: true when a run is an operational failure. A package is operational
  * when it is unavailable because of an exhausted transient fetch failure
- * (`timeout`, `network-error`, or `http-unavailable` after the final attempt)
- * or a deadline/cancellation stop (`aborted`, `deadline-exceeded`, or
- * `analysis-aborted`) at any stage. Report-only mode still fails on this.
+ * (`timeout`, `network-error`, or `http-unavailable` after the final attempt),
+ * a deadline/cancellation stop (`aborted`, `deadline-exceeded`, or
+ * `analysis-aborted`) at any stage, or, per ADR-019, a residual
+ * `filesystem-error` at an extraction stage or an unreadable `package.json`
+ * (`manifest-unreadable`) at a manifest stage. Report-only mode still fails on
+ * this.
  */
 export function hasOperationalFailure(run: CapabilityAnalysisRun): boolean {
   return operationalFailureCount(run) > 0;
 }
 
 /**
- * ADR-018: how many packages are operational failures. Each package counts
- * once, however many sides, stages, or attempts failed.
+ * ADR-018, ADR-019: how many packages are operational failures. Each package
+ * counts once, however many sides, stages, or attempts failed.
  */
 export function operationalFailureCount(run: CapabilityAnalysisRun): number {
   return run.packages.filter(
@@ -303,26 +306,43 @@ export function operationalFailureCount(run: CapabilityAnalysisRun): number {
   ).length;
 }
 
-/** ADR-018: the shared CLI and Action message for an operational failure. */
+/** ADR-018, ADR-019: the shared CLI and Action message for an operational failure. */
 export function operationalFailureMessage(count: number): string {
-  return `capdelta: ${String(count)} package(s) could not be fetched or analyzed before the run ended`;
+  return `capdelta: ${String(count)} package(s) could not be fetched or analyzed`;
 }
 
 /**
  * ADR-018: an exhausted transient fetch failure or a stop at any stage. A
  * deterministic fetch failure (a 404, a size cap, an integrity mismatch) is a
  * severity issue, never an operational one.
+ *
+ * ADR-019 decision 3: the check is stage-specific. A residual
+ * `filesystem-error` is operational only at an extraction stage, and
+ * `manifest-unreadable` only at a manifest stage. `isStopKind` keeps meaning a
+ * deadline or cancellation stop alone; these kinds are not added to it.
  */
 export function isOperationalFailure(issue: PackageAnalysisFailure): boolean {
   switch (issue.stage) {
     case "fetch":
       return isOperationalFetchKind(issue.failure.kind);
     case "analysis":
+      return isStopKind(issue.failure.kind);
     case "old-extraction":
     case "new-extraction":
+      // Extraction failed and its cleanup also failed; treat this residual
+      // failure operationally (ADR-019).
+      return (
+        isStopKind(issue.failure.kind) ||
+        issue.failure.kind === "filesystem-error"
+      );
     case "old-manifest":
     case "new-manifest":
-      return isStopKind(issue.failure.kind);
+      // ADR-019 decision 3: package.json could not be read, so the package is
+      // unavailable for an environmental reason.
+      return (
+        isStopKind(issue.failure.kind) ||
+        issue.failure.kind === "manifest-unreadable"
+      );
     case "old-cleanup":
     case "new-cleanup":
       return false;

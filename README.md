@@ -177,22 +177,24 @@ skipped, diagnostics remain, or cancellation/deadline leaves work incomplete.
 Without it, other environmental incompleteness still remains loud in the report
 but does not fail the run; severity-bearing issues such as integrity mismatches
 and unanalyzable packages go through `--fail-on`. A transient fetch failure that
-outlives its retries, or a deadline/cancellation stop, is different: it is an
-operational failure (ADR-018) and exits `1` even under `--fail-on none`.
+outlives its retries, a deadline/cancellation stop, or a residual
+filesystem/manifest-read failure (ADR-019) is different: it is an operational
+failure (ADR-018, ADR-019) and exits `1` even under `--fail-on none`.
 
 capdelta retries a transient fetch failure — `network-error`, `timeout`, and
 HTTP 408, 429, or 5xx — up to three attempts, with 250 ms and then 1 s of
 backoff. A retryable status that persists becomes `http-unavailable`. A
-`timeout`, `network-error`, or `http-unavailable` after the final attempt, and
-any package the deadline or cancellation left unanalyzed, fail the run
-operationally: the CLI prints `capdelta: N package(s) could not be fetched or
-analyzed before the run ended` to stderr and exits `1`.
+`timeout`, `network-error`, or `http-unavailable` after the final attempt, a
+residual `filesystem-error` during extraction or an unreadable `package.json`
+(`manifest-unreadable`), and any package the deadline or cancellation left
+unanalyzed, fail the run operationally: the CLI prints `capdelta: N package(s)
+could not be fetched or analyzed` to stderr and exits `1`.
 
 | Exit | Meaning                                                                                                     |
 | ---: | ----------------------------------------------------------------------------------------------------------- |
 |  `0` | Nothing reached the `--fail-on` threshold and no package failed operationally, or the lockfile is unchanged |
-|  `1` | A finding reached the threshold, or an operational failure; see stderr                                      |
-|  `2` | `--strict` found unanalyzed content; takes precedence over the threshold                                    |
+|  `1` | A finding reached the threshold, or an operational failure; see stderr, unless `--strict` selects exit 2    |
+|  `2` | `--strict` found unanalyzed content; takes precedence over severity and operational failure                 |
 | `64` | Invalid usage                                                                                               |
 
 Allowlist exceptions live in `.capdelta.yml` and require a justification. The

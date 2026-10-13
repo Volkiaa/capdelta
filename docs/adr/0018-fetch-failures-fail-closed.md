@@ -51,6 +51,8 @@ registry outage passes silently in the same way. The fetcher never retries.
    followed by an abort during backoff still counts.
    - **CLI:** prints `capdelta: N package(s) could not be fetched or analyzed
 before the run ended` to stderr and exits 1.
+     Superseded in part by ADR-019: the message no longer says "before the
+     run ended", and filesystem/manifest-read failures are also operational.
    - **Action:** fails the job with the same message.
    - **Exit-code precedence:** `--strict` exit 2 first, then exit 1 for the
      gate or an operational failure.
