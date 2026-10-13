@@ -64,7 +64,11 @@ interface ParsedSarif {
     {
       tool: {
         driver: {
-          rules: { id: string; shortDescription: { text: string } }[];
+          rules: {
+            id: string;
+            shortDescription: { text: string };
+            help: { text: string };
+          }[];
         };
       };
       results: {
@@ -355,9 +359,118 @@ describe("renderSarifReport", () => {
       }),
     ]);
     expect(text).toContain(
-      "capdelta did not inspect this artifact, so the default gate fails until a person reviews it. This result does not assert malware.",
+      "capdelta could not inspect this artifact, so anything in it is unreviewed.",
     );
+    expect(text).toContain("This result does not assert malware.");
     expect(text).not.toMatch(/malware detected/iu);
+  });
+
+  it("gives install-hook, install-time execution, integrity, and unanalyzable rules distinct help", () => {
+    const installScriptLocation = {
+      kind: "install-script" as const,
+      hook: "postinstall" as const,
+      applicability: "registry-install" as const,
+    };
+    const installScriptNet: Capability = {
+      kind: "NET",
+      location: installScriptLocation,
+      evidence: [{ file: "install.js", line: 1, snippet: 'require("https")' }],
+    };
+    const installHook: Capability = {
+      kind: "INSTALL_HOOK",
+      location: installScriptLocation,
+      contentDigest: { algorithm: "sha256", value: "a".repeat(64) },
+      evidence: [{ file: "package.json", line: 1, snippet: '"postinstall"' }],
+    };
+    const analyzed: CapabilityAnalysisRun["packages"][number] = {
+      status: "analyzed",
+      changedPackage: changed("hooked", "1.0.0"),
+      diff: {
+        baseline: { ecosystem: "npm", name: "hooked", version: "1.0.0" },
+        subject: { ecosystem: "npm", name: "hooked", version: "2.0.0" },
+        newPackage: false,
+        findings: [
+          {
+            change: "added",
+            severity: "CRITICAL",
+            capability: installScriptNet,
+            previous: null,
+          },
+          {
+            change: "added",
+            severity: "CRITICAL",
+            capability: installHook,
+            previous: null,
+          },
+        ],
+        shapes: [
+          {
+            ruleId: "install-code-execution",
+            severity: "CRITICAL",
+            capabilities: [installScriptNet],
+          },
+          {
+            ruleId: "install-hook-change",
+            severity: "CRITICAL",
+            capabilities: [installHook],
+          },
+        ],
+        diagnostics: [],
+      },
+      issues: [],
+    };
+    const integrityPackage: CapabilityAnalysisRun["packages"][number] = {
+      status: "unavailable",
+      changedPackage: changed("tampered", "1.0.0"),
+      failures: [
+        {
+          stage: "fetch",
+          failure: {
+            side: "new",
+            kind: "integrity-mismatch",
+            detail: "downloaded bytes do not match lockfile sha512 integrity",
+            url: "https://registry.npmjs.org/new.tgz",
+          },
+        },
+      ],
+    };
+    const unanalyzablePackage: CapabilityAnalysisRun["packages"][number] = {
+      status: "unavailable",
+      changedPackage: changed("oversized", "1.0.0"),
+      failures: [
+        {
+          stage: "new-extraction",
+          failure: {
+            kind: "expanded-size-limit",
+            detail: "expanded size over the extraction cap",
+          },
+        },
+      ],
+    };
+    const run: CapabilityAnalysisRun = {
+      firstRun: false,
+      summary: { changed: 3, analyzed: 1, unavailable: 2, skipped: 0 },
+      packages: [analyzed, integrityPackage, unanalyzablePackage],
+      lockfileFindings: [],
+      skipped: [],
+    };
+    const rules = (JSON.parse(renderSarifReport(run)) as ParsedSarif).runs[0]
+      .tool.driver.rules;
+    const helpOf = (id: string): string => {
+      const rule = rules.find((item) => item.id === id);
+      if (rule === undefined) throw new Error(`missing rule ${id}`);
+      return rule.help.text;
+    };
+    const hooks = helpOf("CAPDELTA-SHAPE-INSTALL-HOOK-CHANGE");
+    const execution = helpOf("CAPDELTA-SHAPE-INSTALL-CODE-EXECUTION");
+    const integrityHelp = helpOf("CAPDELTA-INTEGRITY-MISMATCH");
+    const unanalyzableHelp = helpOf("CAPDELTA-EXPANDED-SIZE-LIMIT");
+    expect(
+      new Set([hooks, execution, integrityHelp, unanalyzableHelp]).size,
+    ).toBe(4);
+    for (const text of [hooks, execution, integrityHelp, unanalyzableHelp]) {
+      expect(text).toContain("This result does not assert malware.");
+    }
   });
 
   it("marks an excepted package's failures with a reviewed suppression (ADR-017)", () => {

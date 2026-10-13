@@ -14,6 +14,13 @@ import {
   ReporterContractError,
   truncate,
 } from "./report-builder.js";
+import {
+  analysisIssueGuidance,
+  capabilityGuidance,
+  shapeGuidance,
+  signalGuidance,
+  type Guidance,
+} from "./finding-guidance.js";
 import { isNormalizedRelativePosixPath } from "./repository-path.js";
 import { isUnanalyzableIssue, analysisIssueSeverity } from "./run-severity.js";
 
@@ -59,6 +66,10 @@ export function renderSarifReport(
   }
   const results: SarifResult[] = [];
   const ruleIds = new Set<string>();
+  // PLAN §4.5: every rule carries the reviewer guidance for its class in
+  // help.text. The map is populated wherever a rule id is introduced, so it is
+  // impossible to emit a rule without guidance.
+  const ruleGuidance = new Map<string, Guidance>();
   // ADR-016: unanalyzable rule IDs get distinct rule text. Derived from the
   // same classification that assigns severity; never a hand-written list.
   const unanalyzableRuleIds = new Set<string>();
@@ -85,6 +96,16 @@ export function renderSarifReport(
         exceptionReason,
       );
       ruleIds.add(result.ruleId);
+      const guidance = analysisIssueGuidance({
+        stage: issue.stage,
+        kind: issue.failure.kind,
+      });
+      if (guidance === null) {
+        throw new ReporterContractError(
+          `SARIF rule ${result.ruleId} has no reviewer guidance for ${issue.stage}/${issue.failure.kind}`,
+        );
+      }
+      ruleGuidance.set(result.ruleId, guidance);
       if (
         isUnanalyzableIssue({
           stage: issue.stage,
@@ -108,6 +129,7 @@ export function renderSarifReport(
     for (const shape of item.diff.shapes ?? []) {
       const ruleId = `CAPDELTA-SHAPE-${shape.ruleId.toUpperCase()}`;
       ruleIds.add(ruleId);
+      ruleGuidance.set(ruleId, shapeGuidance(shape.ruleId));
       const suppression = shapeSuppression([
         ...shape.capabilities.map((capability) =>
           memberSuppression.get(capability),
@@ -146,6 +168,7 @@ export function renderSarifReport(
       if (covered.has(finding.capability)) continue;
       const ruleId = fallbackRuleId(finding);
       ruleIds.add(ruleId);
+      ruleGuidance.set(ruleId, capabilityGuidance(finding.capability.kind));
       results.push(
         resultFor(
           ruleId,
@@ -169,6 +192,7 @@ export function renderSarifReport(
       if (coveredSignals.has(finding)) continue;
       const ruleId = `CAPDELTA-SIGNAL-${finding.kind.toUpperCase()}`;
       ruleIds.add(ruleId);
+      ruleGuidance.set(ruleId, signalGuidance(finding.kind));
       results.push(
         resultFor(
           ruleId,
@@ -200,7 +224,7 @@ export function renderSarifReport(
     shortDescription: {
       text: ruleDescription(id, unanalyzableRuleIds.has(id)),
     },
-    help: { text: ruleHelp(id, unanalyzableRuleIds.has(id)) },
+    help: { text: ruleHelp(id, ruleGuidance.get(id)) },
   }));
   return `${JSON.stringify(
     {
@@ -377,14 +401,13 @@ function ruleDescription(id: string, unanalyzable: boolean): string {
   return "Capability gained";
 }
 
-function ruleHelp(id: string, unanalyzable: boolean): string {
-  if (unanalyzable) {
-    return "capdelta did not inspect this artifact, so the default gate fails until a person reviews it. This result does not assert malware.";
+function ruleHelp(ruleId: string, guidance: Guidance | undefined): string {
+  if (guidance === undefined) {
+    throw new ReporterContractError(
+      `SARIF rule ${ruleId} is missing its reviewer guidance`,
+    );
   }
-  if (id === INTEGRITY_RULE_ID) {
-    return "The downloaded bytes differ from the lockfile integrity hash, so capdelta did not analyze them. Review where this lockfile entry and its registry response came from. This result does not assert malware.";
-  }
-  return "Review the static capability delta and its bounded evidence. This result does not assert malware.";
+  return `${guidance.whyItMatters} ${guidance.whatToCheck} This result does not assert malware.`;
 }
 
 /**
