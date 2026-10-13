@@ -4,11 +4,17 @@ Review this change: 2 findings (CRITICAL: 2); 0 diagnostics.
 
 Capability shapes:
 - [CRITICAL] "obfuscated-execution" (1 capability)
+  Why: Static analysis found byte patterns consistent with obfuscation together with an execution primitive, which can obscure what the code does when it runs.
+  Check: Open the file at the evidence line and confirm the encoding is expected.
 
 Findings:
 - [CRITICAL] "PROCESS" capability added in "runtime" code
   Evidence: "index.js":2 — "import { spawnSync } from \"node:child_process\";"
+  Why: Could start other programs on the machine, with the same permissions as the process running it.
+  Check: Read the file at the evidence line and confirm the command is expected.
 
 Signals:
 - [CRITICAL] "hex-byte-array with 8 elements added"
   Evidence: "index.js":4 — "const table = [0x63, 0x61, 0x70, 0x64, 0x65, 0x6c, 0x74, 0x61];"
+  Why: Static analysis found a byte-array or charcode pattern added, which can obscure what the code does.
+  Check: Open the file at the evidence line and confirm the decoding is expected.

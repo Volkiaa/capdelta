@@ -5,3 +5,5 @@ Review this change: 1 finding (HIGH: 1); 0 diagnostics.
 Findings:
 - [HIGH] "PROCESS" capability added in "runtime" code
   Evidence: "index.js":2 — "import { spawnSync } from \"node:child_process\";"
+  Why: Could start other programs on the machine, with the same permissions as the process running it.
+  Check: Read the file at the evidence line and confirm the command is expected.

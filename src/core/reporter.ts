@@ -3,6 +3,14 @@ import type {
   FindingSeverity,
 } from "./capability-differ.js";
 import type { CapabilityAnalysisRun } from "./capability-analysis-pipeline.js";
+import {
+  analysisIssueGuidance,
+  capabilityGuidance,
+  guidanceWarranted,
+  shapeGuidance,
+  signalGuidance,
+  type Guidance,
+} from "./finding-guidance.js";
 import { buildReport, buildRunReport } from "./report-builder.js";
 import { isUnanalyzableIssue } from "./run-severity.js";
 import type {
@@ -79,6 +87,7 @@ function renderTextReportFromBuilt(report: JsonReport): string[] {
     for (const shape of report.shapes ?? []) {
       lines.push(
         `- [${shape.severity}] ${quote(shape.ruleId)} (${count(shape.capabilities.length, "capability")})`,
+        ...findingGuidanceLines(shape.severity, shapeGuidance(shape.ruleId)),
       );
     }
   }
@@ -90,6 +99,10 @@ function renderTextReportFromBuilt(report: JsonReport): string[] {
         `- [${finding.severity}] ${findingDescription(finding)}${suppressionText(finding.suppression?.reason)}`,
         ...finding.capability.evidence.map(
           (evidence) => `  Evidence: ${evidenceText(evidence)}`,
+        ),
+        ...findingGuidanceLines(
+          finding.severity,
+          capabilityGuidance(finding.capability.kind),
         ),
       );
     }
@@ -103,6 +116,7 @@ function renderTextReportFromBuilt(report: JsonReport): string[] {
         ...finding.evidence.map(
           (evidence) => `  Evidence: ${evidenceText(evidence)}`,
         ),
+        ...findingGuidanceLines(finding.severity, signalGuidance(finding.kind)),
       );
     }
   }
@@ -174,7 +188,7 @@ export function formatTextRunReport(report: JsonRunReport): string {
       if (item.issues.length > 0) {
         lines.push(
           "Analysis issues:",
-          ...item.issues.map((issue) => `- ${analysisIssueText(issue)}`),
+          ...item.issues.flatMap(analysisIssueLines),
         );
       }
       continue;
@@ -183,7 +197,7 @@ export function formatTextRunReport(report: JsonRunReport): string {
     lines.push(
       "",
       `Unavailable package: ${reportPackageIdentity(item.package)}`,
-      ...item.failures.map((failure) => `- ${analysisIssueText(failure)}`),
+      ...item.failures.flatMap(analysisIssueLines),
     );
     if (item.exception !== undefined) {
       // ADR-017: the package is still unanalyzed; the reviewed exception only
@@ -249,6 +263,30 @@ function analysisIssueText(issue: JsonReportAnalysisIssue): string {
   // mismatches and from capability findings.
   const label = isUnanalyzableIssue(issue) ? "could not analyze: " : "";
   return `${severity}${label}[${issue.stage}/${issue.kind}] ${quote(issue.detail)}${context.length === 0 ? "" : `; ${context.join("; ")}`}`;
+}
+
+/** A finding line plus its reviewer guidance when the severity warrants it. */
+function analysisIssueLines(issue: JsonReportAnalysisIssue): string[] {
+  const lines = [`- ${analysisIssueText(issue)}`];
+  if (issue.severity !== null) {
+    // A severity-bearing issue always classifies; a null means no guidance.
+    const guidance = analysisIssueGuidance(issue);
+    if (guidance !== null) {
+      lines.push(...findingGuidanceLines(issue.severity, guidance));
+    }
+  }
+  return lines;
+}
+
+function findingGuidanceLines(
+  severity: FindingSeverity,
+  guidance: Guidance,
+): string[] {
+  if (!guidanceWarranted(severity)) return [];
+  return [
+    `  Why: ${guidance.whyItMatters}`,
+    `  Check: ${guidance.whatToCheck}`,
+  ];
 }
 
 function findingDescription(finding: JsonReportFinding): string {

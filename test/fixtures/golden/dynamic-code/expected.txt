@@ -4,7 +4,11 @@ Review this change: 1 finding (CRITICAL: 1); 0 diagnostics.
 
 Capability shapes:
 - [CRITICAL] "dynamic-or-native-code" (1 capability)
+  Why: Dynamic code evaluation and native binaries run behavior that static analysis cannot fully follow.
+  Check: Confirm the package needs this and review the file at the evidence line.
 
 Findings:
 - [CRITICAL] "DYNAMIC_CODE" capability added in "runtime" code
   Evidence: "index.js":3 — "return new Function(\"return 1;\");"
+  Why: Could build and run code from strings at runtime, so static analysis cannot see the full behavior.
+  Check: Read the file at the evidence line and confirm the evaluated code is expected.
