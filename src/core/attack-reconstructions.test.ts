@@ -591,3 +591,54 @@ describe("synthetic layout evasion (ADR-013)", () => {
     expect(evaluateSeverityGate(result.report, "CRITICAL").fail).toBe(true);
   });
 });
+
+describe("synthetic mode evasion (ADR-019)", () => {
+  it("reads and analyzes a mode-000 manifest and hook instead of hiding them", async () => {
+    // The attack tarball stores package.json and hook.js with mode 000, which
+    // an unprivileged runner could not read before mode normalization. npm
+    // makes the hook bytes readable; executable malicious code could exploit
+    // the same modes.
+    const result = await runScenario("mode-evasion", "attack");
+    expectAllAnalyzed(result, 1);
+    const report = packageReport(
+      result.report,
+      "capdelta-fixture-mode-evasion",
+    );
+
+    expect(findingsOf(report, "INSTALL_HOOK")).toEqual([
+      expect.objectContaining({
+        severity: "CRITICAL",
+        capability: expect.objectContaining({
+          hook: "postinstall",
+          applicability: "registry-install",
+        }) as unknown,
+      }),
+    ]);
+    // The hidden code is analyzed, not merely reported unparseable: the hook's
+    // environment read and process spawn are found in install-script position.
+    for (const kind of ["PROCESS", "ENV"]) {
+      expect(findingsOf(report, kind)).toEqual([
+        expect.objectContaining({
+          severity: "CRITICAL",
+          capability: expect.objectContaining({
+            location: expect.objectContaining({
+              kind: "install-script",
+            }) as unknown,
+            evidence: expect.arrayContaining([
+              expect.objectContaining({ file: "hook.js" }),
+            ]) as unknown,
+          }) as unknown,
+        }),
+      ]);
+    }
+    expect(findingsOf(report, "unparseable-file")).toEqual([]);
+    expect(evaluateSeverityGate(result.report, "CRITICAL").fail).toBe(true);
+  });
+
+  it("passes the benign control bump without mode tricks", async () => {
+    const result = await runScenario("mode-evasion", "control");
+    expectAllAnalyzed(result, 1);
+    expect(result.report.summary.gateSeverity.CRITICAL).toBe(0);
+    expect(evaluateSeverityGate(result.report, "CRITICAL").fail).toBe(false);
+  });
+});

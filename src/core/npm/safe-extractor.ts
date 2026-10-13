@@ -313,7 +313,17 @@ async function extract(
       if (entry.type === "Directory") return false;
       const effective = effectivePath(path, entry.type);
       if (effective === null) return false;
-      return !manifestOnly || effective === "package.json";
+      if (manifestOnly && effective !== "package.json") return false;
+      // ADR-019: node-tar creates each file with the archive entry's mode
+      // (node_modules/tar/dist/esm/unpack.js:401 reads entry.mode at write
+      // time), so a mode-000 file would be unreadable on an unprivileged
+      // runner and could hide an install hook from analysis. Normalize every
+      // written file to 0o600, the same mechanism pacote uses in its filter
+      // (npm/pacote lib/fetcher.js, #entryMode). capdelta never executes
+      // package code, so no execute bit is needed, and setuid/setgid/sticky
+      // bits never reach disk.
+      entry.mode = 0o600;
+      return true;
     },
   });
   throwIfStopped(options.signal);

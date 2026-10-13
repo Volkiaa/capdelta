@@ -86,6 +86,34 @@
           "head": ["evasion-1.0.1"]
         }
       }
+    },
+    {
+      "name": "mode-evasion",
+      "title": "Synthetic archive-mode evasion (not a historical incident)",
+      "date": "n/a: regression for ADR-019",
+      "sources": [
+        "https://github.com/npm/pacote/blob/main/lib/fetcher.js",
+        "https://github.com/isaacs/node-tar/blob/main/src/unpack.ts"
+      ],
+      "kept": "A v1.0.1 bump adds a registry \"postinstall\": \"node hook.js\", and the tarball stores both package.json and hook.js with mode 000. node-tar creates each file with the archive mode, so on an unprivileged runner the hook's bytes were unreadable: the manifest read failed to manifest-unreadable (severity null) and hook.js was never analyzed. npm makes the hook bytes readable; executable malicious code could exploit the same modes.",
+      "omitted": "Everything else: the package is a minimal synthetic stand-in. hook.js reads an environment token and spawns a nonexistent fixture command; the capability is modeled, never executed, and nothing is exfiltrated.",
+      "expected": "After ADR-019 every extracted file is mode 0o600, so package.json is readable and the CRITICAL registry postinstall hook is reported, while hook.js is parsed with PROCESS and ENV capabilities. The benign control bump carries no hook and passes.",
+      "entryModes": {
+        "evasion-1.0.1": {
+          "package/package.json": "0000",
+          "package/hook.js": "0000"
+        }
+      },
+      "scenarios": {
+        "attack": {
+          "base": ["evasion-1.0.0"],
+          "head": ["evasion-1.0.1"]
+        },
+        "control": {
+          "base": ["evasion-1.0.0"],
+          "head": ["evasion-1.0.2-control"]
+        }
+      }
     }
   ]
 }
