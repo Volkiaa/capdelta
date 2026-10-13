@@ -156,6 +156,7 @@ async function runInProcess(
   cwd: string,
   argv: readonly string[],
   fetchImpl?: typeof fetch,
+  sleep?: (ms: number, signal?: AbortSignal) => Promise<void>,
 ): Promise<ProcessResult & { order: ("stdout" | "stderr")[] }> {
   let stdout = "";
   let stderr = "";
@@ -172,9 +173,13 @@ async function runInProcess(
       order.push("stderr");
     },
     ...(fetchImpl === undefined ? {} : { fetchImpl }),
+    ...(sleep === undefined ? {} : { sleep }),
   });
   return { exitCode, stdout, stderr, order };
 }
+
+/** ADR-018: no real backoff in tests; retries resolve immediately. */
+const instantSleep = (): Promise<void> => Promise.resolve();
 
 /** Commits `base` as HEAD, then leaves `head` as the working-tree lockfile. */
 async function withBump<T>(
@@ -419,35 +424,119 @@ describe("capdelta CLI", () => {
     },
   );
 
-  it("passes the default gate below CRITICAL and fails an inclusive INFO gate", async () => {
-    // A downgrade is an INFO lockfile finding; the 404 leaves the package
-    // unavailable, which is incompleteness rather than a severity.
+  it("fails CRITICAL on a non-retryable HTTP status (ADR-018 decision 3)", async () => {
+    // The lockfile entry or the registry decides a 404, so it is a CRITICAL
+    // unanalyzable issue rather than an operational one. The old side fails
+    // first, so the new side is never requested.
     const encoder = new TextEncoder();
     await withBump(
       lockfileWithGolden("2.0.0", sri(encoder.encode("inert v2"))),
       lockfileWithGolden("1.0.0", sri(encoder.encode("inert v1"))),
       async (cwd) => {
-        const fetchNone: typeof fetch = () =>
-          Promise.resolve(new Response("not found", { status: 404 }));
+        let calls = 0;
+        const fetch404: typeof fetch = () => {
+          calls += 1;
+          return Promise.resolve(new Response("not found", { status: 404 }));
+        };
+        const result = await runInProcess(cwd, ["--base", "HEAD"], fetch404);
+
+        expect(result.exitCode).toBe(1);
+        expect(result.stdout).toContain(
+          "[CRITICAL] could not analyze: [fetch/http-status]",
+        );
+        expect(result.stdout).toContain("[INFO] [version-downgrade]");
+        expect(result.stderr).toBe(
+          "capdelta: 1 finding(s) at or above CRITICAL (highest: CRITICAL)\n",
+        );
+        // A 404 is deterministic: exactly one attempt, no retry.
+        expect(calls).toBe(1);
+      },
+    );
+  });
+
+  it("fails operationally on an exhausted transient fetch, even with --fail-on none (ADR-018)", async () => {
+    // A 503 is retried, then recorded as http-unavailable with no severity. The
+    // run still fails: exit 1 for the gate or the operational failure, and
+    // --strict takes precedence with exit 2.
+    const encoder = new TextEncoder();
+    await withBump(
+      lockfileWithGolden("2.0.0", sri(encoder.encode("inert v2"))),
+      lockfileWithGolden("1.0.0", sri(encoder.encode("inert v1"))),
+      async (cwd) => {
+        let calls = 0;
+        const fetch503: typeof fetch = () => {
+          calls += 1;
+          return Promise.resolve(new Response("unavailable", { status: 503 }));
+        };
+        const message =
+          "capdelta: 1 package(s) could not be fetched or analyzed before the run ended\n";
+
         const defaultGate = await runInProcess(
           cwd,
           ["--base", "HEAD"],
-          fetchNone,
+          fetch503,
+          instantSleep,
         );
-        expect(defaultGate.exitCode).toBe(0);
-        expect(defaultGate.stderr).toBe("");
+        expect(defaultGate.exitCode).toBe(1);
+        expect(defaultGate.stdout).toContain("[fetch/http-unavailable]");
         expect(defaultGate.stdout).toContain("[INFO] [version-downgrade]");
-        expect(defaultGate.stdout).toContain("[fetch/http-status]");
+        expect(defaultGate.stderr).toBe(message);
+        // Three attempts on the old side; the new side is never reached.
+        expect(calls).toBe(3);
+
+        const reportOnly = await runInProcess(
+          cwd,
+          ["--base", "HEAD", "--fail-on", "none"],
+          fetch503,
+          instantSleep,
+        );
+        expect(reportOnly.exitCode).toBe(1);
+        expect(reportOnly.stderr).toBe(message);
 
         const infoGate = await runInProcess(
           cwd,
           ["--base", "HEAD", "--fail-on", "INFO"],
-          fetchNone,
+          fetch503,
+          instantSleep,
         );
         expect(infoGate.exitCode).toBe(1);
         expect(infoGate.stderr).toBe(
-          "capdelta: 1 finding(s) at or above INFO (highest: INFO)\n",
+          "capdelta: 1 finding(s) at or above INFO (highest: INFO)\n" + message,
         );
+        // The report is delivered before both failure causes.
+        expect(infoGate.order).toEqual(["stdout", "stderr", "stderr"]);
+
+        const strict = await runInProcess(
+          cwd,
+          ["--base", "HEAD", "--strict"],
+          fetch503,
+          instantSleep,
+        );
+        expect(strict.exitCode).toBe(2);
+        expect(strict.stderr).toBe(
+          `${message}capdelta: strict mode found unanalyzed content\n`,
+        );
+
+        // Gate failure plus operational failure plus --strict: exit 2 wins,
+        // and stderr still names every cause after the report.
+        const strictBoth = await runInProcess(
+          cwd,
+          ["--base", "HEAD", "--fail-on", "INFO", "--strict"],
+          fetch503,
+          instantSleep,
+        );
+        expect(strictBoth.exitCode).toBe(2);
+        expect(strictBoth.stderr).toBe(
+          "capdelta: 1 finding(s) at or above INFO (highest: INFO)\n" +
+            message +
+            "capdelta: strict mode found unanalyzed content\n",
+        );
+        expect(strictBoth.order).toEqual([
+          "stdout",
+          "stderr",
+          "stderr",
+          "stderr",
+        ]);
       },
     );
   });

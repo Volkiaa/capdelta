@@ -16,7 +16,12 @@ import {
   formatTextRunReport,
   type JsonRunReport,
 } from "../core/reporter.js";
-import { evaluateSeverityGate } from "../core/run-severity.js";
+import {
+  evaluateSeverityGate,
+  hasOperationalFailure,
+  operationalFailureCount,
+  operationalFailureMessage,
+} from "../core/run-severity.js";
 import {
   CliOperationalError,
   CliUsageError,
@@ -47,6 +52,8 @@ export interface CliRuntime {
   stderr(value: string): void;
   /** Test seam used for inert tarball responses; production uses global fetch. */
   fetchImpl?: typeof fetch;
+  /** ADR-018 test seam: injectable backoff, so retry tests never wait. */
+  sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
   maxLockfileBytes?: number;
 }
 
@@ -74,20 +81,29 @@ export async function executeCli(
     // Unchanged lockfile: the PLAN §2 fast path has nothing to gate.
     if (analysis === null) return 0;
 
-    // The report is already delivered; gate and strict only pick the exit.
+    // The report is already delivered; gate, strict, and operational failure
+    // only pick the exit.
     const gate = evaluateSeverityGate(analysis.report, args.failOn);
     if (gate.fail) {
       runtime.stderr(
         `capdelta: ${String(gate.matchingCount)} finding(s) at or above ${args.failOn} (highest: ${gate.highest ?? "none"})\n`,
       );
     }
+    // ADR-018: a transient fetch failure that outlived its retries, or a
+    // deadline/cancellation stop, fails the run even in report-only mode.
+    const operationalCount = operationalFailureCount(analysis.run);
+    const operationalFailure = hasOperationalFailure(analysis.run);
+    if (operationalFailure) {
+      runtime.stderr(`${operationalFailureMessage(operationalCount)}\n`);
+    }
     if (args.strict && hasUnanalyzedContent(analysis.run)) {
       runtime.stderr("capdelta: strict mode found unanalyzed content\n");
       // PLAN §4.5 promises exit 2 for unanalyzed content, even when the
-      // severity gate also failed; stderr above still names both causes.
+      // severity gate or an operational failure also failed; stderr above
+      // still names every cause.
       return STRICT_ANALYSIS_EXIT_CODE;
     }
-    return gate.exitCode;
+    return gate.fail || operationalFailure ? 1 : 0;
   } catch (error: unknown) {
     const exitCode = error instanceof CliUsageError ? USAGE_ERROR_EXIT_CODE : 1;
     runtime.stderr(`capdelta: ${terminalSafeError(error)}\n`);
@@ -121,12 +137,15 @@ async function analyzeCheckout(
     allowMissingConfig,
   );
   const lockfileDiff = diffNpmLockfiles(oldLockfile, headLockfile);
-  const analysis = await analyzeChangedPackages(
-    lockfileDiff,
-    runtime.fetchImpl === undefined
-      ? { config }
-      : { fetcher: { fetchImpl: runtime.fetchImpl }, config },
-  );
+  const analysis = await analyzeChangedPackages(lockfileDiff, {
+    fetcher: {
+      ...(runtime.fetchImpl === undefined
+        ? {}
+        : { fetchImpl: runtime.fetchImpl }),
+      ...(runtime.sleep === undefined ? {} : { sleep: runtime.sleep }),
+    },
+    config,
+  });
   const report = buildRunReport(analysis);
   runtime.stdout(
     format === "json"

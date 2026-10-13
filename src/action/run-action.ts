@@ -30,6 +30,9 @@ import {
 } from "./base-lockfile-retriever.js";
 import {
   evaluateSeverityGate,
+  hasOperationalFailure,
+  operationalFailureCount,
+  operationalFailureMessage,
   parseFailOn,
   type GateDecision,
 } from "../core/run-severity.js";
@@ -90,6 +93,9 @@ export type ActionOutcome =
       gate: GateDecision;
       sarifUploaded: boolean;
       strictFailure: boolean;
+      /** ADR-018: a transient fetch or stop left the analysis incomplete. */
+      operationalFailure: boolean;
+      operationalFailureCount: number;
     };
 
 export class ActionRunnerError extends Error {
@@ -102,6 +108,31 @@ export class ActionRunnerError extends Error {
 export class ActionRunnerConfigurationError extends ActionRunnerError {}
 
 export class ActionRunnerOperationalError extends ActionRunnerError {}
+
+/**
+ * ADR-018: the message the Action fails with, or `null` when the run passes.
+ * The gate message and the operational message are joined so neither cause is
+ * hidden; a strict failure is the fallback, matching the CLI's precedence.
+ */
+export function actionFailureMessage(outcome: {
+  gate: Pick<GateDecision, "fail" | "matchingCount" | "threshold">;
+  operationalFailure: boolean;
+  operationalFailureCount: number;
+  strictFailure: boolean;
+}): string | null {
+  const failures: string[] = [];
+  if (outcome.gate.fail) {
+    failures.push(
+      `Review this change: ${String(outcome.gate.matchingCount)} finding(s) meet the ${outcome.gate.threshold} failure threshold.`,
+    );
+  }
+  if (outcome.operationalFailure) {
+    failures.push(operationalFailureMessage(outcome.operationalFailureCount));
+  }
+  if (failures.length > 0) return failures.join(" ");
+  if (outcome.strictFailure) return "Strict mode found unanalyzed content.";
+  return null;
+}
 
 const ARTIFACT_NAME = "capdelta-report";
 
@@ -208,8 +239,15 @@ export async function runAction(
   const gate = evaluateSeverityGate(report, threshold);
   const strictFailure =
     inputs.strict === true && hasUnanalyzedContent(analysis);
+  // ADR-018: an operational failure fails the job even in report-only mode,
+  // independent of the severity gate.
+  const operationalFailure = hasOperationalFailure(analysis);
+  const operationalFailures = operationalFailureCount(analysis);
 
-  adapters.setOutput("status", gate.fail ? "failed" : "passed");
+  adapters.setOutput(
+    "status",
+    gate.fail || operationalFailure ? "failed" : "passed",
+  );
   adapters.setOutput("artifact-id", String(artifact.id));
   adapters.setOutput("highest-severity", gate.highest ?? "none");
   adapters.setOutput("strict-failed", strictFailure ? "true" : "false");
@@ -221,6 +259,8 @@ export async function runAction(
     gate,
     sarifUploaded,
     strictFailure,
+    operationalFailure,
+    operationalFailureCount: operationalFailures,
   };
 }
 

@@ -613,10 +613,11 @@ describe("run severity classification", () => {
     expect(report.summary).toMatchObject({
       // All capability/signal findings, suppressed included.
       bySeverity: { CRITICAL: 1, HIGH: 2, MEDIUM: 2, LOW: 0, INFO: 0 },
-      // Unsuppressed findings + lockfile findings + integrity failures.
-      // One CRITICAL finding + one per integrity mismatch, either side; the
-      // cleanup failure sharing a failures array adds nothing.
-      gateSeverity: { CRITICAL: 3, HIGH: 2, MEDIUM: 1, LOW: 0, INFO: 1 },
+      // Unsuppressed findings + lockfile findings + unavailable packages'
+      // severity issues. One CRITICAL finding + one per integrity mismatch,
+      // either side, + one for the now-CRITICAL non-retryable HTTP status
+      // (ADR-018); the cleanup failure sharing a failures array adds nothing.
+      gateSeverity: { CRITICAL: 4, HIGH: 2, MEDIUM: 1, LOW: 0, INFO: 1 },
     });
     expect(report.packages.map((item) => item.issues ?? item.failures)).toEqual(
       [
@@ -636,7 +637,12 @@ describe("run severity classification", () => {
           }),
           expect.objectContaining({ kind: "cleanup-failed", severity: null }),
         ],
-        [expect.objectContaining({ kind: "http-status", severity: null })],
+        [
+          expect.objectContaining({
+            kind: "http-status",
+            severity: "CRITICAL",
+          }),
+        ],
       ],
     );
     expect(report.lockfileFindings.map((finding) => finding.severity)).toEqual([
@@ -648,12 +654,14 @@ describe("run severity classification", () => {
   it("renders gate severities in comparison and first-run text", () => {
     const text = renderTextRunReport(severityRun());
     expect(text).toContain(
-      "Gate severity: CRITICAL: 3, HIGH: 2, MEDIUM: 1, INFO: 1.",
+      "Gate severity: CRITICAL: 4, HIGH: 2, MEDIUM: 1, INFO: 1.",
     );
     expect(text).toContain(
       '- [CRITICAL] [fetch/integrity-mismatch] "downloaded bytes do not match lockfile sha512 integrity"',
     );
-    expect(text).toContain('- [fetch/http-status] "HTTP 404"');
+    expect(text).toContain(
+      '- [CRITICAL] could not analyze: [fetch/http-status] "HTTP 404"',
+    );
     expect(text).toContain(
       '- [HIGH] [integrity-changed-version-same] "repacked"',
     );
@@ -662,7 +670,7 @@ describe("run severity classification", () => {
     const firstRun = severityRun();
     firstRun.firstRun = true;
     expect(renderTextRunReport(firstRun)).toContain(
-      "Gate severity: CRITICAL: 3, HIGH: 2, MEDIUM: 1, INFO: 1.",
+      "Gate severity: CRITICAL: 4, HIGH: 2, MEDIUM: 1, INFO: 1.",
     );
   });
 
@@ -732,12 +740,20 @@ describe("run severity classification", () => {
       '[CRITICAL] could not analyze: [new-extraction/file-count-limit] "too many files"',
     );
 
-    // An integrity mismatch keeps its own wording.
+    // An integrity mismatch is CRITICAL without being unanalyzable: its own
+    // line keeps its wording and carries no "could not analyze" label even
+    // though another package's HTTP status now does.
     const mismatch = renderTextRunReport(severityRun());
     expect(mismatch).toContain(
       '- [CRITICAL] [fetch/integrity-mismatch] "downloaded bytes do not match lockfile sha512 integrity"',
     );
-    expect(mismatch).not.toContain("could not analyze");
+    const mismatchLines = mismatch
+      .split("\n")
+      .filter((line) => line.includes("[fetch/integrity-mismatch]"));
+    expect(mismatchLines.length).toBeGreaterThan(0);
+    expect(
+      mismatchLines.every((line) => !line.includes("could not analyze")),
+    ).toBe(true);
   });
 
   it("keeps an unavailable package at a gate count of 0 without a severity", () => {

@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import type { FindingSeverity } from "./capability-differ.js";
 import type { JsonRunReport, SeverityCounts } from "./reporter.js";
 import type { JsonReportAnalysisIssue } from "./report-contract.js";
+import type { CapabilityAnalysisRun } from "./capability-analysis-pipeline.js";
+import type { PackageAnalysisFailure } from "./capability-analysis-pipeline.js";
+import type { FetchFailureKind } from "./npm/fetcher.js";
 import {
   EXCEPTABLE_UNANALYZABLE_KINDS,
   FETCH_STAGE_CRITICAL_KINDS,
@@ -10,8 +13,12 @@ import {
   analysisIssueSeverity,
   assessRunSeverity,
   evaluateSeverityGate,
+  hasOperationalFailure,
+  isOperationalFailure,
   isUnanalyzableIssue,
   lockfileFindingSeverity,
+  operationalFailureCount,
+  operationalFailureMessage,
   parseFailOn,
 } from "./run-severity.js";
 
@@ -47,6 +54,57 @@ const MIXED: SeverityCounts = {
   INFO: 1,
 };
 
+function runWithPackages(
+  packages: CapabilityAnalysisRun["packages"],
+): CapabilityAnalysisRun {
+  const unavailable = packages.filter(
+    (item) => item.status === "unavailable",
+  ).length;
+  return {
+    firstRun: false,
+    summary: {
+      changed: packages.length,
+      analyzed: packages.length - unavailable,
+      unavailable,
+      skipped: 0,
+    },
+    packages,
+    lockfileFindings: [],
+    skipped: [],
+  };
+}
+
+function unavailablePackage(
+  failures: readonly [PackageAnalysisFailure, ...PackageAnalysisFailure[]],
+  name = "fixture",
+): CapabilityAnalysisRun["packages"][number] {
+  return {
+    status: "unavailable",
+    changedPackage: {
+      name,
+      oldVersion: null,
+      newVersion: "2.0.0",
+      oldIntegrity: null,
+      newIntegrity: "sha512-inert",
+      oldResolvedUrl: null,
+      resolvedUrl: `https://registry.npmjs.org/${name}/new.tgz`,
+    },
+    failures,
+  };
+}
+
+function fetchIssue(kind: FetchFailureKind): PackageAnalysisFailure {
+  return {
+    stage: "fetch",
+    failure: {
+      side: "new",
+      kind,
+      detail: `failure ${kind}`,
+      url: "https://registry.npmjs.org/fixture/new.tgz",
+    },
+  };
+}
+
 describe("run severity classification", () => {
   it("classifies lockfile findings per PLAN §4.1", () => {
     expect(lockfileFindingSeverity("integrity-changed-version-same")).toBe(
@@ -61,13 +119,16 @@ describe("run severity classification", () => {
     "size-limit-exceeded",
     "invalid-url",
     "unsupported-integrity",
+    // ADR-018: a non-retryable HTTP status and an invalid response are decided
+    // by the lockfile entry or the registry, so they are CRITICAL too.
+    "http-status",
+    "invalid-response",
   ] as const;
   const FETCH_NULL = [
-    "http-status",
     "timeout",
     "aborted",
     "network-error",
-    "invalid-response",
+    "http-unavailable",
   ] as const;
   const EXTRACTION_UNANALYZABLE = [
     "invalid-archive",
@@ -203,6 +264,121 @@ describe("run severity classification", () => {
       if (stage === "fetch" && severity === "CRITICAL") derived.add(kind);
     }
     expect(derived).toEqual(new Set<string>(FETCH_STAGE_CRITICAL_KINDS));
+  });
+});
+
+describe("operational failure (ADR-018)", () => {
+  it("treats an exhausted transient fetch failure as operational", () => {
+    for (const kind of [
+      "timeout",
+      "network-error",
+      "http-unavailable",
+      "aborted",
+    ] as const) {
+      expect(isOperationalFailure(fetchIssue(kind))).toBe(true);
+    }
+  });
+
+  it("treats deterministic fetch failures as severities, not operational", () => {
+    for (const kind of [
+      "integrity-mismatch",
+      "size-limit-exceeded",
+      "invalid-url",
+      "unsupported-integrity",
+      "http-status",
+      "invalid-response",
+    ] as const) {
+      expect(isOperationalFailure(fetchIssue(kind))).toBe(false);
+    }
+  });
+
+  it("treats a deadline or cancellation stop at any stage as operational", () => {
+    const stops: PackageAnalysisFailure[] = [
+      {
+        stage: "analysis",
+        failure: { kind: "deadline-exceeded", detail: "stop" },
+      },
+      {
+        stage: "analysis",
+        failure: { kind: "analysis-aborted", detail: "stop" },
+      },
+      {
+        stage: "new-extraction",
+        failure: { kind: "deadline-exceeded", detail: "stop" },
+      },
+      {
+        stage: "old-extraction",
+        failure: { kind: "analysis-aborted", detail: "stop" },
+      },
+      {
+        stage: "new-manifest",
+        failure: { kind: "deadline-exceeded", detail: "stop", evidence: null },
+      },
+      {
+        stage: "old-manifest",
+        failure: { kind: "analysis-aborted", detail: "stop", evidence: null },
+      },
+    ];
+    for (const issue of stops) expect(isOperationalFailure(issue)).toBe(true);
+  });
+
+  it("does not count environmental or cleanup failures as operational", () => {
+    const issues: PackageAnalysisFailure[] = [
+      {
+        stage: "old-extraction",
+        failure: { kind: "filesystem-error", detail: "input/output error" },
+      },
+      {
+        stage: "new-manifest",
+        failure: {
+          kind: "manifest-unreadable",
+          detail: "input/output error",
+          evidence: null,
+        },
+      },
+      {
+        stage: "old-cleanup",
+        failure: { kind: "cleanup-failed", detail: "cleanup failed" },
+      },
+    ];
+    for (const issue of issues) expect(isOperationalFailure(issue)).toBe(false);
+  });
+
+  it("counts each package once, however many failures it has", () => {
+    const run = runWithPackages([
+      unavailablePackage([
+        fetchIssue("timeout"),
+        fetchIssue("http-unavailable"),
+      ]),
+      unavailablePackage([fetchIssue("integrity-mismatch")], "mismatch"),
+      unavailablePackage(
+        [
+          {
+            stage: "analysis",
+            failure: { kind: "deadline-exceeded", detail: "stop" },
+          },
+        ],
+        "stopped",
+      ),
+    ]);
+    expect(operationalFailureCount(run)).toBe(2);
+    expect(hasOperationalFailure(run)).toBe(true);
+  });
+
+  it("is false when every unavailable package failed deterministically", () => {
+    const run = runWithPackages([
+      unavailablePackage([fetchIssue("http-status")]),
+      unavailablePackage([fetchIssue("integrity-mismatch")], "mismatch"),
+    ]);
+    expect(operationalFailureCount(run)).toBe(0);
+    expect(hasOperationalFailure(run)).toBe(false);
+    expect(hasOperationalFailure(runWithPackages([]))).toBe(false);
+  });
+
+  it("renders the shared CLI and Action message", () => {
+    expect(operationalFailureMessage(2)).toBe(
+      "capdelta: 2 package(s) could not be fetched or analyzed before the run ended",
+    );
   });
 });
 

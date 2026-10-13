@@ -7,6 +7,7 @@ import { isAbsolute, join, relative, resolve } from "node:path";
 import { promisify } from "node:util";
 import { gzip } from "node:zlib";
 import {
+  actionFailureMessage,
   analyzeLockfiles,
   runAction,
   type ActionContext,
@@ -75,13 +76,8 @@ async function main(): Promise<void> {
     );
 
     if (outcome.status === "analyzed") {
-      if (outcome.gate.fail) {
-        core.setFailed(
-          `Review this change: ${String(outcome.gate.matchingCount)} finding(s) meet the ${outcome.gate.threshold} failure threshold.`,
-        );
-      } else if (outcome.strictFailure) {
-        core.setFailed("Strict mode found unanalyzed content.");
-      }
+      const message = actionFailureMessage(outcome);
+      if (message !== null) core.setFailed(message);
     }
   } catch (error: unknown) {
     core.setFailed(`capdelta: ${safeError(error)}`);
