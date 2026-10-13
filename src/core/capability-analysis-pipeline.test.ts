@@ -1,3 +1,8 @@
+import { createHash } from "node:crypto";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import * as tar from "tar";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
   CapabilitySet,
@@ -41,6 +46,7 @@ import {
 } from "./manifest-analysis-pipeline.js";
 import type { CapdeltaConfig } from "./capdelta-config.js";
 import { buildRunReport } from "./reporter.js";
+import { diffNpmLockfiles } from "./npm/lockfile-differ.js";
 import {
   evaluateSeverityGate,
   hasOperationalFailure,
@@ -1145,5 +1151,173 @@ describe("analyzeChangedPackages", () => {
     await expect(
       broken(lockfileDiff([changedPackage("missing-result")])),
     ).rejects.toBeInstanceOf(CapabilityAnalysisPipelineContractError);
+  });
+});
+
+/**
+ * ADR-019 decision 2: a regular archive entry `package/package.json/child.js`
+ * makes package.json a directory on full extraction, which the manifest reader
+ * classifies as the byte-decided `manifest-not-regular` CRITICAL failure. The
+ * new-side manifest-only pass filters that entry out (safe-extractor.ts:316),
+ * so the same layout there reads as `manifest-missing` instead. Fixtures are
+ * inert data; no package code is imported or run.
+ */
+describe("manifest-not-regular (ADR-019)", () => {
+  async function pack(entries: Record<string, string>) {
+    const work = await mkdtemp(join(tmpdir(), "capdelta-pipeline-manifest-"));
+    try {
+      for (const [path, contents] of Object.entries(entries)) {
+        const file = join(work, path);
+        await mkdir(dirname(file), { recursive: true });
+        await writeFile(file, contents, "utf8");
+      }
+      const archive = join(work, "fixture.tgz");
+      await tar.c(
+        {
+          cwd: work,
+          file: archive,
+          gzip: true,
+          portable: true,
+          mtime: new Date(0),
+        },
+        ["package"],
+      );
+      const bytes = await readFile(archive);
+      return {
+        bytes,
+        integrity: `sha512-${createHash("sha512").update(bytes).digest("base64")}`,
+      };
+    } finally {
+      await rm(work, { recursive: true, force: true });
+    }
+  }
+
+  async function runLayout(options: {
+    name: string;
+    oldEntries: Record<string, string>;
+    newEntries: Record<string, string>;
+    oldVersion: string;
+    newVersion: string;
+  }) {
+    const [oldTarball, newTarball] = await Promise.all([
+      pack(options.oldEntries),
+      pack(options.newEntries),
+    ]);
+    const oldUrl = `https://registry.npmjs.org/${options.name}/-/old.tgz`;
+    const newUrl = `https://registry.npmjs.org/${options.name}/-/new.tgz`;
+    const packages = {
+      "": { name: "manifest-layout-project", version: "1.0.0" },
+      [`node_modules/${options.name}`]: {
+        version: options.oldVersion,
+        resolved: oldUrl,
+        integrity: oldTarball.integrity,
+      },
+    };
+    const base = {
+      name: "manifest-layout-project",
+      version: "1.0.0",
+      lockfileVersion: 3,
+      requires: true,
+      packages,
+    };
+    const head = {
+      ...base,
+      packages: {
+        ...packages,
+        [`node_modules/${options.name}`]: {
+          version: options.newVersion,
+          resolved: newUrl,
+          integrity: newTarball.integrity,
+        },
+      },
+    };
+    const responses = new Map<string, Uint8Array>([
+      [oldUrl, oldTarball.bytes],
+      [newUrl, newTarball.bytes],
+    ]);
+    // Serves only the two committed-in-test archives; no network fallback.
+    const fetchImpl: typeof fetch = (input) => {
+      const url = input instanceof Request ? input.url : input.toString();
+      const bytes = responses.get(url);
+      if (bytes === undefined) {
+        throw new Error(`unexpected layout fetch ${url}`);
+      }
+      return Promise.resolve(
+        new Response(bytes, {
+          status: 200,
+          headers: { "content-length": String(bytes.length) },
+        }),
+      );
+    };
+    const run = await analyzeChangedPackages(diffNpmLockfiles(base, head), {
+      fetcher: { fetchImpl },
+    });
+    return buildRunReport(run);
+  }
+
+  const MANIFEST_DIRECTORY = {
+    "package/package.json/child.js": "module.exports = 1;\n",
+  };
+
+  it("fails closed when the old artifact makes package.json a directory", async () => {
+    const name = "manifest-dir-fixture";
+    const report = await runLayout({
+      name,
+      oldEntries: MANIFEST_DIRECTORY,
+      newEntries: {
+        "package/package.json": `${JSON.stringify({ name, version: "2.0.0" })}\n`,
+      },
+      oldVersion: "1.0.0",
+      newVersion: "2.0.0",
+    });
+    expect(report.summary).toMatchObject({
+      changedPackages: 1,
+      analyzedPackages: 0,
+      unavailablePackages: 1,
+    });
+    const item = report.packages[0];
+    if (item?.status !== "unavailable") {
+      throw new Error("directory old manifest must be unavailable");
+    }
+    expect(item.failures[0]).toMatchObject({
+      stage: "old-manifest",
+      side: "old",
+      kind: "manifest-not-regular",
+      severity: "CRITICAL",
+    });
+    expect(report.summary.gateSeverity.CRITICAL).toBe(1);
+    expect(evaluateSeverityGate(report, "CRITICAL")).toMatchObject({
+      fail: true,
+      exitCode: 1,
+      highest: "CRITICAL",
+    });
+  });
+
+  it("reports the same layout on the new side as manifest-missing", async () => {
+    // The manifest-only preflight keeps only entries whose effective path is
+    // exactly package.json, so package/package.json/child.js never creates the
+    // file and the read is a miss, not a non-regular directory.
+    const name = "manifest-dir-fixture";
+    const report = await runLayout({
+      name,
+      oldEntries: {
+        "package/package.json": `${JSON.stringify({ name, version: "1.0.0" })}\n`,
+      },
+      newEntries: MANIFEST_DIRECTORY,
+      oldVersion: "1.0.0",
+      newVersion: "2.0.0",
+    });
+    const item = report.packages[0];
+    if (item?.status !== "unavailable") {
+      throw new Error("directory new manifest must be unavailable");
+    }
+    expect(item.failures[0]).toMatchObject({
+      stage: "new-manifest",
+      side: "new",
+      kind: "manifest-missing",
+      severity: "CRITICAL",
+    });
+    expect(report.summary.gateSeverity.CRITICAL).toBe(1);
+    expect(evaluateSeverityGate(report, "CRITICAL").fail).toBe(true);
   });
 });

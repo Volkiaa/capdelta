@@ -509,6 +509,62 @@ describe("renderSarifReport", () => {
     );
   });
 
+  it("renders an old-side manifest-not-regular failure as an unanalyzable error (ADR-019)", () => {
+    const run: CapabilityAnalysisRun = {
+      firstRun: false,
+      summary: { changed: 1, analyzed: 0, unavailable: 1, skipped: 0 },
+      packages: [
+        {
+          status: "unavailable",
+          changedPackage: changed("nonregular", "1.0.0"),
+          failures: [
+            {
+              stage: "old-manifest",
+              failure: {
+                kind: "manifest-not-regular",
+                detail: "package.json is not a regular file",
+                evidence: null,
+              },
+            },
+          ],
+          // ADR-017: the reviewed exception releases the package but stays
+          // visible on its failure result.
+          exception: {
+            reason: "[version 1.0.0] reviewed non-regular manifest",
+          },
+        },
+      ],
+      lockfileFindings: [],
+      skipped: [],
+    };
+    const sarif = JSON.parse(renderSarifReport(run)) as ParsedSarif;
+    const result = sarif.runs[0].results[0];
+    expect(result).toMatchObject({
+      ruleId: "CAPDELTA-MANIFEST-NOT-REGULAR",
+      level: "error",
+      properties: {
+        // The old-side version identity, not the new 2.0.0.
+        version: "1.0.0",
+        side: "old",
+        // The reviewed exception keeps the existing annotation.
+        suppression: "[version 1.0.0] reviewed non-regular manifest",
+      },
+    });
+    expect(result?.message.text).toContain(
+      "for the old artifact of nonregular@1.0.0",
+    );
+    const rule = sarif.runs[0].tool.driver.rules.find(
+      (item) => item.id === "CAPDELTA-MANIFEST-NOT-REGULAR",
+    );
+    // Rule help reaches the `unanalyzable` class through isUnanalyzableIssue.
+    expect(rule?.help.text).toContain(
+      "capdelta could not inspect this artifact, so anything in it is unreviewed.",
+    );
+    expect(rule?.help.text).toContain(
+      "Inspect the artifact manually, or add a reviewed exception bound to these bytes (ADR-017).",
+    );
+  });
+
   it("orders mismatch results deterministically", () => {
     const forward = renderSarifReport(
       mismatchRun([

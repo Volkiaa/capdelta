@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -290,16 +290,41 @@ describe("extractNpmManifestCapabilities", () => {
       status: "unavailable",
       failure: { kind: "manifest-too-large" },
     });
+  });
 
+  it("reports a package.json that is not a regular file as manifest-not-regular", async () => {
+    // A regular archive entry package/package.json/child.js makes package.json
+    // a directory. The bytes decide this, so it is its own CRITICAL kind, not
+    // the severity-null read error (ADR-019).
     const notAFile = await withManifest(null, async (root) => {
       await mkdir(join(root, "package.json"));
       return extractNpmManifestCapabilities({ root }, SUBJECT);
     });
     expect(notAFile).toMatchObject({
       status: "unavailable",
-      failure: { kind: "manifest-unreadable" },
+      failure: {
+        kind: "manifest-not-regular",
+        detail: "package.json is not a regular file",
+      },
     });
   });
+
+  it.skipIf(process.getuid?.() === 0 || process.platform === "win32")(
+    "reports a regular but unreadable package.json as manifest-unreadable",
+    async () => {
+      // A mode-000 regular file is not a not-regular failure: lstat accepts it,
+      // and only the read fails. Root bypasses the permission bits, and Windows
+      // does not apply POSIX mode bits, so skip both.
+      const unreadable = await withManifest("{}", async (root) => {
+        await chmod(join(root, "package.json"), 0o000);
+        return extractNpmManifestCapabilities({ root }, SUBJECT);
+      });
+      expect(unreadable).toMatchObject({
+        status: "unavailable",
+        failure: { kind: "manifest-unreadable" },
+      });
+    },
+  );
 
   it("bounds evidence snippets while retaining the relevant source", async () => {
     const manifest = JSON.stringify({

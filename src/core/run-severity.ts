@@ -67,6 +67,7 @@ export const EXCEPTABLE_UNANALYZABLE_KINDS: readonly ExceptableUnanalyzableKind[
     "manifest-too-large",
     "manifest-invalid-json",
     "manifest-invalid-root",
+    "manifest-not-regular",
     "identity-mismatch",
   ];
 
@@ -250,6 +251,7 @@ function manifestFailureSeverity(
     case "manifest-too-large":
     case "manifest-invalid-json":
     case "manifest-invalid-root":
+    case "manifest-not-regular":
     case "identity-mismatch":
       return "CRITICAL";
     case "manifest-unreadable":
@@ -377,6 +379,7 @@ function isStopKind(
     case "manifest-too-large":
     case "manifest-invalid-json":
     case "manifest-invalid-root":
+    case "manifest-not-regular":
     case "identity-mismatch":
     case "manifest-unreadable":
       return false;

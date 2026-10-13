@@ -93,6 +93,12 @@ const CLASS_CASES: {
     expected: "unanalyzable",
   },
   { stage: "new-manifest", kind: "manifest-missing", expected: "unanalyzable" },
+  // ADR-019: a non-regular manifest is CRITICAL, so it reaches `unanalyzable`.
+  {
+    stage: "old-manifest",
+    kind: "manifest-not-regular",
+    expected: "unanalyzable",
+  },
   { stage: "fetch", kind: "network-error", expected: "operational" },
   { stage: "fetch", kind: "timeout", expected: "operational" },
   { stage: "fetch", kind: "http-unavailable", expected: "operational" },

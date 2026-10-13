@@ -56,6 +56,10 @@ const PLAIN_CRYPTO_INTEGRITY =
   "sha512-4hIzuzUVJZ5y9UzF2wNiqkC2SDjRZxaHOaQirl2S/j5OZQKD4G/yhEXuKPgrrWdIbPzZYbM3y6st1mX/YldOyQ==";
 const AXIOS_INTEGRITY =
   "sha512-9AXKQFjUM2wtdjuqWH5IohcJqgLihPeqEsY4IeQ0YM7p7rqspw/ALUN+44os0YK5sSGrmqs80FDoKQrYy2Uigg==";
+// The manifest-directory base tarball (victim-1.0.0), from its committed
+// lockfile. The exception must bind these exact bytes (ADR-017).
+const MANIFEST_DIRECTORY_INTEGRITY =
+  "sha512-SRCqRyp8CchiQPiaRZcGn04wVa9Xk/BTb0sdONLnRA845HQtCfoJ4tUEVw39EE3FAb5Rq1t9UGa/jSAu4zHupQ==";
 
 interface ScenarioResult {
   run: CapabilityAnalysisRun;
@@ -640,5 +644,69 @@ describe("synthetic mode evasion (ADR-019)", () => {
     expectAllAnalyzed(result, 1);
     expect(result.report.summary.gateSeverity.CRITICAL).toBe(0);
     expect(evaluateSeverityGate(result.report, "CRITICAL").fail).toBe(false);
+  });
+});
+
+describe("synthetic non-regular manifest evasion (ADR-019)", () => {
+  it("fails the default gate when package.json is a directory", async () => {
+    // package/package.json/child.js makes package.json a directory on
+    // extraction. The old side is fully extracted, so the manifest read is a
+    // byte-decided manifest-not-regular CRITICAL, not a severity-null
+    // environmental read error.
+    const result = await runScenario("manifest-directory", "attack");
+    expect(result.report.summary).toMatchObject({
+      changedPackages: 1,
+      analyzedPackages: 0,
+      unavailablePackages: 1,
+      skippedLockfileEntries: 0,
+    });
+    const item = result.report.packages.find(
+      (candidate) => candidate.status === "unavailable",
+    );
+    if (item?.status !== "unavailable") {
+      throw new Error("manifest-directory fixture must be unavailable");
+    }
+    expect(item.failures[0]).toMatchObject({
+      stage: "old-manifest",
+      side: "old",
+      kind: "manifest-not-regular",
+      severity: "CRITICAL",
+    });
+    expect(item.exception).toBeUndefined();
+    expect(result.report.summary.gateSeverity.CRITICAL).toBe(1);
+    expect(evaluateSeverityGate(result.report, "CRITICAL")).toMatchObject({
+      fail: true,
+      exitCode: 1,
+      highest: "CRITICAL",
+    });
+    expect(hasUnanalyzedContent(result.run)).toBe(true);
+  });
+
+  it("keeps gating on an old-side-only exception bound to the exact bytes (rule C.2)", async () => {
+    // The new side reads cleanly, so an exception for the old artifact alone
+    // cannot release the package: no new-side failure was inspected and bound.
+    const reviewed = parseCapdeltaConfig(
+      "unanalyzable:\n" +
+        "  - package: capdelta-fixture-manifest-directory\n" +
+        "    version: 1.0.0\n" +
+        `    integrity: ${MANIFEST_DIRECTORY_INTEGRITY}\n` +
+        "    kind: manifest-not-regular\n" +
+        '    justification: "reviewed non-regular old manifest"\n',
+    );
+    const result = await runScenario("manifest-directory", "attack", {
+      config: reviewed,
+    });
+    const item = result.report.packages.find(
+      (candidate) => candidate.status === "unavailable",
+    );
+    if (item?.status !== "unavailable") {
+      throw new Error("manifest-directory fixture must be unavailable");
+    }
+    expect(item.failures[0]).toMatchObject({
+      kind: "manifest-not-regular",
+      severity: "CRITICAL",
+    });
+    expect(item.exception).toBeUndefined();
+    expect(evaluateSeverityGate(result.report, "CRITICAL").fail).toBe(true);
   });
 });

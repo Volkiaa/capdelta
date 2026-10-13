@@ -42,6 +42,9 @@ limit therefore doubles as a way to hide from the default gate.
    | old/new-manifest          | `manifest-unreadable`, `deadline-exceeded`, `analysis-aborted`                                                                                                | null                                              |
    | old/new-cleanup, analysis | any                                                                                                                                                           | null                                              |
 
+   ADR-019 adds `manifest-not-regular` (a `package.json` that exists but is not a
+   regular file) as a further CRITICAL, exceptable manifest kind.
+
 2. **Both sides count.** A failure on the old artifact also prevents the diff,
    so it hides the new version just as well.
 

@@ -389,14 +389,16 @@ describe("capdelta config unanalyzable exceptions (ADR-017)", () => {
     );
   });
 
-  it.each(["expanded-size-limit", "link-entry", "manifest-missing"])(
-    "accepts the post-verification kind %s",
-    (kind) => {
-      expect(parseUnanalyzable(entry({ kind })).unanalyzable[0]?.kind).toBe(
-        kind,
-      );
-    },
-  );
+  it.each([
+    "expanded-size-limit",
+    "link-entry",
+    "manifest-missing",
+    // ADR-019: a non-regular package.json is decided by the verified bytes, so
+    // it is exceptable like the other manifest kinds.
+    "manifest-not-regular",
+  ])("accepts the post-verification kind %s", (kind) => {
+    expect(parseUnanalyzable(entry({ kind })).unanalyzable[0]?.kind).toBe(kind);
+  });
 
   it("rejects a duplicate tuple", () => {
     expect(() => parseUnanalyzable(entry(), entry())).toThrow(

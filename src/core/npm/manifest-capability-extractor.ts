@@ -35,6 +35,7 @@ const INSTALL_HOOKS: readonly InstallHook[] = [
 
 export type ManifestCapabilityFailureKind =
   | "manifest-missing"
+  | "manifest-not-regular"
   | "manifest-unreadable"
   | "manifest-too-large"
   | "manifest-invalid-json"
@@ -269,7 +270,7 @@ async function readManifest(
     if (metadataStop !== null) return metadataStop;
     if (!metadata.isFile()) {
       return readFailure(
-        "manifest-unreadable",
+        "manifest-not-regular",
         "package.json is not a regular file",
       );
     }

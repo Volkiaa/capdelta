@@ -114,6 +114,30 @@
           "head": ["evasion-1.0.2-control"]
         }
       }
+    },
+    {
+      "name": "manifest-directory",
+      "title": "Synthetic non-regular manifest evasion (not a historical incident)",
+      "date": "n/a: regression for ADR-019",
+      "sources": [
+        "https://github.com/npm/pacote/blob/main/lib/fetcher.js",
+        "https://github.com/isaacs/node-tar/blob/main/src/unpack.ts"
+      ],
+      "kept": "The base tarball stores a regular entry package/package.json/child.js, so extracting it makes package.json a directory even though npm still installs the package. The manifest read is then a post-verification failure decided by the bytes, not an environmental read error.",
+      "omitted": "Everything else: the package is a minimal synthetic stand-in. child.js is inert data and is never imported or executed.",
+      "expected": "The old-side manifest is manifest-not-regular, CRITICAL, so the package is unavailable and the default CRITICAL gate fails. The new side reads cleanly, so an old-side-only reviewed exception does not release it (ADR-017 rule C.2).",
+      "packageMeta": {
+        "victim-1.0.0": {
+          "name": "capdelta-fixture-manifest-directory",
+          "version": "1.0.0"
+        }
+      },
+      "scenarios": {
+        "attack": {
+          "base": ["victim-1.0.0"],
+          "head": ["victim-1.0.1"]
+        }
+      }
     }
   ]
 }

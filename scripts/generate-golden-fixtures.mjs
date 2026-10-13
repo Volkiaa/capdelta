@@ -81,12 +81,17 @@ for (const incident of inventory.incidents) {
       await rewriteEntryModes(tarball, entryModes);
     }
     // Manifest bytes are JSON data, read as text; no fixture code is loaded.
-    const manifest = JSON.parse(
-      await readFile(
-        join(sourceRoot, await soleRoot(sourceRoot), "package.json"),
-        "utf8",
-      ),
-    );
+    // A fixture may make package.json a non-regular entry (an ADR-019 evasion),
+    // which cannot be read as a manifest; the inventory then supplies the
+    // identity via `packageMeta` so the lockfile entry can still be written.
+    const manifest =
+      incident.packageMeta?.[id] ??
+      JSON.parse(
+        await readFile(
+          join(sourceRoot, await soleRoot(sourceRoot), "package.json"),
+          "utf8",
+        ),
+      );
     const basename = manifest.name.split("/").pop();
     entries[id] = {
       name: manifest.name,
