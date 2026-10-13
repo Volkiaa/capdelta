@@ -4,6 +4,16 @@ import type {
   JsonReportSignalFinding,
   JsonRunReport,
 } from "../core/reporter.js";
+import type { FindingSeverity } from "../core/capability-differ.js";
+import {
+  analysisIssueClass,
+  analysisIssueGuidance,
+  capabilityGuidance,
+  guidanceWarranted,
+  signalGuidance,
+  type AnalysisIssueClass,
+  type Guidance,
+} from "../core/finding-guidance.js";
 import {
   assessRunSeverity,
   isUnanalyzableIssue,
@@ -15,6 +25,7 @@ const DEFAULT_MAX_COMMENT_CHARS = 60_000;
 const DEFAULT_MAX_ROWS = 10;
 const MAX_IDENTITY_CHARS = 120;
 const MAX_DETAIL_CHARS = 200;
+export const MAX_GUIDANCE_CHARS = 512;
 const FINDING_SEVERITY_ORDER = {
   CRITICAL: 0,
   HIGH: 1,
@@ -22,6 +33,20 @@ const FINDING_SEVERITY_ORDER = {
   LOW: 3,
   INFO: 4,
 } as const;
+
+/** Readable labels for the deduplicated "What these mean" entries. */
+const ANALYSIS_ISSUE_LABELS: Readonly<Record<AnalysisIssueClass, string>> = {
+  "integrity-mismatch": "integrity mismatch",
+  "lockfile-or-registry-fetch-failure": "lockfile or registry fetch failure",
+  unanalyzable: "unanalyzable package",
+  operational: "operational failure",
+};
+
+interface GuidanceRow {
+  label: string;
+  severity: FindingSeverity;
+  guidance: Guidance;
+}
 
 export interface ActionCommentOptions {
   artifactName?: string;
@@ -104,9 +129,58 @@ export function renderActionComment(
     );
   }
 
+  const guidance = collectGuidance(report);
+  // PLAN §4.5: finding rows are the primary content. Decide the rows exactly as
+  // the pre-guidance reporter did — the full row budget, reduced only when the
+  // no-guidance body does not fit. Guidance is fitted afterwards, into the space
+  // those rows leave, so guidance can never shrink the row count or make a body
+  // throw that the pre-guidance reporter would have returned.
+  const base = fitBaseComment(report, artifactName, maxRows, maxCharacters);
+  let body = base.body;
+  // Add guidance entries while they fit, one at a time.
+  let shown = 0;
+  for (let candidate = 1; candidate <= guidance.length; candidate += 1) {
+    const next = buildComment(
+      report,
+      artifactName,
+      base.rows,
+      guidance.slice(0, candidate),
+      null,
+    );
+    if (Array.from(next).length > maxCharacters) break;
+    shown = candidate;
+    body = next;
+  }
+  // Point at the full guidance only if the notice itself also fits; otherwise
+  // drop it, so the rows and the entries that did fit stay intact.
+  const omitted = guidance.length - shown;
+  if (omitted > 0) {
+    const withNotice = buildComment(
+      report,
+      artifactName,
+      base.rows,
+      guidance.slice(0, shown),
+      omitted,
+    );
+    if (Array.from(withNotice).length <= maxCharacters) body = withNotice;
+  }
+  return body;
+}
+
+/**
+ * The row budget the pre-guidance reporter would pick: the largest row count,
+ * up to `maxRows`, whose guidance-free body fits, or the fixed summary with no
+ * rows. Throws only when even that does not fit, exactly as before guidance.
+ */
+function fitBaseComment(
+  report: JsonRunReport,
+  artifactName: string,
+  maxRows: number,
+  maxCharacters: number,
+): { rows: number; body: string } {
   for (let rows = maxRows; rows >= 0; rows -= 1) {
-    const body = buildComment(report, artifactName, rows);
-    if (Array.from(body).length <= maxCharacters) return body;
+    const body = buildComment(report, artifactName, rows, [], null);
+    if (Array.from(body).length <= maxCharacters) return { rows, body };
   }
   throw new ActionCommentContractError(
     "fixed action-comment summary exceeds the configured size cap",
@@ -203,6 +277,8 @@ function buildComment(
   report: JsonRunReport,
   artifactName: string,
   maxRows: number,
+  guidance: readonly GuidanceRow[],
+  omittedGuidance: number | null,
 ): string {
   const severity = assessRunSeverity(report);
   const lines = [
@@ -277,6 +353,20 @@ function buildComment(
     );
   }
 
+  if (guidance.length > 0) {
+    // PLAN §4.5: one deduplicated section for every CRITICAL/HIGH class in the
+    // comment, so guidance is never repeated per finding.
+    lines.push(
+      "",
+      "### What these mean",
+      "",
+      ...guidance.map(
+        (row) =>
+          `- **${escapeMarkdownText(row.label, MAX_IDENTITY_CHARS)}**: ${escapeMarkdownText(`${row.guidance.whyItMatters} ${row.guidance.whatToCheck}`, MAX_GUIDANCE_CHARS)}`,
+      ),
+    );
+  }
+
   const shownFindings = findings.length;
   const totalFindings =
     report.summary.capabilityFindings + (report.summary.signalFindings ?? 0);
@@ -285,6 +375,17 @@ function buildComment(
   lines.push(
     "",
     `Showing ${String(shownFindings)} of ${String(totalFindings)} findings and ${String(shownIssues)} of ${String(totalIssues)} analysis gaps.`,
+  );
+  const omittedGuidanceCount = omittedGuidance ?? 0;
+  if (omittedGuidanceCount > 0) {
+    // PLAN §4.5: guidance is secondary to the finding rows. The cap cuts it
+    // first. Say how much was cut; the full text still lives in the SARIF rule
+    // help, which is where guidance is presented outside the comment.
+    lines.push(
+      `Guidance for ${String(omittedGuidanceCount)} ${omittedGuidanceCount === 1 ? "class" : "classes"} was omitted; see the SARIF rule help.`,
+    );
+  }
+  lines.push(
     `Full escaped details are available in the workflow artifact ${escapeMarkdownText(artifactName, MAX_IDENTITY_CHARS)}.`,
   );
   return `${lines.join("\n")}\n`;
@@ -364,6 +465,76 @@ function collectExceptions(
     item.status === "unavailable" && item.exception !== undefined
       ? [{ packageName: item.package.name, reason: item.exception.reason }]
       : [],
+  );
+}
+
+/**
+ * PLAN §4.5: deduplicated reviewer guidance for each CRITICAL/HIGH class the
+ * comment presents. Two findings of the same class share one entry; classes
+ * with no gate-worthy member are omitted.
+ */
+function collectGuidance(report: JsonRunReport): GuidanceRow[] {
+  const rows = new Map<string, GuidanceRow>();
+  const add = (
+    key: string,
+    label: string,
+    severity: FindingSeverity,
+    guidance: Guidance,
+  ): void => {
+    const existing = rows.get(key);
+    if (
+      existing === undefined ||
+      FINDING_SEVERITY_ORDER[severity] <
+        FINDING_SEVERITY_ORDER[existing.severity]
+    ) {
+      rows.set(key, { label, severity, guidance });
+    }
+  };
+
+  for (const { finding } of collectFindings(report)) {
+    if (!guidanceWarranted(finding.severity)) continue;
+    if ("kind" in finding && "detail" in finding) {
+      add(
+        `signal:${finding.kind}`,
+        finding.kind,
+        finding.severity,
+        signalGuidance(finding.kind),
+      );
+    } else {
+      const kind = finding.capability.kind;
+      add(
+        `capability:${kind}`,
+        kind,
+        finding.severity,
+        capabilityGuidance(kind),
+      );
+    }
+  }
+
+  for (const { issue } of collectIssues(report)) {
+    if (issue.severity === null || !guidanceWarranted(issue.severity)) continue;
+    const issueClass = analysisIssueClass(issue);
+    const guidance = analysisIssueGuidance(issue);
+    if (issueClass === null || guidance === null) {
+      // A severity-bearing issue always classifies; a null here is a bug, not
+      // a silent skip.
+      throw new ActionCommentContractError(
+        `no guidance class for severity-bearing analysis issue ${issue.stage}/${issue.kind}`,
+      );
+    }
+    add(
+      `analysis:${issueClass}`,
+      ANALYSIS_ISSUE_LABELS[issueClass],
+      issue.severity,
+      guidance,
+    );
+  }
+
+  return [...rows.values()].sort(
+    (left, right) =>
+      FINDING_SEVERITY_ORDER[left.severity] -
+        FINDING_SEVERITY_ORDER[right.severity] ||
+      compareText(left.label, right.label),
   );
 }
 
