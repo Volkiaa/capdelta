@@ -185,6 +185,51 @@ describe("applyUnanalyzableExceptions", () => {
     expect(evaluateSeverityGate(report, "CRITICAL").fail).toBe(false);
   });
 
+  it("excepts manifest-not-regular when both sides match their exact bytes (ADR-019)", () => {
+    // ADR-019 makes a non-regular package.json an exceptable manifest kind.
+    // Rule C.2 still applies: the entry for the old artifact's exact bytes
+    // cannot release the package on its own; the new-side match binds it.
+    const oldFailure: PackageAnalysisFailure = {
+      stage: "old-manifest",
+      failure: {
+        kind: "manifest-not-regular",
+        detail: "package.json is not a regular file",
+        evidence: null,
+      },
+    };
+    const newFailure: PackageAnalysisFailure = {
+      stage: "new-manifest",
+      failure: {
+        kind: "manifest-not-regular",
+        detail: "package.json is not a regular file",
+        evidence: null,
+      },
+    };
+    const entries =
+      "  - package: big-native-pkg\n" +
+      "    version: 1.0.0\n" +
+      `    integrity: ${SRI_B}\n` +
+      "    kind: manifest-not-regular\n" +
+      '    justification: "reviewed non-regular old manifest"\n' +
+      "  - package: big-native-pkg\n" +
+      "    version: 2.3.4\n" +
+      `    integrity: ${SRI_A}\n` +
+      "    kind: manifest-not-regular\n" +
+      '    justification: "reviewed non-regular new manifest"\n';
+    const applied = applyUnanalyzableExceptions(
+      runWith([unavailable([oldFailure, newFailure])]),
+      config(entries),
+    );
+    const item = applied.packages[0];
+    if (item?.status !== "unavailable") throw new Error("fixture drift");
+    expect(item.exception).toEqual({
+      reason: "[version 2.3.4] reviewed non-regular new manifest",
+    });
+    const report = buildRunReport(applied);
+    expect(report.summary.gateSeverity.CRITICAL).toBe(0);
+    expect(evaluateSeverityGate(report, "CRITICAL").fail).toBe(false);
+  });
+
   it("does not release when only the old side is excepted (rule C.2)", () => {
     const oldFailure: PackageAnalysisFailure = {
       stage: "old-extraction",

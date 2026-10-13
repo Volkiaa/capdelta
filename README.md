@@ -258,8 +258,8 @@ that package and version's `node_modules/...` entry in `package-lock.json`.
 `version` must be one exact semver, and `integrity` must be one or more
 canonical sha512 SRI tokens. `kind` must be a post-verification failure kind —
 one of the extraction- or manifest-stage kinds ADR-016 classifies as CRITICAL,
-such as `expanded-size-limit`, `file-count-limit`, `link-entry`, or
-`manifest-missing`. Fetch-stage kinds (`size-limit-exceeded`, `invalid-url`,
+such as `expanded-size-limit`, `file-count-limit`, `link-entry`,
+`manifest-missing`, or `manifest-not-regular`. Fetch-stage kinds (`size-limit-exceeded`, `invalid-url`,
 `unsupported-integrity`, `integrity-mismatch`) happen before or without byte
 verification, so they can never be excepted and are rejected. The same
 `(package, version, integrity, kind)` tuple may not appear twice.

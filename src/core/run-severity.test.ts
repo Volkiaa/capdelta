@@ -150,6 +150,9 @@ describe("run severity classification", () => {
     "manifest-too-large",
     "manifest-invalid-json",
     "manifest-invalid-root",
+    // ADR-019: a package.json that exists but is not a regular file is decided
+    // by the archive bytes, so it is CRITICAL and exceptable like the rest.
+    "manifest-not-regular",
     "identity-mismatch",
   ] as const;
   const MANIFEST_NULL = [
@@ -333,6 +336,14 @@ describe("operational failure (ADR-018)", () => {
         failure: {
           kind: "manifest-unreadable",
           detail: "input/output error",
+          evidence: null,
+        },
+      },
+      {
+        stage: "old-manifest",
+        failure: {
+          kind: "manifest-not-regular",
+          detail: "package.json is not a regular file",
           evidence: null,
         },
       },
