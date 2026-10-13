@@ -55,6 +55,13 @@ export interface CliRuntime {
   /** ADR-018 test seam: injectable backoff, so retry tests never wait. */
   sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
   maxLockfileBytes?: number;
+  /**
+   * ADR-019 test seam: replaces the analysis pipeline so entry-point tests can
+   * inject the environmental stage failures (a residual filesystem error, an
+   * unreadable manifest) that inert bytes cannot reproduce. Production never
+   * sets it.
+   */
+  analyze?: typeof analyzeChangedPackages;
 }
 
 /** Converts all CLI outcomes into deterministic process exit codes and output. */
@@ -137,7 +144,8 @@ async function analyzeCheckout(
     allowMissingConfig,
   );
   const lockfileDiff = diffNpmLockfiles(oldLockfile, headLockfile);
-  const analysis = await analyzeChangedPackages(lockfileDiff, {
+  const analyze = runtime.analyze ?? analyzeChangedPackages;
+  const analysis = await analyze(lockfileDiff, {
     fetcher: {
       ...(runtime.fetchImpl === undefined
         ? {}

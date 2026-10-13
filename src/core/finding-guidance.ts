@@ -32,7 +32,8 @@ export type CapabilityGuidanceKind = Capability["kind"];
 /**
  * The analysis-issue classes a reviewer needs guidance for. `integrity-mismatch`
  * and the lockfile/registry fetch failure are decided by the artifact or its
- * lockfile entry; `unanalyzable` is ADR-016; `operational` is ADR-018.
+ * lockfile entry; `unanalyzable` is ADR-016; `operational` is ADR-018, extended
+ * by ADR-019 to residual filesystem and manifest-read failures.
  */
 export type AnalysisIssueClass =
   | "integrity-mismatch"
@@ -293,7 +294,8 @@ export function analysisIssueClass(
     return "lockfile-or-registry-fetch-failure";
   }
   if (isUnanalyzableIssue(issue)) return "unanalyzable";
-  // ADR-018: operational if and only if the gate's own predicate says so.
+  // ADR-018, ADR-019: operational if and only if the gate's own predicate says
+  // so, including a residual filesystem/manifest-read failure.
   if (isOperationalFailure(operationalProbe(issue))) return "operational";
   if (analysisIssueSeverity(issue) === null) return null;
   throw new SeverityGateError(

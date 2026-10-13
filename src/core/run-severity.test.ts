@@ -325,20 +325,34 @@ describe("operational failure (ADR-018)", () => {
     for (const issue of stops) expect(isOperationalFailure(issue)).toBe(true);
   });
 
-  it("does not count environmental or cleanup failures as operational", () => {
+  it("treats a residual filesystem error as operational at both extraction stages (ADR-019)", () => {
+    for (const stage of ["old-extraction", "new-extraction"] as const) {
+      expect(
+        isOperationalFailure({
+          stage,
+          failure: { kind: "filesystem-error", detail: "input/output error" },
+        }),
+      ).toBe(true);
+    }
+  });
+
+  it("treats an unreadable manifest as operational at both manifest stages (ADR-019)", () => {
+    for (const stage of ["old-manifest", "new-manifest"] as const) {
+      expect(
+        isOperationalFailure({
+          stage,
+          failure: {
+            kind: "manifest-unreadable",
+            detail: "package.json could not be read: EACCES",
+            evidence: null,
+          },
+        }),
+      ).toBe(true);
+    }
+  });
+
+  it("keeps manifest-not-regular and cleanup-failed non-operational (ADR-019)", () => {
     const issues: PackageAnalysisFailure[] = [
-      {
-        stage: "old-extraction",
-        failure: { kind: "filesystem-error", detail: "input/output error" },
-      },
-      {
-        stage: "new-manifest",
-        failure: {
-          kind: "manifest-unreadable",
-          detail: "input/output error",
-          evidence: null,
-        },
-      },
       {
         stage: "old-manifest",
         failure: {
@@ -351,8 +365,33 @@ describe("operational failure (ADR-018)", () => {
         stage: "old-cleanup",
         failure: { kind: "cleanup-failed", detail: "cleanup failed" },
       },
+      {
+        stage: "new-cleanup",
+        failure: { kind: "cleanup-failed", detail: "cleanup failed" },
+      },
     ];
     for (const issue of issues) expect(isOperationalFailure(issue)).toBe(false);
+  });
+
+  it("is stage-specific: a pair the pipeline cannot produce is not newly operational (ADR-019)", () => {
+    // ADR-019 adds the kinds through stage-specific branches, never through
+    // isStopKind. The JSON contract flattens stage and kind, so guard the
+    // restored correlation: a manifest-read kind at an extraction stage and a
+    // filesystem kind at a manifest stage stay non-operational. The cast builds
+    // pairs the pipeline cannot produce.
+    const impossible = [
+      {
+        stage: "old-extraction",
+        failure: { kind: "manifest-unreadable", detail: "impossible pair" },
+      },
+      {
+        stage: "new-manifest",
+        failure: { kind: "filesystem-error", detail: "impossible pair" },
+      },
+    ] as unknown as PackageAnalysisFailure[];
+    for (const issue of impossible) {
+      expect(isOperationalFailure(issue)).toBe(false);
+    }
   });
 
   it("counts each package once, however many failures it has", () => {
@@ -388,7 +427,7 @@ describe("operational failure (ADR-018)", () => {
 
   it("renders the shared CLI and Action message", () => {
     expect(operationalFailureMessage(2)).toBe(
-      "capdelta: 2 package(s) could not be fetched or analyzed before the run ended",
+      "capdelta: 2 package(s) could not be fetched or analyzed",
     );
   });
 });

@@ -6,7 +6,14 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
-import { executeCli } from "./run-cli.js";
+import type {
+  CapabilityAnalysisRun,
+  PackageAnalysisFailure,
+} from "../core/capability-analysis-pipeline.js";
+import type { CapabilityDiffResult } from "../core/capability-differ.js";
+import { parseCapdeltaConfig } from "../core/capdelta-config.js";
+import { applyUnanalyzableExceptions } from "../core/unanalyzable-exceptions.js";
+import { executeCli, type CliRuntime } from "./run-cli.js";
 
 const execFileAsync = promisify(execFile);
 const CLI_PATH = fileURLToPath(new URL("../../dist/cli.js", import.meta.url));
@@ -97,6 +104,33 @@ function sri(bytes: Uint8Array): string {
   return `sha512-${createHash("sha512").update(bytes).digest("base64")}`;
 }
 
+// Canonical sha512 SRI tokens (64 inert bytes each), so a `.capdelta.yml`
+// exception can bind to the exact bytes the injected run reports.
+const OLD_INTEGRITY =
+  "sha512-BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBw==";
+const NEW_INTEGRITY =
+  "sha512-CQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQ==";
+
+// ADR-019: one package that is operational on the old side and CRITICAL on the
+// new side, so a matching exception can release only the severity gate.
+const MIXED_FAILURES: [PackageAnalysisFailure, ...PackageAnalysisFailure[]] = [
+  {
+    stage: "old-manifest",
+    failure: {
+      kind: "manifest-unreadable",
+      detail: "package.json could not be read: EACCES",
+      evidence: null,
+    },
+  },
+  {
+    stage: "new-extraction",
+    failure: {
+      kind: "invalid-archive",
+      detail: "tar archive could not be processed",
+    },
+  },
+];
+
 function lockfileWithGolden(
   version: "1.0.0" | "2.0.0",
   integrity: string,
@@ -157,6 +191,7 @@ async function runInProcess(
   argv: readonly string[],
   fetchImpl?: typeof fetch,
   sleep?: (ms: number, signal?: AbortSignal) => Promise<void>,
+  analyze?: CliRuntime["analyze"],
 ): Promise<ProcessResult & { order: ("stdout" | "stderr")[] }> {
   let stdout = "";
   let stderr = "";
@@ -174,6 +209,7 @@ async function runInProcess(
     },
     ...(fetchImpl === undefined ? {} : { fetchImpl }),
     ...(sleep === undefined ? {} : { sleep }),
+    ...(analyze === undefined ? {} : { analyze }),
   });
   return { exitCode, stdout, stderr, order };
 }
@@ -194,6 +230,80 @@ async function withBump<T>(
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
+}
+
+/** ADR-019: one unavailable package carrying the given pipeline failures. */
+function unavailableRun(
+  failures: readonly [PackageAnalysisFailure, ...PackageAnalysisFailure[]],
+): CapabilityAnalysisRun {
+  return {
+    firstRun: false,
+    summary: { changed: 1, analyzed: 0, unavailable: 1, skipped: 0 },
+    packages: [
+      {
+        status: "unavailable",
+        changedPackage: {
+          name: "unreadable-fixture",
+          oldVersion: "1.0.0",
+          newVersion: "2.0.0",
+          oldIntegrity: OLD_INTEGRITY,
+          newIntegrity: NEW_INTEGRITY,
+          oldResolvedUrl:
+            "https://registry.npmjs.org/unreadable-fixture/-/unreadable-fixture-1.0.0.tgz",
+          resolvedUrl:
+            "https://registry.npmjs.org/unreadable-fixture/-/unreadable-fixture-2.0.0.tgz",
+        },
+        failures,
+      },
+    ],
+    lockfileFindings: [],
+    skipped: [],
+  };
+}
+
+/** An analysis pipeline stub that returns a fixed run (ADR-019 test seam). */
+function analyzeRun(
+  run: CapabilityAnalysisRun,
+): NonNullable<CliRuntime["analyze"]> {
+  return () => Promise.resolve(run);
+}
+
+const EMPTY_DIFF: CapabilityDiffResult = {
+  baseline: { ecosystem: "npm", name: "cleanup-fixture", version: "1.0.0" },
+  subject: { ecosystem: "npm", name: "cleanup-fixture", version: "2.0.0" },
+  newPackage: false,
+  findings: [],
+  diagnostics: [],
+};
+
+/** A successfully analyzed package carrying only non-fatal issues. */
+function analyzedRun(
+  issues: readonly PackageAnalysisFailure[],
+): CapabilityAnalysisRun {
+  return {
+    firstRun: false,
+    summary: { changed: 1, analyzed: 1, unavailable: 0, skipped: 0 },
+    packages: [
+      {
+        status: "analyzed",
+        changedPackage: {
+          name: "cleanup-fixture",
+          oldVersion: "1.0.0",
+          newVersion: "2.0.0",
+          oldIntegrity: OLD_INTEGRITY,
+          newIntegrity: NEW_INTEGRITY,
+          oldResolvedUrl:
+            "https://registry.npmjs.org/cleanup-fixture/-/cleanup-fixture-1.0.0.tgz",
+          resolvedUrl:
+            "https://registry.npmjs.org/cleanup-fixture/-/cleanup-fixture-2.0.0.tgz",
+        },
+        diff: EMPTY_DIFF,
+        issues,
+      },
+    ],
+    lockfileFindings: [],
+    skipped: [],
+  };
 }
 
 describe("capdelta CLI", () => {
@@ -469,7 +579,7 @@ describe("capdelta CLI", () => {
           return Promise.resolve(new Response("unavailable", { status: 503 }));
         };
         const message =
-          "capdelta: 1 package(s) could not be fetched or analyzed before the run ended\n";
+          "capdelta: 1 package(s) could not be fetched or analyzed\n";
 
         const defaultGate = await runInProcess(
           cwd,
@@ -537,6 +647,242 @@ describe("capdelta CLI", () => {
           "stderr",
           "stderr",
         ]);
+      },
+    );
+  });
+
+  it.each(["old-extraction", "new-extraction"] as const)(
+    "fails operationally on a %s filesystem-error, even with --fail-on none (ADR-019)",
+    async (stage) => {
+      const analyze = analyzeRun(
+        unavailableRun([
+          {
+            stage,
+            failure: { kind: "filesystem-error", detail: "input/output error" },
+          },
+        ]),
+      );
+      const message =
+        "capdelta: 1 package(s) could not be fetched or analyzed\n";
+      await withBump(
+        emptyLockfile("filesystem-base"),
+        emptyLockfile("filesystem-head"),
+        async (cwd) => {
+          const gated = await runInProcess(
+            cwd,
+            ["--base", "HEAD"],
+            undefined,
+            undefined,
+            analyze,
+          );
+          expect(gated.exitCode).toBe(1);
+          expect(gated.stderr).toBe(message);
+
+          const reportOnly = await runInProcess(
+            cwd,
+            ["--base", "HEAD", "--fail-on", "none"],
+            undefined,
+            undefined,
+            analyze,
+          );
+          expect(reportOnly.exitCode).toBe(1);
+          expect(reportOnly.stderr).toBe(message);
+
+          const strict = await runInProcess(
+            cwd,
+            ["--base", "HEAD", "--strict"],
+            undefined,
+            undefined,
+            analyze,
+          );
+          expect(strict.exitCode).toBe(2);
+          expect(strict.stderr).toBe(
+            `${message}capdelta: strict mode found unanalyzed content\n`,
+          );
+        },
+      );
+    },
+  );
+
+  it.each(["old-manifest", "new-manifest"] as const)(
+    "fails operationally on a %s manifest-unreadable, even with --fail-on none (ADR-019)",
+    async (stage) => {
+      const analyze = analyzeRun(
+        unavailableRun([
+          {
+            stage,
+            failure: {
+              kind: "manifest-unreadable",
+              detail: "package.json could not be read: EACCES",
+              evidence: null,
+            },
+          },
+        ]),
+      );
+      const message =
+        "capdelta: 1 package(s) could not be fetched or analyzed\n";
+      await withBump(
+        emptyLockfile("manifest-base"),
+        emptyLockfile("manifest-head"),
+        async (cwd) => {
+          const gated = await runInProcess(
+            cwd,
+            ["--base", "HEAD"],
+            undefined,
+            undefined,
+            analyze,
+          );
+          expect(gated.exitCode).toBe(1);
+          expect(gated.stderr).toBe(message);
+
+          const reportOnly = await runInProcess(
+            cwd,
+            ["--base", "HEAD", "--fail-on", "none"],
+            undefined,
+            undefined,
+            analyze,
+          );
+          expect(reportOnly.exitCode).toBe(1);
+          expect(reportOnly.stderr).toBe(message);
+
+          const strict = await runInProcess(
+            cwd,
+            ["--base", "HEAD", "--strict"],
+            undefined,
+            undefined,
+            analyze,
+          );
+          expect(strict.exitCode).toBe(2);
+          expect(strict.stderr).toBe(
+            `${message}capdelta: strict mode found unanalyzed content\n`,
+          );
+        },
+      );
+    },
+  );
+
+  it("counts a mixed manifest-unreadable plus CRITICAL package once (ADR-019)", async () => {
+    const analyze = analyzeRun(unavailableRun(MIXED_FAILURES));
+    const message = "capdelta: 1 package(s) could not be fetched or analyzed\n";
+    await withBump(
+      emptyLockfile("mixed-base"),
+      emptyLockfile("mixed-head"),
+      async (cwd) => {
+        const gated = await runInProcess(
+          cwd,
+          ["--base", "HEAD"],
+          undefined,
+          undefined,
+          analyze,
+        );
+        expect(gated.exitCode).toBe(1);
+        // One package with two failures counts once: one CRITICAL plus one
+        // operational, on opposite sides.
+        expect(gated.stderr).toBe(
+          `capdelta: 1 finding(s) at or above CRITICAL (highest: CRITICAL)\n${message}`,
+        );
+        expect(gated.stdout).toContain(
+          "[CRITICAL] could not analyze: [new-extraction/invalid-archive]",
+        );
+
+        const reportOnly = await runInProcess(
+          cwd,
+          ["--base", "HEAD", "--fail-on", "none"],
+          undefined,
+          undefined,
+          analyze,
+        );
+        expect(reportOnly.exitCode).toBe(1);
+        expect(reportOnly.stderr).toBe(message);
+      },
+    );
+  });
+
+  it("builds a reviewed exception through the real config path; it releases the gate but not the operational exit (ADR-019)", async () => {
+    // ADR-017 matching runs for real: parse `.capdelta.yml`, apply it to the
+    // mixed run, and inject the result, instead of hand-attaching metadata.
+    const config = parseCapdeltaConfig(
+      "unanalyzable:\n" +
+        "  - package: unreadable-fixture\n" +
+        "    version: 2.0.0\n" +
+        `    integrity: ${NEW_INTEGRITY}\n` +
+        "    kind: invalid-archive\n" +
+        '    justification: "reviewed inert invalid archive"\n',
+    );
+    const run = applyUnanalyzableExceptions(
+      unavailableRun(MIXED_FAILURES),
+      config,
+    );
+    const item = run.packages[0];
+    if (item?.status !== "unavailable") throw new Error("fixture drift");
+    // The exception attached through matching, not by hand.
+    expect(item.exception).toEqual({
+      reason: "[version 2.0.0] reviewed inert invalid archive",
+    });
+
+    const message = "capdelta: 1 package(s) could not be fetched or analyzed\n";
+    await withBump(
+      emptyLockfile("mixed-base"),
+      emptyLockfile("mixed-head"),
+      async (cwd) => {
+        const analyze = analyzeRun(run);
+        const gated = await runInProcess(
+          cwd,
+          ["--base", "HEAD", "--format", "json"],
+          undefined,
+          undefined,
+          analyze,
+        );
+        expect(gated.exitCode).toBe(1);
+        expect(gated.stderr).toBe(message);
+        expect(gated.stdout).toContain(
+          "[version 2.0.0] reviewed inert invalid archive",
+        );
+        const report = JSON.parse(gated.stdout) as {
+          summary: { gateSeverity: { CRITICAL: number } };
+        };
+        // The exception releases the CRITICAL, so the gate does not fail...
+        expect(report.summary.gateSeverity.CRITICAL).toBe(0);
+        // ...but the old-side manifest read stays operational.
+
+        const strict = await runInProcess(
+          cwd,
+          ["--base", "HEAD", "--strict"],
+          undefined,
+          undefined,
+          analyze,
+        );
+        expect(strict.exitCode).toBe(2);
+        expect(strict.stderr).toBe(
+          `${message}capdelta: strict mode found unanalyzed content\n`,
+        );
+      },
+    );
+  });
+
+  it("exits 0 for a cleanup-only warning on an analyzed package (ADR-019)", async () => {
+    const analyze = analyzeRun(
+      analyzedRun([
+        {
+          stage: "old-cleanup",
+          failure: { kind: "cleanup-failed", detail: "cleanup failed" },
+        },
+      ]),
+    );
+    await withBump(
+      emptyLockfile("cleanup-base"),
+      emptyLockfile("cleanup-head"),
+      async (cwd) => {
+        const result = await runInProcess(
+          cwd,
+          ["--base", "HEAD"],
+          undefined,
+          undefined,
+          analyze,
+        );
+        expect(result.exitCode).toBe(0);
+        expect(result.stderr).toBe("");
+        expect(result.stdout).toContain("[old-cleanup/cleanup-failed]");
       },
     );
   });

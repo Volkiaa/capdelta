@@ -342,6 +342,49 @@ describe("runAction", () => {
     });
   });
 
+  it("fails operationally on a residual filesystem or manifest-read failure (ADR-019)", async () => {
+    const residualFailures: PackageAnalysisFailure[] = [
+      {
+        stage: "old-extraction",
+        failure: { kind: "filesystem-error", detail: "input/output error" },
+      },
+      {
+        stage: "new-manifest",
+        failure: {
+          kind: "manifest-unreadable",
+          detail: "package.json could not be read: EACCES",
+          evidence: null,
+        },
+      },
+    ];
+    for (const failure of residualFailures) {
+      const runtime = adapters(unavailableRun([failure]));
+      const outcome = await runAction(
+        { ...inputs, failOn: "none" },
+        context,
+        runtime,
+      );
+      expect(outcome).toMatchObject({
+        status: "analyzed",
+        gate: { fail: false },
+        operationalFailure: true,
+        operationalFailureCount: 1,
+      });
+      if (outcome.status !== "analyzed") throw new Error("expected analyzed");
+      // The Action fails with the shared message even though the severity gate
+      // passed.
+      expect(
+        actionFailureMessage({
+          gate: outcome.gate,
+          operationalFailure: outcome.operationalFailure,
+          operationalFailureCount: outcome.operationalFailureCount,
+          strictFailure: outcome.strictFailure,
+        }),
+      ).toBe("capdelta: 1 package(s) could not be fetched or analyzed");
+      expect(runtime.setOutput).toHaveBeenCalledWith("status", "failed");
+    }
+  });
+
   describe("actionFailureMessage (ADR-018)", () => {
     const passing = {
       fail: false,
@@ -354,7 +397,7 @@ describe("runAction", () => {
       threshold: "HIGH",
     } as const;
     const operationalMessage =
-      "capdelta: 3 package(s) could not be fetched or analyzed before the run ended";
+      "capdelta: 3 package(s) could not be fetched or analyzed";
 
     it("returns null when the run passes", () => {
       expect(

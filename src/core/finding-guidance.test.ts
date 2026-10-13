@@ -114,8 +114,16 @@ const CLASS_CASES: {
     kind: "analysis-aborted",
     expected: "operational",
   },
-  { stage: "new-extraction", kind: "filesystem-error", expected: null },
-  { stage: "new-manifest", kind: "manifest-unreadable", expected: null },
+  {
+    stage: "new-extraction",
+    kind: "filesystem-error",
+    expected: "operational",
+  },
+  {
+    stage: "new-manifest",
+    kind: "manifest-unreadable",
+    expected: "operational",
+  },
   { stage: "new-cleanup", kind: "cleanup-failed", expected: null },
 ];
 
@@ -252,14 +260,27 @@ describe("finding guidance", () => {
 
   it("returns null guidance for a severity-null, non-operational issue", () => {
     expect(
-      analysisIssueGuidance({
-        stage: "new-extraction",
-        kind: "filesystem-error",
-      }),
-    ).toBeNull();
-    expect(
       analysisIssueGuidance({ stage: "new-cleanup", kind: "cleanup-failed" }),
     ).toBeNull();
+    expect(
+      analysisIssueClass({ stage: "old-cleanup", kind: "cleanup-failed" }),
+    ).toBeNull();
+  });
+
+  it("returns operational guidance for a residual filesystem or manifest-read failure (ADR-019)", () => {
+    // These stay severity-null but are now operational, so they classify and
+    // carry the operational guidance.
+    for (const issue of [
+      { stage: "old-extraction", kind: "filesystem-error" },
+      { stage: "new-extraction", kind: "filesystem-error" },
+      { stage: "old-manifest", kind: "manifest-unreadable" },
+      { stage: "new-manifest", kind: "manifest-unreadable" },
+    ] as const) {
+      expect(analysisIssueClass(issue)).toBe("operational");
+      expect(analysisIssueGuidance(issue)).toBe(
+        ANALYSIS_ISSUE_GUIDANCE.operational,
+      );
+    }
   });
 
   it("warrants guidance only for CRITICAL and HIGH", () => {

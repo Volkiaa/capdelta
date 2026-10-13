@@ -107,6 +107,7 @@ async function analyzeOnce(pair: ChangedPackage): Promise<Attempt> {
     status:
       report.summary.unavailablePackages === 0 ? "analyzed" : "unavailable",
     transient: isTransient(report),
+    // ADR-019 decision 5: this counts the severity gate only, not operational exit 1.
     gateFail: evaluateSeverityGate(report, "CRITICAL").fail,
     strictIncomplete: hasUnanalyzedContent(run),
     report,

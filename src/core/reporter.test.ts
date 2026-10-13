@@ -10,6 +10,7 @@ import {
   renderTextReport,
   renderTextRunReport,
 } from "./reporter.js";
+import { renderSarifReport } from "./sarif-reporter.js";
 
 function emptyResult(): CapabilityDiffResult {
   return {
@@ -887,6 +888,58 @@ describe("run severity classification", () => {
     };
     expect(report.summary.gateSeverity.CRITICAL).toBe(0);
     expect(renderTextRunReport(run)).not.toContain("Gate severity");
+  });
+
+  it("renders no guidance for a null-severity operational issue (ADR-019)", () => {
+    const run: CapabilityAnalysisRun = {
+      firstRun: false,
+      summary: { changed: 1, analyzed: 0, unavailable: 1, skipped: 0 },
+      packages: [
+        {
+          status: "unavailable",
+          changedPackage: changedPackage("unreadable"),
+          failures: [
+            {
+              stage: "new-extraction",
+              failure: {
+                kind: "filesystem-error",
+                detail: "extraction failed and cleanup failed",
+              },
+            },
+            {
+              stage: "new-manifest",
+              failure: {
+                kind: "manifest-unreadable",
+                detail: "package.json could not be read",
+                evidence: null,
+              },
+            },
+          ],
+        },
+      ],
+      lockfileFindings: [],
+      skipped: [],
+    };
+    const report = JSON.parse(renderJsonRunReport(run)) as {
+      summary: { gateSeverity: Record<string, number>; analysisIssues: number };
+    };
+    // ADR-019: operational, but still severity-null, so the gate does not move.
+    expect(report.summary.gateSeverity.CRITICAL).toBe(0);
+    expect(report.summary.analysisIssues).toBe(2);
+    const text = renderTextRunReport(run);
+    expect(text).toContain(
+      '- [new-extraction/filesystem-error] "extraction failed and cleanup failed"',
+    );
+    expect(text).toContain(
+      '- [new-manifest/manifest-unreadable] "package.json could not be read"',
+    );
+    expect(text).not.toContain("Why:");
+    expect(text).not.toContain("Check:");
+    // ADR-019 consequence: a null-severity issue renders no SARIF result.
+    const sarif = JSON.parse(renderSarifReport(run)) as {
+      runs: { results: unknown[] }[];
+    };
+    expect(sarif.runs[0]?.results).toEqual([]);
   });
 
   it("releases a reviewed exception from the gate but keeps its issues", () => {
