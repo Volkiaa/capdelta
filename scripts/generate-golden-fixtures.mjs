@@ -6,6 +6,7 @@ import { createHash } from "node:crypto";
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath, URL } from "node:url";
+import { gzipSync, gunzipSync } from "node:zlib";
 import * as tar from "tar";
 
 const goldenRoot = fileURLToPath(
@@ -44,6 +45,7 @@ for (const goldenCase of cases) {
 const reconstructionRoot = fileURLToPath(
   new URL("../test/fixtures/reconstructions/", import.meta.url),
 );
+const BLOCK_SIZE = 512;
 const inventory = JSON.parse(
   await readFile(join(reconstructionRoot, "inventory.json"), "utf8"),
 );
@@ -64,6 +66,20 @@ for (const incident of inventory.incidents) {
     const sourceRoot = join(incidentRoot, "packages", id);
     const tarball = join(incidentRoot, "packages", `${id}.tgz`);
     await packTree(sourceRoot, tarball);
+    const entryModes = incident.entryModes?.[id];
+    if (entryModes !== undefined) {
+      for (const [path, declared] of Object.entries(entryModes)) {
+        if (
+          !/^[0-7]{1,4}$/u.test(declared) ||
+          Number.parseInt(declared, 8) > 0o7777
+        ) {
+          throw new Error(
+            `entryModes for ${id} entry ${path} must be 1-4 octal digits <= 7777, got ${JSON.stringify(declared)}`,
+          );
+        }
+      }
+      await rewriteEntryModes(tarball, entryModes);
+    }
     // Manifest bytes are JSON data, read as text; no fixture code is loaded.
     const manifest = JSON.parse(
       await readFile(
@@ -123,6 +139,79 @@ async function packTree(sourceRoot, tarball) {
     },
     (await topLevelRoots(sourceRoot)).flatMap((files) => files),
   );
+}
+
+/**
+ * Rewrites the mode of named entries in a packed tarball and re-gzips it
+ * deterministically. portable packing forces a 0o600 floor, so a fixture that
+ * needs a mode-000 entry (an ADR-019 evasion) cannot reach it through tar.c;
+ * this patches the ustar headers directly and fixes each checksum.
+ *
+ * This is a short-ASCII ustar fixture helper only. It walks the archive by the
+ * fixed 512-byte header/body arithmetic and edits the 8-byte mode field of the
+ * named entries; it is not a general PAX or base-256 tar editor, so it does not
+ * understand extended headers, GNU long names, or a high-bit size field.
+ */
+async function rewriteEntryModes(tarball, entryModes) {
+  const remaining = new Map(Object.entries(entryModes));
+  const buf = gunzipSync(await readFile(tarball));
+  let offset = 0;
+  while (offset + BLOCK_SIZE <= buf.length) {
+    const header = buf.subarray(offset, offset + BLOCK_SIZE);
+    if (header.every((byte) => byte === 0)) {
+      offset += BLOCK_SIZE;
+      continue;
+    }
+    const name = cString(header, 0, 100);
+    const prefix = cString(header, 345, 500);
+    const path = prefix === "" ? name : `${prefix}/${name}`;
+    const size = Number.parseInt(cString(header, 124, 136).trim() || "0", 8);
+    const type = String.fromCharCode(header[156] ?? 0);
+    const declared = remaining.get(path);
+    if (declared !== undefined) {
+      if (type !== "0" && type !== "\0") {
+        throw new Error(`entryModes target ${path} is not a regular file`);
+      }
+      writeOctalField(header, Number.parseInt(declared, 8), 100, 8);
+      writeChecksum(header);
+      remaining.delete(path);
+    }
+    offset += BLOCK_SIZE + Math.ceil(size / BLOCK_SIZE) * BLOCK_SIZE;
+  }
+  if (remaining.size > 0) {
+    throw new Error(
+      `entryModes did not match archive entries: ${[...remaining.keys()].join(", ")}`,
+    );
+  }
+  await writeFile(tarball, gzipSync(buf));
+}
+
+function cString(header, start, end) {
+  // ustar name/prefix fields are byte strings; fixture paths are ASCII.
+  let text = "";
+  for (let index = start; index < end; index += 1) {
+    const byte = header[index];
+    if (byte === 0) break;
+    text += String.fromCharCode(byte);
+  }
+  return text;
+}
+
+function writeOctalField(header, value, start, length) {
+  const encoded = `${value.toString(8).padStart(length - 1, "0")}\0`;
+  for (let index = 0; index < encoded.length; index += 1) {
+    header[start + index] = encoded.charCodeAt(index);
+  }
+}
+
+function writeChecksum(header) {
+  header.fill(0x20, 148, 156);
+  let checksum = 0;
+  for (const byte of header) checksum += byte;
+  const encoded = `${checksum.toString(8).padStart(6, "0")}\0 `;
+  for (let index = 0; index < encoded.length; index += 1) {
+    header[148 + index] = encoded.charCodeAt(index);
+  }
 }
 
 /** Reconstruction fixtures keep one root, so their manifest is unambiguous. */

@@ -1,0 +1,17 @@
+{
+  "name": "reconstruction-project",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "name": "reconstruction-project",
+      "version": "1.0.0"
+    },
+    "node_modules/capdelta-fixture-mode-evasion": {
+      "version": "1.0.2-control",
+      "resolved": "https://registry.npmjs.org/capdelta-fixture-mode-evasion/-/capdelta-fixture-mode-evasion-1.0.2-control.tgz",
+      "integrity": "sha512-w9myT6fwwkkAwDYU/H4ZXXKks9WoGB5faMFlcuTjeF9slxEdl6pUSVUCKk15Pgcukj7g98XiMHGPC7JcHCWoMw=="
+    }
+  }
+}

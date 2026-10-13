@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { gzipSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import type { VerifiedTarball } from "./fetcher.js";
@@ -34,6 +34,8 @@ interface TarEntry {
   body?: Uint8Array;
   type?: string;
   linkpath?: string;
+  /** Archive mode bits; defaults to 0o644. */
+  mode?: number;
 }
 
 /**
@@ -47,7 +49,7 @@ function tarball(entries: readonly TarEntry[]): VerifiedTarball {
     const body = entry.body ?? new Uint8Array();
     const header = new Uint8Array(512);
     writeString(header, entry.path, 0, 100);
-    writeOctal(header, 0o644, 100, 8);
+    writeOctal(header, entry.mode ?? 0o644, 100, 8);
     writeOctal(header, 0, 108, 8);
     writeOctal(header, 0, 116, 8);
     writeOctal(header, body.byteLength, 124, 12);
@@ -115,6 +117,20 @@ function regularFile(path: string, text = "inert fixture"): TarEntry {
 
 function directory(path: string): TarEntry {
   return { path, type: "5" };
+}
+
+/**
+ * Encodes PAX extended-header records ("N key=value\n", where N is the whole
+ * record's length). Fixture records are short, so one pass fixes the length.
+ */
+function paxBody(fields: Readonly<Record<string, string>>): Uint8Array {
+  let body = "";
+  for (const [key, value] of Object.entries(fields)) {
+    const record = `${key}=${value}\n`;
+    const length = record.length + String(record.length + 1).length + 1;
+    body += `${String(length)} ${record}`;
+  }
+  return new TextEncoder().encode(body);
 }
 
 describe("extractVerifiedTarball", () => {
@@ -424,5 +440,151 @@ describe("extractVerifiedTarball", () => {
     await expect(
       extractVerifiedTarball(tarball([]), { maxFileCount: 0 }),
     ).rejects.toBeInstanceOf(ExtractorConfigurationError);
+  });
+
+  describe("mode normalization (ADR-019)", () => {
+    async function modeBits(path: string): Promise<number> {
+      return (await stat(path)).mode & 0o7777;
+    }
+
+    it("makes a mode-000 file readable and stores it as 0o600", async () => {
+      // node-tar creates the file with the archive mode when chmod is false,
+      // so before ADR-019 an unprivileged runner could not read this index.js.
+      const archive = tarball([
+        regularFile("package/package.json", '{"name":"fixture"}'),
+        { ...regularFile("package/index.js", "inert fixture"), mode: 0o000 },
+      ]);
+      await withExtraction(
+        extractVerifiedTarball(archive),
+        async ({ root }) => {
+          await expect(readFile(`${root}/index.js`, "utf8")).resolves.toBe(
+            "inert fixture",
+          );
+          expect(await modeBits(`${root}/index.js`)).toBe(0o600);
+        },
+      );
+    });
+
+    it.each([
+      ["setuid", 0o4755],
+      ["setgid", 0o2755],
+      ["sticky", 0o1755],
+    ] as const)("strips the %s bit, storing 0o600", async (_label, mode) => {
+      const archive = tarball([
+        regularFile("package/package.json", '{"name":"fixture"}'),
+        { ...regularFile("package/index.js", "inert fixture"), mode },
+      ]);
+      await withExtraction(
+        extractVerifiedTarball(archive),
+        async ({ root }) => {
+          await expect(readFile(`${root}/index.js`, "utf8")).resolves.toBe(
+            "inert fixture",
+          );
+          expect(await modeBits(`${root}/index.js`)).toBe(0o600);
+        },
+      );
+    });
+
+    it("normalizes the manifest-only pass with the same filter", async () => {
+      const archive = tarball([
+        {
+          ...regularFile("package/package.json", '{"name":"fixture"}'),
+          mode: 0o000,
+        },
+        { ...regularFile("package/index.js", "inert fixture"), mode: 0o000 },
+      ]);
+      await withExtraction(
+        extractVerifiedManifest(archive),
+        async ({ root }) => {
+          await expect(readFile(`${root}/package.json`, "utf8")).resolves.toBe(
+            '{"name":"fixture"}',
+          );
+          expect(await modeBits(`${root}/package.json`)).toBe(0o600);
+          expect(existsSync(`${root}/index.js`)).toBe(false);
+        },
+      );
+    });
+
+    it("normalizes an old-format file (NUL typeflag) stored with mode 000", async () => {
+      // Old tar marks regular files with a NUL typeflag. node-tar 7.5.22
+      // normalizes that to File (header.js: `this.#type = t || "0"`), so its
+      // `OldFile` case in unpack is unreachable from an archive; this still
+      // guards the old-format header path through the same filter.
+      const archive = tarball([
+        regularFile("package/package.json", '{"name":"fixture"}'),
+        {
+          ...regularFile("package/index.js", "inert fixture"),
+          type: "\0",
+          mode: 0o000,
+        },
+      ]);
+      await withExtraction(
+        extractVerifiedTarball(archive),
+        async ({ root }) => {
+          await expect(readFile(`${root}/index.js`, "utf8")).resolves.toBe(
+            "inert fixture",
+          );
+          expect(await modeBits(`${root}/index.js`)).toBe(0o600);
+        },
+      );
+    });
+
+    it("creates a traversable parent despite a mode-000 Directory header", async () => {
+      // Directory headers are dropped, so node-tar makes the parent itself;
+      // the nested file must still be readable and 0o600.
+      const archive = tarball([
+        regularFile("package/package.json", '{"name":"fixture"}'),
+        { ...directory("package/dir/"), mode: 0o000 },
+        { ...regularFile("package/dir/x.js", "nested fixture"), mode: 0o000 },
+      ]);
+      await withExtraction(
+        extractVerifiedTarball(archive),
+        async ({ root }) => {
+          await expect(readdir(`${root}/dir`)).resolves.toEqual(["x.js"]);
+          await expect(readFile(`${root}/dir/x.js`, "utf8")).resolves.toBe(
+            "nested fixture",
+          );
+          expect(await modeBits(`${root}/dir/x.js`)).toBe(0o600);
+        },
+      );
+    });
+
+    it("keeps the final bytes and 0o600 for a duplicate pathname", async () => {
+      const archive = tarball([
+        regularFile("package/package.json", '{"name":"fixture"}'),
+        { ...regularFile("package/index.js", "first"), mode: 0o644 },
+        { ...regularFile("package/index.js", "last"), mode: 0o4755 },
+      ]);
+      await withExtraction(
+        extractVerifiedTarball(archive),
+        async ({ root }) => {
+          await expect(readFile(`${root}/index.js`, "utf8")).resolves.toBe(
+            "last",
+          );
+          expect(await modeBits(`${root}/index.js`)).toBe(0o600);
+        },
+      );
+    });
+
+    it("normalizes a mode supplied by a PAX extended header", async () => {
+      const archive = tarball([
+        regularFile("package/package.json", '{"name":"fixture"}'),
+        {
+          path: "PaxHeader/index.js",
+          type: "x",
+          body: paxBody({ mode: "0000000" }),
+        },
+        { ...regularFile("package/index.js", "inert fixture"), mode: 0o644 },
+      ]);
+      await withExtraction(
+        extractVerifiedTarball(archive),
+        async ({ root }) => {
+          await expect(readFile(`${root}/index.js`, "utf8")).resolves.toBe(
+            "inert fixture",
+          );
+          expect(await modeBits(`${root}/index.js`)).toBe(0o600);
+        },
+      );
+    });
   });
 });
