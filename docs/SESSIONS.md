@@ -533,3 +533,77 @@ escapes; worth considering a CI grep for control characters in source files.
 2. Remaining M5 noise: published TypeScript sources as MEDIUM and numeric
    matrices matching the charcode-array recognizer. Any change needs a new
    independent corpus.
+
+## 2026-10-13 — Finding guidance: why it matters and what to check
+
+### 1. Completed and verified
+
+- **`src/core/finding-guidance.ts` (new).** Constant `whyItMatters` /
+  `whatToCheck` guidance for every shape rule (`ShapeRuleId`), every capability
+  kind (`Capability["kind"]`, the four manifest kinds plus `CodeCapabilityKind`),
+  every signal kind (`SignalFindingKind`), and four analysis-issue classes
+  (integrity mismatch, lockfile/registry fetch failure, unanalyzable per
+  ADR-016, operational per ADR-018). The kind lookups are
+  `Record<UnionType, Guidance>`, so a new kind fails to compile until it has
+  guidance. `analysisIssueClass` derives the class from the `run-severity.ts`
+  helpers (`analysisIssueSeverity`, `isUnanalyzableIssue`, the gate's own
+  `isOperationalFailure`, and `FETCH_STAGE_CRITICAL_KINDS`): every fetch-stage
+  critical kind other than `integrity-mismatch` is a lockfile/registry fetch
+  failure, because ADR-017 forbids a reviewed exception for those kinds, while
+  `unanalyzable` is now only a post-verification failure. The gate's array
+  decides the set, so no fetch kind is hand-written. So guidance can never drift
+  from the gate; the hand-written `ANALYSIS_ISSUE_KIND_CLASSES` table was
+  deleted. It returns
+  `null` for a severity-null, non-operational issue (for example
+  `filesystem-error`, `manifest-unreadable`, `cleanup-failed`), and every
+  caller handles the `null` explicitly. No package, lockfile, or registry data
+  is interpolated into any string.
+- **Wording.** Install hooks say they _could_ run during npm install unless
+  install scripts are disabled, with no incident names or prevalence claims.
+  Heuristic results (secret-exfiltration, FS_SENSITIVE, obfuscation, entropy)
+  say what static analysis found or suggests. `DYNAMIC_CODE` says it _could_
+  build and run code from strings. The fetch-failure check says a reviewed
+  exception _cannot cover_ it (ADR-017), the unanalyzable check binds an
+  exception to the verified bytes, and integrity mismatch asks to regenerate the
+  lockfile from a trusted registry. The wording guard bans malware,
+  malicious, detected, compromised, attack, attacker, backdoor, steal, and
+  worm, case-insensitively, over every string in every table.
+- **Text report (`src/core/reporter.ts`).** CRITICAL/HIGH findings, shapes,
+  signals, and severity-bearing analysis issues print `Why:` / `Check:` lines;
+  LOW and INFO lines are unchanged. JSON is unchanged (presentation only).
+  `guidanceWarranted` is now one exported helper in `finding-guidance.ts`.
+- **PR comment (`src/action/action-comment-reporter.ts`).** One deduplicated
+  “What these mean” section. The cap first decides the rows exactly as the
+  pre-guidance reporter did — the full row budget, reduced only when the body
+  without guidance does not fit — and only then fits guidance into the space
+  those rows leave, adding entries while they fit. The omission footer is added
+  only if it also fits, and points at the SARIF rule help; it no longer names
+  the JSON artifact, which carries no guidance. Guidance can never reduce the
+  row count or make an otherwise-fittable comment throw.
+  `MAX_GUIDANCE_CHARS` (512) leaves headroom over the longest escaped entry.
+- **SARIF (`src/core/sarif-reporter.ts`).** Each rule's `help.text` is its
+  class guidance plus the unchanged “does not assert malware” sentence;
+  install-hook, install-time execution, integrity-mismatch, and unanalyzable
+  rules have distinct help. The missing-guidance throw names the rule id.
+  `dist/action/` was rebuilt.
+- Goldens: `test/fixtures/golden/*/expected.txt` and
+  `install-script-added/expected-run.txt` refreshed only for the changed
+  Why/Check lines (packer `node scripts/generate-golden-fixtures.mjs` produced
+  no archive changes); `gateSeverity` is unchanged.
+
+### 2. Half-done and exact resume point
+
+- Nothing half-done. Lockfile findings (for example
+  `integrity-changed-version-same`) intentionally do not carry guidance yet;
+  only findings, shapes, signals, and severity-bearing analysis issues do.
+
+### 3. ADR status
+
+- No new ADR: this is presentation-only and does not change the gate, the
+  allowlist, or any severity.
+
+### 4. Open questions
+
+1. Should the PR comment's guidance derive from the rows actually displayed
+   (after the row cap) rather than every CRITICAL/HIGH class in the report?
+2. Should lockfile findings gain their own guidance class?

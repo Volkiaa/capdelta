@@ -103,6 +103,19 @@ its detail rows. Every capability finding includes escaped, length-bounded
 `file:line` evidence and a snippet. Copy says “review this change,” never
 “malware detected.”
 
+### What each finding means
+
+CRITICAL and HIGH changes carry two reviewer lines: `Why:` describes what the
+code could do, and `Check:` says what to verify. The text report prints them
+under each finding, shape, signal, and severity-bearing analysis issue; the PR
+comment adds one deduplicated “What these mean” section; and each SARIF rule
+puts them in its help text. The wording is authored by capdelta — package,
+lockfile, and registry data is never interpolated into it — and keeps the same
+“review this change” framing. Heuristic results (secret exfiltration, sensitive
+paths, obfuscation, entropy) say what static analysis found or suggests, never
+what the package is. In the PR comment the size cap cuts guidance before it
+touches a finding row, and a footer says how many classes were omitted.
+
 ## Try the CLI
 
 Requirements: Node.js 20 or newer, npm, and Git.
