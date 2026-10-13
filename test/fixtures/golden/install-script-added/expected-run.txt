@@ -10,11 +10,17 @@ Review this change: 2 findings (CRITICAL: 1, HIGH: 1); 0 diagnostics.
 
 Capability shapes:
 - [CRITICAL] "install-hook-change" (1 capability)
+  Why: Install hooks could run automatically during npm install, before any code imports the package, with the installing user's permissions, unless install scripts are disabled.
+  Check: Check that the upstream repository and release notes explain the new hook.
 
 Findings:
 - [CRITICAL] "postinstall" registry install hook added
   Evidence: "package.json":5 — "\"postinstall\": \"echo test\""
+  Why: Install hooks could run automatically during npm install, before any code imports the package, with the installing user's permissions, unless install scripts are disabled.
+  Check: Check that the upstream repository and release notes explain the new hook.
 
 Signals:
 - [HIGH] "new external domain example.test"
   Evidence: "index.js":2 — "export const telemetryEndpoint = \"https://example.test/telemetry\";"
+  Why: The code now references a network host that was not present before, which could receive data.
+  Check: Confirm the host is a known first-party or expected endpoint.

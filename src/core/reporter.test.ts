@@ -121,6 +121,108 @@ describe("manifest Reporter", () => {
     );
   });
 
+  it("renders reviewer guidance under CRITICAL findings but not LOW ones", () => {
+    const installHook: Capability = {
+      kind: "INSTALL_HOOK",
+      location: {
+        kind: "install-script",
+        hook: "postinstall",
+        applicability: "registry-install",
+      },
+      contentDigest: { algorithm: "sha256", value: "a".repeat(64) },
+      evidence: [{ file: "package.json", line: 5, snippet: '"postinstall"' }],
+    };
+    const critical: CapabilityDiffResult = {
+      ...emptyResult(),
+      findings: [
+        {
+          severity: "CRITICAL",
+          change: "added",
+          capability: installHook,
+          previous: null,
+        },
+      ],
+    };
+    const criticalText = renderTextReport(critical);
+    expect(criticalText).toContain(
+      "  Why: Install hooks could run automatically during npm install",
+    );
+    expect(criticalText).toContain(
+      "  Check: Check that the upstream repository",
+    );
+
+    const dependency: Capability = {
+      kind: "DEPENDENCY",
+      location: { kind: "manifest" },
+      name: "dep",
+      requirement: "^1.0.0",
+      evidence: [{ file: "package.json", line: 3, snippet: '"dep": "^1.0.0"' }],
+    };
+    const low: CapabilityDiffResult = {
+      ...emptyResult(),
+      findings: [
+        {
+          severity: "LOW",
+          change: "added",
+          capability: dependency,
+          previous: null,
+        },
+      ],
+    };
+    const lowText = renderTextReport(low);
+    expect(lowText).toContain("[LOW]");
+    expect(lowText).not.toContain("  Why: ");
+    expect(lowText).not.toContain("  Check: ");
+  });
+
+  it("renders guidance for a CRITICAL signal and a severity-bearing analysis issue", () => {
+    const signalResult: CapabilityDiffResult = {
+      ...emptyResult(),
+      signalFindings: [
+        {
+          kind: "new-external-endpoint",
+          severity: "HIGH",
+          change: "added",
+          detail: "new external domain collector.example.test",
+          evidence: [{ file: "index.js", line: 2, snippet: "fetch(url)" }],
+        },
+      ],
+    };
+    expect(renderTextReport(signalResult)).toContain(
+      "  Why: The code now references a network host",
+    );
+
+    const run: CapabilityAnalysisRun = {
+      firstRun: false,
+      summary: { changed: 1, analyzed: 0, unavailable: 1, skipped: 0 },
+      packages: [
+        {
+          status: "unavailable",
+          changedPackage: changedPackage("tampered"),
+          failures: [
+            {
+              stage: "fetch",
+              failure: {
+                side: "old",
+                kind: "integrity-mismatch",
+                detail:
+                  "downloaded bytes do not match lockfile sha512 integrity",
+                url: "https://registry.npmjs.org/tampered/old.tgz",
+              },
+            },
+          ],
+        },
+      ],
+      lockfileFindings: [],
+      skipped: [],
+    };
+    const issueText = renderTextRunReport(run);
+    expect(issueText).toContain("  Why: The downloaded bytes differ");
+    expect(issueText).toContain(
+      "  Check: Check where the lockfile entry and the registry response came from, and regenerate the lockfile from a trusted registry.",
+    );
+  });
+
   it("renders signal findings with their evidence and severity", () => {
     const result: CapabilityDiffResult = {
       ...emptyResult(),

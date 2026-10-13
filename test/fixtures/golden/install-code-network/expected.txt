@@ -4,7 +4,11 @@ Review this change: 1 finding (CRITICAL: 1); 0 diagnostics.
 
 Capability shapes:
 - [CRITICAL] "install-code-execution" (1 capability)
+  Why: This code runs at install time and could run commands, read environment secrets such as CI tokens and cloud keys, or contact the network.
+  Check: Read the install-time file at the evidence line and confirm the behavior is expected.
 
 Findings:
 - [CRITICAL] "NET" capability added in "install-script" code
   Evidence: "install.js":2 — "import https from \"node:https\";"
+  Why: Could contact a network host, which can send data out or fetch further code.
+  Check: Confirm the destination and the data sent are expected.
