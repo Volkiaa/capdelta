@@ -1,6 +1,9 @@
 # capdelta
 
-**Review what an npm dependency gained between two lockfiles.**
+Review what an npm dependency gained between two lockfiles.
+
+[![CI](https://github.com/Volkiaa/capdelta/actions/workflows/ci.yml/badge.svg)](https://github.com/Volkiaa/capdelta/actions/workflows/ci.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
 Traditional vulnerability scanners ask whether a version is already known to be
 vulnerable. capdelta asks a different question: **what can the new version do
@@ -14,6 +17,34 @@ before a CVE exists.
 > suitable for development and evaluation,
 > not production enforcement. No measured detection or false-positive claims
 > have been published.
+
+See [Roadmap status](#roadmap-status) for what is next.
+
+## Contents
+
+- [How it works](#how-it-works)
+- [What capdelta detects today](#what-capdelta-detects-today)
+- [Severity means review priority](#severity-means-review-priority)
+- [Quick start](#quick-start)
+- [Security model](#security-model)
+- [Dogfooding evidence](#dogfooding-evidence)
+- [Architecture decisions](#architecture-decisions)
+- [Roadmap status](#roadmap-status)
+- [Contributing and security reports](#contributing-and-security-reports)
+- [License](#license)
+
+## How it works
+
+![capdelta pipeline: lockfile diff, fetch, safe extraction, capability extraction, capability diff, severity gate, reports](docs/diagrams/pipeline.svg)
+
+Source: [docs/diagrams/pipeline.html](docs/diagrams/pipeline.html)
+
+The no-op check precedes parsing and network access. Changed tarballs are verified
+byte-for-byte against lockfile SRI before extraction. Package code is never imported or
+executed. The npm-specific lockfile and extractor implementations sit behind core
+contracts so another ecosystem can add adapters without rewriting the Differ or Reporter.
+
+See [docs/resource-limits.md](docs/resource-limits.md) for the default deadlines and caps.
 
 ## What capdelta detects today
 
@@ -53,24 +84,22 @@ entries, and first-run lockfile additions.
 
 ### Measured results (2026-10-12)
 
-At a frozen policy, on 90 assumed-benign bumps across 30 pre-registered
-packages (single-package diffs, all 90 analyzed), the default CRITICAL gate
-failed on **2 / 90**. Both were real registry install-hook command changes
-(`bcrypt` 6.0.0, `sqlite3` 5.1.7), which capdelta intends you to review; none
-was noise. One bump had a HIGH finding (a documentation link in a string
-literal), and 11 would fail `--strict` because of TypeScript sources or an
-unparseable file. This is a selected, clustered sample with single-reviewer
-labels, not an ecosystem false-positive rate. The method, frozen inputs, raw
-results, and every label are in
+At a frozen policy, on 90 assumed-benign bumps across 30 pre-registered packages
+(single-package diffs, all 90 analyzed), the default CRITICAL gate failed on **2 / 90**.
+Both were real registry install-hook command changes (`bcrypt` 6.0.0, `sqlite3`
+5.1.7), which capdelta intends you to review; none was noise. One bump had a HIGH
+finding (a documentation link in a string literal), and 11 would fail `--strict`
+because of TypeScript sources or an unparseable file. This is a selected, clustered
+sample with single-reviewer labels, not an ecosystem false-positive rate. The method,
+frozen inputs, raw results, and every label are in
 [docs/m5-2026-10-12](docs/m5-2026-10-12/README.md).
 
 ### Attack reconstructions
 
-Defanged, synthetic reconstructions of documented npm compromises run through
-the full lockfile → fetch → static analysis → default gate path
-(`src/core/attack-reconstructions.test.ts`). They are modeled on public
-analyses, labeled as reconstructions, and never contain the original
-artifacts. Each has a benign control bump that must pass.
+Defanged, synthetic reconstructions of documented npm compromises run through the full
+lockfile → fetch → static analysis → default gate path (`src/core/attack-reconstructions.test.ts`).
+They are modeled on public analyses, labeled as reconstructions, and never contain the
+original artifacts. Each has a benign control bump that must pass.
 
 | Incident                                                                                                                                        | Modeled delta                                                                                                                    | Why capdelta fails the default gate                                                                                                                                     |
 | ----------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -78,10 +107,9 @@ artifacts. Each has a benign control bump that must pass.
 | [Shai-Hulud](https://sysdig.com/blog/shai-hulud-the-novel-self-replicating-worm-infecting-hundreds-of-npm-packages), 2025-09                    | `@ctrl/tinycolor@4.1.1` adds `postinstall: node bundle.js`; the bundle reads tokens, runs a scanner, posts to a GitHub API       | CRITICAL hook, plus `NET`/`ENV`/`PROCESS` in install code and the secret-exfiltration shape. With the bundle over the parser limit, the hook alone still fails the gate |
 | [Shai-Hulud 2.0](https://www.endorlabs.com/learn/shai-hulud-2-malware-campaign-targets-github-and-cloud-credentials-using-bun-runtime), 2025-11 | `preinstall: node setup_bun.js` loader plus an encoded payload                                                                   | CRITICAL registry `preinstall` hook                                                                                                                                     |
 
-These show that capdelta flags the modeled dependency and lifecycle deltas.
-They are not the original malware, not a measured detection rate, and not
-proof that encoded payloads are decoded. Sources and every kept or omitted
-behavior are recorded in `test/fixtures/reconstructions/inventory.json`.
+These show that capdelta flags the modeled dependency and lifecycle deltas. They are not
+the original malware, not a measured detection rate, and not proof that encoded payloads
+are decoded. Sources and every kept or omitted behavior are recorded in `test/fixtures/reconstructions/inventory.json`.
 
 ## Severity means review priority
 
@@ -116,7 +144,9 @@ paths, obfuscation, entropy) say what static analysis found or suggests, never
 what the package is. In the PR comment the size cap cuts guidance before it
 touches a finding row, and a footer says how many classes were omitted.
 
-## Try the CLI
+## Quick start
+
+### CLI
 
 Requirements: Node.js 20 or newer, npm, and Git.
 
@@ -128,24 +158,10 @@ npm run build
 node dist/cli.js --base main
 ```
 
-Machine-readable output:
+The full reference for flags, exit codes, allowlists, and unanalyzable
+exceptions is in [docs/cli.md](docs/cli.md).
 
-```bash
-node dist/cli.js --base main --format json
-```
-
-The intended published interface is:
-
-```bash
-npx capdelta --base main
-```
-
-The npm package is still marked private and has not been published, so use the
-built entrypoint during development.
-
-See [docs/cli.md](docs/cli.md) for flags, exit codes, allowlists, and unanalyzable exceptions.
-
-## Use the GitHub Action
+### GitHub Action
 
 Pin the Action to a reviewed full commit SHA rather than a mutable branch or
 tag:
@@ -180,40 +196,16 @@ jobs:
 The example pin is the repository's currently dogfooded immutable Action
 revision. Review and update pins deliberately when adopting a newer revision.
 
-See [docs/github-action.md](docs/github-action.md) for every input, output, and step.
-
-Fork and Dependabot PRs have read-only credentials. capdelta therefore writes
-the same inert summary to the job summary, retains the JSON artifact, relies on
-the job conclusion for status, and skips SARIF/comment writes it cannot perform.
-Never work around this with `pull_request_target` while checking out untrusted
-PR-head code.
+Fork and Dependabot PRs have read-only credentials. capdelta therefore writes the
+same inert summary to the job summary, retains the JSON artifact, relies on the job
+conclusion for status, and skips SARIF/comment writes it cannot perform. Never work
+around this with `pull_request_target` while checking out untrusted PR-head code.
 
 If dependency updates can auto-merge, make the capdelta job a required status
 check so a bump cannot merge before the configured gate runs.
 
-## How it works
-
-```mermaid
-flowchart LR
-    A["Base and head package-lock.json"] --> B["npm LockfileDiffer"]
-    B --> C["Fetch changed tarballs"]
-    C --> D["Verify lockfile SHA-512 integrity"]
-    D --> E["Safe static extraction"]
-    E --> F["Manifest + JavaScript capability extraction"]
-    F --> G["Ecosystem-agnostic capability sets"]
-    G --> H["Shape-first additions-only Differ"]
-    H --> I["Text + JSON + PR summary + SARIF"]
-```
-
-The no-op check precedes parsing and network access. Changed tarballs are
-verified byte-for-byte against lockfile SRI before extraction. Package code is
-never imported or executed. The npm-specific lockfile and extractor
-implementations sit behind core contracts so another ecosystem can add adapters
-without rewriting the Differ or Reporter.
-
-### Default resource limits
-
-See [docs/resource-limits.md](docs/resource-limits.md) for the default caps and deadlines.
+Every input, output, and step is in
+[docs/github-action.md](docs/github-action.md).
 
 ## Security model
 
@@ -300,20 +292,10 @@ manually accepted because esbuild's documented installer legitimately selects
 and validates a platform binary. This is the intended meaning of CRITICAL:
 powerful behavior that requires review, not an automatic malware accusation.
 
-## Programmatic API
-
-See [docs/api.md](docs/api.md) for the programmatic API.
-
-## Development and validation
-
-See [docs/development.md](docs/development.md) for the checks, fixtures, and
-false-positive harness.
-
-capdelta currently has four direct runtime dependencies: `acorn`,
-`acorn-walk`, `jsonc-parser`, and `tar`. The `@actions/*` packages are
-build-time only, bundled into `dist/action`. CI fails at 10, so the enforced
-budget remains **fewer than 10**. Transitive runtime packages are reported by
-the check but are not the gate.
+capdelta currently has four direct runtime dependencies: `acorn`, `acorn-walk`,
+`jsonc-parser`, and `tar`. The `@actions/*` packages are build-time only, bundled into
+`dist/action`. CI fails at 10, so the enforced budget remains **fewer than 10**.
+Transitive runtime packages are reported by the check but are not the gate.
 
 ## Architecture decisions
 
@@ -359,10 +341,9 @@ The authoritative architecture and roadmap remain in
 
 ## Contributing and security reports
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the design-first workflow, required
-checks, dependency budget, and inert-fixture rules. Report suspected
-vulnerabilities privately according to [SECURITY.md](SECURITY.md), not in a
-public issue or pull request.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the design-first workflow, required checks,
+dependency budget, and inert-fixture rules. Report suspected vulnerabilities privately
+according to [SECURITY.md](SECURITY.md), not in a public issue or pull request.
 
 ## License
 
