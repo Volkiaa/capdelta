@@ -211,7 +211,9 @@ main() {
 # variables are global, not local to main, so the trap still sees them after
 # main returns.
 cleanup() {
-  docker volume rm -f "$vol" >/dev/null 2>&1 || true
+  if ! docker volume rm -f "$vol" >/dev/null; then
+    printf 'warning: could not remove the sandbox volume %s; remove it with docker volume rm\n' "$vol" >&2
+  fi
   rm -rf "$tmp"
 }
 
