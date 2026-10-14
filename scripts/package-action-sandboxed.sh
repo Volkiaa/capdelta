@@ -177,7 +177,12 @@ main() {
   )
 
   printf 'initializing the sandbox volume\n'
-  docker run --rm --user root -v "$vol":/w -w /w "$IMAGE" chown node:node /w
+  # Docker fills a volume from the image on each mount while the volume stays
+  # empty, and that resets the owner of /w to root. The marker entry keeps the
+  # volume non-empty, so the chown sticks for the next containers. The marker
+  # never leaves the sandbox: only dist/action is streamed back.
+  docker run --rm --user root -v "$vol":/w -w /w "$IMAGE" \
+    sh -c 'chown node:node /w && touch /w/.sandbox-keep'
 
   printf 'step 1/3: install dependencies from git archive HEAD (network allowed)\n'
   git archive --format=tar HEAD |
