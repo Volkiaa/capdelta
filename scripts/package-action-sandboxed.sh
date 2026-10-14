@@ -35,11 +35,32 @@ path_is_allowed() {
   esac
 }
 
-# Read `git status --porcelain` on stdin and fail if any path lies outside
-# dist/action/, dist/ or node_modules/. Paths listed in the optional baseline
-# file (the same status taken before the rebuild) are not reported, so files
-# that were already present such as .task.md do not count as strays. Prints the
-# offending paths to stderr and returns 1 if there are any.
+# Read `git status --porcelain --untracked-files=all` on stdin and fail if it
+# is not empty. Any tracked change or untracked file must be gone before the
+# rebuild, because the container could edit such a path and the status line
+# would stay the same, hiding the edit. Ignored entries do not appear in this
+# output, so an installed package or existing build output does not block the
+# run. Prints each offending path to stderr and returns 1 if there is one.
+check_worktree_clean() {
+  local status=0 line path
+  while IFS= read -r line; do
+    if [[ -z "$line" ]]; then
+      continue
+    fi
+    path="$(porcelain_path "$line")"
+    printf 'error: the worktree is not clean before the rebuild: %s\n' "$path" >&2
+    status=1
+  done
+  return "$status"
+}
+
+# Read `git status --porcelain --ignored --untracked-files=all` on stdin and
+# fail if any path lies outside dist/action/, dist/ or node_modules/. Paths in
+# the optional baseline file are skipped. The baseline holds the ignored
+# entries (`!!` lines) recorded before the rebuild, so an ignored path that
+# already existed is not reported even when it sits outside the three
+# directories. Prints the offending paths to stderr and returns 1 if there are
+# any.
 check_status_scope() {
   local baseline_file="${1:-}"
   local -A preexisting=()
@@ -99,9 +120,19 @@ main() {
     -w /w
   )
 
-  # Everything already dirty before the rebuild, such as .task.md.
+  # Tracked changes and untracked files would hide a container edit, so refuse
+  # to run until they are gone.
+  printf 'checking for a clean worktree\n'
+  if ! git status --porcelain --untracked-files=all | check_worktree_clean; then
+    printf 'error: commit, stash or remove the paths above before rebuilding\n' >&2
+    return 1
+  fi
+
+  # Ignored paths that already exist. They pass the scope check unchanged;
+  # only new ignored paths outside dist/action, dist and node_modules count as
+  # strays.
   local baseline
-  baseline="$(git status --porcelain --ignored --untracked-files=all)"
+  baseline="$(git status --porcelain --ignored --untracked-files=all | grep '^!!' || true)"
 
   printf 'step 1/3: install dependencies (network allowed)\n'
   docker run "${mounts[@]}" "$IMAGE" npm ci --ignore-scripts
