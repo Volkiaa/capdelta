@@ -196,9 +196,11 @@ jobs:
 The example pin is the repository's currently dogfooded immutable Action
 revision. Review and update pins deliberately when adopting a newer revision.
 
-Fork and Dependabot PRs have read-only credentials. capdelta therefore writes the
-same inert summary to the job summary, retains the JSON artifact, relies on the job
-conclusion for status, and skips SARIF/comment writes it cannot perform. Never work
+Fork PRs have read-only credentials, so capdelta writes the same inert summary to the
+job summary, retains the JSON artifact, relies on the job conclusion for status, and
+skips the comment and SARIF writes it cannot perform. Any other PR attempts the writes;
+if its token lacks `pull-requests: write` or `security-events: write`, the refused write
+falls back to the job summary with a warning that names the permission to add. Never work
 around this with `pull_request_target` while checking out untrusted PR-head code.
 
 If dependency updates can auto-merge, make the capdelta job a required status
@@ -318,6 +320,7 @@ Transitive runtime packages are reported by the check but are not the gate.
 - [ADR-017: Reviewed exceptions for unanalyzable packages](docs/adr/0017-reviewed-unanalyzable-exceptions.md)
 - [ADR-018: Fetch failures fail the run instead of passing it](docs/adr/0018-fetch-failures-fail-closed.md)
 - [ADR-019: Read what npm installs, and fail on every unread package](docs/adr/0019-read-what-npm-installs.md)
+- [ADR-020: Decide write access from the token, not from the PR author](docs/adr/0020-decide-write-access-from-the-token.md)
 
 The authoritative architecture and roadmap remain in
 [docs/PLAN.md](docs/PLAN.md). Session handoffs are recorded in

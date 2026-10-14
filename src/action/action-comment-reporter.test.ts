@@ -640,21 +640,85 @@ describe("publishStickyComment", () => {
     );
   });
 
-  it.each(["fork", "dependabot"] as const)(
-    "degrades %s PRs to the job summary without calling the API",
-    async (reason) => {
+  const refusal = () =>
+    Object.assign(new Error("Resource not accessible by integration"), {
+      status: 403,
+    });
+
+  it("degrades fork PRs to the job summary without calling the API", async () => {
+    const client = commentClient();
+    const addJobSummary = vi.fn().mockResolvedValue(undefined);
+    await expect(
+      publishStickyComment(
+        { ...baseDelivery, readOnlyReason: "fork", addJobSummary },
+        client,
+      ),
+    ).resolves.toEqual({ status: "summary-only", reason: "fork" });
+    expect(addJobSummary).toHaveBeenCalledWith(baseDelivery.body);
+    expect(client.listComments).not.toHaveBeenCalled();
+  });
+
+  it("degrades a refused createComment to the job summary with a permission warning (ADR-020)", async () => {
+    const client = commentClient();
+    client.createComment.mockRejectedValueOnce(refusal());
+    const addJobSummary = vi.fn().mockResolvedValue(undefined);
+    const warn = vi.fn();
+    await expect(
+      publishStickyComment({ ...baseDelivery, addJobSummary, warn }, client),
+    ).resolves.toEqual({ status: "summary-only", reason: "token-denied" });
+    expect(addJobSummary).toHaveBeenCalledWith(baseDelivery.body);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining("pull-requests: write"),
+    );
+  });
+
+  it("degrades a refused updateComment to the job summary with a permission warning (ADR-020)", async () => {
+    const client = commentClient();
+    client.listComments.mockResolvedValueOnce([
+      { id: 8, body: COMMENT_MARKER, authorLogin: "github-actions[bot]" },
+    ]);
+    client.updateComment.mockRejectedValueOnce(refusal());
+    const addJobSummary = vi.fn().mockResolvedValue(undefined);
+    const warn = vi.fn();
+    await expect(
+      publishStickyComment({ ...baseDelivery, addJobSummary, warn }, client),
+    ).resolves.toEqual({ status: "summary-only", reason: "token-denied" });
+    expect(addJobSummary).toHaveBeenCalledWith(baseDelivery.body);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining("pull-requests: write"),
+    );
+  });
+
+  it.each([
+    [
+      "a 403 with another message",
+      Object.assign(new Error("rate limited"), { status: 403 }),
+    ],
+    ["a 500", Object.assign(new Error("server error"), { status: 500 })],
+  ] as const)(
+    "keeps %s on createComment as an API error (ADR-020)",
+    async (_label, error) => {
       const client = commentClient();
-      const addJobSummary = vi.fn().mockResolvedValue(undefined);
-      await expect(
-        publishStickyComment(
-          { ...baseDelivery, readOnlyReason: reason, addJobSummary },
-          client,
-        ),
-      ).resolves.toEqual({ status: "summary-only", reason });
-      expect(addJobSummary).toHaveBeenCalledWith(baseDelivery.body);
-      expect(client.listComments).not.toHaveBeenCalled();
+      client.createComment.mockRejectedValueOnce(error);
+      await expect(publishStickyComment(baseDelivery, client)).rejects.toThrow(
+        ActionCommentApiError,
+      );
     },
   );
+
+  it("throws when the token-denied job summary write fails (ADR-020)", async () => {
+    const client = commentClient();
+    client.createComment.mockRejectedValueOnce(refusal());
+    await expect(
+      publishStickyComment(
+        {
+          ...baseDelivery,
+          addJobSummary: vi.fn().mockRejectedValue(new Error("summary failed")),
+        },
+        client,
+      ),
+    ).rejects.toThrow("failed to write the read-only PR job summary");
+  });
 
   it("rethrows summary and comment API failures with operation context", async () => {
     const client = commentClient();
