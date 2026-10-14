@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Tests for import_bundle in scripts/package-action-sandboxed.sh. Builds small
-# tar files with the host `tar` and checks which ones the function accepts.
-# Needs no Docker.
+# Tests for import_bundle and the bundle size cap in
+# scripts/package-action-sandboxed.sh. Builds small tar files with the host
+# `tar` and small git repositories with the host `git`. Needs no Docker.
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -31,75 +31,156 @@ expect_rc() {
   fi
 }
 
-# import_bundle reads the directory it extracts into from the global $tmp.
+# import_bundle and the cap function read the global $tmp.
 tmp="$(mktemp -d)"
-trap 'rm -rf "$tmp"' EXIT
+trap 'chmod -R u+rwX "$tmp" 2>/dev/null || true; rm -rf "$tmp"' EXIT
 
+# The identity for the throwaway repositories, passed before the subcommand.
+git_env=(git -c user.email=test@example.com -c user.name=test -c commit.gpgsign=false)
+
+# new_dest DEST
+# Create a destination repository whose tracked dist/action tree looks like a
+# real bundle: two regular files, one of them in a subdirectory. `git ls-files`
+# inside import_bundle reads these.
 new_dest() {
   local dest="$1"
-  mkdir -p "$dest/dist/action"
-  printf 'old\n' >"$dest/dist/action/old.js"
+  mkdir -p "$dest/dist/action/parser-worker"
+  printf 'old index\n' >"$dest/dist/action/index.js"
+  printf 'old worker\n' >"$dest/dist/action/parser-worker/index.js"
+  "${git_env[@]}" -C "$dest" init -q
+  "${git_env[@]}" -C "$dest" add -A
+  "${git_env[@]}" -C "$dest" commit -qm init
 }
 
-# expect_reject TARFILE DESCRIPTION
-# Calls import_bundle against a destination that holds an old dist/action tree
-# and checks that it fails and leaves that tree untouched.
-expect_reject() {
-  local tarfile="$1" description="$2"
-  local dest
-  dest="$tmp/dest.$RANDOM"
-  new_dest "$dest"
-
-  local actual=0
-  import_bundle "$tarfile" "$dest" >/dev/null 2>&1 || actual=$?
-  expect_rc 1 "$actual" "$description"
-
-  if [[ -f "$dest/dist/action/old.js" ]]; then
+# assert_untouched DEST DESCRIPTION
+assert_untouched() {
+  local dest="$1" description="$2"
+  if [[ "$(cat "$dest/dist/action/index.js" 2>/dev/null)" == "old index" ]]; then
     pass "destination untouched after: $description"
   else
     fail "destination modified after: $description"
   fi
 }
 
-# A valid bundle: a dist/action directory with two regular files.
-stage="$tmp/stage-valid"
-mkdir -p "$stage/dist/action"
-printf 'new\n' >"$stage/dist/action/index.js"
-printf '{}\n' >"$stage/dist/action/package.json"
-tar -cf "$tmp/valid.tar" -C "$stage" dist/action
+# expect_reject TARFILE DESCRIPTION
+# Calls import_bundle against a fresh destination repository and checks that it
+# fails and leaves that repository's dist/action tree untouched.
+expect_reject() {
+  local tarfile="$1" description="$2"
+  local dest="$tmp/dest.$RANDOM"
+  new_dest "$dest"
 
+  local actual=0
+  import_bundle "$tarfile" "$dest" >/dev/null 2>&1 || actual=$?
+  expect_rc 1 "$actual" "$description"
+  assert_untouched "$dest" "$description"
+}
+
+# make_valid_tar OUT
+# Build a bundle whose members are exactly the tracked files of new_dest.
+# Content is long enough that the tar is truncated by the size test below.
+make_valid_tar() {
+  local out="$1"
+  local stage="$tmp/stage.valid"
+  rm -rf "$stage"
+  mkdir -p "$stage/dist/action/parser-worker"
+  head -c 3000 /dev/zero | tr '\0' 'i' >"$stage/dist/action/index.js"
+  head -c 3000 /dev/zero | tr '\0' 'w' >"$stage/dist/action/parser-worker/index.js"
+  tar -cf "$out" -C "$stage" dist/action
+}
+
+make_valid_tar "$tmp/valid.tar"
+
+# A bundle with exactly the tracked files replaces the old tree.
 dest="$tmp/dest-accept"
 new_dest "$dest"
 actual=0
 import_bundle "$tmp/valid.tar" "$dest" >/dev/null 2>&1 || actual=$?
-expect_rc 0 "$actual" "accepts a valid dist/action tree"
-if [[ -f "$dest/dist/action/index.js" && -f "$dest/dist/action/package.json" ]]; then
-  pass "valid tree was imported"
+expect_rc 0 "$actual" "accepts a bundle with exactly the tracked files"
+if [[ -f "$dest/dist/action/index.js" && -f "$dest/dist/action/parser-worker/index.js" ]]; then
+  pass "valid bundle was imported"
 else
-  fail "valid tree was not imported"
+  fail "valid bundle was not imported"
 fi
-if [[ ! -e "$dest/dist/action/old.js" ]]; then
-  pass "old dist/action was replaced"
+if [[ "$(wc -c <"$dest/dist/action/index.js")" -eq 3000 ]]; then
+  pass "valid bundle content replaced the old tree"
 else
-  fail "old dist/action survived the import"
+  fail "valid bundle content did not replace the old tree"
 fi
 
-# A symlink member.
-stage="$tmp/stage-symlink"
-mkdir -p "$stage/dist/action"
-ln -s ../../../../etc/passwd "$stage/dist/action/link"
-tar -cf "$tmp/symlink.tar" -C "$stage" dist/action
-expect_reject "$tmp/symlink.tar" "rejects a symlink member"
+# The bare-repository layout has no dot component and must still be rejected.
+stage="$tmp/stage-bare"
+rm -rf "$stage"
+mkdir -p "$stage/dist/action/objects" "$stage/dist/action/refs"
+printf 'ref: refs/heads/x\n' >"$stage/dist/action/HEAD"
+printf '[core]\n\tbare = true\n' >"$stage/dist/action/config"
+printf 'x\n' >"$stage/dist/action/objects/x"
+printf 'x\n' >"$stage/dist/action/refs/x"
+tar -cf "$tmp/bare.tar" -C "$stage" dist/action
+expect_reject "$tmp/bare.tar" "rejects the bare-repository layout"
 
-# A hard link member.
-stage="$tmp/stage-hardlink"
-mkdir -p "$stage/dist/action"
-printf 'x\n' >"$stage/dist/action/index.js"
-ln "$stage/dist/action/index.js" "$stage/dist/action/hard"
-tar -cf "$tmp/hardlink.tar" -C "$stage" dist/action
-expect_reject "$tmp/hardlink.tar" "rejects a hard link member"
+# An extra regular file that is not tracked.
+stage="$tmp/stage-extra"
+rm -rf "$stage"
+mkdir -p "$stage/dist/action/parser-worker"
+printf 'i\n' >"$stage/dist/action/index.js"
+printf 'w\n' >"$stage/dist/action/parser-worker/index.js"
+printf 'x\n' >"$stage/dist/action/extra.js"
+tar -cf "$tmp/extra.tar" -C "$stage" dist/action
+expect_reject "$tmp/extra.tar" "rejects an extra regular file"
 
-# Names built with --transform so the archive holds a literal member name.
+# A tracked file missing from the archive.
+stage="$tmp/stage-missing"
+rm -rf "$stage"
+mkdir -p "$stage/dist/action"
+printf 'i\n' >"$stage/dist/action/index.js"
+tar -cf "$tmp/missing.tar" -C "$stage" dist/action
+expect_reject "$tmp/missing.tar" "rejects a missing tracked file"
+
+# An extra directory that holds no tracked file.
+stage="$tmp/stage-newdir"
+rm -rf "$stage"
+mkdir -p "$stage/dist/action/parser-worker" "$stage/dist/action/newdir"
+printf 'i\n' >"$stage/dist/action/index.js"
+printf 'w\n' >"$stage/dist/action/parser-worker/index.js"
+tar -cf "$tmp/newdir.tar" -C "$stage" dist/action
+expect_reject "$tmp/newdir.tar" "rejects an extra empty directory"
+
+# A truncated archive: tar is happy with its partial listing, but the missing
+# tracked files reject it.
+head -c 1000 "$tmp/valid.tar" >"$tmp/truncated.tar"
+expect_reject "$tmp/truncated.tar" "rejects a truncated tar"
+
+# A mode-000 directory holding a file that is not tracked. The listing pass
+# rejects the untracked file inside it.
+stage="$tmp/stage-mode000"
+rm -rf "$stage"
+mkdir -p "$stage/dist/action/modedir"
+printf 'x\n' >"$stage/dist/action/modedir/secret.js"
+tar -cf "$tmp/mode000.tar" --mode=000 -C "$stage" dist/action
+expect_reject "$tmp/mode000.tar" "rejects a mode-000 directory holding an untracked file"
+
+# A mode-000 directory that holds only tracked files is accepted: extraction
+# makes the tree readable before find descends, so the permissions cannot hide
+# a member.
+stage="$tmp/stage-mode000-ok"
+rm -rf "$stage"
+mkdir -p "$stage/dist/action/parser-worker"
+printf 'i\n' >"$stage/dist/action/index.js"
+printf 'w\n' >"$stage/dist/action/parser-worker/index.js"
+tar -cf "$tmp/mode000-ok.tar" --mode=000 -C "$stage" dist/action
+dest="$tmp/dest-mode000"
+new_dest "$dest"
+actual=0
+import_bundle "$tmp/mode000-ok.tar" "$dest" >/dev/null 2>&1 || actual=$?
+expect_rc 0 "$actual" "accepts a mode-000 directory holding only tracked files"
+
+# A corrupt archive that tar itself rejects.
+printf 'not a tar archive\n' >"$tmp/corrupt.tar"
+expect_reject "$tmp/corrupt.tar" "rejects a corrupt tar"
+
+# The remaining rejection cases build an archive with a single literal member
+# name using --transform.
 printf 'x\n' >"$tmp/payload"
 make_tar() {
   local name="$1" out="$2"
@@ -129,6 +210,24 @@ expect_reject "$tmp/deep-git.tar" "rejects a .git directory deeper in dist/actio
 
 make_tar 'dist/action/.envrc' "$tmp/action-envrc.tar"
 expect_reject "$tmp/action-envrc.tar" "rejects a dotfile inside dist/action"
+
+# The size cap function compares a file against a limit.
+printf '0123456789' >"$tmp/ten-bytes"
+if bundle_within_cap "$tmp/ten-bytes" 10; then
+  pass "size cap accepts a bundle exactly at the limit"
+else
+  fail "size cap rejected a bundle exactly at the limit"
+fi
+if bundle_within_cap "$tmp/ten-bytes" 9; then
+  fail "size cap accepted a bundle over the limit"
+else
+  pass "size cap rejects a bundle over the limit"
+fi
+if bundle_within_cap "$tmp/ten-bytes" 1000; then
+  pass "size cap accepts a bundle under the limit"
+else
+  fail "size cap rejected a bundle under the limit"
+fi
 
 printf '\npassed: %s failed: %s skipped: 0\n' "$passed" "$failed"
 [[ "$failed" -eq 0 ]]
