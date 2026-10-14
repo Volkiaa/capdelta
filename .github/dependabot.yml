@@ -4,4 +4,8 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # Propose a version only after it has been public for 3 days. Compromised
+    # releases such as axios (2026) were pulled from npm within that window.
+    cooldown:
+      default-days: 3
     open-pull-requests-limit: 5
