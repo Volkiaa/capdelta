@@ -9,3 +9,17 @@ updates:
     cooldown:
       default-days: 3
     open-pull-requests-limit: 5
+    # Every package whose bump changes dist/action/ comes in one PR, so the
+    # bundle is rebuilt and reviewed by hand at most once per week. That is
+    # each runtime dependency, the @actions packages, ncc, and the TypeScript
+    # compiler ncc uses. A new runtime dependency belongs in this list.
+    groups:
+      action-bundle:
+        patterns:
+          - "@actions/*"
+          - "@vercel/ncc"
+          - "acorn"
+          - "acorn-walk"
+          - "jsonc-parser"
+          - "tar"
+          - "typescript"
