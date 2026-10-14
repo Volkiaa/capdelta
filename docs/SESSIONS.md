@@ -649,3 +649,36 @@ escapes; worth considering a CI grep for control characters in source files.
 1. Should the new side also report `manifest-not-regular` instead of `manifest-missing`? Both are CRITICAL, and Codex
    judged it acceptable.
 2. The open questions from the finding-guidance entry still stand.
+
+## 2026-10-14, README restructure and ADR-020
+
+### 1. Completed and verified
+
+- **README restructure (#60).** The README went from 607 to 350 lines and is now a product overview. The reference
+  material moved word for word to `docs/cli.md`, `docs/github-action.md`, `docs/resource-limits.md`, `docs/api.md`
+  and `docs/development.md`. The pipeline diagram is `docs/diagrams/pipeline.svg`, with its source in
+  `docs/diagrams/pipeline.html`. The status, roadmap and ADR index were brought up to date.
+- **ADR-020 (#61), decide write access from the token.** The Action treated every `dependabot[bot]` PR as read-only,
+  but GitHub now applies the workflow's `permissions:` block to Dependabot runs. Run 38258824396 had
+  `PullRequests: write` and still skipped the comment, so Dependabot PRs #24, #27 and #28 got no capdelta comment.
+  - Only a fork is skipped before any write.
+  - A 403 "Resource not accessible by integration" on the comment or the SARIF upload warns with the missing
+    permission and falls back to the job summary. Every other error still fails the run. The check lives in
+    `src/action/permission-refusal.ts`.
+  - The gate does not depend on delivery.
+  - Verified locally on the worker's commit and in CI on Node 20, 22 and 24. The suite has 658 tests. No golden
+    fixture or reconstruction changed.
+- **Dogfood re-pin.** `.github/workflows/capdelta.yml` now pins the Action to `2535ee0`.
+
+### 2. Half-done and exact resume point
+
+- The PLAN §9 demo asset is still missing. The next Dependabot PR should show the sticky comment. See `HANDOFF.md`
+  "Next" item 1.
+
+### 3. ADR status
+
+- ADR-020 is accepted and implemented. No Codex review: the change affects delivery only, never the gate.
+
+### 4. Open questions
+
+1. Should `docs/github-action.md:29-35` describe the token-denied fallback? It says only "when permissions permit".
