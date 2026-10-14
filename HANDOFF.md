@@ -5,10 +5,11 @@ history, and docs/PLAN.md (rev. 3) is the spec. Last updated 2026-10-14.
 
 ## Where main stands
 
-main is at 2535ee0, plus the dogfood re-pin PR that carries this update. Finding guidance (#52-#55) and ADR-019
+main is at 96df813. Finding guidance (#52-#55) and ADR-019
 (#56-#58) are merged. The README restructure (#60) moved the reference material to `docs/cli.md`,
 `docs/github-action.md`, `docs/resource-limits.md`, `docs/api.md` and `docs/development.md`. ADR-020 (#61) makes the
-Action post the comment and SARIF on Dependabot PRs. Every way a changed package can end up unanalyzed now fails a default run:
+Action post the comment and SARIF on Dependabot PRs. #62 pins the dogfood workflow to it and adds a 3-day Dependabot
+cooldown, and Dependabot bumps #63, #65, #66 and #67 are merged. Every way a changed package can end up unanalyzed now fails a default run:
 
 | Failure                                                                                            | Outcome                                   | Exceptable (ADR-017)                                             |
 | -------------------------------------------------------------------------------------------------- | ----------------------------------------- | ---------------------------------------------------------------- |
@@ -29,8 +30,13 @@ Action post the comment and SARIF on Dependabot PRs. Every way a changed package
 
 1. **Dependabot PRs that change the Action bundle fail CI.** A bump of a bundled package (`@actions/*`, `acorn`,
    `@vercel/ncc`) leaves `dist/action/` stale, so `check:action` fails on Node 20, 22 and 24. On 2026-10-14 the bundle
-   was rebuilt by hand on #63, #64 and #66. Decide whether a workflow should rebuild it; that needs a design and the
+   was rebuilt by hand on #63 and #66: merge main into the Dependabot branch, run `npm run package:action`, commit,
+   run the full verification, and push without force. Decide whether a workflow should rebuild it; that needs a design and the
    user's approval. The PLAN §9 demo is done: the README shows capdelta's comment on Dependabot PR #63.
+   - **#64 is held** (`@vercel/ncc` 0.44.1 to 0.45.0). capdelta reported two MEDIUM findings: the unparseable
+     `dist/ncc/index.js.cache.js` (4.3 MB, most likely a V8 code cache) grew by 1 byte. ncc builds the shipped
+     Action, so merging it needs the user's decision. If approved, rebuild `dist/action/` on the branch as above;
+     otherwise close it so Dependabot skips that version. Its CI fails until the rebuild.
 2. **M5 publication.** Note that M5's `gateFail` is severity-only and does not count operational exit 1
    (`scripts/m5-measure.ts:110`). Never edit `docs/m5-2026-10-12/`.
 3. **Noise reduction on a new held-out corpus.**
