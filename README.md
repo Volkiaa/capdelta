@@ -1,6 +1,9 @@
 # capdelta
 
-**Review what an npm dependency gained between two lockfiles.**
+Review what an npm dependency gained between two lockfiles.
+
+[![CI](https://github.com/Volkiaa/capdelta/actions/workflows/ci.yml/badge.svg)](https://github.com/Volkiaa/capdelta/actions/workflows/ci.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
 Traditional vulnerability scanners ask whether a version is already known to be
 vulnerable. capdelta asks a different question: **what can the new version do
@@ -8,12 +11,40 @@ that the old version could not?** A newly added install script, process launch,
 network client, secret-file read, or dynamic-code primitive is review-worthy
 before a CVE exists.
 
-> **Development status:** the repository is public, but the npm package is
-> marked private, unpublished, and versioned `0.0.0`. M0-M4 are implemented;
-> the required post-M3 false-positive corpus checkpoint is complete. It is
-> suitable for development and evaluation,
-> not production enforcement. No measured detection or false-positive claims
-> have been published.
+> **Status: pre-release, under active development.** The repository is public,
+> but the npm package is private, unpublished, and versioned `0.0.0`. The CLI
+> and the GitHub Action work end to end, and the first false-positive
+> measurement is [below](#measured-results-2026-10-12). capdelta is suitable for
+> development and evaluation, not production enforcement. No detection rate has
+> been measured; the attack reconstructions are modeled cases.
+
+[Roadmap status](#roadmap-status) lists what has shipped and what comes next.
+
+## Contents
+
+- [How it works](#how-it-works)
+- [What capdelta detects today](#what-capdelta-detects-today)
+- [Severity means review priority](#severity-means-review-priority)
+- [Quick start](#quick-start)
+- [Security model](#security-model)
+- [Dogfooding evidence](#dogfooding-evidence)
+- [Architecture decisions](#architecture-decisions)
+- [Roadmap status](#roadmap-status)
+- [Contributing and security reports](#contributing-and-security-reports)
+- [License](#license)
+
+## How it works
+
+![capdelta pipeline: lockfile diff, fetch, safe extraction, capability extraction, capability diff, severity gate, reports](docs/diagrams/pipeline.svg)
+
+Source: [docs/diagrams/pipeline.html](docs/diagrams/pipeline.html)
+
+When the lockfile did not change, capdelta exits before any parsing or network access. Changed tarballs are verified
+byte-for-byte against lockfile SRI before extraction. Package code is never imported or
+executed. The npm-specific lockfile and extractor implementations sit behind core
+contracts so another ecosystem can add adapters without rewriting the Differ or Reporter.
+
+See [docs/resource-limits.md](docs/resource-limits.md) for the default deadlines and caps.
 
 ## What capdelta detects today
 
@@ -53,24 +84,22 @@ entries, and first-run lockfile additions.
 
 ### Measured results (2026-10-12)
 
-At a frozen policy, on 90 assumed-benign bumps across 30 pre-registered
-packages (single-package diffs, all 90 analyzed), the default CRITICAL gate
-failed on **2 / 90**. Both were real registry install-hook command changes
-(`bcrypt` 6.0.0, `sqlite3` 5.1.7), which capdelta intends you to review; none
-was noise. One bump had a HIGH finding (a documentation link in a string
-literal), and 11 would fail `--strict` because of TypeScript sources or an
-unparseable file. This is a selected, clustered sample with single-reviewer
-labels, not an ecosystem false-positive rate. The method, frozen inputs, raw
-results, and every label are in
+At a frozen policy, on 90 assumed-benign bumps across 30 pre-registered packages
+(single-package diffs, all 90 analyzed), the default CRITICAL gate failed on **2 / 90**.
+Both were real registry install-hook command changes (`bcrypt` 6.0.0, `sqlite3`
+5.1.7), which capdelta intends you to review; none was noise. One bump had a HIGH
+finding (a documentation link in a string literal), and 11 would fail `--strict`
+because of TypeScript sources or an unparseable file. This is a selected, clustered
+sample with single-reviewer labels, not an ecosystem false-positive rate. The method,
+frozen inputs, raw results, and every label are in
 [docs/m5-2026-10-12](docs/m5-2026-10-12/README.md).
 
 ### Attack reconstructions
 
-Defanged, synthetic reconstructions of documented npm compromises run through
-the full lockfile → fetch → static analysis → default gate path
-(`src/core/attack-reconstructions.test.ts`). They are modeled on public
-analyses, labeled as reconstructions, and never contain the original
-artifacts. Each has a benign control bump that must pass.
+Defanged, synthetic reconstructions of documented npm compromises run through the full
+lockfile → fetch → static analysis → default gate path (`src/core/attack-reconstructions.test.ts`).
+They are modeled on public analyses, labeled as reconstructions, and never contain the
+original artifacts. Each has a benign control bump that must pass.
 
 | Incident                                                                                                                                        | Modeled delta                                                                                                                    | Why capdelta fails the default gate                                                                                                                                     |
 | ----------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -78,10 +107,9 @@ artifacts. Each has a benign control bump that must pass.
 | [Shai-Hulud](https://sysdig.com/blog/shai-hulud-the-novel-self-replicating-worm-infecting-hundreds-of-npm-packages), 2025-09                    | `@ctrl/tinycolor@4.1.1` adds `postinstall: node bundle.js`; the bundle reads tokens, runs a scanner, posts to a GitHub API       | CRITICAL hook, plus `NET`/`ENV`/`PROCESS` in install code and the secret-exfiltration shape. With the bundle over the parser limit, the hook alone still fails the gate |
 | [Shai-Hulud 2.0](https://www.endorlabs.com/learn/shai-hulud-2-malware-campaign-targets-github-and-cloud-credentials-using-bun-runtime), 2025-11 | `preinstall: node setup_bun.js` loader plus an encoded payload                                                                   | CRITICAL registry `preinstall` hook                                                                                                                                     |
 
-These show that capdelta flags the modeled dependency and lifecycle deltas.
-They are not the original malware, not a measured detection rate, and not
-proof that encoded payloads are decoded. Sources and every kept or omitted
-behavior are recorded in `test/fixtures/reconstructions/inventory.json`.
+These show that capdelta flags the modeled dependency and lifecycle deltas. They are not
+the original malware, not a measured detection rate, and not proof that encoded payloads
+are decoded. Sources and every kept or omitted behavior are recorded in `test/fixtures/reconstructions/inventory.json`.
 
 ## Severity means review priority
 
@@ -116,184 +144,24 @@ paths, obfuscation, entropy) say what static analysis found or suggests, never
 what the package is. In the PR comment the size cap cuts guidance before it
 touches a finding row, and a footer says how many classes were omitted.
 
-## Try the CLI
+## Quick start
+
+### CLI
 
 Requirements: Node.js 20 or newer, npm, and Git.
 
 From the directory containing one `package-lock.json`:
 
 ```bash
-npm ci
+npm ci --ignore-scripts
 npm run build
 node dist/cli.js --base main
 ```
 
-Machine-readable output:
+The full reference for flags, exit codes, allowlists, and unanalyzable
+exceptions is in [docs/cli.md](docs/cli.md).
 
-```bash
-node dist/cli.js --base main --format json
-```
-
-The intended published interface is:
-
-```bash
-npx capdelta --base main
-```
-
-The npm package is still marked private and has not been published, so use the
-built entrypoint during development.
-
-### CLI behavior
-
-```text
-Usage: capdelta --base <ref> [--format text|json] [--config path] [--fail-on severity] [--strict]
-```
-
-- The base ref is resolved to an immutable commit. Git is invoked with argument
-  arrays and no shell; the validated base blob is read by object ID.
-- If `package-lock.json` is unchanged, capdelta exits `0` with no output and
-  performs no lockfile parsing, extraction, or network access.
-- An untracked, newly added lockfile enters first-run mode. Text stays
-  aggregate-only; JSON retains every package report.
-- Expected package-local failures and partial-analysis diagnostics remain in
-  the report instead of disappearing.
-- When analysis runs, the full report is written before the exit code is
-  decided. Invalid usage, operational failures, and the unchanged-lockfile
-  fast path produce no report.
-
-`--fail-on` sets an inclusive severity threshold: `CRITICAL` (default), `HIGH`,
-`MEDIUM`, `LOW`, `INFO`, or `none` for report-only use. It evaluates the
-report's `summary.gateSeverity`: unsuppressed capability and signal findings,
-lockfile findings, and severity-bearing analysis issues. Tarball integrity
-mismatches, and packages capdelta cannot analyze for a reason decided by the
-artifact bytes or the lockfile entry, are CRITICAL, so the default gate fails
-until a person reviews them (ADR-016, ADR-018). That includes an integrity
-mismatch, a tarball over a cap, a non-retryable HTTP status such as 404, and an
-invalid response. Allowlisted findings stay in the report as suppressed but
-never fail the gate.
-
-`--strict` returns exit `2` when a package is unavailable, a lockfile entry is
-skipped, diagnostics remain, or cancellation/deadline leaves work incomplete.
-Without it, other environmental incompleteness still remains loud in the report
-but does not fail the run; severity-bearing issues such as integrity mismatches
-and unanalyzable packages go through `--fail-on`. A transient fetch failure that
-outlives its retries, a deadline/cancellation stop, or a residual
-filesystem/manifest-read failure (ADR-019) is different: it is an operational
-failure (ADR-018, ADR-019) and exits `1` even under `--fail-on none`.
-
-capdelta retries a transient fetch failure — `network-error`, `timeout`, and
-HTTP 408, 429, or 5xx — up to three attempts, with 250 ms and then 1 s of
-backoff. A retryable status that persists becomes `http-unavailable`. A
-`timeout`, `network-error`, or `http-unavailable` after the final attempt, a
-residual `filesystem-error` during extraction or an unreadable `package.json`
-(`manifest-unreadable`), and any package the deadline or cancellation left
-unanalyzed, fail the run operationally: the CLI prints `capdelta: N package(s)
-could not be fetched or analyzed` to stderr and exits `1`.
-
-| Exit | Meaning                                                                                                     |
-| ---: | ----------------------------------------------------------------------------------------------------------- |
-|  `0` | Nothing reached the `--fail-on` threshold and no package failed operationally, or the lockfile is unchanged |
-|  `1` | A finding reached the threshold, or an operational failure; see stderr, unless `--strict` selects exit 2    |
-|  `2` | `--strict` found unanalyzed content; takes precedence over severity and operational failure                 |
-| `64` | Invalid usage                                                                                               |
-
-Allowlist exceptions live in `.capdelta.yml` and require a justification. The
-GitHub Action reads this file from the selected base commit (the PR base, or
-`base-ref`), never from the PR head, so a pull request cannot add an exception
-that suppresses its own findings. Normally you merge a reviewed exception
-first, then re-run the dependency PR (ADR-015).
-The CLI likewise reads `--config` (default `.capdelta.yml`, relative to the
-current directory) from the `--base` commit and only reports working-tree
-changes to it.
-
-Example:
-
-```yaml
-allowlist:
-  - package: example-package
-    capability: NET
-    justification: "documented telemetry endpoint"
-```
-
-The finding remains visible as `suppressed ("documented telemetry endpoint")`
-and is excluded from the severity gate. The parser intentionally supports only
-this small, reviewable YAML subset and adds no runtime dependency.
-
-Prefer scoping an exception to the exact version you reviewed:
-
-```yaml
-allowlist:
-  - package: example-binding
-    capability: NATIVE
-    version: 1.2.13
-    justification: "prebuilt binding reviewed for 1.2.13"
-```
-
-`version` must be one exact semver (no ranges, tags, or `v` prefix) and is
-compared literally, build metadata included. The reason then reads `[version
-1.2.13] …`. Other versions do not match the exception, so capabilities they
-newly gain gate normally (capdelta reports additions, so a later release that
-adds nothing new produces no finding either way). A scoped entry still applies
-to every matching finding of that version until removed, and it trusts npm's
-immutable `name@version` rather than pinning reviewed bytes. Entries without
-`version` apply to every version, so a later malicious change of the same kind
-in that package would also be suppressed. Several exact versions may be listed
-for one package and capability, but scoped and unscoped entries for the same
-pair cannot be mixed.
-
-A package capdelta cannot analyze at all — an oversized tarball, a refused
-entry, or a missing manifest — fails the default gate (ADR-016). Release a
-reviewed one with a top-level `unanalyzable:` exception, bound to the exact
-bytes that were reviewed:
-
-```yaml
-unanalyzable:
-  - package: big-native-pkg
-    version: 2.3.4
-    integrity: "sha512-…" # exact lockfile integrity of the reviewed artifact
-    kind: expanded-size-limit # one unanalyzable failure kind
-    justification: "Ships 80 MB of prebuilt binaries; reviewed upstream release notes and provenance."
-```
-
-Every field is required. Get `integrity` by copying the `integrity` field of
-that package and version's `node_modules/...` entry in `package-lock.json`.
-`version` must be one exact semver, and `integrity` must be one or more
-canonical sha512 SRI tokens. `kind` must be a post-verification failure kind —
-one of the extraction- or manifest-stage kinds ADR-016 classifies as CRITICAL,
-such as `expanded-size-limit`, `file-count-limit`, `link-entry`,
-`manifest-missing`, or `manifest-not-regular`. Fetch-stage kinds (`size-limit-exceeded`, `invalid-url`,
-`unsupported-integrity`, `integrity-mismatch`) happen before or without byte
-verification, so they can never be excepted and are rejected. The same
-`(package, version, integrity, kind)` tuple may not appear twice.
-
-The entry must bind the **new** artifact, not just the old one. A package is
-released only when every severity-bearing failure is a post-verification
-failure that matches an entry on its own side's version and integrity, and at
-least one match is on the new side. An old-side-only exception never releases a
-package, because the new bytes were never inspected. The exception then releases
-only those exact bytes from the severity gate; every new version and every
-swapped tarball needs a fresh review, and `--strict` still returns exit `2`
-because the package remains unanalyzed.
-
-Known cost: a tarball over the _download_ cap fails at fetch time with
-`size-limit-exceeded`, so it can no longer be excepted. Raising the fetch cap is
-the fix, but neither the CLI nor the GitHub Action exposes it today, so that is
-a code change rather than a configuration one.
-
-Example excerpt:
-
-```text
-capdelta capability analysis report
-Mode: comparison
-Packages: 1 changed; 1 analyzed; 0 unavailable; 0 lockfile skips.
-Signals: 1 capability finding (CRITICAL: 1); 0 lockfile findings; 0 analysis issues; 0 analysis diagnostics.
-
-Findings:
-- [CRITICAL] "postinstall" registry install hook added
-  Evidence: "package.json":5 — "\"postinstall\": \"echo test\""
-```
-
-## Use the GitHub Action
+### GitHub Action
 
 Pin the Action to a reviewed full commit SHA rather than a mutable branch or
 tag:
@@ -328,87 +196,16 @@ jobs:
 The example pin is the repository's currently dogfooded immutable Action
 revision. Review and update pins deliberately when adopting a newer revision.
 
-### Action inputs
-
-| Input           | Default               | Behavior                                                                    |
-| --------------- | --------------------- | --------------------------------------------------------------------------- |
-| `github-token`  | `${{ github.token }}` | Reads base contents, comments, and uploads reports                          |
-| `lockfile-path` | `package-lock.json`   | One repository-relative npm lockfile                                        |
-| `fail-on`       | `CRITICAL`            | Inclusive threshold: `CRITICAL`, `HIGH`, `MEDIUM`, `LOW`, `INFO`, or `none` |
-| `base-ref`      | PR base SHA           | Optional base Git ref override                                              |
-| `config-path`   | empty                 | Optional `.capdelta.yml` path, read from the base commit, not the PR head   |
-| `strict`        | `false`               | Fails the Action when any changed content remains unanalyzed                |
-
-Outputs are `status` (`no-op`, `passed`, or `failed`), `artifact-id`,
-and `highest-severity`.
-
-The Action:
-
-1. takes the no-op path when the configured lockfile did not change;
-2. retrieves the base lockfile through the GitHub Contents API at an immutable
-   base commit;
-3. uploads the complete schema-v5 JSON report as the `capdelta-report`
-   artifact; `summary.gateSeverity` holds exactly what `fail-on` evaluates
-   (unsuppressed findings, lockfile findings, and integrity mismatches), while
-   `summary.bySeverity` keeps every capability and signal finding, suppressed
-   ones included;
-4. uploads SARIF 2.1.0 to code scanning when permissions permit; tarball
-   integrity mismatches appear as `CAPDELTA-INTEGRITY-MISMATCH` results located
-   at the configured `lockfile-path`, with no line, since the package itself
-   was not analyzed;
-5. creates or updates one 60,000-character-capped sticky summary comment; and
-6. applies `fail-on` only after report delivery, and fails the job for an
-   operational failure (ADR-018) even under `fail-on: none`.
-
-Fork and Dependabot PRs have read-only credentials. capdelta therefore writes
-the same inert summary to the job summary, retains the JSON artifact, relies on
-the job conclusion for status, and skips SARIF/comment writes it cannot perform.
-Never work around this with `pull_request_target` while checking out untrusted
-PR-head code.
+Fork and Dependabot PRs have read-only credentials. capdelta therefore writes the
+same inert summary to the job summary, retains the JSON artifact, relies on the job
+conclusion for status, and skips SARIF/comment writes it cannot perform. Never work
+around this with `pull_request_target` while checking out untrusted PR-head code.
 
 If dependency updates can auto-merge, make the capdelta job a required status
 check so a bump cannot merge before the configured gate runs.
 
-## How it works
-
-```mermaid
-flowchart LR
-    A["Base and head package-lock.json"] --> B["npm LockfileDiffer"]
-    B --> C["Fetch changed tarballs"]
-    C --> D["Verify lockfile SHA-512 integrity"]
-    D --> E["Safe static extraction"]
-    E --> F["Manifest + JavaScript capability extraction"]
-    F --> G["Ecosystem-agnostic capability sets"]
-    G --> H["Shape-first additions-only Differ"]
-    H --> I["Text + JSON + PR summary + SARIF"]
-```
-
-The no-op check precedes parsing and network access. Changed tarballs are
-verified byte-for-byte against lockfile SRI before extraction. Package code is
-never imported or executed. The npm-specific lockfile and extractor
-implementations sit behind core contracts so another ecosystem can add adapters
-without rewriting the Differ or Reporter.
-
-### Default resource limits
-
-| Boundary                      | Default                                                                   |
-| ----------------------------- | ------------------------------------------------------------------------- |
-| Whole capability-analysis run | 5-minute deadline                                                         |
-| Fetching                      | 8 concurrent requests, 30-second request timeout, 50 MiB per tarball      |
-| Extraction                    | 4 concurrent packages, 10,000 entries, 250 MiB expanded data, 100:1 ratio |
-| Manifest                      | 1 MiB                                                                     |
-| JavaScript source             | 2 MiB per file, 5-second parser-worker deadline                           |
-| CLI lockfile                  | 50 MiB                                                                    |
-| CLI Git command               | 60 seconds, then soft-to-hard termination escalation                      |
-| PR comment                    | 60,000 characters, 10 prioritized detail rows by default                  |
-
-Deadline, cancellation, cleanup, parser-worker termination, and package-local
-failures all degrade loudly into structured report issues. A manifest preflight
-discovers install hooks safely, then the scheduler prioritizes those packages,
-smaller downloads, and lockfile order while preserving report order. The full
-budget record is in JSON and partial runs are called out in text and Action
-summaries. Limits are exposed through the analysis-library options; the CLI
-exposes report format, base ref, config, and strict mode.
+Every input, output, and step is in
+[docs/github-action.md](docs/github-action.md).
 
 ## Security model
 
@@ -495,63 +292,10 @@ manually accepted because esbuild's documented installer legitimately selects
 and validates a platform binary. This is the intended meaning of CRITICAL:
 powerful behavior that requires review, not an automatic malware accusation.
 
-## Programmatic API
-
-The package also exposes the ecosystem-agnostic analysis library. Until the
-first release, this API is available from a local build and may still evolve:
-
-```ts
-import {
-  analyzeChangedPackages,
-  diffNpmLockfiles,
-  renderJsonRunReport,
-} from "capdelta";
-
-const lockfileDiff = diffNpmLockfiles(parsedBaseLockfile, parsedHeadLockfile);
-const run = await analyzeChangedPackages(lockfileDiff);
-const json = renderJsonRunReport(run);
-```
-
-Public exports include the capability-set contract, npm lockfile/fetch/extract
-adapters, analysis execution policy, Differ, JSON/text/SARIF reporters, and
-typed failure taxonomies.
-
-## Development and validation
-
-```bash
-npm run format:check
-npm run lint
-npm run typecheck
-npm test
-npm run check:deps
-npm run check:action
-```
-
-Tests use inert handcrafted lockfiles and tarballs; package code is never run.
-Golden pairs cover each PLAN §4.4 severity row (`test/fixtures/golden/`), and
-attack reconstructions cover documented incidents
-(`test/fixtures/reconstructions/`).
-CI executes the suite on Node.js 20, 22, and 24 and verifies that the committed
-Action bundle is reproducible.
-
-The post-M3 false-positive harness inspects adjacent recent, nondeprecated,
-stable npm releases:
-
-```bash
-npm run fp-check -- --bumps 3 lodash react minimist
-```
-
-Its selection is not a legitimacy attestation. It emits JSON summaries and
-returns exit `2` when a package or bump could not be analyzed. The required
-informal run covered 20 packages and 60 bumps; see the
-[recorded results and interpretation](docs/fp-corpus-2026-07-29.md). This is a
-pre-M4 tuning exercise, not the formal M5 false-positive measurement.
-
-capdelta currently has four direct runtime dependencies: `acorn`,
-`acorn-walk`, `jsonc-parser`, and `tar`. The `@actions/*` packages are
-build-time only, bundled into `dist/action`. CI fails at 10, so the enforced
-budget remains **fewer than 10**. Transitive runtime packages are reported by
-the check but are not the gate.
+capdelta currently has four direct runtime dependencies: `acorn`, `acorn-walk`,
+`jsonc-parser`, and `tar`. The `@actions/*` packages are build-time only, bundled into
+`dist/action`. CI fails at 10, so the enforced budget remains **fewer than 10**.
+Transitive runtime packages are reported by the check but are not the gate.
 
 ## Architecture decisions
 
@@ -573,6 +317,7 @@ the check but are not the gate.
 - [ADR-016: Fail the default gate on packages capdelta cannot analyze](docs/adr/0016-fail-closed-on-unanalyzable-packages.md)
 - [ADR-017: Reviewed exceptions for unanalyzable packages](docs/adr/0017-reviewed-unanalyzable-exceptions.md)
 - [ADR-018: Fetch failures fail the run instead of passing it](docs/adr/0018-fetch-failures-fail-closed.md)
+- [ADR-019: Read what npm installs, and fail on every unread package](docs/adr/0019-read-what-npm-installs.md)
 
 The authoritative architecture and roadmap remain in
 [docs/PLAN.md](docs/PLAN.md). Session handoffs are recorded in
@@ -580,27 +325,43 @@ The authoritative architecture and roadmap remain in
 
 ## Roadmap status
 
-- **M0-M4: complete.** Scaffolding, manifest CLI, secure retrieval/extraction,
-  Action reporting, AST taxonomy, shape severity, SARIF, dependency
+### Shipped
+
+- **M0-M3.** Scaffolding, the manifest CLI, secure retrieval and extraction,
+  Action reporting, the AST taxonomy, shape severity, SARIF, dependency
   cross-linking, and the false-positive harness are on `main`.
-- **Post-M3 checkpoint: complete.** All 60 selected legitimate bumps were
-  analyzed; 54 had no findings, all 16 findings were LOW/INFO, and no bump
-  tripped the default CRITICAL gate. The detailed corpus record documents the
+- **Post-M3 checkpoint.** All 60 selected legitimate bumps were analyzed; 54
+  had no findings, all 16 findings were LOW/INFO, and no bump tripped the
+  default CRITICAL gate. The detailed corpus record documents the
   diagnostic-noise and tuning observations.
-- **M4: complete except benign-pattern suppression.** Signals, justified
-  allowlists, strict mode, bounded scheduling, loud partial-analysis reporting,
-  and malformed-input property tests are implemented. Benign-pattern
-  suppression is deliberately deferred: PLAN §6 requires it be driven by
-  post-M3 false-positive data, and the 2026-07-29 corpus produced no
-  install-hook findings to drive it.
-- **M5:** formal measured validation, release evidence, and publication work.
+- **M4, except benign-pattern suppression.** Signals, justified allowlists,
+  strict mode, bounded scheduling, loud partial-analysis reporting, and
+  malformed-input property tests are implemented. Benign-pattern suppression is
+  deliberately deferred: PLAN §6 requires it be driven by post-M3
+  false-positive data, and the 2026-07-29 corpus produced no install-hook
+  findings to drive it.
+- **Fail closed on unanalyzable packages.** A changed package that capdelta
+  cannot fetch, extract, or read fails the run, with reviewed exceptions for
+  the cases that allow one (ADR-016 to ADR-019).
+- **Finding guidance.** Capability, signal, and analysis-failure findings
+  explain why they matter and what to check, in the text report, the PR
+  comment, and SARIF rule help.
+- **First measurement.** The 2026-10-12 false-positive study
+  [above](#measured-results-2026-10-12).
+
+### Next
+
+1. A permission-aware Dependabot PR comment and SARIF demo on this repository.
+2. M5 publication of the measured results.
+3. Noise reduction, measured on a new held-out corpus.
+4. Analyzing the new side as a new package when the old side cannot be
+   analyzed.
 
 ## Contributing and security reports
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the design-first workflow, required
-checks, dependency budget, and inert-fixture rules. Report suspected
-vulnerabilities privately according to [SECURITY.md](SECURITY.md), not in a
-public issue or pull request.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the design-first workflow, required checks,
+dependency budget, and inert-fixture rules. Report suspected vulnerabilities privately
+according to [SECURITY.md](SECURITY.md), not in a public issue or pull request.
 
 ## License
 
