@@ -5,6 +5,10 @@
 # bumped packages, the tests) runs only in that container, never on the host,
 # so it cannot reach a token, an npmrc or an SSH key.
 #
+# The base image is pinned by digest. It is node:22-bookworm-slim, which has no
+# git, and the test suite runs real git in throwaway repositories, so the
+# script builds a one-line derived image from that exact digest and adds git.
+#
 # The checkout's `.git` is mounted read-only on top of the working copy. A
 # writable `.git/hooks` would let the build leave a hook that the host runs at
 # the next commit, which is host code execution from updated dependency code.
@@ -13,7 +17,8 @@
 # diff; review it, then commit and push by hand.
 set -euo pipefail
 
-IMAGE="node:22-bookworm-slim@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392"
+BASE_IMAGE="node:22-bookworm-slim@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392"
+SANDBOX_IMAGE="capdelta-action-sandbox:local"
 
 # The path a `git status --porcelain` line refers to. Renames and copies read
 # "old -> new", so take the new path.
@@ -95,20 +100,26 @@ main() {
     -w /w
   )
 
+  # Everything already dirty before the rebuild, such as .task.md.
   local baseline
-  baseline="$(mktemp)"
-  trap 'rm -f "$baseline"' EXIT
-  git status --porcelain --ignored --untracked-files=all >"$baseline"
+  baseline="$(git status --porcelain --ignored --untracked-files=all)"
 
-  printf 'step 1/2: install dependencies (network allowed)\n'
-  docker run "${mounts[@]}" "$IMAGE" npm ci --ignore-scripts
+  printf 'step 1/4: build the sandbox image with git (network allowed)\n'
+  docker build -t "$SANDBOX_IMAGE" - <<DOCKERFILE
+FROM $BASE_IMAGE
+RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
+DOCKERFILE
 
-  printf 'step 2/2: rebuild and verify, no network\n'
-  docker run "${mounts[@]}" --network none "$IMAGE" sh -c \
+  printf 'step 2/4: install dependencies (network allowed)\n'
+  docker run "${mounts[@]}" "$SANDBOX_IMAGE" npm ci --ignore-scripts
+
+  printf 'step 3/4: rebuild and verify, no network\n'
+  docker run "${mounts[@]}" --network none "$SANDBOX_IMAGE" sh -c \
     'npm run package:action && npm run typecheck && npm run lint && npm run format:check && npm test && npm run check:deps'
 
-  printf 'step 3/3: check for stray paths\n'
-  if ! git status --porcelain --ignored --untracked-files=all | check_status_scope "$baseline"; then
+  printf 'step 4/4: check for stray paths\n'
+  if ! git status --porcelain --ignored --untracked-files=all |
+    check_status_scope <(printf '%s\n' "$baseline"); then
     printf 'error: the rebuild changed paths outside dist/action, dist and node_modules\n' >&2
     return 1
   fi
