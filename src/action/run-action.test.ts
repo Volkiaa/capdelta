@@ -230,24 +230,79 @@ describe("runAction", () => {
     expect(createCall?.[0].body).toContain("**First run:**");
   });
 
-  it.each([
-    [{ headRepository: "fork/repo" }, "fork"],
-    [{ actor: "dependabot[bot]" }, "dependabot"],
-  ] as const)(
-    "degrades read-only contributions to summary",
-    async (change, reason) => {
-      const runtime = adapters();
-      await expect(
-        runAction(inputs, { ...context, ...change }, runtime),
-      ).resolves.toMatchObject({ comment: { status: "summary-only", reason } });
-      expect(runtime.addJobSummary).toHaveBeenCalledOnce();
-      expect(runtime.comments.listComments).not.toHaveBeenCalled();
-      expect(runtime.uploadSarif).not.toHaveBeenCalled();
-      expect(runtime.warn).toHaveBeenCalledWith(
-        expect.stringContaining("cannot upload SARIF"),
-      );
-    },
-  );
+  it("degrades a fork PR to the job summary without attempting any write", async () => {
+    const runtime = adapters();
+    await expect(
+      runAction(inputs, { ...context, headRepository: "fork/repo" }, runtime),
+    ).resolves.toMatchObject({
+      comment: { status: "summary-only", reason: "fork" },
+    });
+    expect(runtime.addJobSummary).toHaveBeenCalledOnce();
+    expect(runtime.comments.listComments).not.toHaveBeenCalled();
+    expect(runtime.comments.createComment).not.toHaveBeenCalled();
+    expect(runtime.comments.updateComment).not.toHaveBeenCalled();
+    expect(runtime.uploadSarif).not.toHaveBeenCalled();
+    expect(runtime.warn).toHaveBeenCalledWith(
+      expect.stringContaining("fork PR cannot upload SARIF"),
+    );
+  });
+
+  it("posts the comment and uploads SARIF for a non-fork Dependabot PR (ADR-020)", async () => {
+    const runtime = adapters();
+    await expect(
+      runAction(inputs, { ...context, actor: "dependabot[bot]" }, runtime),
+    ).resolves.toMatchObject({
+      comment: { status: "created", commentId: 7 },
+      sarifUploaded: true,
+    });
+    expect(runtime.comments.createComment).toHaveBeenCalledOnce();
+    expect(runtime.uploadSarif).toHaveBeenCalledOnce();
+  });
+
+  it("warns and continues when the SARIF upload is refused for a missing permission (ADR-020)", async () => {
+    const runtime = adapters();
+    vi.mocked(runtime.uploadSarif).mockRejectedValueOnce(
+      Object.assign(new Error("Resource not accessible by integration"), {
+        status: 403,
+      }),
+    );
+    await expect(runAction(inputs, context, runtime)).resolves.toMatchObject({
+      status: "analyzed",
+      sarifUploaded: false,
+      comment: { status: "created", commentId: 7 },
+    });
+    expect(runtime.warn).toHaveBeenCalledWith(
+      expect.stringContaining("security-events: write"),
+    );
+    expect(runtime.comments.createComment).toHaveBeenCalledOnce();
+  });
+
+  it("fails the run when the SARIF upload fails for any other reason (ADR-020)", async () => {
+    const runtime = adapters();
+    vi.mocked(runtime.uploadSarif).mockRejectedValueOnce(
+      Object.assign(new Error("server error"), { status: 500 }),
+    );
+    await expect(runAction(inputs, context, runtime)).rejects.toThrow(
+      "failed to upload SARIF report",
+    );
+  });
+
+  it("keeps the gate failing when a refused comment write degrades to the summary (ADR-020)", async () => {
+    const runtime = adapters(
+      unavailableRun([fetchFailure("integrity-mismatch")]),
+    );
+    vi.mocked(runtime.comments.createComment).mockRejectedValueOnce(
+      Object.assign(new Error("Resource not accessible by integration"), {
+        status: 403,
+      }),
+    );
+    const outcome = await runAction(inputs, context, runtime);
+    expect(outcome).toMatchObject({
+      gate: { fail: true },
+      comment: { status: "summary-only", reason: "token-denied" },
+    });
+    expect(runtime.addJobSummary).toHaveBeenCalledOnce();
+  });
 
   it("applies fail-on only after preserving report outputs", async () => {
     const critical = emptyRun();

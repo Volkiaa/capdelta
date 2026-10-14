@@ -28,6 +28,7 @@ import {
   validateLockfilePath,
   type GitHubContentsClient,
 } from "./base-lockfile-retriever.js";
+import { isPermissionRefusal } from "./permission-refusal.js";
 import {
   evaluateSeverityGate,
   hasOperationalFailure,
@@ -199,24 +200,37 @@ export async function runAction(
   const artifact = await withContext("upload JSON report artifact", () =>
     adapters.uploadJson(ARTIFACT_NAME, json),
   );
+  // ADR-020: only a fork gets a guaranteed read-only token. Every other PR,
+  // Dependabot included, attempts the writes and degrades on a 403 refusal.
   const readOnlyReason =
-    context.actor === "dependabot[bot]"
-      ? "dependabot"
-      : context.headRepository !== context.baseRepository
-        ? "fork"
-        : null;
+    context.headRepository !== context.baseRepository ? "fork" : null;
   let sarifUploaded = false;
   if (readOnlyReason === null) {
-    await withContext("upload SARIF report", () =>
-      adapters.uploadSarif(sarif, {
+    try {
+      await adapters.uploadSarif(sarif, {
         commitSha: context.headSha,
         ref: `refs/pull/${String(context.pullRequestNumber)}/head`,
-      }),
-    );
-    sarifUploaded = true;
+      });
+      sarifUploaded = true;
+    } catch (error: unknown) {
+      // Classify the raw error before `withContext` wraps it, so a refused
+      // upload warns instead of failing the run.
+      if (!isPermissionRefusal(error)) {
+        if (error instanceof ActionRunnerError) throw error;
+        throw new ActionRunnerOperationalError(
+          "failed to upload SARIF report",
+          {
+            cause: error,
+          },
+        );
+      }
+      adapters.warn(
+        "capdelta: the token cannot upload SARIF; add security-events: write to the workflow permissions; the JSON artifact and job summary remain available",
+      );
+    }
   } else {
     adapters.warn(
-      `capdelta: ${readOnlyReason} PR cannot upload SARIF with the read-only token; JSON artifact and job summary remain available`,
+      "capdelta: fork PR cannot upload SARIF with the read-only token; JSON artifact and job summary remain available",
     );
   }
   const body = renderActionComment(report, {

@@ -18,6 +18,7 @@ import {
   assessRunSeverity,
   isUnanalyzableIssue,
 } from "../core/run-severity.js";
+import { isPermissionRefusal } from "./permission-refusal.js";
 
 export const COMMENT_MARKER = "<!-- capdelta:capability-report:v2 -->";
 const LEGACY_COMMENT_MARKERS = ["<!-- capdelta:manifest-report:v1 -->"];
@@ -87,7 +88,7 @@ export interface CommentDelivery {
   repo: string;
   issueNumber: number;
   body: string;
-  readOnlyReason: "fork" | "dependabot" | null;
+  readOnlyReason: "fork" | "token-denied" | null;
   addJobSummary(body: string): Promise<void>;
   warn(message: string): void;
 }
@@ -95,7 +96,7 @@ export interface CommentDelivery {
 export type CommentPublishResult =
   | { status: "created"; commentId: number }
   | { status: "updated"; commentId: number }
-  | { status: "summary-only"; reason: "fork" | "dependabot" };
+  | { status: "summary-only"; reason: "fork" | "token-denied" };
 
 export class ActionCommentError extends Error {
   constructor(message: string, options?: ErrorOptions) {
@@ -194,15 +195,7 @@ export async function publishStickyComment(
 ): Promise<CommentPublishResult> {
   validateDelivery(delivery);
   if (delivery.readOnlyReason !== null) {
-    try {
-      await delivery.addJobSummary(delivery.body);
-    } catch (error: unknown) {
-      throw new ActionCommentApiError(
-        "failed to write the read-only PR job summary",
-        { cause: error },
-      );
-    }
-    return { status: "summary-only", reason: delivery.readOnlyReason };
+    return writeSummaryFallback(delivery, "fork");
   }
 
   const matches: GitHubComment[] = [];
@@ -241,6 +234,12 @@ export async function publishStickyComment(
       });
       return { status: "created", commentId: created.id };
     } catch (error: unknown) {
+      // ADR-020: a 403 "Resource not accessible by integration" means the token
+      // lacks pull-requests: write. Degrade to the job summary; every other
+      // failure stays loud.
+      if (isPermissionRefusal(error)) {
+        return writeSummaryFallback(delivery, "token-denied");
+      }
       throw new ActionCommentApiError("failed to create the PR comment", {
         cause: error,
       });
@@ -266,11 +265,40 @@ export async function publishStickyComment(
       body: delivery.body,
     });
   } catch (error: unknown) {
+    if (isPermissionRefusal(error)) {
+      return writeSummaryFallback(delivery, "token-denied");
+    }
     throw new ActionCommentApiError("failed to update the PR comment", {
       cause: error,
     });
   }
   return { status: "updated", commentId: target.id };
+}
+
+/**
+ * ADR-020: write the inert comment body to the job summary and report
+ * summary-only. `fork` is known before the write; `token-denied` comes from a
+ * refused write, which warns about the missing permission. A failed summary
+ * write is still loud, as the fork path has always been.
+ */
+async function writeSummaryFallback(
+  delivery: CommentDelivery,
+  reason: "fork" | "token-denied",
+): Promise<CommentPublishResult> {
+  if (reason === "token-denied") {
+    delivery.warn(
+      "capdelta: the token cannot write the PR comment; add pull-requests: write to the workflow permissions; the comment is written to the job summary instead",
+    );
+  }
+  try {
+    await delivery.addJobSummary(delivery.body);
+  } catch (error: unknown) {
+    throw new ActionCommentApiError(
+      "failed to write the read-only PR job summary",
+      { cause: error },
+    );
+  }
+  return { status: "summary-only", reason };
 }
 
 function buildComment(
