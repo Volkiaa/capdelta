@@ -1,11 +1,11 @@
 # HANDOFF
 
 The starting point for the next capdelta session. Read this first, then CLAUDE.md. `docs/SESSIONS.md` has the full
-history, and docs/PLAN.md (rev. 3) is the spec. Last updated 2026-10-14.
+history, and docs/PLAN.md (rev. 3) is the spec. Last updated 2026-10-14 (second session).
 
 ## Where main stands
 
-main is at 96df813. Finding guidance (#52-#55) and ADR-019
+main is at cb5b882 plus this PR (`scripts/package-action-sandboxed.sh`). #70 makes CI install with `npm ci --ignore-scripts`, #71 groups every package that changes `dist/action/` into one weekly Dependabot PR (`action-bundle`), and #64 (ncc 0.45.0) is closed. Finding guidance (#52-#55) and ADR-019
 (#56-#58) are merged. The README restructure (#60) moved the reference material to `docs/cli.md`,
 `docs/github-action.md`, `docs/resource-limits.md`, `docs/api.md` and `docs/development.md`. ADR-020 (#61) makes the
 Action post the comment and SARIF on Dependabot PRs. #62 pins the dogfood workflow to it and adds a 3-day Dependabot
@@ -28,15 +28,11 @@ cooldown, and Dependabot bumps #63, #65, #66 and #67 are merged. Every way a cha
 
 ## Next, in order
 
-1. **Dependabot PRs that change the Action bundle fail CI.** A bump of a bundled package (`@actions/*`, `acorn`,
-   `@vercel/ncc`) leaves `dist/action/` stale, so `check:action` fails on Node 20, 22 and 24. On 2026-10-14 the bundle
-   was rebuilt by hand on #63 and #66: merge main into the Dependabot branch, run `npm run package:action`, commit,
-   run the full verification, and push without force. Decide whether a workflow should rebuild it; that needs a design and the
-   user's approval. The PLAN §9 demo is done: the README shows capdelta's comment on Dependabot PR #63.
-   - **#64 is held** (`@vercel/ncc` 0.44.1 to 0.45.0). capdelta reported two MEDIUM findings: the unparseable
-     `dist/ncc/index.js.cache.js` (4.3 MB, most likely a V8 code cache) grew by 1 byte. ncc builds the shipped
-     Action, so merging it needs the user's decision. If approved, rebuild `dist/action/` on the branch as above;
-     otherwise close it so Dependabot skips that version. Its CI fails until the rebuild.
+1. **Rebuild the bundle on `action-bundle` Dependabot PRs by hand.** `check:action` fails on them by design. Follow
+   "Updating bundled dependencies" in `docs/development.md`: run `scripts/package-action-sandboxed.sh` from a clean
+   checkout of the Dependabot branch, review the `dist/action/` diff, commit, push without force. Never run `npm ci` or
+   the verification on the host for such a branch. The rule behind it: no job or machine that holds credentials runs
+   updated dependency code. The script only accepts a bundle whose files exactly match `git ls-files dist/action`.
 2. **M5 publication.** Note that M5's `gateFail` is severity-only and does not count operational exit 1
    (`scripts/m5-measure.ts:110`). Never edit `docs/m5-2026-10-12/`.
 3. **Noise reduction on a new held-out corpus.**
@@ -78,5 +74,7 @@ cooldown, and Dependabot bumps #63, #65, #66 and #67 are merged. Every way a cha
 
 ## Housekeeping
 
-- No open worktrees or PRs after this session; the Codex terminal can be closed.
+- Open: the `sandboxed-rebuild` PR and its worktree, and the `codex-review-sandbox` worktree. Remove both worktrees after the merge.
+- Codex cannot review this script: OpenAI's cyber filter blocked it twice. A Sonnet subagent reviewed it in four passes and found four real defects (bare-repo layout, ignored tar exits, gzip bomb, owner-name size spoofing). Use Sonnet as the fallback when Codex is blocked.
+- `npm ci` reports 2 high-severity advisories in dev dependencies; not yet looked at.
 - Check spend with `npx --no-install codeburn models -p today`, run from a scratch directory.
