@@ -27,10 +27,10 @@ Action post the comment and SARIF on Dependabot PRs. Every way a changed package
 
 ## Next, in order
 
-1. **Capture the Dependabot demo (PLAN §9).** ADR-020 (#61) is merged and the dogfood workflow is pinned to it. Wait
-   for Dependabot's next weekly run, or have the user click "Check for updates" in the repo's Dependency graph tab.
-   Confirm the PR gets the sticky comment and a SARIF upload, screenshot the comment, and add it to the README.
-   Dependabot opened no PR between 2026-08-25 and 2026-10-14; if none arrives, find out why before anything else.
+1. **Dependabot PRs that change the Action bundle fail CI.** A bump of a bundled package (`@actions/*`, `acorn`,
+   `@vercel/ncc`) leaves `dist/action/` stale, so `check:action` fails on Node 20, 22 and 24. On 2026-10-14 the bundle
+   was rebuilt by hand on #63, #64 and #66. Decide whether a workflow should rebuild it; that needs a design and the
+   user's approval. The PLAN §9 demo is done: the README shows capdelta's comment on Dependabot PR #63.
 2. **M5 publication.** Note that M5's `gateFail` is severity-only and does not count operational exit 1
    (`scripts/m5-measure.ts:110`). Never edit `docs/m5-2026-10-12/`.
 3. **Noise reduction on a new held-out corpus.**

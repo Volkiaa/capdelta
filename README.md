@@ -294,6 +294,13 @@ manually accepted because esbuild's documented installer legitimately selects
 and validates a platform binary. This is the intended meaning of CRITICAL:
 powerful behavior that requires review, not an automatic malware accusation.
 
+On [Dependabot PR #63](https://github.com/Volkiaa/capdelta/pull/63), which bumps
+`@actions/artifact` from 6.2.1 to 6.3.1, capdelta posted this comment and uploaded
+SARIF. Since ADR-020, the Action writes whenever the workflow's token allows it, so
+Dependabot PRs get the same review as any other PR.
+
+![capdelta's comment on Dependabot PR #63: one LOW finding, @actions/artifact added the dependency @protobuf-ts/runtime-rpc](docs/images/dependabot-pr-63.png)
+
 capdelta currently has four direct runtime dependencies: `acorn`, `acorn-walk`,
 `jsonc-parser`, and `tar`. The `@actions/*` packages are build-time only, bundled into
 `dist/action`. CI fails at 10, so the enforced budget remains **fewer than 10**.
@@ -351,13 +358,14 @@ The authoritative architecture and roadmap remain in
   comment, and SARIF rule help.
 - **First measurement.** The 2026-10-12 false-positive study
   [above](#measured-results-2026-10-12).
+- **Dependabot demo.** Dependabot PRs get the sticky comment and SARIF (ADR-020);
+  see [the dogfooding evidence](#dogfooding-evidence).
 
 ### Next
 
-1. A permission-aware Dependabot PR comment and SARIF demo on this repository.
-2. M5 publication of the measured results.
-3. Noise reduction, measured on a new held-out corpus.
-4. Analyzing the new side as a new package when the old side cannot be
+1. M5 publication of the measured results.
+2. Noise reduction, measured on a new held-out corpus.
+3. Analyzing the new side as a new package when the old side cannot be
    analyzed.
 
 ## Contributing and security reports
