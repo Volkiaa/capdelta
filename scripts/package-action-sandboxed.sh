@@ -309,6 +309,8 @@ main() {
     --user node
     -e HOME=/tmp/home
     -e npm_config_cache=/tmp/npm-cache
+    -e NO_COLOR=1
+    -e FORCE_COLOR=0
     -v "$vol":/w
     -w /w
   )
@@ -362,17 +364,23 @@ main() {
 # variables are global, not local to main, so the trap still sees them after
 # main returns.
 cleanup() {
-  # A container killed by SIGPIPE at the cap can outlive its docker client and
-  # keep the volume in use, so remove every container that mounts it first.
-  local ids
-  if ids="$(docker ps -aq --filter "volume=$vol")" && [[ -n "$ids" ]]; then
-    # shellcheck disable=SC2086 # one container id per word
-    if ! docker rm -f $ids >/dev/null; then
-      printf 'warning: could not remove the sandbox containers %s\n' "$ids" >&2
+  # A container killed by SIGPIPE at the cap can outlive its docker client, and
+  # a --rm container may still be removing itself, so the volume can be in use
+  # for a few seconds. Retry for up to ten seconds, then warn about what is left.
+  local ids attempt
+  for attempt in 1 2 3 4 5 6 7 8 9 10; do
+    ids="$(docker ps -aq --filter "volume=$vol")" || ids="unknown"
+    if [[ -z "$ids" ]] && docker volume rm -f "$vol" >/dev/null 2>&1; then
+      break
     fi
-  fi
-  if ! docker volume rm -f "$vol" >/dev/null; then
-    printf 'warning: could not remove the sandbox volume %s; remove it with docker volume rm\n' "$vol" >&2
+    if [[ -n "$ids" && "$ids" != "unknown" ]]; then
+      # shellcheck disable=SC2086 # one container id per word
+      docker rm -f $ids >/dev/null 2>&1 || :
+    fi
+    sleep 1
+  done
+  if docker volume inspect "$vol" >/dev/null 2>&1; then
+    printf 'warning: could not remove the sandbox volume %s after %s attempts; remove it with docker volume rm\n' "$vol" "$attempt" >&2
   fi
   rm -rf "$tmp"
 }
