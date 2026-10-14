@@ -5,6 +5,7 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=scripts/package-action-sandboxed.sh
+# shellcheck disable=SC1091
 source "$script_dir/package-action-sandboxed.sh"
 
 passed=0
