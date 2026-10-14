@@ -225,6 +225,20 @@ MAX_EXTRACTED_BYTES=5000 import_bundle "$tmp/valid.tar" "$dest" >/dev/null 2>&1 
 expect_rc 1 "$actual" "rejects members totalling more than the extracted cap"
 assert_untouched "$dest" "rejects members totalling more than the extracted cap"
 
+# An owner name with spaces must not shift the size column the sum reads.
+stage="$tmp/stage.owner"
+rm -rf "$stage"
+mkdir -p "$stage/dist/action/parser-worker"
+head -c 6000 /dev/zero | tr '\0' 'i' >"$stage/dist/action/index.js"
+printf 'w\n' >"$stage/dist/action/parser-worker/index.js"
+tar --owner='x 0 y' --group=z -cf "$tmp/spaced-owner.tar" -C "$stage" dist/action
+dest="$tmp/dest-spaced-owner"
+new_dest "$dest"
+actual=0
+MAX_EXTRACTED_BYTES=5000 import_bundle "$tmp/spaced-owner.tar" "$dest" >/dev/null 2>&1 || actual=$?
+expect_rc 1 "$actual" "rejects an oversized member hidden behind an owner name with spaces"
+assert_untouched "$dest" "rejects an oversized member hidden behind an owner name with spaces"
+
 # The size cap function compares a file against a limit.
 printf '0123456789' >"$tmp/ten-bytes"
 if bundle_within_cap "$tmp/ten-bytes" 10; then

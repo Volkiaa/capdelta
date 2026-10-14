@@ -100,7 +100,9 @@ import_bundle() {
     printf 'error: could not read the bundle listing (truncated or corrupt archive)\n' >&2
     return 1
   fi
-  if ! tar -tvf - <"$tarfile" >"$tmp/tar-list"; then
+  # --numeric-owner prints owner and group as numbers. The names come from the
+  # archive and may hold spaces, which would shift the size column below.
+  if ! tar --numeric-owner -tvf - <"$tarfile" >"$tmp/tar-list"; then
     printf 'error: could not read the bundle listing (truncated or corrupt archive)\n' >&2
     return 1
   fi
@@ -199,6 +201,17 @@ import_bundle() {
   fi
   if ! find "$extract" -mindepth 1 -printf '%y %P\n' >"$tmp/extract-find"; then
     printf 'error: could not inspect the extracted bundle\n' >&2
+    return 1
+  fi
+
+  # Check the size again on disk, where the archive cannot misreport it.
+  local extracted
+  if ! extracted="$(find "$extract" -type f -printf '%s\n' | awk '{ sum += $1 } END { printf "%d", sum }')"; then
+    printf 'error: could not sum the extracted bundle size\n' >&2
+    return 1
+  fi
+  if ((extracted > ${MAX_EXTRACTED_BYTES:-$MAX_BUNDLE_BYTES})); then
+    printf 'error: the extracted bundle holds %s bytes, over the %s byte cap\n' "$extracted" "${MAX_EXTRACTED_BYTES:-$MAX_BUNDLE_BYTES}" >&2
     return 1
   fi
 
