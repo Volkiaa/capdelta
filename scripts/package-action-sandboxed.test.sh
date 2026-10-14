@@ -211,6 +211,20 @@ expect_reject "$tmp/deep-git.tar" "rejects a .git directory deeper in dist/actio
 make_tar 'dist/action/.envrc' "$tmp/action-envrc.tar"
 expect_reject "$tmp/action-envrc.tar" "rejects a dotfile inside dist/action"
 
+# A compressed bundle is refused: GNU tar would expand it on its own when
+# reading a named file, past the size cap.
+gzip -c "$tmp/valid.tar" >"$tmp/valid.tar.gz"
+expect_reject "$tmp/valid.tar.gz" "rejects a gzip-compressed bundle"
+
+# The member sizes are summed before extraction. The valid bundle holds 6000
+# bytes of content, so a 5000-byte limit rejects it.
+dest="$tmp/dest-extracted-cap"
+new_dest "$dest"
+actual=0
+MAX_EXTRACTED_BYTES=5000 import_bundle "$tmp/valid.tar" "$dest" >/dev/null 2>&1 || actual=$?
+expect_rc 1 "$actual" "rejects members totalling more than the extracted cap"
+assert_untouched "$dest" "rejects members totalling more than the extracted cap"
+
 # The size cap function compares a file against a limit.
 printf '0123456789' >"$tmp/ten-bytes"
 if bundle_within_cap "$tmp/ten-bytes" 10; then

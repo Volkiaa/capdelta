@@ -92,13 +92,28 @@ import_bundle() {
   allowed[dist/action]=1
 
   # Listing pass. Write both listings to files and check the exits: in a process
-  # substitution a tar failure is silent.
-  if ! tar -tf "$tarfile" >"$tmp/tar-names"; then
+  # substitution a tar failure is silent. Every read goes through stdin, because
+  # GNU tar decompresses gzip, xz or zstd on its own when it reads a named file,
+  # and refuses a compressed archive on stdin. A small compressed bundle could
+  # otherwise expand past the cap during extraction.
+  if ! tar -tf - <"$tarfile" >"$tmp/tar-names"; then
     printf 'error: could not read the bundle listing (truncated or corrupt archive)\n' >&2
     return 1
   fi
-  if ! tar -tvf "$tarfile" >"$tmp/tar-list"; then
+  if ! tar -tvf - <"$tarfile" >"$tmp/tar-list"; then
     printf 'error: could not read the bundle listing (truncated or corrupt archive)\n' >&2
+    return 1
+  fi
+
+  # The third column of `tar -tvf` is the member size, the logical size for a
+  # sparse member, so the sum bounds what extraction writes.
+  local total
+  if ! total="$(awk '{ sum += $3 } END { printf "%d", sum }' "$tmp/tar-list")"; then
+    printf 'error: could not sum the bundle member sizes\n' >&2
+    return 1
+  fi
+  if ((total > ${MAX_EXTRACTED_BYTES:-$MAX_BUNDLE_BYTES})); then
+    printf 'error: the bundle members total %s bytes, over the %s byte cap\n' "$total" "${MAX_EXTRACTED_BYTES:-$MAX_BUNDLE_BYTES}" >&2
     return 1
   fi
   while IFS= read -r name; do
@@ -172,7 +187,7 @@ import_bundle() {
   local extract="$tmp/extract"
   rm -rf "$extract"
   mkdir -p "$extract"
-  if ! tar -x -f "$tarfile" -C "$extract" --no-same-owner --no-same-permissions; then
+  if ! tar -x -f - -C "$extract" --no-same-owner --no-same-permissions <"$tarfile"; then
     printf 'error: could not extract the bundle\n' >&2
     return 1
   fi
@@ -320,6 +335,15 @@ main() {
 # variables are global, not local to main, so the trap still sees them after
 # main returns.
 cleanup() {
+  # A container killed by SIGPIPE at the cap can outlive its docker client and
+  # keep the volume in use, so remove every container that mounts it first.
+  local ids
+  if ids="$(docker ps -aq --filter "volume=$vol")" && [[ -n "$ids" ]]; then
+    # shellcheck disable=SC2086 # one container id per word
+    if ! docker rm -f $ids >/dev/null; then
+      printf 'warning: could not remove the sandbox containers %s\n' "$ids" >&2
+    fi
+  fi
   if ! docker volume rm -f "$vol" >/dev/null; then
     printf 'warning: could not remove the sandbox volume %s; remove it with docker volume rm\n' "$vol" >&2
   fi
