@@ -22,14 +22,19 @@ the `@actions/*` packages, `@vercel/ncc`, `acorn`, `acorn-walk`,
 committed bundle stale, so `check:action` fails on the pull request. That
 failure is intended.
 
-To rebuild the bundle:
+To rebuild the bundle, start from a clean checkout:
 
 1. Check out the Dependabot branch and merge `main` into it if the branch is
-   behind.
+   behind. Commit or stash every change first: the script stops if a tracked
+   file is modified or an untracked file exists, because the container could
+   edit such a path and leave the status line unchanged. Ignored files do not
+   block it.
 2. Run `scripts/package-action-sandboxed.sh`. It installs with
    `npm ci --ignore-scripts`, then rebuilds and verifies the bundle in a
    container that holds no credentials and, during the rebuild, no network.
-3. Review the `dist/action/` diff the script prints.
+3. Review the `dist/action/` diff the script prints. A changed, new or ignored
+   path outside `dist/action/`, `dist/` and `node_modules/` fails the run,
+   except an ignored path that already existed before the run.
 4. Commit with `build(action): rebuild dist/action for <PR>` and push the
    branch without force.
 
