@@ -187,7 +187,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
-      - uses: Volkiaa/capdelta@8b216e9d75b5e6d579e47d628ab9adac6eacda9d
+      - uses: Volkiaa/capdelta@2535ee0940e25530a8aa7de23af17467727bb00e
         with:
           github-token: ${{ github.token }}
           fail-on: CRITICAL
