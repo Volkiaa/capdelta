@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Tests for check_worktree_clean and check_status_scope in
-# scripts/package-action-sandboxed.sh. Feeds the functions sample
-# `git status --porcelain` lines. Needs no Docker.
+# Tests for import_bundle in scripts/package-action-sandboxed.sh. Builds small
+# tar files with the host `tar` and checks which ones the function accepts.
+# Needs no Docker.
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -12,115 +12,114 @@ source "$script_dir/package-action-sandboxed.sh"
 passed=0
 failed=0
 
-report() {
-  local wanted="$1" actual="$2" description="$3"
-  if [[ "$actual" -eq "$wanted" ]]; then
-    passed=$((passed + 1))
-    printf 'ok   %s\n' "$description"
+pass() {
+  passed=$((passed + 1))
+  printf 'ok   %s\n' "$1"
+}
+
+fail() {
+  failed=$((failed + 1))
+  printf 'FAIL %s\n' "$1" >&2
+}
+
+# expect_rc WANTED ACTUAL DESCRIPTION
+expect_rc() {
+  if [[ "$2" -eq "$1" ]]; then
+    pass "$3"
   else
-    failed=$((failed + 1))
-    printf 'FAIL %s (wanted exit %s, got %s)\n' "$description" "$wanted" "$actual" >&2
+    fail "$3 (wanted exit $1, got $2)"
   fi
 }
 
-# expect_clean WANTED DESCRIPTION
-# Reads `git status --porcelain --untracked-files=all` lines on stdin.
-expect_clean() {
-  local wanted="$1" description="$2" actual
-  if check_worktree_clean; then actual=0; else actual=$?; fi
-  report "$wanted" "$actual" "$description"
-}
-
-# expect_scope WANTED DESCRIPTION [BASELINE_FILE]
-# Reads `git status --porcelain --ignored --untracked-files=all` lines on stdin.
-expect_scope() {
-  local wanted="$1" description="$2" baseline="${3:-}" actual
-  if [[ -n "$baseline" ]]; then
-    if check_status_scope "$baseline"; then actual=0; else actual=$?; fi
-  else
-    if check_status_scope; then actual=0; else actual=$?; fi
-  fi
-  report "$wanted" "$actual" "$description"
-}
-
+# import_bundle reads the directory it extracts into from the global $tmp.
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
-# Before the rebuild there must be no tracked change and no untracked file.
-# Ignored entries never appear in this output.
-expect_clean 0 "clean worktree" </dev/null
+new_dest() {
+  local dest="$1"
+  mkdir -p "$dest/dist/action"
+  printf 'old\n' >"$dest/dist/action/old.js"
+}
 
-expect_clean 1 "modified tracked path before the run" <<'EOF'
- M src/x.ts
-EOF
+# expect_reject TARFILE DESCRIPTION
+# Calls import_bundle against a destination that holds an old dist/action tree
+# and checks that it fails and leaves that tree untouched.
+expect_reject() {
+  local tarfile="$1" description="$2"
+  local dest
+  dest="$tmp/dest.$RANDOM"
+  new_dest "$dest"
 
-expect_clean 1 "modified bundle before the run" <<'EOF'
- M dist/action/index.js
-EOF
+  local actual=0
+  import_bundle "$tarfile" "$dest" >/dev/null 2>&1 || actual=$?
+  expect_rc 1 "$actual" "$description"
 
-expect_clean 1 "untracked file before the run" <<'EOF'
-?? stray.txt
-EOF
+  if [[ -f "$dest/dist/action/old.js" ]]; then
+    pass "destination untouched after: $description"
+  else
+    fail "destination modified after: $description"
+  fi
+}
 
-# The rebuild may touch anything under these three directories.
-expect_scope 0 "changed file under dist/action/" <<'EOF'
- M dist/action/index.js
-EOF
+# A valid bundle: a dist/action directory with two regular files.
+stage="$tmp/stage-valid"
+mkdir -p "$stage/dist/action"
+printf 'new\n' >"$stage/dist/action/index.js"
+printf '{}\n' >"$stage/dist/action/package.json"
+tar -cf "$tmp/valid.tar" -C "$stage" dist/action
 
-expect_scope 0 "untracked file under dist/action/" <<'EOF'
-?? dist/action/extra.js
-EOF
+dest="$tmp/dest-accept"
+new_dest "$dest"
+actual=0
+import_bundle "$tmp/valid.tar" "$dest" >/dev/null 2>&1 || actual=$?
+expect_rc 0 "$actual" "accepts a valid dist/action tree"
+if [[ -f "$dest/dist/action/index.js" && -f "$dest/dist/action/package.json" ]]; then
+  pass "valid tree was imported"
+else
+  fail "valid tree was not imported"
+fi
+if [[ ! -e "$dest/dist/action/old.js" ]]; then
+  pass "old dist/action was replaced"
+else
+  fail "old dist/action survived the import"
+fi
 
-expect_scope 0 "ignored file under dist/" <<'EOF'
-!! dist/index.js
-EOF
+# A symlink member.
+stage="$tmp/stage-symlink"
+mkdir -p "$stage/dist/action"
+ln -s ../../../../etc/passwd "$stage/dist/action/link"
+tar -cf "$tmp/symlink.tar" -C "$stage" dist/action
+expect_reject "$tmp/symlink.tar" "rejects a symlink member"
 
-expect_scope 0 "ignored file under node_modules/" <<'EOF'
-!! node_modules/.bin/ncc
-EOF
+# A hard link member.
+stage="$tmp/stage-hardlink"
+mkdir -p "$stage/dist/action"
+printf 'x\n' >"$stage/dist/action/index.js"
+ln "$stage/dist/action/index.js" "$stage/dist/action/hard"
+tar -cf "$tmp/hardlink.tar" -C "$stage" dist/action
+expect_reject "$tmp/hardlink.tar" "rejects a hard link member"
 
-# Anything else is a stray path.
-expect_scope 1 "untracked .envrc" <<'EOF'
-?? .envrc
-EOF
+# Names built with --transform so the archive holds a literal member name.
+printf 'x\n' >"$tmp/payload"
+make_tar() {
+  local name="$1" out="$2"
+  tar --transform="s|^payload\$|$name|" -cf "$out" -C "$tmp" payload 2>/dev/null
+}
 
-expect_scope 1 "changed source file" <<'EOF'
- M src/x.ts
-EOF
+make_tar '../x' "$tmp/parent.tar"
+expect_reject "$tmp/parent.tar" "rejects a ../ member"
 
-expect_scope 1 "changed workflow" <<'EOF'
- M .github/workflows/x.yml
-EOF
+make_tar 'dist/action/../../x' "$tmp/dotdot.tar"
+expect_reject "$tmp/dotdot.tar" "rejects a dist/action/../../x member"
 
-expect_scope 1 "untracked stray.txt" <<'EOF'
-?? stray.txt
-EOF
+make_tar '/tmp/abs/payload' "$tmp/absolute.tar"
+expect_reject "$tmp/absolute.tar" "rejects an absolute member"
 
-expect_scope 1 "one stray among allowed paths" <<'EOF'
- M dist/action/index.js
-?? stray.txt
-!! node_modules/.bin/ncc
-EOF
+make_tar '.envrc' "$tmp/envrc.tar"
+expect_reject "$tmp/envrc.tar" "rejects .envrc"
 
-# The baseline holds only ignored entries that already existed before the run.
-baseline="$tmp/baseline"
-printf '!! .env\n!! coverage/report.html\n' >"$baseline"
-
-expect_scope 0 "pre-existing ignored path outside the allowed dirs" "$baseline" <<'EOF'
-!! .env
-!! coverage/report.html
-!! node_modules/.bin/ncc
-EOF
-
-expect_scope 0 "pre-existing ignored path with a new allowed path" "$baseline" <<'EOF'
-!! .env
-?? dist/action/extra.js
-EOF
-
-expect_scope 1 "new ignored path outside the allowed dirs" "$baseline" <<'EOF'
-!! .env
-!! coverage/new.html
-EOF
+make_tar 'dist/cli.js' "$tmp/dist-cli.tar"
+expect_reject "$tmp/dist-cli.tar" "rejects dist/cli.js"
 
 printf '\npassed: %s failed: %s skipped: 0\n' "$passed" "$failed"
 [[ "$failed" -eq 0 ]]
