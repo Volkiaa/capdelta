@@ -35,9 +35,11 @@ To rebuild the bundle:
 The script never mounts the checkout. It sends `git archive HEAD` into a
 container that holds no credentials and installs with `npm ci --ignore-scripts`,
 then rebuilds and verifies the bundle with no network. Only `dist/action` comes
-back, and only after validation: the script rejects the archive unless every
-member is a regular file or a directory under `dist/action`, then replaces
-`dist/action` in place. A rejection leaves the checkout unchanged.
+back, and only after validation. The rebuilt bundle must hold exactly the files
+`git ls-files dist/action` lists, all regular files, and be under 50 MiB.
+Anything else is rejected and leaves the checkout unchanged. If a dependency bump
+legitimately adds or removes a bundle file, the script rejects it, and you
+rebuild that case by hand after reading what changed.
 
 Do not run `npm ci` or the verification commands on the host for a Dependabot
 branch. That would run the updated dependency code with your credentials on your
