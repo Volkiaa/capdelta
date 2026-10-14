@@ -11,14 +11,14 @@ that the old version could not?** A newly added install script, process launch,
 network client, secret-file read, or dynamic-code primitive is review-worthy
 before a CVE exists.
 
-> **Development status:** the repository is public, but the npm package is
-> marked private, unpublished, and versioned `0.0.0`. M0-M4 are implemented;
-> the required post-M3 false-positive corpus checkpoint is complete. It is
-> suitable for development and evaluation,
-> not production enforcement. No measured detection or false-positive claims
-> have been published.
+> **Status: pre-release, under active development.** The repository is public,
+> but the npm package is private, unpublished, and versioned `0.0.0`. The CLI
+> and the GitHub Action work end to end, and the first false-positive
+> measurement is [below](#measured-results-2026-10-12). capdelta is suitable for
+> development and evaluation, not production enforcement. No detection rate has
+> been measured; the attack reconstructions are modeled cases.
 
-See [Roadmap status](#roadmap-status) for what is next.
+[Roadmap status](#roadmap-status) lists what has shipped and what comes next.
 
 ## Contents
 
@@ -39,7 +39,7 @@ See [Roadmap status](#roadmap-status) for what is next.
 
 Source: [docs/diagrams/pipeline.html](docs/diagrams/pipeline.html)
 
-The no-op check precedes parsing and network access. Changed tarballs are verified
+When the lockfile did not change, capdelta exits before any parsing or network access. Changed tarballs are verified
 byte-for-byte against lockfile SRI before extraction. Package code is never imported or
 executed. The npm-specific lockfile and extractor implementations sit behind core
 contracts so another ecosystem can add adapters without rewriting the Differ or Reporter.
@@ -153,7 +153,7 @@ Requirements: Node.js 20 or newer, npm, and Git.
 From the directory containing one `package-lock.json`:
 
 ```bash
-npm ci
+npm ci --ignore-scripts
 npm run build
 node dist/cli.js --base main
 ```
@@ -317,6 +317,7 @@ Transitive runtime packages are reported by the check but are not the gate.
 - [ADR-016: Fail the default gate on packages capdelta cannot analyze](docs/adr/0016-fail-closed-on-unanalyzable-packages.md)
 - [ADR-017: Reviewed exceptions for unanalyzable packages](docs/adr/0017-reviewed-unanalyzable-exceptions.md)
 - [ADR-018: Fetch failures fail the run instead of passing it](docs/adr/0018-fetch-failures-fail-closed.md)
+- [ADR-019: Read what npm installs, and fail on every unread package](docs/adr/0019-read-what-npm-installs.md)
 
 The authoritative architecture and roadmap remain in
 [docs/PLAN.md](docs/PLAN.md). Session handoffs are recorded in
@@ -324,20 +325,37 @@ The authoritative architecture and roadmap remain in
 
 ## Roadmap status
 
-- **M0-M4: complete.** Scaffolding, manifest CLI, secure retrieval/extraction,
-  Action reporting, AST taxonomy, shape severity, SARIF, dependency
+### Shipped
+
+- **M0-M3.** Scaffolding, the manifest CLI, secure retrieval and extraction,
+  Action reporting, the AST taxonomy, shape severity, SARIF, dependency
   cross-linking, and the false-positive harness are on `main`.
-- **Post-M3 checkpoint: complete.** All 60 selected legitimate bumps were
-  analyzed; 54 had no findings, all 16 findings were LOW/INFO, and no bump
-  tripped the default CRITICAL gate. The detailed corpus record documents the
+- **Post-M3 checkpoint.** All 60 selected legitimate bumps were analyzed; 54
+  had no findings, all 16 findings were LOW/INFO, and no bump tripped the
+  default CRITICAL gate. The detailed corpus record documents the
   diagnostic-noise and tuning observations.
-- **M4: complete except benign-pattern suppression.** Signals, justified
-  allowlists, strict mode, bounded scheduling, loud partial-analysis reporting,
-  and malformed-input property tests are implemented. Benign-pattern
-  suppression is deliberately deferred: PLAN §6 requires it be driven by
-  post-M3 false-positive data, and the 2026-07-29 corpus produced no
-  install-hook findings to drive it.
-- **M5:** formal measured validation, release evidence, and publication work.
+- **M4, except benign-pattern suppression.** Signals, justified allowlists,
+  strict mode, bounded scheduling, loud partial-analysis reporting, and
+  malformed-input property tests are implemented. Benign-pattern suppression is
+  deliberately deferred: PLAN §6 requires it be driven by post-M3
+  false-positive data, and the 2026-07-29 corpus produced no install-hook
+  findings to drive it.
+- **Fail closed on unanalyzable packages.** A changed package that capdelta
+  cannot fetch, extract, or read fails the run, with reviewed exceptions for
+  the cases that allow one (ADR-016 to ADR-019).
+- **Finding guidance.** Capability, signal, and analysis-failure findings
+  explain why they matter and what to check, in the text report, the PR
+  comment, and SARIF rule help.
+- **First measurement.** The 2026-10-12 false-positive study
+  [above](#measured-results-2026-10-12).
+
+### Next
+
+1. A permission-aware Dependabot PR comment and SARIF demo on this repository.
+2. M5 publication of the measured results.
+3. Noise reduction, measured on a new held-out corpus.
+4. Analyzing the new side as a new package when the old side cannot be
+   analyzed.
 
 ## Contributing and security reports
 
