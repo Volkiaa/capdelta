@@ -38,7 +38,7 @@ describe("Action package", () => {
     // Policy is read from the base commit (ADR-015), never the PR head.
     expect(workflow).toContain("config-path: .capdelta.yml");
     expect(workflow).toContain(
-      "Volkiaa/capdelta@8b216e9d75b5e6d579e47d628ab9adac6eacda9d",
+      "Volkiaa/capdelta@2535ee0940e25530a8aa7de23af17467727bb00e",
     );
     expect(workflow).not.toContain("uses: ./");
     await expect(

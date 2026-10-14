@@ -1,11 +1,14 @@
 # HANDOFF
 
 The starting point for the next capdelta session. Read this first, then CLAUDE.md. `docs/SESSIONS.md` has the full
-history, and docs/PLAN.md (rev. 3) is the spec. Last updated 2026-10-13.
+history, and docs/PLAN.md (rev. 3) is the spec. Last updated 2026-10-14.
 
 ## Where main stands
 
-main is at b4a958f. Finding guidance (#52-#55) and ADR-019 (#56-#58) are merged. Every way a changed package can end up unanalyzed now fails a default run:
+main is at 2535ee0, plus the dogfood re-pin PR that carries this update. Finding guidance (#52-#55) and ADR-019
+(#56-#58) are merged. The README restructure (#60) moved the reference material to `docs/cli.md`,
+`docs/github-action.md`, `docs/resource-limits.md`, `docs/api.md` and `docs/development.md`. ADR-020 (#61) makes the
+Action post the comment and SARIF on Dependabot PRs. Every way a changed package can end up unanalyzed now fails a default run:
 
 | Failure                                                                                            | Outcome                                   | Exceptable (ADR-017)                                             |
 | -------------------------------------------------------------------------------------------------- | ----------------------------------------- | ---------------------------------------------------------------- |
@@ -24,8 +27,10 @@ main is at b4a958f. Finding guidance (#52-#55) and ADR-019 (#56-#58) are merged.
 
 ## Next, in order
 
-1. **The permission-aware Dependabot comment and SARIF demo (PLAN §9).** It needs a real Dependabot PR in this repo
-   showing a capdelta comment, which serves as the demo asset. Design first, for user approval.
+1. **Capture the Dependabot demo (PLAN §9).** ADR-020 (#61) is merged and the dogfood workflow is pinned to it. Wait
+   for Dependabot's next weekly run, or have the user click "Check for updates" in the repo's Dependency graph tab.
+   Confirm the PR gets the sticky comment and a SARIF upload, screenshot the comment, and add it to the README.
+   Dependabot opened no PR between 2026-08-25 and 2026-10-14; if none arrives, find out why before anything else.
 2. **M5 publication.** Note that M5's `gateFail` is severity-only and does not count operational exit 1
    (`scripts/m5-measure.ts:110`). Never edit `docs/m5-2026-10-12/`.
 3. **Noise reduction on a new held-out corpus.**

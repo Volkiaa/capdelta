@@ -4,4 +4,8 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # Propose a version only after it has been public for 3 days, which gives
+    # the registry time to pull a compromised release before it reaches a PR.
+    cooldown:
+      default-days: 3
     open-pull-requests-limit: 5
