@@ -34,6 +34,14 @@ IMAGE="node:22-bookworm@sha256:0e5f906573693feaa1e21057ebdcfdb5bd5021f050b2dc7c9
 # 50 MiB so a runaway or hostile container cannot fill the host disk.
 MAX_BUNDLE_BYTES=$((50 * 1024 * 1024))
 
+# Print container output with every control byte made visible (ESC as ^[, CR as
+# ^M, high bytes as M-x). The build inside the container is untrusted, and raw
+# escape sequences reaching the terminal could rewrite the clipboard, the window
+# title or earlier lines, for example to fake a success message.
+sanitize_output() {
+  LC_ALL=C cat -v
+}
+
 # Fail unless the streamed bundle file is within the cap. main streams the
 # container output through `head -c $((MAX_BUNDLE_BYTES + 1))`, so a larger
 # bundle is cut off at the cap and rejected here before any parsing.
@@ -311,18 +319,24 @@ main() {
   # volume non-empty, so the chown sticks for the next containers. The marker
   # never leaves the sandbox: only dist/action is streamed back.
   docker run --rm --user root -v "$vol":/w -w /w "$IMAGE" \
-    sh -c 'chown node:node /w && touch /w/.sandbox-keep'
+    sh -c 'chown node:node /w && touch /w/.sandbox-keep' 2>&1 | sanitize_output
 
   printf 'step 1/3: install dependencies from git archive HEAD (network allowed)\n'
   git archive --format=tar HEAD |
-    docker run -i "${common[@]}" "$IMAGE" sh -c 'tar -x -f - && npm ci --ignore-scripts'
+    docker run -i "${common[@]}" "$IMAGE" sh -c 'tar -x -f - && npm ci --ignore-scripts' 2>&1 |
+    sanitize_output
 
   printf 'step 2/3: rebuild and verify, no network\n'
   # Stream the bundle through head so a runaway container cannot fill the disk.
   # A bundle that reaches the cap is rejected below before any parsing.
+  # The container's stdout (fd 3 below) carries the bundle to head, and its
+  # stderr goes through sanitize_output to the terminal.
   local rc=0
-  docker run "${common[@]}" --network none "$IMAGE" sh -c \
-    '{ npm run package:action && npm run typecheck && npm run lint && npm run format:check && npm test && npm run check:deps; } 1>&2 && tar -c -f - dist/action' |
+  {
+    docker run "${common[@]}" --network none "$IMAGE" sh -c \
+      '{ npm run package:action && npm run typecheck && npm run lint && npm run format:check && npm test && npm run check:deps; } 1>&2 && tar -c -f - dist/action' \
+      2>&1 1>&3 3>&- | sanitize_output >&2 3>&-
+  } 3>&1 |
     head -c $((MAX_BUNDLE_BYTES + 1)) >"$tmp/bundle.tar" || rc=$?
   if ((rc != 0)); then
     if ! bundle_within_cap "$tmp/bundle.tar"; then

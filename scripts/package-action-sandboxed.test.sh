@@ -239,6 +239,14 @@ MAX_EXTRACTED_BYTES=5000 import_bundle "$tmp/spaced-owner.tar" "$dest" >/dev/nul
 expect_rc 1 "$actual" "rejects an oversized member hidden behind an owner name with spaces"
 assert_untouched "$dest" "rejects an oversized member hidden behind an owner name with spaces"
 
+# Container output reaches the terminal with control bytes made visible.
+sanitized="$(printf 'ok\033]52;c;eA==\007\r\233x\n' | sanitize_output)"
+if [[ "$sanitized" == *$'\033'* || "$sanitized" == *$'\r'* || "$sanitized" == *$'\233'* ]]; then
+  fail "sanitize_output let a control byte through"
+else
+  pass "sanitize_output makes ESC, CR and C1 bytes visible"
+fi
+
 # The size cap function compares a file against a limit.
 printf '0123456789' >"$tmp/ten-bytes"
 if bundle_within_cap "$tmp/ten-bytes" 10; then
