@@ -13,6 +13,34 @@ attack reconstructions cover documented incidents
 CI executes the suite on Node.js 20, 22, and 24 and verifies that the committed
 Action bundle is reproducible.
 
+## Updating bundled dependencies
+
+Dependabot groups every package that changes `dist/action/` into one pull
+request. The group is `action-bundle` in `.github/dependabot.yml` and covers
+the `@actions/*` packages, `@vercel/ncc`, `acorn`, `acorn-walk`,
+`jsonc-parser`, `tar`, and `typescript`. A bump in that group leaves the
+committed bundle stale, so `check:action` fails on the pull request. That
+failure is intended.
+
+To rebuild the bundle:
+
+1. Check out the Dependabot branch and merge `main` into it if the branch is
+   behind.
+2. Run `scripts/package-action-sandboxed.sh`. It installs with
+   `npm ci --ignore-scripts`, then rebuilds and verifies the bundle in a
+   container that holds no credentials and, during the rebuild, no network.
+3. Review the `dist/action/` diff the script prints.
+4. Commit with `build(action): rebuild dist/action for <PR>` and push the
+   branch without force.
+
+No workflow rebuilds the bundle. A job that builds updated dependency code
+would run that code during the build and would need a token that can write to
+the branch, so the token would be reachable from code no one has reviewed. A
+person reviews the bundle diff and commits instead.
+
+The script pins the container image by digest. Dependabot cannot see that
+digest, so bump it by hand when a newer Node.js image is wanted.
+
 The post-M3 false-positive harness inspects adjacent recent, nondeprecated,
 stable npm releases:
 
