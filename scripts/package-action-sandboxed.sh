@@ -71,12 +71,20 @@ import_bundle() {
       continue
     fi
     IFS='/' read -r -a parts <<<"$name"
-    local has_parent=0
+    local has_parent=0 has_dot=0
     for component in "${parts[@]}"; do
       [[ "$component" == ".." ]] && has_parent=1
+      [[ "$component" == .* ]] && has_dot=1
     done
     if [[ "$has_parent" -eq 1 ]]; then
       offenders+=("$name (.. component)")
+      continue
+    fi
+    # The bundle holds no dotfiles. A nested .git directory would run its
+    # config (core.fsmonitor, hooks) on the host the next time git runs inside
+    # dist/action, for example from a shell prompt that shows the git status.
+    if [[ "$has_dot" -eq 1 ]]; then
+      offenders+=("$name (component starting with a dot)")
       continue
     fi
     case "$name" in
@@ -113,6 +121,7 @@ import_bundle() {
         ;;
     esac
     case "$name" in
+      .* | */.*) offenders+=("$name (extracted with a component starting with a dot)") ;;
       dist | dist/action | dist/action/*) ;;
       *) offenders+=("$name (extracted outside dist/action)") ;;
     esac

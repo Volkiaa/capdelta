@@ -121,5 +121,14 @@ expect_reject "$tmp/envrc.tar" "rejects .envrc"
 make_tar 'dist/cli.js' "$tmp/dist-cli.tar"
 expect_reject "$tmp/dist-cli.tar" "rejects dist/cli.js"
 
+make_tar 'dist/action/.git/config' "$tmp/nested-git.tar"
+expect_reject "$tmp/nested-git.tar" "rejects a nested .git directory"
+
+make_tar 'dist/action/sub/.git/config' "$tmp/deep-git.tar"
+expect_reject "$tmp/deep-git.tar" "rejects a .git directory deeper in dist/action"
+
+make_tar 'dist/action/.envrc' "$tmp/action-envrc.tar"
+expect_reject "$tmp/action-envrc.tar" "rejects a dotfile inside dist/action"
+
 printf '\npassed: %s failed: %s skipped: 0\n' "$passed" "$failed"
 [[ "$failed" -eq 0 ]]
