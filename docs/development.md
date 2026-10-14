@@ -22,21 +22,27 @@ the `@actions/*` packages, `@vercel/ncc`, `acorn`, `acorn-walk`,
 committed bundle stale, so `check:action` fails on the pull request. That
 failure is intended.
 
-To rebuild the bundle, start from a clean checkout:
+To rebuild the bundle:
 
 1. Check out the Dependabot branch and merge `main` into it if the branch is
-   behind. Commit or stash every change first: the script stops if a tracked
-   file is modified or an untracked file exists, because the container could
-   edit such a path and leave the status line unchanged. Ignored files do not
-   block it.
-2. Run `scripts/package-action-sandboxed.sh`. It installs with
-   `npm ci --ignore-scripts`, then rebuilds and verifies the bundle in a
-   container that holds no credentials and, during the rebuild, no network.
-3. Review the `dist/action/` diff the script prints. A changed, new or ignored
-   path outside `dist/action/`, `dist/` and `node_modules/` fails the run,
-   except an ignored path that already existed before the run.
+   behind. Commit or stash every tracked change first: the script stops when a
+   tracked file is modified. Untracked files do not block it.
+2. Run `scripts/package-action-sandboxed.sh`.
+3. Review the `dist/action/` diff the script prints.
 4. Commit with `build(action): rebuild dist/action for <PR>` and push the
    branch without force.
+
+The script never mounts the checkout. It sends `git archive HEAD` into a
+container that holds no credentials and installs with `npm ci --ignore-scripts`,
+then rebuilds and verifies the bundle with no network. Only `dist/action` comes
+back, and only after validation: the script rejects the archive unless every
+member is a regular file or a directory under `dist/action`, then replaces
+`dist/action` in place. A rejection leaves the checkout unchanged.
+
+Do not run `npm ci` or the verification commands on the host for a Dependabot
+branch. That would run the updated dependency code with your credentials on your
+machine. Let the container run the tests, and let CI run `check:action` on the
+push.
 
 No workflow rebuilds the bundle. A job that builds updated dependency code
 would run that code during the build and would need a token that can write to
