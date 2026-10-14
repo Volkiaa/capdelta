@@ -1,17 +1,20 @@
 #!/usr/bin/env bash
 #
 # Rebuild and verify the bundled GitHub Action inside a Docker container that
-# holds no credentials. The updated dependency code (ncc, TypeScript, the
-# bumped packages, the tests) runs only in that container, never on the host,
-# so it cannot reach a token, an npmrc or an SSH key.
+# holds no credentials and never sees the checkout. The updated dependency code
+# (ncc, TypeScript, the bumped packages, the tests) runs only in that container,
+# never on the host, so it cannot reach a token, an npmrc or an SSH key.
 #
-# The image is the full node:22-bookworm, pinned by digest. The slim variant
-# has no git and the test suite runs real git in throwaway repositories, so a
-# full image lets the script install nothing at run time.
+# The container gets a `git archive HEAD` stream, not a mount of the working
+# tree. It cannot read an ignored secret such as `.env` or `.git/config`, plant
+# a file under `node_modules/` or `dist/` that the host runs later, overwrite an
+# existing ignored file such as `.envrc`, or leave a file behind: the checkout is
+# untouched until `import_bundle` validates the archive and replaces only
+# `dist/action`.
 #
-# The checkout's `.git` is mounted read-only on top of the working copy. A
-# writable `.git/hooks` would let the build leave a hook that the host runs at
-# the next commit, which is host code execution from updated dependency code.
+# The image is the full node:22-bookworm, pinned by digest. The slim variant has
+# no git and the test suite runs real git in throwaway repositories, so a full
+# image lets the script install nothing at run time.
 #
 # The script never commits, pushes or writes to Git. It prints the dist/action
 # diff; review it, then commit and push by hand.
@@ -19,75 +22,116 @@ set -euo pipefail
 
 IMAGE="node:22-bookworm@sha256:0e5f906573693feaa1e21057ebdcfdb5bd5021f050b2dc7c9deceb629c7da2a8"
 
-# The path a `git status --porcelain` line refers to. Renames and copies read
-# "old -> new", so take the new path.
-porcelain_path() {
-  local rest="${1:3}"
-  printf '%s\n' "${rest##* -> }"
-}
-
-# The rebuild may only change, add or ignore paths under these directories.
-# dist/action/ is tracked; dist/ and node_modules/ are ignored (see .gitignore).
-path_is_allowed() {
-  case "$1" in
-    dist/action | dist/action/* | dist/* | node_modules/*) return 0 ;;
-    *) return 1 ;;
-  esac
-}
-
-# Read `git status --porcelain --untracked-files=all` on stdin and fail if it
-# is not empty. Any tracked change or untracked file must be gone before the
-# rebuild, because the container could edit such a path and the status line
-# would stay the same, hiding the edit. Ignored entries do not appear in this
-# output, so an installed package or existing build output does not block the
-# run. Prints each offending path to stderr and returns 1 if there is one.
+# Read `git status --porcelain --untracked-files=no` on stdin and fail if it is
+# not empty. A tracked modification could hide an edit made by the rebuild, so
+# refuse to run until it is gone. Untracked files do not block the run: they are
+# never exported, because the container gets `git archive HEAD`.
 check_worktree_clean() {
-  local status=0 line path
+  local status=0 line
   while IFS= read -r line; do
-    if [[ -z "$line" ]]; then
-      continue
-    fi
-    path="$(porcelain_path "$line")"
-    printf 'error: the worktree is not clean before the rebuild: %s\n' "$path" >&2
-    status=1
-  done
-  return "$status"
-}
-
-# Read `git status --porcelain --ignored --untracked-files=all` on stdin and
-# fail if any path lies outside dist/action/, dist/ or node_modules/. Paths in
-# the optional baseline file are skipped. The baseline holds the ignored
-# entries (`!!` lines) recorded before the rebuild, so an ignored path that
-# already existed is not reported even when it sits outside the three
-# directories. Prints the offending paths to stderr and returns 1 if there are
-# any.
-check_status_scope() {
-  local baseline_file="${1:-}"
-  local -A preexisting=()
-  if [[ -n "$baseline_file" ]]; then
-    local base_line
-    while IFS= read -r base_line; do
-      if [[ -n "$base_line" ]]; then
-        preexisting["$(porcelain_path "$base_line")"]=1
-      fi
-    done <"$baseline_file"
-  fi
-
-  local status=0 line path
-  while IFS= read -r line; do
-    if [[ -z "$line" ]]; then
-      continue
-    fi
-    path="$(porcelain_path "$line")"
-    if [[ -n "${preexisting[$path]:-}" ]]; then
-      continue
-    fi
-    if ! path_is_allowed "$path"; then
-      printf 'stray path outside dist/action, dist and node_modules: %s\n' "$path" >&2
+    if [[ -n "$line" ]]; then
+      printf 'error: the worktree has a tracked change before the rebuild: %s\n' "$line" >&2
       status=1
     fi
   done
   return "$status"
+}
+
+# Import a `dist/action` bundle tar into a repository root. Reject the archive
+# before extracting if any member is not a regular file or a directory, is an
+# absolute path, has a `..` component, or lies outside `dist/action`. Extract
+# into a fresh directory under $tmp, check the extracted tree with find, and only
+# then replace <dest>/dist/action. On rejection print the offending member names,
+# return 1, and leave the destination unchanged.
+import_bundle() {
+  local tarfile="$1" dest="$2"
+  local -a names=() offenders=()
+  local name type i component
+  local -a parts=()
+
+  while IFS= read -r name; do
+    names+=("$name")
+  done < <(tar -tf "$tarfile")
+
+  # The first field of `tar -tvf` is the permission string, whose first
+  # character is the member type. It is `-` for a regular file and `d` for a
+  # directory; anything else (a link or a device) is a rejection.
+  i=0
+  while IFS= read -r type; do
+    case "$type" in
+      - | d) ;;
+      *) offenders+=("${names[$i]:-unknown} (type $type)") ;;
+    esac
+    i=$((i + 1))
+  done < <(tar -tvf "$tarfile" | cut -c1)
+
+  for name in "${names[@]}"; do
+    if [[ "$name" == /* ]]; then
+      offenders+=("$name (absolute path)")
+      continue
+    fi
+    IFS='/' read -r -a parts <<<"$name"
+    local has_parent=0
+    for component in "${parts[@]}"; do
+      [[ "$component" == ".." ]] && has_parent=1
+    done
+    if [[ "$has_parent" -eq 1 ]]; then
+      offenders+=("$name (.. component)")
+      continue
+    fi
+    case "$name" in
+      dist/action | dist/action/*) ;;
+      *) offenders+=("$name (outside dist/action)") ;;
+    esac
+  done
+
+  if ((${#offenders[@]} > 0)); then
+    printf 'error: refusing the bundle, offending members:\n' >&2
+    printf '  %s\n' "${offenders[@]}" >&2
+    return 1
+  fi
+
+  local extract="$tmp/extract"
+  rm -rf "$extract"
+  mkdir -p "$extract"
+  if ! tar -x -f "$tarfile" -C "$extract" --no-same-owner --no-same-permissions; then
+    printf 'error: could not extract the bundle\n' >&2
+    return 1
+  fi
+
+  # A second check on the extracted tree, in case the listing missed something.
+  offenders=()
+  while IFS= read -r entry; do
+    [[ -z "$entry" ]] && continue
+    type="${entry%% *}"
+    name="${entry#* }"
+    case "$type" in
+      f | d) ;;
+      *)
+        offenders+=("$name (extracted as type $type)")
+        continue
+        ;;
+    esac
+    case "$name" in
+      dist | dist/action | dist/action/*) ;;
+      *) offenders+=("$name (extracted outside dist/action)") ;;
+    esac
+  done < <(find "$extract" -mindepth 1 -printf '%y %P\n')
+
+  if ((${#offenders[@]} > 0)); then
+    printf 'error: the extracted bundle is invalid, offending members:\n' >&2
+    printf '  %s\n' "${offenders[@]}" >&2
+    return 1
+  fi
+
+  if [[ ! -d "$extract/dist/action" ]]; then
+    printf 'error: the bundle holds no dist/action directory\n' >&2
+    return 1
+  fi
+
+  mkdir -p "$dest/dist"
+  rm -rf "$dest/dist/action"
+  mv "$extract/dist/action" "$dest/dist/action"
 }
 
 main() {
@@ -108,49 +152,62 @@ main() {
     return 1
   fi
 
-  # No host environment variable, home directory, npmrc, gitconfig, SSH agent
-  # or Docker socket is mounted. `.git` is remounted read-only on top.
-  local mounts=(
+  printf 'checking for tracked changes\n'
+  if ! git status --porcelain --untracked-files=no | check_worktree_clean; then
+    printf 'error: commit or stash the tracked changes above before rebuilding\n' >&2
+    return 1
+  fi
+
+  # The named volume holds the sandbox working copy and the temp directory holds
+  # the streamed bundle. Both are removed on every exit path, success or
+  # failure, so a planted volume or bundle never outlives the run.
+  tmp="$(mktemp -d)"
+  vol="capdelta-sandbox-$$-$RANDOM"
+  trap cleanup EXIT
+
+  # No host path is mounted and no host environment variable is passed. The
+  # volume is the only writable place the container sees.
+  local common=(
     --rm
-    --user "$(id -u):$(id -g)"
+    --user node
     -e HOME=/tmp/home
     -e npm_config_cache=/tmp/npm-cache
-    -v "$PWD":/w
-    -v "$PWD/.git":/w/.git:ro
+    -v "$vol":/w
     -w /w
   )
 
-  # Tracked changes and untracked files would hide a container edit, so refuse
-  # to run until they are gone.
-  printf 'checking for a clean worktree\n'
-  if ! git status --porcelain --untracked-files=all | check_worktree_clean; then
-    printf 'error: commit, stash or remove the paths above before rebuilding\n' >&2
-    return 1
-  fi
+  printf 'initializing the sandbox volume\n'
+  docker run --rm --user root -v "$vol":/w -w /w "$IMAGE" chown node:node /w
 
-  # Ignored paths that already exist. They pass the scope check unchanged;
-  # only new ignored paths outside dist/action, dist and node_modules count as
-  # strays.
-  local baseline
-  baseline="$(git status --porcelain --ignored --untracked-files=all | grep '^!!' || true)"
-
-  printf 'step 1/3: install dependencies (network allowed)\n'
-  docker run "${mounts[@]}" "$IMAGE" npm ci --ignore-scripts
+  printf 'step 1/3: install dependencies from git archive HEAD (network allowed)\n'
+  git archive --format=tar HEAD |
+    docker run -i "${common[@]}" "$IMAGE" sh -c 'tar -x -f - && npm ci --ignore-scripts'
 
   printf 'step 2/3: rebuild and verify, no network\n'
-  docker run "${mounts[@]}" --network none "$IMAGE" sh -c \
-    'npm run package:action && npm run typecheck && npm run lint && npm run format:check && npm test && npm run check:deps'
-
-  printf 'step 3/3: check for stray paths\n'
-  if ! git status --porcelain --ignored --untracked-files=all |
-    check_status_scope <(printf '%s\n' "$baseline"); then
-    printf 'error: the rebuild changed paths outside dist/action, dist and node_modules\n' >&2
+  if ! docker run "${common[@]}" --network none "$IMAGE" sh -c \
+    '{ npm run package:action && npm run typecheck && npm run lint && npm run format:check && npm test && npm run check:deps; } 1>&2 && tar -c -f - dist/action' \
+    >"$tmp/bundle.tar"; then
+    printf 'error: the rebuild or a check failed; the checkout is unchanged\n' >&2
     return 1
   fi
 
-  printf '\nthe rebuild changed nothing outside dist/action (ignoring dist/ and node_modules/ scratch)\n'
+  printf 'step 3/3: import dist/action from the bundle\n'
+  if ! import_bundle "$tmp/bundle.tar" "$PWD"; then
+    printf 'error: the bundle was rejected; the checkout is unchanged\n' >&2
+    return 1
+  fi
+
+  printf '\nthe checkout changed only under dist/action\n'
   git diff --stat -- dist/action
   printf '\nreview the diff above, then commit and push the change by hand\n'
+}
+
+# Remove the named volume and the temp directory on every exit path. The
+# variables are global, not local to main, so the trap still sees them after
+# main returns.
+cleanup() {
+  docker volume rm -f "$vol" >/dev/null 2>&1 || true
+  rm -rf "$tmp"
 }
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
