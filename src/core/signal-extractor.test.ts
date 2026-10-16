@@ -65,6 +65,22 @@ describe("signal extractor", () => {
     );
   });
 
+  it("merges one IPv6 literal written in two cases across lines", () => {
+    const result = buildSignalSet([
+      source(
+        "index.js",
+        ["const a = '2001:DB8::1';", "const b = '2001:db8::1';"].join("\n"),
+      ),
+    ]);
+
+    const ipv6 = result.endpoints.filter(
+      (item) => item.endpointType === "ipv6",
+    );
+    expect(ipv6).toHaveLength(1);
+    expect(ipv6[0]?.normalizedValue).toBe("2001:db8::1");
+    expect(ipv6[0]?.evidence.map((item) => item.line)).toEqual([1, 2]);
+  });
+
   it("records entropy and detects both bounded obfuscation array shapes", () => {
     const hex = Array.from(
       { length: MIN_OBFUSCATION_ARRAY_ELEMENTS },

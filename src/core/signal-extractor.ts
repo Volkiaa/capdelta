@@ -20,8 +20,20 @@ export const MIN_OBFUSCATION_ARRAY_ELEMENTS = 8 as const;
 
 const MAX_EVIDENCE_SNIPPET = 240;
 const URL_LITERAL_RE = /\b(?:https?|wss?):\/\/[^\s"'`<>\\]+/gu;
-const IPV4_LITERAL_RE = /\b(?:\d{1,3}\.){3}\d{1,3}\b/gu;
-const IPV6_LITERAL_RE = /(?:[0-9a-f]{0,4}:){2,}[0-9a-f]{0,4}/giu;
+const IP_LITERAL_ROWS = [
+  {
+    pattern: /\b(?:\d{1,3}\.){3}\d{1,3}\b/gu,
+    family: 4,
+    endpointType: "ipv4",
+    lowercase: false,
+  },
+  {
+    pattern: /(?:[0-9a-f]{0,4}:){2,}[0-9a-f]{0,4}/giu,
+    family: 6,
+    endpointType: "ipv6",
+    lowercase: true,
+  },
+] as const;
 const ARRAY_RE = /\x5b([^\x5b\x5d]{1,4096})\x5d/gu;
 const HEX_ELEMENT_RE = /^0x[0-9a-f]{1,2}$/iu;
 const CHARCODE_ELEMENT_RE = /^\d{1,3}$/u;
@@ -89,11 +101,27 @@ export function buildSignalSet(
   const sourceFiles = observations.map(({ file }) => file);
   sourceFiles.sort((left, right) => compareText(left.file, right.file));
 
-  const endpoints = deduplicateEndpoints(
+  const endpoints = mergeByKey(
     observations.flatMap(({ endpoints: found }) => found),
+    (observation) =>
+      JSON.stringify([observation.endpointType, observation.normalizedValue]),
+    (current, next): SignalEndpointObservation => ({
+      ...current,
+      confidence:
+        current.confidence === "literal" || next.confidence === "literal"
+          ? "literal"
+          : "byte-scan-candidate",
+      evidence: mergeEvidence(current.evidence, next.evidence),
+    }),
   );
-  const obfuscationPatterns = deduplicateObfuscationPatterns(
+  const obfuscationPatterns = mergeByKey(
     observations.flatMap(({ obfuscationPatterns: found }) => found),
+    (observation) => JSON.stringify([observation.file, observation.pattern]),
+    (current, next) => ({
+      ...current,
+      elementCount: Math.max(current.elementCount, next.elementCount),
+      evidence: mergeEvidence(current.evidence, next.evidence),
+    }),
   );
   return { sourceFiles, endpoints, obfuscationPatterns };
 }
@@ -132,32 +160,25 @@ function detectEndpoints(
     );
   }
 
-  for (const match of source.matchAll(IPV4_LITERAL_RE)) {
-    const value = match[0];
-    const index = match.index;
-    if (inComment(index, index + match[0].length)) continue;
-    if (isIP(value) !== 4 || !isExternalHost(value, "ipv4")) continue;
-    found.push(
-      endpoint(file, value, "ipv4", source, starts, index, confidence),
-    );
-  }
-
-  for (const match of source.matchAll(IPV6_LITERAL_RE)) {
-    const value = match[0];
-    const index = match.index;
-    if (inComment(index, index + match[0].length)) continue;
-    if (isIP(value) !== 6 || !isExternalHost(value, "ipv6")) continue;
-    found.push(
-      endpoint(
-        file,
-        value.toLowerCase(),
-        "ipv6",
-        source,
-        starts,
-        index,
-        confidence,
-      ),
-    );
+  for (const row of IP_LITERAL_ROWS) {
+    for (const match of source.matchAll(row.pattern)) {
+      const value = match[0];
+      const index = match.index;
+      if (inComment(index, index + value.length)) continue;
+      if (isIP(value) !== row.family) continue;
+      if (!isExternalHost(value, row.endpointType)) continue;
+      found.push(
+        endpoint(
+          file,
+          row.lowercase ? value.toLowerCase() : value,
+          row.endpointType,
+          source,
+          starts,
+          index,
+          confidence,
+        ),
+      );
+    }
   }
   return found;
 }
@@ -224,60 +245,23 @@ function arrayPattern(elements: readonly string[]): ObfuscationPattern | null {
   return null;
 }
 
-function deduplicateEndpoints(
-  observations: readonly SignalEndpointObservation[],
-): SignalEndpointObservation[] {
-  const grouped = new Map<string, SignalEndpointObservation>();
-  for (const observation of observations) {
-    const key = JSON.stringify([
-      observation.endpointType,
-      observation.normalizedValue,
-    ]);
+/**
+ * Groups items by a JSON key, merges each duplicate into the first item seen,
+ * and sorts the result by the same key with the shared text comparator.
+ */
+function mergeByKey<T>(
+  items: readonly T[],
+  keyOf: (item: T) => string,
+  merge: (current: T, next: T) => T,
+): T[] {
+  const grouped = new Map<string, T>();
+  for (const item of items) {
+    const key = keyOf(item);
     const current = grouped.get(key);
-    if (current === undefined) {
-      grouped.set(key, observation);
-      continue;
-    }
-    const evidence = mergeEvidence(current.evidence, observation.evidence);
-    grouped.set(key, {
-      ...current,
-      confidence:
-        current.confidence === "literal" || observation.confidence === "literal"
-          ? "literal"
-          : "byte-scan-candidate",
-      evidence,
-    });
+    grouped.set(key, current === undefined ? item : merge(current, item));
   }
   return [...grouped.values()].sort((left, right) =>
-    compareText(
-      JSON.stringify([left.endpointType, left.normalizedValue]),
-      JSON.stringify([right.endpointType, right.normalizedValue]),
-    ),
-  );
-}
-
-function deduplicateObfuscationPatterns(
-  observations: readonly SignalObfuscationObservation[],
-): SignalObfuscationObservation[] {
-  const grouped = new Map<string, SignalObfuscationObservation>();
-  for (const observation of observations) {
-    const key = JSON.stringify([observation.file, observation.pattern]);
-    const current = grouped.get(key);
-    if (current === undefined) {
-      grouped.set(key, observation);
-      continue;
-    }
-    grouped.set(key, {
-      ...current,
-      elementCount: Math.max(current.elementCount, observation.elementCount),
-      evidence: mergeEvidence(current.evidence, observation.evidence),
-    });
-  }
-  return [...grouped.values()].sort((left, right) =>
-    compareText(
-      JSON.stringify([left.file, left.pattern]),
-      JSON.stringify([right.file, right.pattern]),
-    ),
+    compareText(keyOf(left), keyOf(right)),
   );
 }
 
