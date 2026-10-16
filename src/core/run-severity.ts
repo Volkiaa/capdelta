@@ -140,6 +140,119 @@ type StageKindPair<Failure> = Failure extends {
   : never;
 type AnalysisIssueClassification = StageKindPair<PackageAnalysisFailure>;
 
+type AnalysisStage = PackageAnalysisFailure["stage"];
+
+/** The kind union each stage's failure type carries. */
+type FailureKindByStage = {
+  [F in PackageAnalysisFailure as F["stage"]]: F["failure"]["kind"];
+};
+
+const FETCH_FAILURE_KINDS = [
+  "invalid-url",
+  "unsupported-integrity",
+  "http-status",
+  "http-unavailable",
+  "timeout",
+  "aborted",
+  "network-error",
+  "size-limit-exceeded",
+  "invalid-response",
+  "integrity-mismatch",
+] as const;
+
+const ANALYSIS_STOP_KINDS = ["deadline-exceeded", "analysis-aborted"] as const;
+
+const EXTRACTION_FAILURE_KINDS = [
+  "invalid-archive",
+  "invalid-layout",
+  "unsafe-path",
+  "link-entry",
+  "unsupported-entry",
+  "file-count-limit",
+  "expanded-size-limit",
+  "decompression-ratio-limit",
+  "filesystem-error",
+  "deadline-exceeded",
+  "analysis-aborted",
+] as const;
+
+const MANIFEST_FAILURE_KINDS = [
+  "manifest-missing",
+  "manifest-not-regular",
+  "manifest-unreadable",
+  "manifest-too-large",
+  "manifest-invalid-json",
+  "manifest-invalid-root",
+  "identity-mismatch",
+  "deadline-exceeded",
+  "analysis-aborted",
+] as const;
+
+const CLEANUP_FAILURE_KINDS = ["cleanup-failed"] as const;
+
+/**
+ * One element per distinct failure-kind union, each the kinds its list omits.
+ * The tuple keeps the elements apart so lint does not see a union of `never`.
+ */
+type StageKindGaps = [
+  Exclude<FetchFailureKind, (typeof FETCH_FAILURE_KINDS)[number]>,
+  Exclude<AnalysisStopKind, (typeof ANALYSIS_STOP_KINDS)[number]>,
+  Exclude<ExtractionFailureKind, (typeof EXTRACTION_FAILURE_KINDS)[number]>,
+  Exclude<
+    ManifestCapabilityFailureKind,
+    (typeof MANIFEST_FAILURE_KINDS)[number]
+  >,
+  Exclude<"cleanup-failed", (typeof CLEANUP_FAILURE_KINDS)[number]>,
+];
+
+/**
+ * ADR-016: the kinds each stage can carry. The mapped `satisfies` type rejects
+ * a kind that does not belong to its stage. The leading guard makes the
+ * expected type `never`, which nothing satisfies, unless every stage lists
+ * every kind of its failure type.
+ */
+const STAGE_KINDS = {
+  fetch: FETCH_FAILURE_KINDS,
+  analysis: ANALYSIS_STOP_KINDS,
+  "old-extraction": EXTRACTION_FAILURE_KINDS,
+  "new-extraction": EXTRACTION_FAILURE_KINDS,
+  "old-manifest": MANIFEST_FAILURE_KINDS,
+  "new-manifest": MANIFEST_FAILURE_KINDS,
+  "old-cleanup": CLEANUP_FAILURE_KINDS,
+  "new-cleanup": CLEANUP_FAILURE_KINDS,
+} as const satisfies [StageKindGaps[number]] extends [never]
+  ? { [Stage in AnalysisStage]: readonly FailureKindByStage[Stage][] }
+  : never;
+
+/**
+ * True when the JSON report's independent `stage` and `kind` fields form a pair
+ * the pipeline can produce. The report contract flattens the pipeline's
+ * `PackageAnalysisFailure`, so the correlation needs this runtime check.
+ */
+function isStageKindPair(
+  issue: Pick<JsonReportAnalysisIssue, "stage" | "kind">,
+): issue is AnalysisIssueClassification {
+  if (!Object.hasOwn(STAGE_KINDS, issue.stage)) return false;
+  const kinds: readonly string[] = STAGE_KINDS[issue.stage];
+  return kinds.some((kind) => kind === issue.kind);
+}
+
+/**
+ * Restores the correlated `(stage, kind)` pair from the JSON report's separate
+ * `stage` and `kind` fields. Throws `SeverityGateError` when the kind does not
+ * belong to the stage; the pipeline never produces such a pair.
+ */
+export function toStageKindPair(
+  issue: Pick<JsonReportAnalysisIssue, "stage" | "kind">,
+): AnalysisIssueClassification {
+  if (!isStageKindPair(issue)) {
+    throw new SeverityGateError(
+      `unclassified analysis issue stage/kind ${JSON.stringify(issue.stage)}/${JSON.stringify(issue.kind)}`,
+    );
+  }
+  return issue;
+}
+
 /**
  * ADR-016: a failure decided by the artifact bytes or by the lockfile entry is
  * unanalyzable and CRITICAL; a transient, environmental, or budget failure
@@ -149,10 +262,7 @@ type AnalysisIssueClassification = StageKindPair<PackageAnalysisFailure>;
 export function analysisIssueSeverity(
   issue: Pick<JsonReportAnalysisIssue, "stage" | "kind">,
 ): FindingSeverity | null {
-  // JSON reports flatten the pipeline's discriminated failure, so restore the
-  // stage→kind mapping for the exhaustive switches below. A pair the pipeline
-  // cannot produce falls through to a `never` guard, which throws.
-  const classified = issue as AnalysisIssueClassification;
+  const classified = toStageKindPair(issue);
   switch (classified.stage) {
     case "fetch":
       return fetchFailureSeverity(classified.kind);
@@ -300,8 +410,21 @@ export function hasOperationalFailure(run: CapabilityAnalysisRun): boolean {
 export function operationalFailureCount(run: CapabilityAnalysisRun): number {
   return run.packages.filter(
     (item) =>
-      item.status === "unavailable" && item.failures.some(isOperationalFailure),
+      item.status === "unavailable" &&
+      item.failures.some((failure) =>
+        isOperationalFailure(failureStageKind(failure)),
+      ),
   ).length;
+}
+
+/** The correlated pair of a pipeline failure, for the pair-based predicates. */
+function failureStageKind(
+  failure: PackageAnalysisFailure,
+): AnalysisIssueClassification {
+  return toStageKindPair({
+    stage: failure.stage,
+    kind: failure.failure.kind,
+  });
 }
 
 /** ADR-018, ADR-019: the shared CLI and Action message for an operational failure. */
@@ -319,28 +442,24 @@ export function operationalFailureMessage(count: number): string {
  * `manifest-unreadable` only at a manifest stage. `isStopKind` keeps meaning a
  * deadline or cancellation stop alone; these kinds are not added to it.
  */
-export function isOperationalFailure(issue: PackageAnalysisFailure): boolean {
+export function isOperationalFailure(
+  issue: AnalysisIssueClassification,
+): boolean {
   switch (issue.stage) {
     case "fetch":
-      return isOperationalFetchKind(issue.failure.kind);
+      return isOperationalFetchKind(issue.kind);
     case "analysis":
-      return isStopKind(issue.failure.kind);
+      return isStopKind(issue.kind);
     case "old-extraction":
     case "new-extraction":
       // Extraction failed and its cleanup also failed; treat this residual
       // failure operationally (ADR-019).
-      return (
-        isStopKind(issue.failure.kind) ||
-        issue.failure.kind === "filesystem-error"
-      );
+      return isStopKind(issue.kind) || issue.kind === "filesystem-error";
     case "old-manifest":
     case "new-manifest":
       // ADR-019 decision 3: package.json could not be read, so the package is
       // unavailable for an environmental reason.
-      return (
-        isStopKind(issue.failure.kind) ||
-        issue.failure.kind === "manifest-unreadable"
-      );
+      return isStopKind(issue.kind) || issue.kind === "manifest-unreadable";
     case "old-cleanup":
     case "new-cleanup":
       return false;

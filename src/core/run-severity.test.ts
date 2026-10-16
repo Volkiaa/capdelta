@@ -20,6 +20,7 @@ import {
   operationalFailureCount,
   operationalFailureMessage,
   parseFailOn,
+  toStageKindPair,
 } from "./run-severity.js";
 
 function report(gateSeverity: SeverityCounts): JsonRunReport {
@@ -223,15 +224,53 @@ describe("run severity classification", () => {
   });
 
   it("throws on a stage/kind pair the pipeline cannot produce", () => {
-    // The JSON contract flattens stage and kind, so the classifier guards the
-    // restored correlation at runtime as well as at compile time.
     expect(() =>
-      analysisIssueSeverity({
+      toStageKindPair({
         stage: "fetch",
         kind: "manifest-missing",
       }),
     ).toThrow(SeverityGateError);
   });
+
+  it("rebuilds the correlated pair for a valid kind of every stage", () => {
+    const cases: [
+      stage: JsonReportAnalysisIssue["stage"],
+      kind: JsonReportAnalysisIssue["kind"],
+    ][] = [
+      ["fetch", "timeout"],
+      ["analysis", "deadline-exceeded"],
+      ["old-extraction", "invalid-archive"],
+      ["new-extraction", "filesystem-error"],
+      ["old-manifest", "manifest-missing"],
+      ["new-manifest", "manifest-unreadable"],
+      ["old-cleanup", "cleanup-failed"],
+      ["new-cleanup", "cleanup-failed"],
+    ];
+    for (const [stage, kind] of cases) {
+      expect(toStageKindPair({ stage, kind })).toEqual({ stage, kind });
+    }
+  });
+
+  it("throws on an unknown kind", () => {
+    expect(() =>
+      toStageKindPair({
+        stage: "fetch",
+        kind: "no-such-kind" as JsonReportAnalysisIssue["kind"],
+      }),
+    ).toThrow(SeverityGateError);
+  });
+
+  it.each(["unknown", "__proto__", "constructor", "toString"])(
+    "throws SeverityGateError for the stage %j",
+    (stage) => {
+      expect(() =>
+        toStageKindPair({
+          stage: stage as JsonReportAnalysisIssue["stage"],
+          kind: "timeout",
+        }),
+      ).toThrow(SeverityGateError);
+    },
+  );
 
   // ADR-017 amendment A
   it("derives EXCEPTABLE_UNANALYZABLE_KINDS from the extraction and manifest stages", () => {
@@ -268,7 +307,7 @@ describe("operational failure (ADR-018)", () => {
       "http-unavailable",
       "aborted",
     ] as const) {
-      expect(isOperationalFailure(fetchIssue(kind))).toBe(true);
+      expect(isOperationalFailure({ stage: "fetch", kind })).toBe(true);
     }
   });
 
@@ -281,103 +320,54 @@ describe("operational failure (ADR-018)", () => {
       "http-status",
       "invalid-response",
     ] as const) {
-      expect(isOperationalFailure(fetchIssue(kind))).toBe(false);
+      expect(isOperationalFailure({ stage: "fetch", kind })).toBe(false);
     }
   });
 
   it("treats a deadline or cancellation stop at any stage as operational", () => {
-    const stops: PackageAnalysisFailure[] = [
-      {
-        stage: "analysis",
-        failure: { kind: "deadline-exceeded", detail: "stop" },
-      },
-      {
-        stage: "analysis",
-        failure: { kind: "analysis-aborted", detail: "stop" },
-      },
-      {
-        stage: "new-extraction",
-        failure: { kind: "deadline-exceeded", detail: "stop" },
-      },
-      {
-        stage: "old-extraction",
-        failure: { kind: "analysis-aborted", detail: "stop" },
-      },
-      {
-        stage: "new-manifest",
-        failure: { kind: "deadline-exceeded", detail: "stop", evidence: null },
-      },
-      {
-        stage: "old-manifest",
-        failure: { kind: "analysis-aborted", detail: "stop", evidence: null },
-      },
-    ];
+    const stops = [
+      { stage: "analysis", kind: "deadline-exceeded" },
+      { stage: "analysis", kind: "analysis-aborted" },
+      { stage: "new-extraction", kind: "deadline-exceeded" },
+      { stage: "old-extraction", kind: "analysis-aborted" },
+      { stage: "new-manifest", kind: "deadline-exceeded" },
+      { stage: "old-manifest", kind: "analysis-aborted" },
+    ] as const;
     for (const issue of stops) expect(isOperationalFailure(issue)).toBe(true);
   });
 
   it("treats a residual filesystem error as operational at both extraction stages (ADR-019)", () => {
     for (const stage of ["old-extraction", "new-extraction"] as const) {
-      expect(
-        isOperationalFailure({
-          stage,
-          failure: { kind: "filesystem-error", detail: "input/output error" },
-        }),
-      ).toBe(true);
+      expect(isOperationalFailure({ stage, kind: "filesystem-error" })).toBe(
+        true,
+      );
     }
   });
 
   it("treats an unreadable manifest as operational at both manifest stages (ADR-019)", () => {
     for (const stage of ["old-manifest", "new-manifest"] as const) {
-      expect(
-        isOperationalFailure({
-          stage,
-          failure: {
-            kind: "manifest-unreadable",
-            detail: "package.json could not be read: EACCES",
-            evidence: null,
-          },
-        }),
-      ).toBe(true);
+      expect(isOperationalFailure({ stage, kind: "manifest-unreadable" })).toBe(
+        true,
+      );
     }
   });
 
   it("keeps manifest-not-regular and cleanup-failed non-operational (ADR-019)", () => {
-    const issues: PackageAnalysisFailure[] = [
-      {
-        stage: "old-manifest",
-        failure: {
-          kind: "manifest-not-regular",
-          detail: "package.json is not a regular file",
-          evidence: null,
-        },
-      },
-      {
-        stage: "old-cleanup",
-        failure: { kind: "cleanup-failed", detail: "cleanup failed" },
-      },
-      {
-        stage: "new-cleanup",
-        failure: { kind: "cleanup-failed", detail: "cleanup failed" },
-      },
-    ];
+    const issues = [
+      { stage: "old-manifest", kind: "manifest-not-regular" },
+      { stage: "old-cleanup", kind: "cleanup-failed" },
+      { stage: "new-cleanup", kind: "cleanup-failed" },
+    ] as const;
     for (const issue of issues) expect(isOperationalFailure(issue)).toBe(false);
   });
 
-  it("is stage-specific: a pair the pipeline cannot produce is not newly operational (ADR-019)", () => {
-    // ADR-019
-    const impossible = [
-      {
-        stage: "old-extraction",
-        failure: { kind: "manifest-unreadable", detail: "impossible pair" },
-      },
-      {
-        stage: "new-manifest",
-        failure: { kind: "filesystem-error", detail: "impossible pair" },
-      },
-    ] as unknown as PackageAnalysisFailure[];
-    for (const issue of impossible) {
-      expect(isOperationalFailure(issue)).toBe(false);
-    }
+  it("is stage-specific: a pair the pipeline cannot produce is rejected (ADR-019)", () => {
+    expect(() =>
+      toStageKindPair({ stage: "old-extraction", kind: "manifest-unreadable" }),
+    ).toThrow(SeverityGateError);
+    expect(() =>
+      toStageKindPair({ stage: "new-manifest", kind: "filesystem-error" }),
+    ).toThrow(SeverityGateError);
   });
 
   it("counts each package once, however many failures it has", () => {
