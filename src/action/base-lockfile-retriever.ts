@@ -1,4 +1,5 @@
 import { isNormalizedRelativePosixPath } from "../core/repository-path.js";
+import { httpStatusOf } from "./http-error-fields.js";
 const DEFAULT_MAX_LOCKFILE_BYTES = 50 * 1024 * 1024;
 const COMMIT_ID = /^[0-9a-f]{40,64}$/iu;
 
@@ -165,7 +166,7 @@ async function requestContent(
   try {
     return await client.getContent({ owner, repo, path, ref }, mediaType);
   } catch (error: unknown) {
-    const status = statusFrom(error);
+    const status = httpStatusOf(error);
     if (status === 404) return { status, data: null };
     throw new GitHubContentsApiError(
       `GitHub Contents API failed while ${mediaType === "object" ? "inspecting" : "reading"} the base ${request.label}`,
@@ -173,13 +174,6 @@ async function requestContent(
       { cause: error },
     );
   }
-}
-
-function statusFrom(error: unknown): number | null {
-  if (typeof error !== "object" || error === null || !("status" in error)) {
-    return null;
-  }
-  return typeof error.status === "number" ? error.status : null;
 }
 
 function requireSuccess(status: number, operation: string, path: string): void {
