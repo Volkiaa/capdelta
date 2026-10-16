@@ -514,8 +514,6 @@ function collectGuidance(report: JsonRunReport): GuidanceRow[] {
     const issueClass = analysisIssueClass(issue);
     const guidance = analysisIssueGuidance(issue);
     if (issueClass === null || guidance === null) {
-      // A severity-bearing issue always classifies; a null here is a bug, not
-      // a silent skip.
       throw new ActionCommentContractError(
         `no guidance class for severity-bearing analysis issue ${issue.stage}/${issue.kind}`,
       );
