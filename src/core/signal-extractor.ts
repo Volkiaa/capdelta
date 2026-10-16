@@ -10,6 +10,7 @@ import type {
   SignalSet,
 } from "./contract/capability-set.js";
 import { compareEvidence, compareText } from "./compare.js";
+import { lineIndexAt, lineStarts } from "./line-index.js";
 
 /** Provisional thresholds; PLAN §4.4 leaves corpus tuning to validation. */
 export const MIN_ENTROPY_BYTES = 256 as const;
@@ -51,7 +52,7 @@ export function observeSignalSource(input: SignalSourceInput): {
   obfuscationPatterns: readonly SignalObfuscationObservation[];
 } {
   const source = new TextDecoder("utf-8").decode(input.bytes);
-  const lineStarts = buildLineStarts(source);
+  const starts = lineStarts(source);
   const confidence =
     input.parseState === "parsed" ? "literal" : "byte-scan-candidate";
   const inComment =
@@ -61,14 +62,14 @@ export function observeSignalSource(input: SignalSourceInput): {
   const endpoints = detectEndpoints(
     input.file,
     source,
-    lineStarts,
+    starts,
     confidence,
     inComment,
   );
   const obfuscationPatterns = detectObfuscationPatterns(
     input.file,
     source,
-    lineStarts,
+    starts,
   );
   return {
     file: {
@@ -100,7 +101,7 @@ export function buildSignalSet(
 function detectEndpoints(
   file: string,
   source: string,
-  lineStarts: readonly number[],
+  starts: readonly number[],
   confidence: SignalEndpointObservation["confidence"],
   inComment: (start: number, end: number) => boolean,
 ): SignalEndpointObservation[] {
@@ -127,7 +128,7 @@ function detectEndpoints(
     if (host === null) continue;
     if (endpointType === null || !isExternalHost(host, endpointType)) continue;
     found.push(
-      endpoint(file, host, endpointType, source, lineStarts, index, confidence),
+      endpoint(file, host, endpointType, source, starts, index, confidence),
     );
   }
 
@@ -137,7 +138,7 @@ function detectEndpoints(
     if (inComment(index, index + match[0].length)) continue;
     if (isIP(value) !== 4 || !isExternalHost(value, "ipv4")) continue;
     found.push(
-      endpoint(file, value, "ipv4", source, lineStarts, index, confidence),
+      endpoint(file, value, "ipv4", source, starts, index, confidence),
     );
   }
 
@@ -152,7 +153,7 @@ function detectEndpoints(
         value.toLowerCase(),
         "ipv6",
         source,
-        lineStarts,
+        starts,
         index,
         confidence,
       ),
@@ -166,7 +167,7 @@ function endpoint(
   value: string,
   endpointType: SignalEndpointObservation["endpointType"],
   source: string,
-  lineStarts: readonly number[],
+  starts: readonly number[],
   index: number,
   confidence: SignalEndpointObservation["confidence"],
 ): SignalEndpointObservation {
@@ -175,14 +176,14 @@ function endpoint(
     endpointType,
     normalizedValue: value,
     confidence,
-    evidence: [{ ...evidenceAt(source, lineStarts, index), file }],
+    evidence: [{ ...evidenceAt(source, starts, index), file }],
   };
 }
 
 function detectObfuscationPatterns(
   file: string,
   source: string,
-  lineStarts: readonly number[],
+  starts: readonly number[],
 ): SignalObfuscationObservation[] {
   const found: SignalObfuscationObservation[] = [];
   for (const match of source.matchAll(ARRAY_RE)) {
@@ -200,7 +201,7 @@ function detectObfuscationPatterns(
       file,
       pattern,
       elementCount: elements.length,
-      evidence: [{ ...evidenceAt(source, lineStarts, index), file }],
+      evidence: [{ ...evidenceAt(source, starts, index), file }],
     });
   }
   return found;
@@ -295,38 +296,18 @@ function mergeEvidence(left: EvidenceList, right: EvidenceList): EvidenceList {
 
 function evidenceAt(
   source: string,
-  lineStarts: readonly number[],
+  starts: readonly number[],
   index: number,
 ): Evidence {
-  const lineIndex = lineForIndex(lineStarts, index);
-  const lineStart = lineStarts[lineIndex] ?? 0;
-  const nextLineStart = lineStarts[lineIndex + 1] ?? source.length;
+  const lineIndex = lineIndexAt(starts, index);
+  const lineStart = starts[lineIndex] ?? 0;
+  const nextLineStart = starts[lineIndex + 1] ?? source.length;
   const snippet = source
     .slice(lineStart, nextLineStart)
     .replace(/[\r\n]+$/gu, "")
     .trim()
     .slice(0, MAX_EVIDENCE_SNIPPET);
   return { file: "", line: lineIndex + 1, snippet };
-}
-
-function buildLineStarts(source: string): number[] {
-  const starts = [0];
-  for (let index = 0; index < source.length; index += 1) {
-    if (source.charCodeAt(index) === 10) starts.push(index + 1);
-  }
-  return starts;
-}
-
-function lineForIndex(lineStarts: readonly number[], index: number): number {
-  let low = 0;
-  let high = lineStarts.length;
-  while (low + 1 < high) {
-    const middle = Math.floor((low + high) / 2);
-    const start = lineStarts[middle] ?? 0;
-    if (start <= index) low = middle;
-    else high = middle;
-  }
-  return low;
 }
 
 const DOMAIN_LABEL_RE = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/u;
