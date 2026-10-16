@@ -22,7 +22,7 @@ import {
   type AnalysisStopKind,
 } from "../analysis-execution-policy.js";
 import { NamedError } from "../named-error.js";
-import { errorName } from "../guards.js";
+import { errorName, isAbortSignal } from "../guards.js";
 import { compareText } from "../compare.js";
 import { lineIndexAt, lineStarts } from "../line-index.js";
 import type { ExtractedTarball } from "./safe-extractor.js";
@@ -114,7 +114,11 @@ export async function extractNpmManifestCapabilities(
   options: ManifestCapabilityExtractorOptions = {},
 ): Promise<ManifestCapabilityResult> {
   const maxManifestBytes = resolveMaxManifestBytes(options);
-  validateSignal(options.signal);
+  if (options.signal !== undefined && !isAbortSignal(options.signal)) {
+    throw new ManifestCapabilityExtractorConfigurationError(
+      "signal must implement AbortSignal",
+    );
+  }
   validateContract(extracted, expected);
   const initialStop = stopped(options.signal);
   if (initialStop !== null) return initialStop;
@@ -332,19 +336,6 @@ function readStopped(
     analysisStopKind(signal) ?? "analysis-aborted",
     analysisStopDetail(signal),
   );
-}
-
-function validateSignal(signal: AbortSignal | undefined): void {
-  if (signal === undefined) return;
-  if (
-    typeof signal !== "object" ||
-    typeof signal.aborted !== "boolean" ||
-    typeof signal.addEventListener !== "function"
-  ) {
-    throw new ManifestCapabilityExtractorConfigurationError(
-      "signal must implement AbortSignal",
-    );
-  }
 }
 
 function readFailure(
