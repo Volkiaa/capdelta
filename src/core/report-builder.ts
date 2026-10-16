@@ -555,5 +555,6 @@ function crossLinkDependencies(packages: readonly JsonRunPackage[]): void {
 export function truncate(value: string, maxCharacters: number): string {
   const characters = Array.from(value);
   if (characters.length <= maxCharacters) return value;
+  if (maxCharacters === 0) return "";
   return `${characters.slice(0, maxCharacters - 1).join("")}\u2026`;
 }

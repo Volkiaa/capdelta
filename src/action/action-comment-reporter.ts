@@ -20,6 +20,7 @@ import {
   assessRunSeverity,
   isUnanalyzableIssue,
 } from "../core/run-severity.js";
+import { truncate } from "../core/report-builder.js";
 import { isPermissionRefusal } from "./permission-refusal.js";
 
 export const COMMENT_MARKER = "<!-- capdelta:capability-report:v2 -->";
@@ -625,13 +626,6 @@ function isControl(codePoint: number): boolean {
     (codePoint >= 0x202a && codePoint <= 0x202e) ||
     (codePoint >= 0x2066 && codePoint <= 0x2069)
   );
-}
-
-function truncate(value: string, maxCharacters: number): string {
-  const characters = Array.from(value);
-  if (characters.length <= maxCharacters) return value;
-  if (maxCharacters === 0) return "";
-  return `${characters.slice(0, Math.max(0, maxCharacters - 1)).join("")}…`;
 }
 
 function validateDelivery(delivery: CommentDelivery): void {
