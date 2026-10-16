@@ -8,7 +8,6 @@ export default tseslint.config(
       "dist/",
       "coverage/",
       "node_modules/",
-      // Inert golden package sources: parsed by tests, archived byte-for-byte.
       "test/fixtures/golden/*/source-*/",
       "test/fixtures/reconstructions/*/packages/",
     ],
@@ -39,8 +38,7 @@ export default tseslint.config(
     },
   },
   {
-    // ADR-004: src/core is the ecosystem-agnostic library; it must never
-    // depend on the CLI or Action layers.
+    // ADR-004
     files: ["src/core/**/*.ts"],
     rules: {
       "no-restricted-imports": [

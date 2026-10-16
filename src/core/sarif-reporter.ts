@@ -66,20 +66,15 @@ export function renderSarifReport(
   }
   const results: SarifResult[] = [];
   const ruleIds = new Set<string>();
-  // PLAN §4.5: every rule carries the reviewer guidance for its class in
-  // help.text. The map is populated wherever a rule id is introduced, so it is
-  // impossible to emit a rule without guidance.
+  // PLAN §4.5
   const ruleGuidance = new Map<string, Guidance>();
-  // ADR-016: unanalyzable rule IDs get distinct rule text. Derived from the
-  // same classification that assigns severity; never a hand-written list.
+  // ADR-016
   const unanalyzableRuleIds = new Set<string>();
   for (const item of run.packages) {
-    // ADR-017: a reviewed exception releases the package from the gate, so its
-    // failure results are labeled like suppressed capability findings.
+    // ADR-017
     const exceptionReason =
       item.status === "unavailable" ? item.exception?.reason : undefined;
-    // Severity-bearing issues (PLAN §4.2 integrity mismatches) gate the run,
-    // so they must reach code scanning even when the package is unavailable.
+    // PLAN §4.2
     for (const issue of item.status === "analyzed"
       ? item.issues
       : item.failures) {
@@ -118,8 +113,6 @@ export function renderSarifReport(
     }
     if (item.status !== "analyzed") continue;
     const subject = item.diff.subject;
-    // Shape participants are the findings' own capability objects, so a
-    // reviewed allowlist suppression can be carried onto the shape result.
     const memberSuppression = new Map(
       item.diff.findings.map((finding) => [
         finding.capability,
@@ -294,12 +287,6 @@ function resultFor(
   };
 }
 
-/**
- * An unavailable package has no analyzed file to point at. The result points
- * at the lockfile that pins the expected integrity, with no region: capdelta
- * does not track the entry's line and never fabricates one. Artifact
- * identity, side, and URL go in properties.
- */
 function issueResult(
   changedPackage: ChangedPackage,
   issue: PackageAnalysisFailure,
@@ -410,12 +397,6 @@ function ruleHelp(ruleId: string, guidance: Guidance | undefined): string {
   return `${guidance.whyItMatters} ${guidance.whatToCheck} This result does not assert malware.`;
 }
 
-/**
- * Labels a shape from its participants' reviewed suppressions, the same
- * per-member notion the gate counts. A partly suppressed shape is never
- * presented as reviewed: its unsuppressed participants still gate. The
- * alert level is unchanged; dismissing alerts is a separate decision.
- */
 function shapeSuppression(reasons: readonly (string | undefined)[]): {
   text: string;
   properties: Record<string, unknown>;
@@ -424,8 +405,6 @@ function shapeSuppression(reasons: readonly (string | undefined)[]): {
     (reason): reason is string => reason !== undefined,
   );
   if (suppressed.length === 0) return { text: "", properties: {} };
-  // Deduplicate the bounded display strings; participant counts still use
-  // every suppressed participant.
   const unique = [
     ...new Set(suppressed.map((reason) => truncate(reason, MAX_VALUE_CHARS))),
   ];

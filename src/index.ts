@@ -1,4 +1,4 @@
-/** Public library surface. Grows one component per milestone (PLAN §6). */
+// PLAN §6
 export {
   AnalysisExecutionPolicyConfigurationError,
   AnalysisExecutionPolicyError,

@@ -1,9 +1,4 @@
-/**
- * The ecosystem-agnostic lockfile-diff contract (PLAN §2, §4.1; ADR-004).
- * Ecosystem-specific differs (npm today, others later) produce these types;
- * the Fetcher, Differ, severity model, and Reporter consume them without
- * knowing the ecosystem.
- */
+// PLAN §2, §4.1; ADR-004
 
 /**
  * PLAN §4.1: one analyzable package whose resolved version changed.
@@ -34,7 +29,7 @@ export interface ChangedPackage {
  * hardcoded in two places.
  */
 export type LockfileFindingKind =
-  | "integrity-changed-version-same" // PLAN §4.1: "HIGH finding on its own"
+  | "integrity-changed-version-same" // PLAN §4.1
   | "version-downgrade"; // PLAN §4.1: "INFO finding"
 
 export interface LockfileFinding {
@@ -48,9 +43,9 @@ export interface LockfileFinding {
 
 /** Why a changed package could not be queued for analysis. Never silent (PLAN §2). */
 export type SkipReason =
-  | "private-registry" // PLAN §2: skip and flag
+  | "private-registry" // PLAN §2
   | "unanalyzable-source" // git/file/link deps (PLAN §4.1)
-  | "missing-integrity" // fetcher requires SRI before parsing (PLAN §4.2)
+  | "missing-integrity" // PLAN §4.2
   | "missing-resolved" // no tarball URL to fetch
   | "malformed-entry"; // entry failed structural validation
 

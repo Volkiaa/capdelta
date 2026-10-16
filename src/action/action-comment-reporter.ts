@@ -35,7 +35,6 @@ const FINDING_SEVERITY_ORDER = {
   INFO: 4,
 } as const;
 
-/** Readable labels for the deduplicated "What these mean" entries. */
 const ANALYSIS_ISSUE_LABELS: Readonly<Record<AnalysisIssueClass, string>> = {
   "integrity-mismatch": "integrity mismatch",
   "lockfile-or-registry-fetch-failure": "lockfile or registry fetch failure",
@@ -111,7 +110,7 @@ export class ActionCommentContractError extends ActionCommentError {}
 
 export class ActionCommentApiError extends ActionCommentError {}
 
-/** Render a deterministic, summary-only Markdown comment (PLAN §4.5). */
+// PLAN §4.5
 export function renderActionComment(
   report: JsonRunReport,
   options: ActionCommentOptions = {},
@@ -131,14 +130,9 @@ export function renderActionComment(
   }
 
   const guidance = collectGuidance(report);
-  // PLAN §4.5: finding rows are the primary content. Decide the rows exactly as
-  // the pre-guidance reporter did — the full row budget, reduced only when the
-  // no-guidance body does not fit. Guidance is fitted afterwards, into the space
-  // those rows leave, so guidance can never shrink the row count or make a body
-  // throw that the pre-guidance reporter would have returned.
+  // PLAN §4.5
   const base = fitBaseComment(report, artifactName, maxRows, maxCharacters);
   let body = base.body;
-  // Add guidance entries while they fit, one at a time.
   let shown = 0;
   for (let candidate = 1; candidate <= guidance.length; candidate += 1) {
     const next = buildComment(
@@ -152,8 +146,6 @@ export function renderActionComment(
     shown = candidate;
     body = next;
   }
-  // Point at the full guidance only if the notice itself also fits; otherwise
-  // drop it, so the rows and the entries that did fit stay intact.
   const omitted = guidance.length - shown;
   if (omitted > 0) {
     const withNotice = buildComment(
@@ -168,11 +160,6 @@ export function renderActionComment(
   return body;
 }
 
-/**
- * The row budget the pre-guidance reporter would pick: the largest row count,
- * up to `maxRows`, whose guidance-free body fits, or the fixed summary with no
- * rows. Throws only when even that does not fit, exactly as before guidance.
- */
 function fitBaseComment(
   report: JsonRunReport,
   artifactName: string,
@@ -188,7 +175,6 @@ function fitBaseComment(
   );
 }
 
-/** Update the bot's sticky comment, or degrade to a job summary for read-only PRs. */
 export async function publishStickyComment(
   delivery: CommentDelivery,
   client: GitHubCommentClient,
@@ -275,12 +261,6 @@ export async function publishStickyComment(
   return { status: "updated", commentId: target.id };
 }
 
-/**
- * ADR-020: write the inert comment body to the job summary and report
- * summary-only. `fork` is known before the write; `token-denied` comes from a
- * refused write, which warns about the missing permission. A failed summary
- * write is still loud, as the fork path has always been.
- */
 async function writeSummaryFallback(
   delivery: CommentDelivery,
   reason: "fork" | "token-denied",
@@ -356,8 +336,7 @@ function buildComment(
       "| Package | Stage | Detail | Source |",
       "| --- | --- | --- | --- |",
       ...issues.map(({ packageName, issue }) => {
-        // ADR-016: label issues capdelta could not inspect, distinct from
-        // integrity mismatches and from capability findings.
+        // ADR-016
         const stage = isUnanalyzableIssue(issue)
           ? `could not analyze: ${issue.stage}`
           : issue.stage;
@@ -368,8 +347,7 @@ function buildComment(
 
   const exceptions = collectExceptions(report);
   if (exceptions.length > 0) {
-    // ADR-017: the package is still unanalyzed and still returns exit 2 under
-    // --strict; the reviewed exception only releases the severity gate.
+    // ADR-017
     lines.push(
       "",
       "### Reviewed exceptions",
@@ -382,8 +360,7 @@ function buildComment(
   }
 
   if (guidance.length > 0) {
-    // PLAN §4.5: one deduplicated section for every CRITICAL/HIGH class in the
-    // comment, so guidance is never repeated per finding.
+    // PLAN §4.5
     lines.push(
       "",
       "### What these mean",
@@ -406,9 +383,7 @@ function buildComment(
   );
   const omittedGuidanceCount = omittedGuidance ?? 0;
   if (omittedGuidanceCount > 0) {
-    // PLAN §4.5: guidance is secondary to the finding rows. The cap cuts it
-    // first. Say how much was cut; the full text still lives in the SARIF rule
-    // help, which is where guidance is presented outside the comment.
+    // PLAN §4.5
     lines.push(
       `Guidance for ${String(omittedGuidanceCount)} ${omittedGuidanceCount === 1 ? "class" : "classes"} was omitted; see the SARIF rule help.`,
     );
@@ -496,11 +471,6 @@ function collectExceptions(
   );
 }
 
-/**
- * PLAN §4.5: deduplicated reviewer guidance for each CRITICAL/HIGH class the
- * comment presents. Two findings of the same class share one entry; classes
- * with no gate-worthy member are omitted.
- */
 function collectGuidance(report: JsonRunReport): GuidanceRow[] {
   const rows = new Map<string, GuidanceRow>();
   const add = (
