@@ -25,6 +25,7 @@ import {
 import {
   CliOperationalError,
   CliUsageError,
+  decodeUtf8,
   terminalSafeError,
   terminalSafeText,
 } from "./cli-errors.js";
@@ -271,15 +272,5 @@ function parseLockfile(text: string, side: "base" | "head"): unknown {
       `${side} ${LOCKFILE_NAME} is not valid JSON`,
       { cause: error },
     );
-  }
-}
-
-function decodeUtf8(bytes: Uint8Array, description: string): string {
-  try {
-    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-  } catch (error: unknown) {
-    throw new CliOperationalError(`${description} is not valid UTF-8`, {
-      cause: error,
-    });
   }
 }
