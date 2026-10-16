@@ -111,14 +111,7 @@ export function diffNpmLockfiles(
     // when the entry is subsequently skipped (e.g. a downgraded private
     // package is still a reported downgrade).
     if (old?.version !== undefined && entry.version !== undefined) {
-      // The integrity comparison requires BOTH sides present: an old entry
-      // without an integrity field means integrity was added, not changed —
-      // no tampered-bytes signal exists (review finding: false HIGH).
-      if (
-        old.version === entry.version &&
-        old.integrity !== undefined &&
-        old.integrity !== entry.integrity
-      ) {
+      if (integrityChangedAtSameVersion(old, entry)) {
         findings.push({
           kind: "integrity-changed-version-same",
           name: entry.name,
@@ -167,21 +160,7 @@ export function diffNpmLockfiles(
       oldResolvedUrl: baseline?.resolved ?? null,
       resolvedUrl: verdict.resolved,
     };
-    // Same package bumped identically at several tree positions → analyzing
-    // the tuple twice is pure waste; positions with differing deltas survive.
-    // JSON.stringify is an injective encoding of the tuple; a separator join
-    // cannot be, because attacker-controlled lockfile strings may contain any
-    // character (including NUL via JSON unicode escapes) and collide across
-    // field boundaries, silently dropping a distinct changed package.
-    const tuple = JSON.stringify([
-      candidate.name,
-      candidate.oldVersion,
-      candidate.newVersion,
-      candidate.oldIntegrity,
-      candidate.newIntegrity,
-      candidate.oldResolvedUrl,
-      candidate.resolvedUrl,
-    ]);
+    const tuple = injectiveEntryKey(candidate);
     if (!seenTuples.has(tuple)) {
       seenTuples.add(tuple);
       changed.push(candidate);
@@ -204,6 +183,33 @@ function nameFromPath(path: string): string {
 /** The one definition of "a plain JSON object" used on every untrusted-input boundary in this file. */
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** Integrity changed while the version stayed the same: the tampered-bytes signal. An old entry with no integrity means integrity was added, not changed. */
+function integrityChangedAtSameVersion(old: Entry, entry: Entry): boolean {
+  return (
+    old.version === entry.version &&
+    old.integrity !== undefined &&
+    old.integrity !== entry.integrity
+  );
+}
+
+/**
+ * Dedup key for one change tuple. JSON.stringify is injective; a separator
+ * join is not, because attacker-controlled strings may contain any character
+ * (including NUL) and collide across field boundaries, which drops a distinct
+ * changed package.
+ */
+export function injectiveEntryKey(entry: ChangedPackage): string {
+  return JSON.stringify([
+    entry.name,
+    entry.oldVersion,
+    entry.newVersion,
+    entry.oldIntegrity,
+    entry.newIntegrity,
+    entry.oldResolvedUrl,
+    entry.resolvedUrl,
+  ]);
 }
 
 /**
@@ -276,26 +282,26 @@ function parseEntry(path: string, raw: unknown): ParsedEntry {
   };
 }
 
-/**
- * Approved moved-package rule for paths present only in the new lockfile:
- * an identical artifact (version+integrity+resolved, sameArtifact) existed
- * anywhere in the old tree → pure re-hoisting, ignore; exactly one distinct
- * old artifact of the name → treat as a version change from it; ambiguous or
- * unknown name → newly-added treatment (full report — the safe,
- * over-reporting direction). Distinctness is on the full artifact tuple, not
- * version alone: two old copies of one version with different integrities
- * must not yield an iteration-order-dependent baseline (review finding).
- */
 function matchMoved(
   entry: Entry,
   oldByName: Map<string, Entry[]>,
 ): Entry | "identical" | null {
+  // A null result asks the caller to treat the package as newly added, the
+  // over-reporting direction.
   const candidates = oldByName.get(entry.name);
   if (candidates === undefined) return null;
   if (candidates.some((c) => sameArtifact(c, entry))) {
     return "identical";
   }
-  const distinctArtifacts = new Set(
+  if (!hasSingleDistinctArtifact(candidates)) {
+    return null;
+  }
+  return candidates[0] ?? null;
+}
+
+/** Distinct old artifacts of one name, keyed on version, integrity and resolved, so two copies of one version with different integrities count as two. */
+function hasSingleDistinctArtifact(candidates: Entry[]): boolean {
+  const artifacts = new Set(
     candidates.map((c) =>
       JSON.stringify([
         c.version ?? null,
@@ -304,10 +310,7 @@ function matchMoved(
       ]),
     ),
   );
-  if (distinctArtifacts.size === 1) {
-    return candidates[0] ?? null;
-  }
-  return null;
+  return artifacts.size === 1;
 }
 
 function classify(entry: Entry): Analyzability {

@@ -13,13 +13,9 @@ interface ParsedSemver {
 }
 
 function parseSemver(version: string): ParsedSemver | null {
-  const match = SEMVER_RE.exec(version);
-  if (!match) {
-    return null;
-  }
-  const [, major, minor, patch, prerelease] = match;
+  const [, major, minor, patch, prerelease] = SEMVER_RE.exec(version) ?? [];
   if (major === undefined || minor === undefined || patch === undefined) {
-    return null; // unreachable given the regex, but noUncheckedIndexedAccess demands proof
+    return null;
   }
   return {
     numbers: [Number(major), Number(minor), Number(patch)],
