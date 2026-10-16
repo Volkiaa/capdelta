@@ -3,6 +3,7 @@
 Review what an npm dependency gained between two lockfiles.
 
 [![CI](https://github.com/Volkiaa/capdelta/actions/workflows/ci.yml/badge.svg)](https://github.com/Volkiaa/capdelta/actions/workflows/ci.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/Volkiaa/capdelta/badge)](https://scorecard.dev/viewer/?uri=github.com/Volkiaa/capdelta)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
 Traditional vulnerability scanners ask whether a version is already known to be
@@ -329,6 +330,7 @@ Transitive runtime packages are reported by the check but are not the gate.
 - [ADR-019: Read what npm installs, and fail on every unread package](docs/adr/0019-read-what-npm-installs.md)
 - [ADR-020: Decide write access from the token, not from the PR author](docs/adr/0020-decide-write-access-from-the-token.md)
 - [ADR-021: Rebuild the Action bundle in a credential-free sandbox](docs/adr/0021-credential-free-action-rebuild.md)
+- [ADR-022: Release the Action from CI only, behind an approval, with signed provenance](docs/adr/0022-release-from-ci-with-provenance.md)
 
 The authoritative architecture and roadmap remain in
 [docs/PLAN.md](docs/PLAN.md). Session handoffs are recorded in

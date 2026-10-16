@@ -36,6 +36,12 @@ a fixture that executes meaningful package code.
   files, dropped diagnostics, integrity-verification bypasses, and active
   Markdown/HTML/SARIF injection are in scope.
 
+## Verifying a release
+
+Every release carries signed build provenance and an SBOM. See
+[docs/security-pipeline.md](docs/security-pipeline.md) for the `gh attestation
+verify` command and the controls that protect capdelta's own pipeline.
+
 ## Supported versions
 
 The npm package has not been published. Security fixes currently target the
