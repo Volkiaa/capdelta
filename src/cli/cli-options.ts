@@ -60,11 +60,7 @@ export function parseCliArguments(argv: readonly string[]): CliArguments {
     if (argument === "--base") {
       if (base !== null)
         throw new CliUsageError("--base may only be provided once");
-      const value = argv[index + 1];
-      if (value === undefined || value.length === 0 || value.startsWith("--")) {
-        throw new CliUsageError("--base requires a Git revision");
-      }
-      base = value;
+      base = readFlagValue(argv, index, "--base", "a Git revision");
       index += 1;
       continue;
     }
@@ -85,11 +81,7 @@ export function parseCliArguments(argv: readonly string[]): CliArguments {
       if (configPath !== null) {
         throw new CliUsageError("--config may only be provided once");
       }
-      const value = argv[index + 1];
-      if (value === undefined || value.length === 0 || value.startsWith("--")) {
-        throw new CliUsageError("--config requires a path");
-      }
-      configPath = value;
+      configPath = readFlagValue(argv, index, "--config", "a path");
       index += 1;
       continue;
     }
@@ -117,6 +109,19 @@ export function parseCliArguments(argv: readonly string[]): CliArguments {
     failOn: failOn ?? DEFAULT_FAIL_ON,
     strict,
   };
+}
+
+function readFlagValue(
+  argv: readonly string[],
+  index: number,
+  flag: string,
+  noun: string,
+): string {
+  const value = argv[index + 1];
+  if (value === undefined || value.length === 0 || value.startsWith("--")) {
+    throw new CliUsageError(`${flag} requires ${noun}`);
+  }
+  return value;
 }
 
 function parseFailOnArgument(value: string | undefined): FailOn {
