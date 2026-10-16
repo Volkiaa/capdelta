@@ -13,7 +13,6 @@ export class CliUsageError extends CliError {}
 
 export class CliOperationalError extends CliError {}
 
-/** Escapes and bounds user-supplied text (e.g. a path) for one stderr line. */
 export function terminalSafeText(value: string): string {
   return JSON.stringify(truncateCliMessage(value)).slice(1, -1);
 }

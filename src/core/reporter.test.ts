@@ -609,8 +609,6 @@ describe("run severity classification", () => {
           evidence: [{ file: "index.js", line: 1, snippet: "index.js" }],
         },
       ],
-      // The shape already raised its member to CRITICAL; the shape record
-      // itself is not an extra gate finding.
       shapes: [
         {
           ruleId: "install-code-execution",
@@ -714,12 +712,7 @@ describe("run severity classification", () => {
     };
 
     expect(report.summary).toMatchObject({
-      // All capability/signal findings, suppressed included.
       bySeverity: { CRITICAL: 1, HIGH: 2, MEDIUM: 2, LOW: 0, INFO: 0 },
-      // Unsuppressed findings + lockfile findings + unavailable packages'
-      // severity issues. One CRITICAL finding + one per integrity mismatch,
-      // either side, + one for the now-CRITICAL non-retryable HTTP status
-      // (ADR-018); the cleanup failure sharing a failures array adds nothing.
       gateSeverity: { CRITICAL: 4, HIGH: 2, MEDIUM: 1, LOW: 0, INFO: 1 },
     });
     expect(report.packages.map((item) => item.issues ?? item.failures)).toEqual(
@@ -843,9 +836,6 @@ describe("run severity classification", () => {
       '[CRITICAL] could not analyze: [new-extraction/file-count-limit] "too many files"',
     );
 
-    // An integrity mismatch is CRITICAL without being unanalyzable: its own
-    // line keeps its wording and carries no "could not analyze" label even
-    // though another package's HTTP status now does.
     const mismatch = renderTextRunReport(severityRun());
     expect(mismatch).toContain(
       '- [CRITICAL] [fetch/integrity-mismatch] "downloaded bytes do not match lockfile sha512 integrity"',
@@ -923,7 +913,6 @@ describe("run severity classification", () => {
     const report = JSON.parse(renderJsonRunReport(run)) as {
       summary: { gateSeverity: Record<string, number>; analysisIssues: number };
     };
-    // ADR-019: operational, but still severity-null, so the gate does not move.
     expect(report.summary.gateSeverity.CRITICAL).toBe(0);
     expect(report.summary.analysisIssues).toBe(2);
     const text = renderTextRunReport(run);
@@ -935,7 +924,6 @@ describe("run severity classification", () => {
     );
     expect(text).not.toContain("Why:");
     expect(text).not.toContain("Check:");
-    // ADR-019 consequence: a null-severity issue renders no SARIF result.
     const sarif = JSON.parse(renderSarifReport(run)) as {
       runs: { results: unknown[] }[];
     };
@@ -969,7 +957,6 @@ describe("run severity classification", () => {
         failures: { severity: string | null }[];
       }[];
     };
-    // ADR-017: the exception releases the gate; the failures stay loud.
     expect(report.summary.gateSeverity.CRITICAL).toBe(0);
     expect(report.summary.analysisIssues).toBe(1);
     expect(report.packages[0]?.exception).toEqual({

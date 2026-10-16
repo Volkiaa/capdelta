@@ -333,8 +333,6 @@ class BindingResolver {
 
   constructor(ast: Node) {
     const aliases: AliasTask[] = [];
-    // This is the worker's only tree walk. Scope pointers keep the retained
-    // visit index linear in AST size; aliases resolve after all direct bindings.
     fullAncestor(ast, (node, _state, ancestors) => {
       const scope = this.ensureScopes(ancestors);
       this.collectDeclaration(node, ancestors, scope);
@@ -667,8 +665,6 @@ function parseSource(request: ParserRequest): {
   ast: Node;
   comments: CommentRange[];
 } {
-  // Each attempt collects its own ranges, so a failed module attempt never
-  // leaks partial comments into the successful script parse.
   const attempt = (sourceType: "module" | "script") => {
     const comments: CommentRange[] = [];
     const ast = parse(request.source, {

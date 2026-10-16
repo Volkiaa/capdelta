@@ -12,13 +12,11 @@ export interface ParserDetection {
   snippet: string;
 }
 
-/** Half-open [start, end) UTF-16 offsets into the parsed source string. */
 export type CommentRange = readonly [start: number, end: number];
 
 export interface ParserSuccess {
   ok: true;
   detections: readonly ParserDetection[];
-  /** Comments of the successful parse only, in source order; may be empty. */
   comments: readonly CommentRange[];
 }
 

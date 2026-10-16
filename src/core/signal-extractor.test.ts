@@ -182,7 +182,6 @@ describe("signal extractor", () => {
           }),
         ]).endpoints.map((item) => item.normalizedValue);
       expect(observe("parsed")).toEqual(["api.example.net"]);
-      // Without a trusted parse, the lexical byte scan keeps every candidate.
       expect(observe("unparseable")).toEqual([
         "api.example.net",
         "docs.example.org",

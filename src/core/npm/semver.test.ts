@@ -14,10 +14,10 @@ describe("compareSemver", () => {
   });
 
   it("compares prerelease identifiers per semver §11", () => {
-    expect(compareSemver("1.0.0-alpha", "1.0.0-alpha.1")).toBe(-1); // fewer ids < more ids
-    expect(compareSemver("1.0.0-alpha.1", "1.0.0-beta")).toBe(-1); // alpha < beta
-    expect(compareSemver("1.0.0-1", "1.0.0-alpha")).toBe(-1); // numeric < alphanumeric
-    expect(compareSemver("1.0.0-alpha.2", "1.0.0-alpha.10")).toBe(-1); // numeric ids numeric
+    expect(compareSemver("1.0.0-alpha", "1.0.0-alpha.1")).toBe(-1);
+    expect(compareSemver("1.0.0-alpha.1", "1.0.0-beta")).toBe(-1);
+    expect(compareSemver("1.0.0-1", "1.0.0-alpha")).toBe(-1);
+    expect(compareSemver("1.0.0-alpha.2", "1.0.0-alpha.10")).toBe(-1);
     expect(compareSemver("1.0.0-rc.1", "1.0.0-rc.1")).toBe(0);
   });
 
