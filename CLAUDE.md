@@ -48,6 +48,10 @@ deviations require my approval and an ADR in docs/adr/.
   commit `dist/action/`; `check:action` fails if it is stale.
 - Golden fixtures: `node scripts/generate-golden-fixtures.mjs`. Regenerate only
   when a case is meant to change, and explain the change in the commit message.
+- Behavior proof: after any change to detection, severity, the gate, or report
+  output, run `/verify-capdelta` (`.claude/skills/verify-capdelta/SKILL.md`)
+  and cite its evidence in the PR. Unit tests alone don't show what the CLI
+  reports.
 
 ## Map
 
