@@ -29,7 +29,7 @@ function integrityFor(value: Uint8Array): string {
   return `sha512-${createHash("sha512").update(value).digest("base64")}`;
 }
 
-/** ADR-018: retries run with no real backoff in tests. */
+// ADR-018
 const instantSleep = (): Promise<void> => Promise.resolve();
 
 function changedPackage(
@@ -202,7 +202,6 @@ describe("fetchChangedPackages", () => {
 
     expect(results[0]?.status).toBe("verified");
     expect(calls).toBe(3);
-    // 250 ms after the first failure, then 1 s after the second.
     expect(backoffs).toEqual([250, 1_000]);
   });
 
@@ -288,7 +287,6 @@ describe("fetchChangedPackages", () => {
     const result = results[0];
     if (result?.status !== "unavailable")
       throw new Error("expected unavailable result");
-    // The detail keeps the numeric status for the reviewer.
     expect(result.failure.detail).toContain("503");
   });
 
@@ -347,7 +345,6 @@ describe("fetchChangedPackages", () => {
       },
     );
 
-    // Two attempts were made; the deadline fired before the third (final) one.
     expect(calls).toBe(2);
     expect(results[0]).toMatchObject({
       status: "unavailable",
@@ -423,7 +420,6 @@ describe("fetchChangedPackages", () => {
       },
     );
 
-    // Only the capped 30 ms elapses; the 60 s attempt timeout never fires.
     await vi.advanceTimersByTimeAsync(30);
     const results = await pending;
 
@@ -479,7 +475,6 @@ describe("fetchChangedPackages", () => {
     expect(results[0]?.status).toBe("verified");
     expect(calls).toBe(2);
     expect(cancelled).toBe(1);
-    // The failed body is cancelled before the retry is requested.
     expect(order).toEqual(["fetch-1", "cancel", "fetch-2"]);
   });
 
@@ -504,7 +499,6 @@ describe("fetchChangedPackages", () => {
       },
     );
 
-    // Let the first attempt fail and enter the real 250 ms backoff, then cancel.
     await vi.advanceTimersByTimeAsync(0);
     expect(calls).toBe(1);
     controller.abort();
@@ -541,7 +535,6 @@ describe("fetchChangedPackages", () => {
       },
     );
 
-    // Two complete backoffs (250 ms and 1 s) then the final attempt.
     await vi.advanceTimersByTimeAsync(1_500);
     const results = await pending;
 
@@ -556,7 +549,6 @@ describe("fetchChangedPackages", () => {
     const abortRemoves = removeSpy.mock.calls.filter(
       ([type]) => type === "abort",
     ).length;
-    // Both the per-attempt parent wiring and each backoff are balanced.
     expect(abortRemoves).toBe(abortAdds);
     expect(abortAdds).toBeGreaterThan(0);
   });

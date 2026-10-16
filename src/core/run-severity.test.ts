@@ -22,8 +22,6 @@ import {
   parseFailOn,
 } from "./run-severity.js";
 
-// Threshold policy only reads summary.gateSeverity; how records are counted
-// into it is covered against real runs in reporter.test.ts.
 function report(gateSeverity: SeverityCounts): JsonRunReport {
   return {
     schemaVersion: 5,
@@ -113,14 +111,12 @@ describe("run severity classification", () => {
     expect(lockfileFindingSeverity("version-downgrade")).toBe("INFO");
   });
 
-  // ADR-016 table, expanded to every (stage, kind) pair. Both old- and
-  // new-side extraction and manifest stages share their kind sets.
+  // ADR-016
   const FETCH_UNANALYZABLE = [
     "size-limit-exceeded",
     "invalid-url",
     "unsupported-integrity",
-    // ADR-018: a non-retryable HTTP status and an invalid response are decided
-    // by the lockfile entry or the registry, so they are CRITICAL too.
+    // ADR-018
     "http-status",
     "invalid-response",
   ] as const;
@@ -150,8 +146,7 @@ describe("run severity classification", () => {
     "manifest-too-large",
     "manifest-invalid-json",
     "manifest-invalid-root",
-    // ADR-019: a package.json that exists but is not a regular file is decided
-    // by the archive bytes, so it is CRITICAL and exceptable like the rest.
+    // ADR-019
     "manifest-not-regular",
     "identity-mismatch",
   ] as const;
@@ -238,11 +233,7 @@ describe("run severity classification", () => {
     ).toThrow(SeverityGateError);
   });
 
-  // ADR-017 amendment A: the exported exception set must be exactly the kinds
-  // the ADR-016 classification marks CRITICAL in the extraction and manifest
-  // stages. Derived here over the same exhaustive (stage, kind) table, so a new
-  // kind or a reclassification cannot silently drift from the exception
-  // allow-set.
+  // ADR-017 amendment A
   it("derives EXCEPTABLE_UNANALYZABLE_KINDS from the extraction and manifest stages", () => {
     const derived = new Set<string>();
     for (const [stage, kind, severity] of ISSUE_CASES) {
@@ -259,8 +250,7 @@ describe("run severity classification", () => {
     expect(derived).toEqual(new Set<string>(EXCEPTABLE_UNANALYZABLE_KINDS));
   });
 
-  // ADR-017 amendment A: fetch-stage CRITICAL kinds can never be excepted, so
-  // the parser rejects them with a distinct reason. Derived from the same table.
+  // ADR-017 amendment A
   it("derives FETCH_STAGE_CRITICAL_KINDS from the fetch stage", () => {
     const derived = new Set<string>();
     for (const [stage, kind, severity] of ISSUE_CASES) {
@@ -374,11 +364,7 @@ describe("operational failure (ADR-018)", () => {
   });
 
   it("is stage-specific: a pair the pipeline cannot produce is not newly operational (ADR-019)", () => {
-    // ADR-019 adds the kinds through stage-specific branches, never through
-    // isStopKind. The JSON contract flattens stage and kind, so guard the
-    // restored correlation: a manifest-read kind at an extraction stage and a
-    // filesystem kind at a manifest stage stay non-operational. The cast builds
-    // pairs the pipeline cannot produce.
+    // ADR-019
     const impossible = [
       {
         stage: "old-extraction",

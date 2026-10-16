@@ -29,13 +29,7 @@ import {
 } from "./reporter.js";
 import { evaluateSeverityGate } from "./run-severity.js";
 
-/**
- * PLAN §7.4 true-positive reconstructions: defanged synthetic pairs modeled on
- * documented incidents (see test/fixtures/reconstructions/inventory.json).
- * These prove capdelta flags the modeled dependency and lifecycle deltas; they
- * are not original artifacts and not a measured detection rate. Fixture code
- * is only extracted and parsed, never imported or executed.
- */
+// PLAN §7.4
 
 const ROOT = fileURLToPath(
   new URL("../../test/fixtures/reconstructions/", import.meta.url),
@@ -50,14 +44,12 @@ const INVENTORY = JSON.parse(
   await readFile(join(ROOT, "inventory.json"), "utf8"),
 ) as { incidents: Incident[] };
 
-// Reviewed fixture integrities, copied from the committed axios attack
-// lockfiles. The exception must bind to these exact bytes (ADR-017).
+// ADR-017
 const PLAIN_CRYPTO_INTEGRITY =
   "sha512-4hIzuzUVJZ5y9UzF2wNiqkC2SDjRZxaHOaQirl2S/j5OZQKD4G/yhEXuKPgrrWdIbPzZYbM3y6st1mX/YldOyQ==";
 const AXIOS_INTEGRITY =
   "sha512-9AXKQFjUM2wtdjuqWH5IohcJqgLihPeqEsY4IeQ0YM7p7rqspw/ALUN+44os0YK5sSGrmqs80FDoKQrYy2Uigg==";
-// The manifest-directory base tarball (victim-1.0.0), from its committed
-// lockfile. The exception must bind these exact bytes (ADR-017).
+// ADR-017
 const MANIFEST_DIRECTORY_INTEGRITY =
   "sha512-SRCqRyp8CchiQPiaRZcGn04wVa9Xk/BTb0sdONLnRA845HQtCfoJ4tUEVw39EE3FAb5Rq1t9UGa/jSAu4zHupQ==";
 
@@ -83,7 +75,6 @@ async function runScenario(
     read(`${scenario}-head-lockfile.json`),
   ]);
 
-  // Serve exactly the committed archives, matched by their real SRI.
   const bytesByIntegrity = new Map<string, Uint8Array>();
   for (const id of [...sides.base, ...sides.head]) {
     const bytes = await readFile(
@@ -143,15 +134,12 @@ function expectAllAnalyzed(
   count: number,
   { complete = true }: { complete?: boolean } = {},
 ): void {
-  // A passing gate caused by analysis failure must never read as "clean".
   expect(result.report.summary).toMatchObject({
     changedPackages: count,
     analyzedPackages: count,
     unavailablePackages: 0,
     skippedLockfileEntries: 0,
   });
-  // Also no diagnostics, issues, or partial budget, unless a scenario
-  // deliberately exercises a parser limit.
   if (complete) expect(hasUnanalyzedContent(result.run)).toBe(false);
 }
 
@@ -190,7 +178,6 @@ describe("reconstruction fixtures", () => {
         throw new Error(`${id} rejected: ${extraction.failure.detail}`);
       }
       try {
-        // Reconstruction fixtures keep exactly one root (the packer enforces it).
         const roots = await readdir(packageRoot);
         expect(roots).toHaveLength(1);
         const [root] = roots;
@@ -235,7 +222,6 @@ describe("axios npm compromise (2026-03-31) reconstruction", () => {
     expect(dropper.shapes?.map((shape) => shape.ruleId)).toContain(
       "install-hook-change",
     );
-    // Encoded require() targets stay UNKNOWN in install code; capdelta is not
     // a string-table deobfuscator (PLAN §4.3).
     expect(findingsOf(dropper, "UNKNOWN")).toEqual([
       expect.objectContaining({
@@ -247,7 +233,6 @@ describe("axios npm compromise (2026-03-31) reconstruction", () => {
       }),
     ]);
 
-    // axios itself only gains a dependency, cross-linked to the full report.
     const axios = packageReport(result.report, "axios");
     expect(axios.summary.bySeverity.CRITICAL).toBe(0);
     expect(findingsOf(axios, "DEPENDENCY")).toEqual([
@@ -272,11 +257,7 @@ describe("axios npm compromise (2026-03-31) reconstruction", () => {
   });
 
   it("fails the default gate when a resource cap hides the dropper", async () => {
-    // ADR-016: when the new artifact exceeds an extraction cap, its manifest is
-    // never read, so no install-hook CRITICAL exists. The package is
-    // unanalyzable, which is CRITICAL in its own right, so the default gate
-    // fails until a person reviews it. Only plain-crypto-js (4 files) exceeds
-    // this cap.
+    // ADR-016
     const result = await runScenario("axios-2026", "attack", {
       extractor: { maxFileCount: 3 },
     });
@@ -317,8 +298,6 @@ describe("axios npm compromise (2026-03-31) reconstruction", () => {
   });
 
   it("passes the default gate on the over-cap dropper with a reviewed exception (ADR-017)", async () => {
-    // Same cap as the ADR-016 boundary test above, but plain-crypto-js 4.2.1
-    // and its exact fixture bytes are excepted for file-count-limit.
     const reviewed = parseCapdeltaConfig(
       "unanalyzable:\n" +
         "  - package: plain-crypto-js\n" +
@@ -349,10 +328,8 @@ describe("axios npm compromise (2026-03-31) reconstruction", () => {
       fail: false,
       exitCode: 0,
     });
-    // The package is still unanalyzed, so --strict still returns 2.
     expect(hasUnanalyzedContent(withException.run)).toBe(true);
 
-    // A swapped tarball (different integrity) cannot inherit the exception.
     const swapped = await runScenario("axios-2026", "attack", {
       extractor: { maxFileCount: 3 },
       config: parseCapdeltaConfig(
@@ -369,8 +346,6 @@ describe("axios npm compromise (2026-03-31) reconstruction", () => {
   });
 
   it("fails the default gate on a rejected link entry", async () => {
-    // Inert, built in-test: one symlink the extractor must refuse and a data
-    // manifest. Nothing here is executable or imported.
     const work = await mkdtemp(join(tmpdir(), "capdelta-link-"));
     try {
       await mkdir(join(work, "package"), { recursive: true });
@@ -496,9 +471,6 @@ describe("Shai-Hulud worm (2025-09) reconstruction", () => {
   });
 
   it("still fails on the hook in a parser-limit simulation on the reduced bundle", async () => {
-    // The real bundle was multi-megabyte; capdelta skips AST parsing above
-    // its byte limit. Lowering the limit below this reduced bundle (but above
-    // index.js) exercises that branch without committing a large file.
     const bundle = await readFile(
       join(ROOT, "shai-hulud-2025/packages/tinycolor-4.1.1/package/bundle.js"),
     );
@@ -513,12 +485,9 @@ describe("Shai-Hulud worm (2025-09) reconstruction", () => {
         detail: expect.stringContaining("bundle.js exceeds") as unknown,
       }),
     ]);
-    // No AST capabilities from the unparsed bundle are claimed...
     for (const kind of ["NET", "ENV", "PROCESS"]) {
       expect(findingsOf(report, kind)).toEqual([]);
     }
-    // ...but the manifest hook still gates, and the byte scan still sees the
-    // exfiltration endpoint.
     expect(findingsOf(report, "INSTALL_HOOK")[0]?.severity).toBe("CRITICAL");
     expect(report.signalFindings).toEqual(
       expect.arrayContaining([
@@ -618,8 +587,6 @@ describe("synthetic mode evasion (ADR-019)", () => {
         }) as unknown,
       }),
     ]);
-    // The hidden code is analyzed, not merely reported unparseable: the hook's
-    // environment read and process spawn are found in install-script position.
     for (const kind of ["PROCESS", "ENV"]) {
       expect(findingsOf(report, kind)).toEqual([
         expect.objectContaining({
@@ -649,10 +616,6 @@ describe("synthetic mode evasion (ADR-019)", () => {
 
 describe("synthetic non-regular manifest evasion (ADR-019)", () => {
   it("fails the default gate when package.json is a directory", async () => {
-    // package/package.json/child.js makes package.json a directory on
-    // extraction. The old side is fully extracted, so the manifest read is a
-    // byte-decided manifest-not-regular CRITICAL, not a severity-null
-    // environmental read error.
     const result = await runScenario("manifest-directory", "attack");
     expect(result.report.summary).toMatchObject({
       changedPackages: 1,
@@ -683,8 +646,6 @@ describe("synthetic non-regular manifest evasion (ADR-019)", () => {
   });
 
   it("keeps gating on an old-side-only exception bound to the exact bytes (rule C.2)", async () => {
-    // The new side reads cleanly, so an exception for the old artifact alone
-    // cannot release the package: no new-side failure was inspected and bound.
     const reviewed = parseCapdeltaConfig(
       "unanalyzable:\n" +
         "  - package: capdelta-fixture-manifest-directory\n" +

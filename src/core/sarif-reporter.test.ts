@@ -240,7 +240,6 @@ describe("renderSarifReport", () => {
         },
       }),
     ]);
-    // Attacker text stays plain JSON text: never markdown, never a link target.
     expect(text).not.toContain('"markdown"');
     expect(text).not.toContain('"uri"');
     expect(text).not.toMatch(/malware detected/iu);
@@ -498,7 +497,6 @@ describe("renderSarifReport", () => {
     const sarif = JSON.parse(renderSarifReport(excepted)) as ParsedSarif;
     expect(sarif.runs[0].results[0]).toMatchObject({
       ruleId: "CAPDELTA-EXPANDED-SIZE-LIMIT",
-      // The reviewed exception never downgrades the SARIF alert level.
       level: "error",
       properties: {
         suppression: "[version 2.0.0] reviewed oversized fixture",
@@ -527,8 +525,7 @@ describe("renderSarifReport", () => {
               },
             },
           ],
-          // ADR-017: the reviewed exception releases the package but stays
-          // visible on its failure result.
+          // ADR-017
           exception: {
             reason: "[version 1.0.0] reviewed non-regular manifest",
           },
@@ -543,10 +540,8 @@ describe("renderSarifReport", () => {
       ruleId: "CAPDELTA-MANIFEST-NOT-REGULAR",
       level: "error",
       properties: {
-        // The old-side version identity, not the new 2.0.0.
         version: "1.0.0",
         side: "old",
-        // The reviewed exception keeps the existing annotation.
         suppression: "[version 1.0.0] reviewed non-regular manifest",
       },
     });
@@ -556,7 +551,6 @@ describe("renderSarifReport", () => {
     const rule = sarif.runs[0].tool.driver.rules.find(
       (item) => item.id === "CAPDELTA-MANIFEST-NOT-REGULAR",
     );
-    // Rule help reaches the `unanalyzable` class through isUnanalyzableIssue.
     expect(rule?.help.text).toContain(
       "capdelta could not inspect this artifact, so anything in it is unreviewed.",
     );
@@ -774,8 +768,6 @@ describe("renderSarifReport", () => {
       capabilities,
       diagnostics: [],
     });
-    // A run whose identity matches its diff, so buildRunReport accepts it and
-    // labeling can be checked against the real gate counts.
     const runFor = (diff: CapabilityDiffResult): CapabilityAnalysisRun => ({
       firstRun: false,
       summary: { changed: 1, analyzed: 1, unavailable: 0, skipped: 0 },
@@ -842,7 +834,6 @@ describe("renderSarifReport", () => {
     });
 
     it("labels each per-capability shape independently", () => {
-      // dynamic-or-native-code is one shape per gained capability.
       const { results, gate } = analyze(
         set("1.2.13", [native, dynamic]),
         config(entry("NATIVE", "reviewed prebuilt binding")),
@@ -886,7 +877,6 @@ describe("renderSarifReport", () => {
       const TABLE_REASON = "[version 1.2.13] reviewed table";
 
       it.each([
-        // Both participants are CRITICAL members, so the gate counts two.
         ["neither", [], undefined, 2],
         [
           "the capability only",
@@ -919,7 +909,6 @@ describe("renderSarifReport", () => {
           expect(shapes).toHaveLength(1);
           expect(shapes[0]?.properties.suppression).toEqual(expected);
           expect(gate.CRITICAL).toBe(critical);
-          // The shape covers its signal: no duplicate standalone signal result.
           expect(
             results.filter((result) =>
               result.ruleId.startsWith("CAPDELTA-SIGNAL-"),
@@ -943,7 +932,6 @@ describe("renderSarifReport", () => {
         reasons: string[];
       };
       expect(suppression.status).toBe("all");
-      // Two distinct reasons bound to the same text are shown once.
       expect(suppression.reasons).toHaveLength(1);
       expect(Array.from(suppression.reasons[0] ?? "")).toHaveLength(240);
     });

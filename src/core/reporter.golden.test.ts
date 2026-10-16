@@ -33,7 +33,7 @@ const GOLDEN_ROOT = fileURLToPath(
   new URL("../../test/fixtures/golden/", import.meta.url),
 );
 
-/** One entry per PLAN §4.4 severity row (PLAN §7.2), shared with the packer. */
+// PLAN §4.4, §7.2
 interface GoldenCase {
   name: string;
   row: string;
@@ -94,7 +94,6 @@ async function analyze(
   return mergeJavaScriptCapabilityLayer(manifest.set, javaScript);
 }
 
-/** Static pipeline only: extract, parse, diff. Fixture code is never run. */
 async function diffCase(goldenCase: GoldenCase): Promise<CapabilityDiffResult> {
   const oldExtraction = await extract(goldenCase, "v1");
   try {
@@ -143,10 +142,6 @@ function signal(report: JsonReport, kind: string) {
   return finding;
 }
 
-/**
- * Independent semantic checks: regenerating an exact expectation can never
- * silently bless the loss of the row a case exists to cover.
- */
 const ROW_ASSERTIONS: Record<string, (report: JsonReport) => void> = {
   "install-code-network": (report) => {
     expect(shapeIds(report)).toEqual(["install-code-execution"]);
@@ -154,7 +149,6 @@ const ROW_ASSERTIONS: Record<string, (report: JsonReport) => void> = {
       severity: "CRITICAL",
       capability: { location: { kind: "install-script" } },
     });
-    // The hook is byte-identical on both sides: attribution, not hook change.
     expect(
       report.findings.some((item) => item.capability.kind === "INSTALL_HOOK"),
     ).toBe(false);
@@ -200,7 +194,7 @@ const ROW_ASSERTIONS: Record<string, (report: JsonReport) => void> = {
   "fs-read-unknown": (report) => {
     expect(shapeIds(report)).toEqual([]);
     expect(codeFinding(report, "FS_READ").severity).toBe("LOW");
-    // PLAN §7.1: a computed child_process specifier lands in UNKNOWN.
+    // PLAN §7.1
     expect(codeFinding(report, "UNKNOWN").severity).toBe("LOW");
     for (const kind of ["FS_SENSITIVE", "PROCESS"]) {
       expect(report.findings.map((item) => item.capability.kind)).not.toContain(
@@ -216,8 +210,6 @@ const ROW_ASSERTIONS: Record<string, (report: JsonReport) => void> = {
 
 describe("golden pairs, one per PLAN §4.4 severity row", () => {
   it("keeps one distinct case per PLAN §4.4 row", () => {
-    // 5 shape rows + 7 per-capability fallback rows. Deleting a case together
-    // with its assertion must still fail here.
     expect(CASES).toHaveLength(12);
     expect(new Set(CASES.map((item) => item.row)).size).toBe(12);
     expect(new Set(CASES.map((item) => item.name)).size).toBe(12);
@@ -328,7 +320,6 @@ describe("golden pairs, one per PLAN §4.4 severity row", () => {
         [goldenCase.oldResolvedUrl, oldBytes],
         [goldenCase.newResolvedUrl, newBytes],
       ]);
-      // Serves only the two committed archives; there is no network fallback.
       const fetchImpl: typeof fetch = (input) => {
         const url = input instanceof Request ? input.url : input.toString();
         const bytes = responses.get(url);

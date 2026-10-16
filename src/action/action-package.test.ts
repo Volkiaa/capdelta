@@ -35,7 +35,7 @@ describe("Action package", () => {
     expect(workflow).toContain("pull-requests: write");
     expect(workflow).toContain("security-events: write");
     expect(workflow).toContain("persist-credentials: false");
-    // Policy is read from the base commit (ADR-015), never the PR head.
+    // ADR-015
     expect(workflow).toContain("config-path: .capdelta.yml");
     expect(workflow).toContain(
       "Volkiaa/capdelta@2535ee0940e25530a8aa7de23af17467727bb00e",
