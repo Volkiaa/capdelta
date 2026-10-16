@@ -1,10 +1,11 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { diffNpmLockfiles } from "./lockfile-differ.js";
+import { diffNpmLockfiles, injectiveEntryKey } from "./lockfile-differ.js";
 import {
   MalformedLockfileError,
   UnsupportedLockfileVersionError,
 } from "./errors.js";
+import type { ChangedPackage } from "../contract/lockfile-diff.js";
 
 // PLAN §7
 function fixture(name: string): unknown {
@@ -442,5 +443,33 @@ describe("review regressions", () => {
     for (const c of result.changed) {
       expect(c.oldResolvedUrl === null).toBe(c.oldVersion === null);
     }
+  });
+});
+
+describe("injectiveEntryKey", () => {
+  it("keeps keys distinct when the field values concatenate to the same string", () => {
+    const base: ChangedPackage = {
+      name: "pkg",
+      oldVersion: "1",
+      newVersion: "2",
+      oldIntegrity: "3",
+      newIntegrity: "4",
+      oldResolvedUrl: "5",
+      resolvedUrl: "6",
+    };
+    const a: ChangedPackage = { ...base, name: "ab", oldVersion: "cd" };
+    const b: ChangedPackage = { ...base, name: "abc", oldVersion: "d" };
+    const concat = (e: ChangedPackage): string =>
+      [
+        e.name,
+        e.oldVersion,
+        e.newVersion,
+        e.oldIntegrity,
+        e.newIntegrity,
+        e.oldResolvedUrl,
+        e.resolvedUrl,
+      ].join("");
+    expect(concat(a)).toBe(concat(b));
+    expect(injectiveEntryKey(a)).not.toBe(injectiveEntryKey(b));
   });
 });

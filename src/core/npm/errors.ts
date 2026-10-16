@@ -22,19 +22,19 @@ export class UnsupportedLockfileVersionError extends LockfileError {
   readonly lockfileVersion: unknown;
 
   constructor(which: LockfileSide, lockfileVersion: unknown) {
-    // Only primitives are rendered; anything else (object, undefined, …)
-    // shows its typeof — the value is attacker-influenced and not worth
-    // serializing into an error message.
-    const shown =
-      typeof lockfileVersion === "number" || typeof lockfileVersion === "string"
-        ? JSON.stringify(lockfileVersion)
-        : `<${typeof lockfileVersion}>`;
     super(
-      `unsupported lockfileVersion ${shown} (supported: 2, 3 — PLAN §2)`,
+      `unsupported lockfileVersion ${describeLockfileVersion(lockfileVersion)} (supported: 2, 3 — PLAN §2)`,
       which,
     );
     this.lockfileVersion = lockfileVersion;
   }
+}
+
+/** Renders a lockfile version for an error message: only primitives verbatim, anything else as its typeof, because the value is attacker-influenced and not worth serializing. */
+export function describeLockfileVersion(value: unknown): string {
+  return typeof value === "number" || typeof value === "string"
+    ? JSON.stringify(value)
+    : `<${typeof value}>`;
 }
 
 export class MalformedLockfileError extends LockfileError {
