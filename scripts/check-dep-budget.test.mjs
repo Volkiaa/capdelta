@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  MAX_RUNTIME_DEPS,
+  RUNTIME_DEPS_EXCLUSIVE_LIMIT,
   countDirectRuntimeDeps,
   countTransitiveRuntimeDeps,
 } from "./check-dep-budget.mjs";
@@ -42,6 +42,6 @@ describe("countTransitiveRuntimeDeps", () => {
 
 describe("budget constant", () => {
   it("matches PLAN §10 (< 10 runtime dependencies)", () => {
-    expect(MAX_RUNTIME_DEPS).toBe(10);
+    expect(RUNTIME_DEPS_EXCLUSIVE_LIMIT).toBe(10);
   });
 });

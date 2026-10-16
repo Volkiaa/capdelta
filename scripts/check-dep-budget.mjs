@@ -2,7 +2,7 @@
 import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
-export const MAX_RUNTIME_DEPS = 10; // budget is "< 10", so a count of 10 fails
+export const RUNTIME_DEPS_EXCLUSIVE_LIMIT = 10;
 
 export function countDirectRuntimeDeps(manifest) {
   return Object.keys(manifest.dependencies ?? {}).length;
@@ -33,16 +33,16 @@ function main() {
   const transitive = countTransitiveRuntimeDeps(lockfile);
 
   console.log(
-    `Runtime dependencies (direct):     ${String(direct)} / budget < ${String(MAX_RUNTIME_DEPS)}`,
+    `Runtime dependencies (direct):     ${String(direct)} / budget < ${String(RUNTIME_DEPS_EXCLUSIVE_LIMIT)}`,
   );
   console.log(
     `Runtime packages incl. transitive: ${String(transitive)} (reported, not gated)`,
   );
 
-  if (direct >= MAX_RUNTIME_DEPS) {
+  if (direct >= RUNTIME_DEPS_EXCLUSIVE_LIMIT) {
     console.error(
       `\nDependency budget exceeded: ${String(direct)} direct runtime dependencies ` +
-        `(budget: fewer than ${String(MAX_RUNTIME_DEPS)}, PLAN §10). ` +
+        `(budget: fewer than ${String(RUNTIME_DEPS_EXCLUSIVE_LIMIT)}, PLAN §10). ` +
         "Removing one, or an approved ADR raising the budget, is required.",
     );
     process.exit(1);
