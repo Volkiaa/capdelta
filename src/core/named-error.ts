@@ -1,9 +1,4 @@
-/**
- * Base class for the project's named errors. `new.target.name` resolves to the
- * concrete subclass that was constructed, even when the instance is built via
- * `super()`, so each subclass keeps its own `name` without repeating the
- * assignment.
- */
+// new.target is the class passed to `new`, so subclasses inherit the right name.
 export class NamedError extends Error {
   constructor(message: string, options?: ErrorOptions) {
     super(message, options);
