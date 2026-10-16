@@ -47,11 +47,6 @@ function operationalProbe(issue: {
   } as PackageAnalysisFailure;
 }
 
-/**
- * Every class a (stage, kind) pair can map to, with the gate helpers' verdict
- * beside it, so a change to either side fails here. `null` means the issue is
- * severity-null and not operational: no guidance.
- */
 const CLASS_CASES: {
   stage: JsonReportAnalysisIssue["stage"];
   kind: ReportAnalysisIssueKind;
@@ -93,7 +88,7 @@ const CLASS_CASES: {
     expected: "unanalyzable",
   },
   { stage: "new-manifest", kind: "manifest-missing", expected: "unanalyzable" },
-  // ADR-019: a non-regular manifest is CRITICAL, so it reaches `unanalyzable`.
+  // ADR-019
   {
     stage: "old-manifest",
     kind: "manifest-not-regular",
@@ -132,8 +127,6 @@ const BANNED_WORDS =
 
 describe("finding guidance", () => {
   it("covers every shape rule, capability kind, and signal kind with guidance", () => {
-    // The Record<Union, Guidance> declarations are the compile-time check; this
-    // iterates the exported kind lists the config layer already owns.
     expect(Object.keys(SHAPE_GUIDANCE).sort()).toEqual(
       [...SHAPE_RULE_IDS].sort(),
     );
@@ -172,7 +165,6 @@ describe("finding guidance", () => {
       const unanalyzable = isUnanalyzableIssue(issue);
       const operational = isOperationalFailure(operationalProbe(issue));
       expect(analysisIssueClass(issue)).toBe(expected);
-      // The gate helpers must agree with the class the classifier picked.
       if (expected === "operational") {
         expect(operational).toBe(true);
         expect(severity).toBeNull();
@@ -187,8 +179,6 @@ describe("finding guidance", () => {
         expect(operational).toBe(false);
       } else if (expected === "lockfile-or-registry-fetch-failure") {
         expect(severity).toBe("CRITICAL");
-        // These are CRITICAL and unanalyzable, but the fetch-failure class is
-        // more specific, so it wins in `analysisIssueClass`.
         expect(unanalyzable).toBe(true);
         expect(operational).toBe(false);
       } else {
@@ -204,7 +194,6 @@ describe("finding guidance", () => {
     for (const issueClass of ANALYSIS_ISSUE_CLASSES) {
       expect(seen.has(issueClass)).toBe(true);
     }
-    // Non-operational, severity-null issues are the only null-guidance case.
     expect(seen.has(null)).toBe(true);
   });
 
@@ -228,15 +217,12 @@ describe("finding guidance", () => {
       expect(guidance).toBe(
         ANALYSIS_ISSUE_GUIDANCE["lockfile-or-registry-fetch-failure"],
       );
-      // The only permitted use of "exception" is to say it cannot cover this.
       const withoutAllowed =
         `${guidance.whyItMatters} ${guidance.whatToCheck}`.replace(
           "A reviewed exception cannot cover this failure.",
           "",
         );
       expect(withoutAllowed).not.toContain("exception");
-      // A size-limit failure is one of the fetch critical kinds this class
-      // covers, so the guidance must name the download-size limit.
       expect(guidance.whatToCheck).toContain("download-size limit");
     }
   });
@@ -268,8 +254,6 @@ describe("finding guidance", () => {
   });
 
   it("returns operational guidance for a residual filesystem or manifest-read failure (ADR-019)", () => {
-    // These stay severity-null but are now operational, so they classify and
-    // carry the operational guidance.
     for (const issue of [
       { stage: "old-extraction", kind: "filesystem-error" },
       { stage: "new-extraction", kind: "filesystem-error" },

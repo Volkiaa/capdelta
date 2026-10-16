@@ -104,15 +104,12 @@ function sri(bytes: Uint8Array): string {
   return `sha512-${createHash("sha512").update(bytes).digest("base64")}`;
 }
 
-// Canonical sha512 SRI tokens (64 inert bytes each), so a `.capdelta.yml`
-// exception can bind to the exact bytes the injected run reports.
 const OLD_INTEGRITY =
   "sha512-BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBw==";
 const NEW_INTEGRITY =
   "sha512-CQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQ==";
 
-// ADR-019: one package that is operational on the old side and CRITICAL on the
-// new side, so a matching exception can release only the severity gate.
+// ADR-019
 const MIXED_FAILURES: [PackageAnalysisFailure, ...PackageAnalysisFailure[]] = [
   {
     stage: "old-manifest",
@@ -159,7 +156,6 @@ async function goldenBytes(): Promise<{ oldBytes: Buffer; newBytes: Buffer }> {
   return { oldBytes, newBytes };
 }
 
-/** Serves inert golden tarballs by URL; anything else is a 404. */
 function goldenFetch(oldBytes: Uint8Array, newBytes: Uint8Array): typeof fetch {
   const responses = new Map<string, Uint8Array>([
     [
@@ -195,7 +191,6 @@ async function runInProcess(
 ): Promise<ProcessResult & { order: ("stdout" | "stderr")[] }> {
   let stdout = "";
   let stderr = "";
-  // Callback order, so tests can prove the report precedes gate diagnostics.
   const order: ("stdout" | "stderr")[] = [];
   const exitCode = await executeCli(argv, {
     cwd,
@@ -214,10 +209,9 @@ async function runInProcess(
   return { exitCode, stdout, stderr, order };
 }
 
-/** ADR-018: no real backoff in tests; retries resolve immediately. */
+// ADR-018
 const instantSleep = (): Promise<void> => Promise.resolve();
 
-/** Commits `base` as HEAD, then leaves `head` as the working-tree lockfile. */
 async function withBump<T>(
   base: Readonly<Record<string, unknown>>,
   head: Readonly<Record<string, unknown>>,
@@ -232,7 +226,7 @@ async function withBump<T>(
   }
 }
 
-/** ADR-019: one unavailable package carrying the given pipeline failures. */
+// ADR-019
 function unavailableRun(
   failures: readonly [PackageAnalysisFailure, ...PackageAnalysisFailure[]],
 ): CapabilityAnalysisRun {
@@ -261,7 +255,7 @@ function unavailableRun(
   };
 }
 
-/** An analysis pipeline stub that returns a fixed run (ADR-019 test seam). */
+// ADR-019
 function analyzeRun(
   run: CapabilityAnalysisRun,
 ): NonNullable<CliRuntime["analyze"]> {
@@ -276,7 +270,6 @@ const EMPTY_DIFF: CapabilityDiffResult = {
   diagnostics: [],
 };
 
-/** A successfully analyzed package carrying only non-fatal issues. */
 function analyzedRun(
   issues: readonly PackageAnalysisFailure[],
 ): CapabilityAnalysisRun {
@@ -491,8 +484,7 @@ describe("capdelta CLI", () => {
           ["--base", "HEAD"],
           goldenFetch(oldBytes, newBytes),
         );
-        // The report is delivered in full before the default CRITICAL gate
-        // fails the run (PLAN §4.5).
+        // PLAN §4.5
         expect(result).toEqual({
           exitCode: 1,
           stdout: expectedText,
@@ -535,9 +527,6 @@ describe("capdelta CLI", () => {
   );
 
   it("fails CRITICAL on a non-retryable HTTP status (ADR-018 decision 3)", async () => {
-    // The lockfile entry or the registry decides a 404, so it is a CRITICAL
-    // unanalyzable issue rather than an operational one. The old side fails
-    // first, so the new side is never requested.
     const encoder = new TextEncoder();
     await withBump(
       lockfileWithGolden("2.0.0", sri(encoder.encode("inert v2"))),
@@ -558,16 +547,12 @@ describe("capdelta CLI", () => {
         expect(result.stderr).toBe(
           "capdelta: 1 finding(s) at or above CRITICAL (highest: CRITICAL)\n",
         );
-        // A 404 is deterministic: exactly one attempt, no retry.
         expect(calls).toBe(1);
       },
     );
   });
 
   it("fails operationally on an exhausted transient fetch, even with --fail-on none (ADR-018)", async () => {
-    // A 503 is retried, then recorded as http-unavailable with no severity. The
-    // run still fails: exit 1 for the gate or the operational failure, and
-    // --strict takes precedence with exit 2.
     const encoder = new TextEncoder();
     await withBump(
       lockfileWithGolden("2.0.0", sri(encoder.encode("inert v2"))),
@@ -591,7 +576,6 @@ describe("capdelta CLI", () => {
         expect(defaultGate.stdout).toContain("[fetch/http-unavailable]");
         expect(defaultGate.stdout).toContain("[INFO] [version-downgrade]");
         expect(defaultGate.stderr).toBe(message);
-        // Three attempts on the old side; the new side is never reached.
         expect(calls).toBe(3);
 
         const reportOnly = await runInProcess(
@@ -613,7 +597,6 @@ describe("capdelta CLI", () => {
         expect(infoGate.stderr).toBe(
           "capdelta: 1 finding(s) at or above INFO (highest: INFO)\n" + message,
         );
-        // The report is delivered before both failure causes.
         expect(infoGate.order).toEqual(["stdout", "stderr", "stderr"]);
 
         const strict = await runInProcess(
@@ -627,8 +610,6 @@ describe("capdelta CLI", () => {
           `${message}capdelta: strict mode found unanalyzed content\n`,
         );
 
-        // Gate failure plus operational failure plus --strict: exit 2 wins,
-        // and stderr still names every cause after the report.
         const strictBoth = await runInProcess(
           cwd,
           ["--base", "HEAD", "--fail-on", "INFO", "--strict"],
@@ -776,8 +757,6 @@ describe("capdelta CLI", () => {
           analyze,
         );
         expect(gated.exitCode).toBe(1);
-        // One package with two failures counts once: one CRITICAL plus one
-        // operational, on opposite sides.
         expect(gated.stderr).toBe(
           `capdelta: 1 finding(s) at or above CRITICAL (highest: CRITICAL)\n${message}`,
         );
@@ -799,8 +778,7 @@ describe("capdelta CLI", () => {
   });
 
   it("builds a reviewed exception through the real config path; it releases the gate but not the operational exit (ADR-019)", async () => {
-    // ADR-017 matching runs for real: parse `.capdelta.yml`, apply it to the
-    // mixed run, and inject the result, instead of hand-attaching metadata.
+    // ADR-017
     const config = parseCapdeltaConfig(
       "unanalyzable:\n" +
         "  - package: unreadable-fixture\n" +
@@ -815,7 +793,6 @@ describe("capdelta CLI", () => {
     );
     const item = run.packages[0];
     if (item?.status !== "unavailable") throw new Error("fixture drift");
-    // The exception attached through matching, not by hand.
     expect(item.exception).toEqual({
       reason: "[version 2.0.0] reviewed inert invalid archive",
     });
@@ -841,9 +818,7 @@ describe("capdelta CLI", () => {
         const report = JSON.parse(gated.stdout) as {
           summary: { gateSeverity: { CRITICAL: number } };
         };
-        // The exception releases the CRITICAL, so the gate does not fail...
         expect(report.summary.gateSeverity.CRITICAL).toBe(0);
-        // ...but the old-side manifest read stays operational.
 
         const strict = await runInProcess(
           cwd,
@@ -930,8 +905,7 @@ describe("capdelta CLI", () => {
   });
 
   it("fails the default gate on an unanalyzable package and lets strict take precedence", async () => {
-    // Inert bytes: the fetch integrity matches, so the tarball downloads and
-    // then the extractor refuses it. capdelta could not analyze it (ADR-016).
+    // ADR-016
     const { oldBytes } = await goldenBytes();
     const brokenBytes = new TextEncoder().encode("inert, not a tarball");
     await withBump(
@@ -948,7 +922,6 @@ describe("capdelta CLI", () => {
         expect(gated.stderr).toBe(
           "capdelta: 1 finding(s) at or above CRITICAL (highest: CRITICAL)\n",
         );
-        // The report is delivered in full before the gate fails the run.
         expect(gated.order).toEqual(["stdout", "stderr"]);
 
         const strict = await runInProcess(
@@ -970,8 +943,7 @@ describe("capdelta CLI", () => {
   });
 
   it("releases a reviewed unanalyzable exception; strict still returns 2 (ADR-017)", async () => {
-    // Inert bytes that fetch-verify but fail extraction (ADR-016), with a
-    // reviewed exception for the exact new-side bytes committed at base.
+    // ADR-016
     const { oldBytes } = await goldenBytes();
     const brokenBytes = new TextEncoder().encode("inert, not a tarball");
     const cwd = await createRepository(
@@ -1015,7 +987,6 @@ describe("capdelta CLI", () => {
     const EXCEPTION =
       'allowlist:\n  - package: golden-fixture\n    capability: INSTALL_HOOK\n    version: 2.0.0\n    justification: "reviewed inert fixture hook"\n';
 
-    /** Base commit holds the v1 lockfile (and optionally a config); head bumps to v2. */
     async function scenario(
       baseConfig: string | null,
       body: (cwd: string, fetchImpl: typeof fetch) => Promise<void>,
@@ -1141,8 +1112,6 @@ describe("capdelta CLI", () => {
   });
 
   it("rejects an invalid threshold before reading Git or the network", async () => {
-    // A missing directory would make Git fail, and this fetch throws: a 64
-    // exit proves parsing rejected the threshold before either was touched.
     const missingCwd = join(
       tmpdir(),
       `capdelta-missing-${String(process.pid)}`,

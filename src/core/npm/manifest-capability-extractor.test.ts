@@ -204,9 +204,7 @@ describe("extractNpmManifestCapabilities", () => {
   });
 
   it("records routine install commands without any suppression metadata", async () => {
-    // Routine-looking commands are captured exactly like any other hook: the
-    // extractor emits facts, and no command is pre-ranked (PLAN §6 requires
-    // FP-corpus evidence before benign-pattern suppression exists).
+    // PLAN §6
     const manifest = JSON.stringify({
       name: SUBJECT.name,
       version: SUBJECT.version,
@@ -293,8 +291,6 @@ describe("extractNpmManifestCapabilities", () => {
   });
 
   it("reports a package.json that is not a regular file as manifest-not-regular", async () => {
-    // A regular archive entry package/package.json/child.js makes package.json
-    // a directory. The bytes decide this, so it is its own CRITICAL kind, not
     // the severity-null read error (ADR-019).
     const notAFile = await withManifest(null, async (root) => {
       await mkdir(join(root, "package.json"));

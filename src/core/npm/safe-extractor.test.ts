@@ -13,7 +13,6 @@ import {
   type ExtractionResult,
 } from "./safe-extractor.js";
 
-/** Runs body on a successful extraction and always cleans it up. */
 async function withExtraction(
   pending: Promise<ExtractionResult>,
   body: (extraction: ExtractedTarball) => Promise<void> | void,
@@ -34,15 +33,9 @@ interface TarEntry {
   body?: Uint8Array;
   type?: string;
   linkpath?: string;
-  /** Archive mode bits; defaults to 0o644. */
   mode?: number;
 }
 
-/**
- * Minimal inert ustar writer for adversarial fixtures. It deliberately writes
- * paths node-tar itself refuses to create, so the extractor tests its own
- * defenses without ever executing package code.
- */
 function tarball(entries: readonly TarEntry[]): VerifiedTarball {
   const blocks: Uint8Array[] = [];
   for (const entry of entries) {
@@ -530,8 +523,6 @@ describe("extractVerifiedTarball", () => {
     });
 
     it("creates a traversable parent despite a mode-000 Directory header", async () => {
-      // Directory headers are dropped, so node-tar makes the parent itself;
-      // the nested file must still be readable and 0o600.
       const archive = tarball([
         regularFile("package/package.json", '{"name":"fixture"}'),
         { ...directory("package/dir/"), mode: 0o000 },

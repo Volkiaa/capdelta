@@ -175,9 +175,7 @@ describe("diffManifestCapabilities", () => {
   });
 
   it("does not suppress a routine-looking registry install hook", () => {
-    // PLAN §6 allows benign-pattern suppression only when driven by post-M3 FP
-    // data. The 2026-07-29 corpus produced no install-hook findings, so no
-    // command is ranked down; a routine-looking hook stays CRITICAL.
+    // PLAN §6
     const routine = installHook("postinstall", "node-gyp rebuild");
     const result = diffManifestCapabilities(null, set("2.0.0", [routine]));
     expect(result.findings).toMatchObject([{ severity: "CRITICAL" }]);

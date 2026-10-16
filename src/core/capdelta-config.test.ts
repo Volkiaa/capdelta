@@ -248,15 +248,12 @@ describe("capdelta config", () => {
   });
 });
 
-// Two canonical sha512 SRI tokens (64 bytes each) for the ADR-017 parser and
-// matching tests. They are arbitrary constants, not any real artifact's hash.
 const SRI_A =
   "sha512-BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBw==";
 const SRI_B =
   "sha512-CQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQ==";
 
 describe("capdelta config unanalyzable exceptions (ADR-017)", () => {
-  /** Builds a valid entry, dropping fields set to `null` or adding extras. */
   function entry(overrides: Record<string, string | null> = {}): string {
     const base: readonly [string, string][] = [
       ["package", "big-native-pkg"],
@@ -367,8 +364,7 @@ describe("capdelta config unanalyzable exceptions (ADR-017)", () => {
     "invalid-url",
     "unsupported-integrity",
     "integrity-mismatch",
-    // ADR-018: non-retryable HTTP statuses and invalid responses are now
-    // fetch-stage CRITICAL failures, so they are rejected with the same reason.
+    // ADR-018
     "http-status",
     "invalid-response",
   ])("rejects the fetch-stage kind %s with its reason", (kind) => {
@@ -393,8 +389,7 @@ describe("capdelta config unanalyzable exceptions (ADR-017)", () => {
     "expanded-size-limit",
     "link-entry",
     "manifest-missing",
-    // ADR-019: a non-regular package.json is decided by the verified bytes, so
-    // it is exceptable like the other manifest kinds.
+    // ADR-019
     "manifest-not-regular",
   ])("accepts the post-verification kind %s", (kind) => {
     expect(parseUnanalyzable(entry({ kind })).unanalyzable[0]?.kind).toBe(kind);
@@ -407,8 +402,6 @@ describe("capdelta config unanalyzable exceptions (ADR-017)", () => {
   });
 
   it("does not treat integrities differing only by case as duplicates", () => {
-    // SRI base64 is case-sensitive, so flipping one letter's case describes a
-    // different hash, not a repeat of the same entry.
     const caseFlipped = `sha512-${SRI_A.slice(7, 8).toLowerCase()}${SRI_A.slice(8)}`;
     expect(caseFlipped).not.toBe(SRI_A);
     expect(

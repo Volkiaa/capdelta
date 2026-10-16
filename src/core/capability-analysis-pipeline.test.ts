@@ -1154,14 +1154,7 @@ describe("analyzeChangedPackages", () => {
   });
 });
 
-/**
- * ADR-019 decision 2: a regular archive entry `package/package.json/child.js`
- * makes package.json a directory on full extraction, which the manifest reader
- * classifies as the byte-decided `manifest-not-regular` CRITICAL failure. The
- * new-side manifest-only pass filters that entry out (safe-extractor.ts:316),
- * so the same layout there reads as `manifest-missing` instead. Fixtures are
- * inert data; no package code is imported or run.
- */
+// ADR-019 decision 2
 describe("manifest-not-regular (ADR-019)", () => {
   async function pack(entries: Record<string, string>) {
     const work = await mkdtemp(join(tmpdir(), "capdelta-pipeline-manifest-"));
@@ -1235,7 +1228,6 @@ describe("manifest-not-regular (ADR-019)", () => {
       [oldUrl, oldTarball.bytes],
       [newUrl, newTarball.bytes],
     ]);
-    // Serves only the two committed-in-test archives; no network fallback.
     const fetchImpl: typeof fetch = (input) => {
       const url = input instanceof Request ? input.url : input.toString();
       const bytes = responses.get(url);

@@ -217,7 +217,6 @@ describe("renderActionComment", () => {
 
     const body = renderActionComment(report);
     expect(body.match(/### What these mean/gu)).toHaveLength(1);
-    // Two CRITICAL install-hook findings of the same class share one entry.
     expect(body.match(/\*\*INSTALL&#95;HOOK\*\*/gu)).toHaveLength(1);
     expect(body).not.toContain("was omitted");
     expect(Array.from(body).length).toBeLessThanOrEqual(60_000);
@@ -277,7 +276,6 @@ describe("renderActionComment", () => {
     };
 
     const full = renderActionComment(report, { maxRows: 10 });
-    // One character below the full comment: all rows fit, guidance must shrink.
     const truncated = renderActionComment(report, {
       maxCharacters: Array.from(full).length - 1,
       maxRows: 10,
@@ -303,7 +301,6 @@ describe("renderActionComment", () => {
       maxRows: 10,
     });
 
-    // Exactly the pre-guidance body: every row, no section, no notice, no throw.
     expect(body).toBe(baseBody);
     expect(Array.from(body).length).toBe(baseLength);
     expect(body).toContain("added dependency dep");
@@ -331,8 +328,6 @@ describe("renderActionComment", () => {
 
   it("never exceeds maxCharacters on any path that returns a body", () => {
     const { report, guidanceFree } = capSizingReports();
-    // The no-guidance, no-row body is the shortest satisfiable path, so every
-    // cap from here on is satisfiable on every row budget.
     const floor = Array.from(
       renderActionComment(guidanceFree, { maxRows: 0 }),
     ).length;
@@ -431,7 +426,6 @@ describe("renderActionComment", () => {
 
     const body = renderActionComment(report);
     expect(body).toContain("could not analyze&#58; new&#45;extraction");
-    // Capability findings and integrity mismatches keep their own wording.
     expect(body).not.toContain("could not analyze&#58; new&#45;cleanup");
   });
 
@@ -487,8 +481,6 @@ describe("renderActionComment", () => {
   it("reduces rows rather than slicing Markdown once guidance is gone", () => {
     const report = adversarialReport();
     const rowFree = renderActionComment(report, { maxRows: 0 });
-    // One below the row-free body drops the guidance section, leaving the
-    // fixed floor the row loop reduces to.
     const floor = renderActionComment(report, {
       maxCharacters: Array.from(rowFree).length - 1,
       maxRows: 0,

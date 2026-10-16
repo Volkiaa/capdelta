@@ -6,7 +6,7 @@ import {
   UnsupportedLockfileVersionError,
 } from "./errors.js";
 
-/** Fixtures are committed, inert, handcrafted lockfiles (PLAN §7). */
+// PLAN §7
 function fixture(name: string): unknown {
   const url = new URL(
     `../../../test/fixtures/lockfiles/${name}`,
@@ -238,7 +238,7 @@ describe("first run (lockfile added)", () => {
   it("treats every package as new and sets firstRun", () => {
     const result = diffNpmLockfiles(null, fixture("basic-new.json"));
     expect(result.firstRun).toBe(true);
-    expect(result.changed).toHaveLength(3); // bumped, stable, @scope/added-pkg
+    expect(result.changed).toHaveLength(3);
     expect(
       result.changed.every(
         (c) =>
@@ -285,7 +285,6 @@ describe("untrustworthy lockfiles throw", () => {
 
 describe("review regressions", () => {
   const REG = "https://registry.npmjs.org";
-  /** Minimal inline lockfile for regression cases too adversarial to keep as fixture files. */
   const lockfileWith = (packages: Record<string, unknown>): unknown => ({
     lockfileVersion: 3,
     packages: { "": { name: "fixture-app" }, ...packages },
@@ -307,18 +306,12 @@ describe("review regressions", () => {
       },
     });
     const result = diffNpmLockfiles(oldLf, newLf);
-    // Same version+integrity, different tarball host: must surface (here as a
-    // private-registry skip), never vanish as "pure re-hoisting".
     expect(result.skipped).toContainEqual(
       expect.objectContaining({ name: "foo", reason: "private-registry" }),
     );
   });
 
   it("keeps distinct changed packages whose dedup tuples collide under a separator join", () => {
-    // Field values contain embedded NUL characters (reachable from real
-    // lockfile JSON via \u0000 escapes). Under the previous NUL-separator
-    // join, both positions produced the same dedup key and one distinct
-    // change was silently dropped; JSON.stringify keys them apart.
     const oldLf = lockfileWith({
       "node_modules/col": {
         version: "1.0",
@@ -362,7 +355,7 @@ describe("review regressions", () => {
     });
     const result = diffNpmLockfiles(oldLf, newLf);
     expect(result.findings).toHaveLength(0);
-    // The unverifiable baseline gets the newly-added treatment (ADR-006).
+    // ADR-006
     expect(result.changed).toHaveLength(1);
     expect(result.changed[0]?.oldVersion).toBeNull();
     expect(result.changed[0]?.oldIntegrity).toBeNull();

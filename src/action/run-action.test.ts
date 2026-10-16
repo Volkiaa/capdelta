@@ -1,4 +1,3 @@
-/* Test assertions intentionally inspect mocked object methods without binding. */
 /* eslint-disable @typescript-eslint/unbound-method */
 import { describe, expect, it, vi } from "vitest";
 import type {
@@ -46,7 +45,6 @@ function fetchFailure(
   };
 }
 
-/** ADR-018: one unavailable package with the given fetch failures. */
 function unavailableRun(
   failures: readonly [PackageAnalysisFailure, ...PackageAnalysisFailure[]],
 ): CapabilityAnalysisRun {
@@ -426,8 +424,6 @@ describe("runAction", () => {
         operationalFailureCount: 1,
       });
       if (outcome.status !== "analyzed") throw new Error("expected analyzed");
-      // The Action fails with the shared message even though the severity gate
-      // passed.
       expect(
         actionFailureMessage({
           gate: outcome.gate,
@@ -516,7 +512,6 @@ describe("runAction", () => {
       unanalyzable: [],
     };
 
-    /** Serves the lockfile and, optionally, a base config, by path. */
     function withBaseConfig(config: string | null | Error) {
       const runtime = adapters();
       vi.mocked(runtime.listChangedFiles).mockResolvedValue([
@@ -585,7 +580,6 @@ describe("runAction", () => {
     });
 
     it("ignores a PR-added config: no exceptions apply, with warnings", async () => {
-      // The PR adds .capdelta.yml; the base has none. Its content is never read.
       const runtime = withBaseConfig(null);
       vi.mocked(runtime.listChangedFiles).mockResolvedValue([
         "package-lock.json",
@@ -650,7 +644,6 @@ describe("runAction", () => {
     describe("gate effect with a real Differ and allowlist", () => {
       const EXCEPTION =
         'allowlist:\n  - package: binding\n    capability: NATIVE\n    version: 1.2.13\n    justification: "reviewed prebuilt binding"\n';
-      /** A newly added native binary, run through the real Differ + allowlist. */
       const nativeRun = (config: CapdeltaConfig): CapabilityAnalysisRun => ({
         firstRun: false,
         summary: { changed: 1, analyzed: 1, unavailable: 0, skipped: 0 },

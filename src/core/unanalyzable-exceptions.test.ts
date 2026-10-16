@@ -10,7 +10,6 @@ import { buildRunReport } from "./reporter.js";
 import { evaluateSeverityGate } from "./run-severity.js";
 import { applyUnanalyzableExceptions } from "./unanalyzable-exceptions.js";
 
-// Two canonical sha512 SRI tokens (64 bytes each), matching the parser tests.
 const SRI_A =
   "sha512-BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBw==";
 const SRI_B =
@@ -83,7 +82,6 @@ describe("applyUnanalyzableExceptions", () => {
     expect(item.exception).toEqual({
       reason: "[version 2.3.4] reviewed oversized fixture",
     });
-    // The failure survives untouched.
     expect(item.failures).toHaveLength(1);
   });
 
@@ -178,7 +176,6 @@ describe("applyUnanalyzableExceptions", () => {
     expect(item.exception).toEqual({
       reason: "[version 2.3.4] reviewed new artifact",
     });
-    // The exception releases the gate; both failures still count.
     const report = buildRunReport(applied);
     expect(report.summary.gateSeverity.CRITICAL).toBe(0);
     expect(report.summary.analysisIssues).toBe(2);
@@ -186,9 +183,7 @@ describe("applyUnanalyzableExceptions", () => {
   });
 
   it("excepts manifest-not-regular when both sides match their exact bytes (ADR-019)", () => {
-    // ADR-019 makes a non-regular package.json an exceptable manifest kind.
-    // Rule C.2 still applies: the entry for the old artifact's exact bytes
-    // cannot release the package on its own; the new-side match binds it.
+    // ADR-019
     const oldFailure: PackageAnalysisFailure = {
       stage: "old-manifest",
       failure: {
@@ -259,13 +254,11 @@ describe("applyUnanalyzableExceptions", () => {
       failure: { kind: "invalid-archive", detail: "old artifact invalid" },
     };
     const entries =
-      // The old-side failure's entry carries the NEW side's version/integrity.
       "  - package: big-native-pkg\n" +
       "    version: 2.3.4\n" +
       `    integrity: ${SRI_A}\n` +
       "    kind: invalid-archive\n" +
       '    justification: "swapped"\n' +
-      // The new-side failure's entry carries the OLD side's version/integrity.
       "  - package: big-native-pkg\n" +
       "    version: 1.0.0\n" +
       `    integrity: ${SRI_B}\n` +
@@ -394,8 +387,6 @@ describe("applyUnanalyzableExceptions", () => {
     if (unavailableItem?.status !== "unavailable") {
       throw new Error("fixture drift");
     }
-    // A matching entry for the analyzed package's name is irrelevant: the
-    // post-pass only rewrites unavailable records.
     expect(unavailableItem.exception).toBeDefined();
   });
 });
