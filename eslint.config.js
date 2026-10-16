@@ -2,6 +2,24 @@ import eslint from "@eslint/js";
 import tseslint from "typescript-eslint";
 import prettier from "eslint-config-prettier";
 
+const COMPLEXITY_LIMIT = 20;
+
+// Files that already exceed COMPLEXITY_LIMIT, at their current highest score.
+// Lower a file's number when you split its functions, and delete the entry
+// once the file is at or under the limit. Never raise a number or add a file.
+const COMPLEXITY_BASELINE = {
+  "src/core/analysis-execution-policy.ts": 29,
+  "src/core/capability-analysis-pipeline.ts": 38,
+  "src/core/capdelta-config.ts": 27,
+  "src/core/npm/javascript-capability-extractor.ts": 23,
+  "src/core/npm/javascript-parser-worker.ts": 28,
+  "src/core/npm/lockfile-differ.ts": 32,
+  "src/core/report-builder.ts": 23,
+  "src/core/sarif-reporter.ts": 29,
+  "src/core/signal-differ.ts": 31,
+  "src/core/signal-extractor.ts": 30,
+};
+
 export default tseslint.config(
   {
     ignores: [
@@ -57,5 +75,10 @@ export default tseslint.config(
       ],
     },
   },
+  { rules: { complexity: ["error", COMPLEXITY_LIMIT] } },
+  ...Object.entries(COMPLEXITY_BASELINE).map(([file, max]) => ({
+    files: [file],
+    rules: { complexity: ["error", max] },
+  })),
   prettier,
 );
