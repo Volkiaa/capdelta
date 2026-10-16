@@ -93,14 +93,9 @@ function adversarialReport(firstRun = false): JsonRunReport {
   };
 }
 
-/**
- * A report with one LOW finding row and one fetch-stage analysis-gap row. The
- * guidance-free twin carries identical rows but a null-severity issue, so its
- * render is exactly the no-guidance base comment the row budget is decided on.
- */
-function capSizingReports(): {
+function reportWithGuidanceFreeTwin(): {
   report: JsonRunReport;
-  guidanceFree: JsonRunReport;
+  guidanceFreeTwin: JsonRunReport;
 } {
   const base = adversarialReport();
   const analyzed = base.packages[0];
@@ -150,7 +145,7 @@ function capSizingReports(): {
       summary,
       packages: [{ ...analyzed, report, issues: [issue("CRITICAL")] }],
     },
-    guidanceFree: {
+    guidanceFreeTwin: {
       ...base,
       summary,
       packages: [{ ...analyzed, report, issues: [issue(null)] }],
@@ -292,8 +287,8 @@ describe("renderActionComment", () => {
   });
 
   it("keeps every row and omits all guidance at the exact no-guidance cap", () => {
-    const { report, guidanceFree } = capSizingReports();
-    const baseBody = renderActionComment(guidanceFree, { maxRows: 10 });
+    const { report, guidanceFreeTwin } = reportWithGuidanceFreeTwin();
+    const baseBody = renderActionComment(guidanceFreeTwin, { maxRows: 10 });
     const baseLength = Array.from(baseBody).length;
 
     const body = renderActionComment(report, {
@@ -310,8 +305,8 @@ describe("renderActionComment", () => {
   });
 
   it("keeps rows and drops the omission notice when only a few chars more fit", () => {
-    const { report, guidanceFree } = capSizingReports();
-    const baseBody = renderActionComment(guidanceFree, { maxRows: 10 });
+    const { report, guidanceFreeTwin } = reportWithGuidanceFreeTwin();
+    const baseBody = renderActionComment(guidanceFreeTwin, { maxRows: 10 });
     const baseLength = Array.from(baseBody).length;
 
     const body = renderActionComment(report, {
@@ -327,9 +322,9 @@ describe("renderActionComment", () => {
   });
 
   it("never exceeds maxCharacters on any path that returns a body", () => {
-    const { report, guidanceFree } = capSizingReports();
+    const { report, guidanceFreeTwin } = reportWithGuidanceFreeTwin();
     const floor = Array.from(
-      renderActionComment(guidanceFree, { maxRows: 0 }),
+      renderActionComment(guidanceFreeTwin, { maxRows: 0 }),
     ).length;
     for (
       let maxCharacters = floor;
