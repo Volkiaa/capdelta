@@ -328,6 +328,7 @@ Transitive runtime packages are reported by the check but are not the gate.
 - [ADR-018: Fetch failures fail the run instead of passing it](docs/adr/0018-fetch-failures-fail-closed.md)
 - [ADR-019: Read what npm installs, and fail on every unread package](docs/adr/0019-read-what-npm-installs.md)
 - [ADR-020: Decide write access from the token, not from the PR author](docs/adr/0020-decide-write-access-from-the-token.md)
+- [ADR-021: Rebuild the Action bundle in a credential-free sandbox](docs/adr/0021-credential-free-action-rebuild.md)
 
 The authoritative architecture and roadmap remain in
 [docs/PLAN.md](docs/PLAN.md). Session handoffs are recorded in

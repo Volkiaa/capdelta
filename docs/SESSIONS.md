@@ -682,3 +682,44 @@ escapes; worth considering a CI grep for control characters in source files.
 ### 4. Open questions
 
 1. Should `docs/github-action.md:29-35` describe the token-denied fallback? It says only "when permissions permit".
+
+## 2026-10-16, comment audit and pruning
+
+### 1. What landed
+
+- **Audit.** A new project agent, `.claude/agents/comment-audit.md` (untracked), ran a swarm of six DeepSeek readers
+  over 84 files at b7313d2. They applied the `/no-comments` rules and returned 642 verdicts. The full plan is outside the repo, at
+  `~/.claude/projects/-home-amsn-orca-capdelta/notes/comment-audit-plan-b7313d2.md`.
+- **Deletes (#78, #79, #81, #82).** About 450 lines of comments that repeated the code are gone. In security-relevant
+  files, #79 used 23 hand-picked rows instead of the audit's verdicts, and #82 kept seven comments the audit wanted
+  gone because they state a security reason the code cannot show.
+- **Refactors (#83 to #91).**
+  - #83 renames the budget limit to `RUNTIME_DEPS_EXCLUSIVE_LIMIT`.
+  - #84 moves the pipeline test rules into the test names.
+  - #85 renames the guidance-free twin fixture.
+  - #86 types the run-action mocks and drops the `unbound-method` disable.
+  - #87 makes the golden fixture tar helper reject PAX and base-256 headers.
+  - #88 adds `toStageKindPair`, a runtime-checked `(stage, kind)` pair that replaces the cast in `run-severity.ts`.
+  - #89 names the lockfile parsing checks.
+  - #90 adds ADR-021 and splits the sandbox script into named steps.
+  - #91 adds a shared `httpStatusOf`.
+- **Verification.** Every PR passed the full local verification and CI on Node 20, 22 and 24. Codex security-reviewed
+  #88 to #91. It blocked #88 once, because a stage outside `STAGE_KINDS`, including `__proto__`, threw `TypeError`
+  instead of `SeverityGateError`. `Object.hasOwn` fixed it, with tests. No golden fixture or reconstruction changed.
+
+### 2. Half-done and exact resume point
+
+- Nothing is half-done. The audit's themes T5 (fetcher trust-boundary notes) and T6 (differ identity helpers) were
+  dropped by user decision, so their comments stay.
+
+### 3. ADR status
+
+- ADR-021 is accepted. It records the threat model of `scripts/package-action-sandboxed.sh`.
+
+### 4. Lessons
+
+- Audit verdicts need review before anyone applies them in security code. The swarm misread line numbers in places,
+  marked the `# v7.0.0` tags beside pinned action SHAs (which Dependabot reads) for deletion, and trimmed security
+  reasons down to a bare ADR number.
+- A `git apply --unidiff-zero` restore can land at the wrong line. After restoring hunks, compare each restored
+  block's neighbors with main.
