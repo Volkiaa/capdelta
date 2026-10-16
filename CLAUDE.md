@@ -1,12 +1,12 @@
-# capdelta — Working Agreement
+# capdelta working agreement
 
 You are helping build capdelta, an npm dependency behavioral-diff security tool.
 Its purpose: catch supply-chain attacks such as the axios (2026) and
 Shai-Hulud (2025) npm compromises by diffing what a dependency bump can do.
 
 The authoritative spec is docs/PLAN.md (rev. 3). When the plan and your instincts
-conflict, the plan wins; if you believe the plan is wrong, say so and stop —
-deviations require my approval and an ADR in docs/adr/.
+conflict, the plan wins; if you believe the plan is wrong, say so and stop.
+Deviations require my approval and an ADR in docs/adr/.
 
 ## Rules
 
@@ -19,8 +19,8 @@ deviations require my approval and an ADR in docs/adr/.
   either recovers meaningfully or rethrows with context. "Degrade loudly" is a
   core product principle (PLAN §2) and applies to the code itself.
 - Tests accompany code. Every component lands with its unit tests. Golden
-  fixtures per PLAN §7. If something is hard to test, that's a design smell —
-  raise it.
+  fixtures per PLAN §7. If something is hard to test, that's a design smell.
+  Raise it.
 - Dependency budget: <10 runtime dependencies total (PLAN §10). Adding any
   runtime dependency requires my explicit approval and a one-line justification
   in the PR description.
@@ -28,13 +28,13 @@ deviations require my approval and an ADR in docs/adr/.
   rules (PLAN §3) are non-negotiable. Never execute package code, not even in
   tests. Test fixtures must be inert.
 - Explain non-obvious constructs you introduce (TS generics tricks, Node API
-  subtleties) in one or two sentences in the PR description — I am using this
+  subtleties) in one or two sentences in the PR description. I am using this
   project to learn.
 - Scope discipline: solve the stated task. If you notice an adjacent issue,
   list it at the end under "Noticed, not touched" instead of fixing it.
 - Git: conventional commits, imperative mood. Do not add yourself as co-author.
 - No timeline estimates.
-- Keep a comment that states a security reason for a gate, policy, extraction or fetch rule. Comment audits and `/correct` passes must not delete or shorten it. Nothing enforces this rule, so it relies on review.
+- Keep a comment that states a security reason for a gate, policy, extraction or fetch rule. Comment audits and `/correct` passes must not delete or shorten it.
 - When you verify a fact from the plan or from code, cite it (file:line or
   PLAN §). Future sessions depend on this.
 
@@ -50,10 +50,11 @@ deviations require my approval and an ADR in docs/adr/.
   commit `dist/action/`; `check:action` fails if it is stale.
 - Golden fixtures: `node scripts/generate-golden-fixtures.mjs`. Regenerate only
   when a case is meant to change, and explain the change in the commit message.
-- Behavior proof: after any change to detection, severity, the gate, or report
-  output, run `/verify-capdelta` (`.claude/skills/verify-capdelta/SKILL.md`)
-  and cite its evidence in the PR. Unit tests alone don't show what the CLI
-  reports.
+- A change to detection, severity, the gate, report output, or a report
+  field's meaning can move the gate. It must keep the attack reconstructions
+  and golden fixtures passing. Check `gateSeverity` in
+  both, not only the unit tests. Then run `/verify-capdelta`
+  (`.claude/skills/verify-capdelta/SKILL.md`) and cite its evidence in the PR.
 
 ## Map
 
@@ -70,20 +71,17 @@ deviations require my approval and an ADR in docs/adr/.
 - `src/cli/` and `src/action/`: the two entry points. Both read policy from
   the base commit (ADR-015).
 - `test/fixtures/reconstructions/` holds defanged attack reconstructions, and
-  `src/core/attack-reconstructions.test.ts` is their end-to-end proof. Any
-  change to detection or the gate must keep these passing. A new evasion gets a
-  reconstruction here.
-- `docs/adr/` holds the decisions. `docs/SESSIONS.md` is the session handoff
-  log; append an entry when you finish a milestone.
+  `src/core/attack-reconstructions.test.ts` is their end-to-end proof. A new
+  evasion gets a reconstruction here.
+- `docs/adr/` holds the decisions. `HANDOFF.md` is the starting point for the
+  next session; update it at every handoff. `docs/SESSIONS.md` is the full
+  session log; append an entry when you finish a milestone.
 - `docs/m5-2026-10-12/` is a frozen historical measurement. Never edit it.
 
 ## Gotchas
 
 - Without `node_modules`, `check:action` deletes `dist/action/`. Restore it
   with `git checkout -- dist/action`, then install.
-- Changing a report field's meaning, or a severity, can move the gate. Check
-  `gateSeverity` in the golden fixtures and the reconstructions, not only the
-  unit tests.
 - Never close and reopen PRs to retrigger CI. A force-pushed branch may get no
   CI run; verify locally and say so instead.
 - Every string that comes from a package, lockfile, or registry is
@@ -92,7 +90,5 @@ deviations require my approval and an ADR in docs/adr/.
 
 ## Multi-agent workflow
 
-The global routing in ~/.claude/CLAUDE.md applies: DeepSeek through OpenCode
-implements in a worktree, and Claude orchestrates and reviews. Codex reviews
-security for any change to the severity gate, allowlist or exception policy,
+Codex reviews security for any change to the severity gate, allowlist or exception policy,
 extraction, fetching, or base-commit policy reading.
