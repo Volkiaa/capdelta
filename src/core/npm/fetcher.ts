@@ -2,6 +2,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { analysisStopDetail } from "../analysis-execution-policy.js";
 import { isAbortSignal } from "../guards.js";
 import { NamedError } from "../named-error.js";
+import { forEachInOrder } from "../worker-pool.js";
 import type { ChangedPackage } from "../contract/lockfile-diff.js";
 
 /** Verified, inert tarball bytes. Safe extraction is a separate M1 component. */
@@ -171,22 +172,18 @@ export async function fetchChangedPackages(
   }
 
   const results = new Array<FetchPackageResult>(packages.length);
-  let nextIndex = 0;
-  const workerCount = Math.min(resolved.concurrency, packages.length);
 
-  await Promise.all(
-    Array.from({ length: workerCount }, async () => {
-      for (;;) {
-        const index = nextIndex;
-        nextIndex += 1;
-        const changedPackage = packages[index];
-        if (changedPackage === undefined) return;
-        results[index] =
-          resolved.signal?.aborted === true
-            ? abortedPackage(changedPackage, resolved.signal)
-            : await fetchPackage(changedPackage, resolved);
-      }
-    }),
+  await forEachInOrder(
+    packages.map((_changedPackage, index) => index),
+    resolved.concurrency,
+    async (index) => {
+      const changedPackage = packages[index];
+      if (changedPackage === undefined) return;
+      results[index] =
+        resolved.signal?.aborted === true
+          ? abortedPackage(changedPackage, resolved.signal)
+          : await fetchPackage(changedPackage, resolved);
+    },
   );
 
   return results;

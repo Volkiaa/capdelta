@@ -57,6 +57,7 @@ import {
 import { applyUnanalyzableExceptions } from "./unanalyzable-exceptions.js";
 import { compareText } from "./compare.js";
 import { errorName } from "./guards.js";
+import { forEachInOrder } from "./worker-pool.js";
 
 export type AnalysisSide = "old" | "new";
 
@@ -274,89 +275,77 @@ export function createCapabilityAnalysisPipeline(
       validateFetchResults(lockfileDiff.changed, fetched);
 
       const preflighted = new Array<ManifestPreflightResult>(fetched.length);
-      let nextPreflightPosition = 0;
       let startedPackages = 0;
       let completedPackages = 0;
-      const workerCount = Math.min(
-        resolved.execution.extraction.concurrency,
-        fetched.length,
-      );
       const preflightOrder = prioritizePreflightPackages(fetched, lockfileDiff);
-      await Promise.all(
-        Array.from({ length: workerCount }, async () => {
-          for (;;) {
-            const index = preflightOrder[nextPreflightPosition];
-            nextPreflightPosition += 1;
-            if (index === undefined) return;
-            const fetchedPackage = fetched[index];
-            if (fetchedPackage === undefined) {
-              throw new CapabilityAnalysisPipelineContractError(
-                `preflight selected missing fetched package at index ${String(index)}`,
-              );
-            }
-            if (control.signal.aborted) {
-              preflighted[index] = preflightStopped(
-                fetchedPackage.changedPackage,
-                control.signal,
-              );
-            } else {
-              startedPackages += 1;
-              preflighted[index] = await preflightFetchedPackage(
-                fetchedPackage,
-                resolved,
-                control.signal,
-                adapters,
-              );
-            }
+      await forEachInOrder(
+        preflightOrder,
+        resolved.execution.extraction.concurrency,
+        async (index) => {
+          const fetchedPackage = fetched[index];
+          if (fetchedPackage === undefined) {
+            throw new CapabilityAnalysisPipelineContractError(
+              `preflight selected missing fetched package at index ${String(index)}`,
+            );
           }
-        }),
+          if (control.signal.aborted) {
+            preflighted[index] = preflightStopped(
+              fetchedPackage.changedPackage,
+              control.signal,
+            );
+          } else {
+            startedPackages += 1;
+            preflighted[index] = await preflightFetchedPackage(
+              fetchedPackage,
+              resolved,
+              control.signal,
+              adapters,
+            );
+          }
+        },
       );
 
       const packages = new Array<PackageAnalysisResult>(fetched.length);
       const workOrder = prioritizePackages(fetched, preflighted);
-      let nextWorkPosition = 0;
-      await Promise.all(
-        Array.from({ length: workerCount }, async () => {
-          for (;;) {
-            const index = workOrder[nextWorkPosition];
-            nextWorkPosition += 1;
-            if (index === undefined) return;
-            const fetchedPackage = fetched[index];
-            if (fetchedPackage === undefined) {
-              throw new CapabilityAnalysisPipelineContractError(
-                `scheduler selected missing fetched package at index ${String(index)}`,
-              );
-            }
-            const preflight = preflighted[index];
-            if (preflight === undefined) {
-              throw new CapabilityAnalysisPipelineContractError(
-                `preflight returned no result at index ${String(index)}`,
-              );
-            }
-            packages[index] = control.signal.aborted
-              ? policyUnavailable(
-                  fetchedPackage.changedPackage,
-                  control.signal,
-                  preflight.status === "ready"
-                    ? preflight.issues
-                    : preflight.failures,
-                )
-              : preflight.status === "unavailable"
-                ? {
-                    status: "unavailable",
-                    changedPackage: preflight.changedPackage,
-                    failures: preflight.failures,
-                  }
-                : await analyzeFetchedPackage(
-                    fetchedPackage,
-                    resolved,
-                    control.signal,
-                    adapters,
-                    preflight,
-                  );
-            completedPackages += 1;
+      await forEachInOrder(
+        workOrder,
+        resolved.execution.extraction.concurrency,
+        async (index) => {
+          const fetchedPackage = fetched[index];
+          if (fetchedPackage === undefined) {
+            throw new CapabilityAnalysisPipelineContractError(
+              `scheduler selected missing fetched package at index ${String(index)}`,
+            );
           }
-        }),
+          const preflight = preflighted[index];
+          if (preflight === undefined) {
+            throw new CapabilityAnalysisPipelineContractError(
+              `preflight returned no result at index ${String(index)}`,
+            );
+          }
+          packages[index] = control.signal.aborted
+            ? policyUnavailable(
+                fetchedPackage.changedPackage,
+                control.signal,
+                preflight.status === "ready"
+                  ? preflight.issues
+                  : preflight.failures,
+              )
+            : preflight.status === "unavailable"
+              ? {
+                  status: "unavailable",
+                  changedPackage: preflight.changedPackage,
+                  failures: preflight.failures,
+                }
+              : await analyzeFetchedPackage(
+                  fetchedPackage,
+                  resolved,
+                  control.signal,
+                  adapters,
+                  preflight,
+                );
+          completedPackages += 1;
+        },
       );
 
       const analyzed = packages.filter(
