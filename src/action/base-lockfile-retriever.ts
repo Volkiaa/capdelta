@@ -14,7 +14,6 @@ export interface GitHubContentsResponse {
   data: unknown;
 }
 
-/** Narrow adapter so the retriever is testable without constructing Octokit. */
 export interface GitHubContentsClient {
   getContent(
     request: GitHubContentsRequest,
@@ -26,10 +25,8 @@ export interface BaseLockfileRequest extends GitHubContentsRequest {
   maxBytes?: number;
 }
 
-/** A bounded repository file read at an immutable commit. */
 export interface BaseFileRequest extends GitHubContentsRequest {
   maxBytes: number;
-  /** Names the file in errors, e.g. "lockfile" or "config". */
   label: string;
 }
 

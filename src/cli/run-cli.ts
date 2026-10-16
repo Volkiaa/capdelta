@@ -50,7 +50,6 @@ export interface CliRuntime {
   cwd: string;
   stdout(value: string): void;
   stderr(value: string): void;
-  /** Test seam used for inert tarball responses; production uses global fetch. */
   fetchImpl?: typeof fetch;
   /** ADR-018 test seam: injectable backoff, so retry tests never wait. */
   sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
@@ -64,7 +63,6 @@ export interface CliRuntime {
   analyze?: typeof analyzeChangedPackages;
 }
 
-/** Converts all CLI outcomes into deterministic process exit codes and output. */
 export async function executeCli(
   argv: readonly string[],
   runtime: CliRuntime,

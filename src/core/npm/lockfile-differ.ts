@@ -101,11 +101,11 @@ export function diffNpmLockfiles(
     let old: Entry | null = oldByPath.get(path) ?? null;
     if (old === null && !firstRun) {
       const moved = matchMoved(entry, oldByName);
-      if (moved === "identical") continue; // pure re-hoisting: nothing changed
+      if (moved === "identical") continue;
       old = moved;
     }
 
-    if (old !== null && sameArtifact(old, entry)) continue; // unchanged
+    if (old !== null && sameArtifact(old, entry)) continue;
 
     // Findings derive from lockfile facts alone, so they are emitted even
     // when the entry is subsequently skipped (e.g. a downgraded private
@@ -343,7 +343,6 @@ function classify(entry: Entry): Analyzability {
   try {
     host = new URL(entry.resolved).host;
   } catch {
-    // Recovery = flagging: the entry is excluded from analysis but reported.
     return {
       analyzable: false,
       reason: "malformed-entry",

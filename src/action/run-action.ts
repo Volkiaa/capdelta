@@ -137,7 +137,6 @@ export function actionFailureMessage(outcome: {
 
 const ARTIFACT_NAME = "capdelta-report";
 
-/** Run the Action pipeline without converting failures into process state. */
 export async function runAction(
   inputs: ActionInputs,
   context: ActionContext,
@@ -401,7 +400,6 @@ async function withContext<T>(
   }
 }
 
-/** Default analyzer used by the production adapter. */
 export async function analyzeLockfiles(
   oldLockfile: unknown,
   newLockfile: unknown,
