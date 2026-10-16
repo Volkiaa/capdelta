@@ -10,6 +10,7 @@ import {
   HIGH_ENTROPY_MILLIBITS,
   MIN_ENTROPY_BYTES,
 } from "./signal-extractor.js";
+import { compareText } from "./compare.js";
 
 export type SignalFindingSeverity = "CRITICAL" | "HIGH" | "MEDIUM";
 export type SignalFindingChange = "added" | "changed";
@@ -172,8 +173,4 @@ function compareFindings(left: SignalFinding, right: SignalFinding): number {
 
 function severityOrder(severity: SignalFindingSeverity): number {
   return severity === "CRITICAL" ? 0 : severity === "HIGH" ? 1 : 2;
-}
-
-function compareText(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
 }

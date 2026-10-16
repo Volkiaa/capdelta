@@ -10,6 +10,7 @@ import {
   type RuntimeConstraintCapability,
   type CodeCapability,
 } from "./contract/capability-set.js";
+import { compareText } from "./compare.js";
 import { emptySignalSet } from "./signal-extractor.js";
 import { diffSignals, type SignalFinding } from "./signal-differ.js";
 import { NamedError } from "./named-error.js";
@@ -544,10 +545,4 @@ function compareDiagnostics(
   const line = leftEvidence.line - rightEvidence.line;
   if (line !== 0) return line;
   return compareText(left.diagnostic.detail, right.diagnostic.detail);
-}
-
-function compareText(left: string, right: string): number {
-  if (left < right) return -1;
-  if (left > right) return 1;
-  return 0;
 }

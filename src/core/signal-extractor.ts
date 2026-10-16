@@ -9,6 +9,7 @@ import type {
   SignalParseState,
   SignalSet,
 } from "./contract/capability-set.js";
+import { compareEvidence, compareText } from "./compare.js";
 
 /** Provisional thresholds; PLAN §4.4 leaves corpus tuning to validation. */
 export const MIN_ENTROPY_BYTES = 256 as const;
@@ -451,15 +452,4 @@ function entropyMilliBitsPerByte(bytes: Uint8Array): number {
     entropy -= probability * Math.log2(probability);
   }
   return Math.round(entropy * 1_000);
-}
-
-function compareEvidence(left: Evidence, right: Evidence): number {
-  return compareText(
-    JSON.stringify([left.file, left.line, left.snippet]),
-    JSON.stringify([right.file, right.line, right.snippet]),
-  );
-}
-
-function compareText(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
 }
