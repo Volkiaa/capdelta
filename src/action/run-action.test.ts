@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/unbound-method */
 import { describe, expect, it, vi } from "vitest";
 import type {
   CapabilityAnalysisRun,
@@ -90,33 +89,60 @@ const context: ActionContext = {
   actor: "contributor",
 };
 
-function adapters(run = emptyRun()): ActionAdapters {
+function adapters(run = emptyRun()) {
+  const listChangedFiles = vi
+    .fn<ActionAdapters["listChangedFiles"]>()
+    .mockResolvedValue(["package-lock.json"]);
+  const resolveCommit = vi
+    .fn<ActionAdapters["resolveCommit"]>()
+    .mockResolvedValue(SHA);
+  const getContent = vi
+    .fn<ActionAdapters["contents"]["getContent"]>()
+    .mockResolvedValue({
+      status: 200,
+      data: {
+        type: "file",
+        size: Buffer.byteLength(EMPTY_LOCKFILE),
+        encoding: "base64",
+        content: Buffer.from(EMPTY_LOCKFILE).toString("base64"),
+      },
+    });
+  const readHeadLockfile = vi
+    .fn<ActionAdapters["readHeadLockfile"]>()
+    .mockResolvedValue(EMPTY_LOCKFILE);
+  const analyze = vi.fn<ActionAdapters["analyze"]>().mockResolvedValue(run);
+  const uploadJson = vi
+    .fn<ActionAdapters["uploadJson"]>()
+    .mockResolvedValue({ id: 91, name: "capdelta-report" });
+  const uploadSarif = vi
+    .fn<ActionAdapters["uploadSarif"]>()
+    .mockResolvedValue(undefined);
+  const listComments = vi
+    .fn<ActionAdapters["comments"]["listComments"]>()
+    .mockResolvedValue([]);
+  const createComment = vi
+    .fn<ActionAdapters["comments"]["createComment"]>()
+    .mockResolvedValue({ id: 7 });
+  const updateComment = vi
+    .fn<ActionAdapters["comments"]["updateComment"]>()
+    .mockResolvedValue(undefined);
+  const addJobSummary = vi
+    .fn<ActionAdapters["addJobSummary"]>()
+    .mockResolvedValue(undefined);
+  const warn = vi.fn<ActionAdapters["warn"]>();
+  const setOutput = vi.fn<ActionAdapters["setOutput"]>();
   return {
-    listChangedFiles: vi.fn().mockResolvedValue(["package-lock.json"]),
-    resolveCommit: vi.fn().mockResolvedValue(SHA),
-    contents: {
-      getContent: vi.fn().mockResolvedValue({
-        status: 200,
-        data: {
-          type: "file",
-          size: Buffer.byteLength(EMPTY_LOCKFILE),
-          encoding: "base64",
-          content: Buffer.from(EMPTY_LOCKFILE).toString("base64"),
-        },
-      }),
-    },
-    readHeadLockfile: vi.fn().mockResolvedValue(EMPTY_LOCKFILE),
-    analyze: vi.fn().mockResolvedValue(run),
-    uploadJson: vi.fn().mockResolvedValue({ id: 91, name: "capdelta-report" }),
-    uploadSarif: vi.fn().mockResolvedValue(undefined),
-    comments: {
-      listComments: vi.fn().mockResolvedValue([]),
-      createComment: vi.fn().mockResolvedValue({ id: 7 }),
-      updateComment: vi.fn().mockResolvedValue(undefined),
-    },
-    addJobSummary: vi.fn().mockResolvedValue(undefined),
-    warn: vi.fn(),
-    setOutput: vi.fn(),
+    listChangedFiles,
+    resolveCommit,
+    contents: { getContent },
+    readHeadLockfile,
+    analyze,
+    uploadJson,
+    uploadSarif,
+    comments: { listComments, createComment, updateComment },
+    addJobSummary,
+    warn,
+    setOutput,
   };
 }
 
