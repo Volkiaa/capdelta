@@ -13,6 +13,7 @@ deviations require my approval and an ADR in docs/adr/.
 - Design before code. For any new component, propose the interface, data types,
   and error-handling strategy first, in prose. Wait for my approval before
   implementing.
+- A refactor that changes no exported type and no `gateSeverity` or report field needs no design approval, as long as the existing tests and reconstructions pass unchanged. State in the PR description that it meets this condition.
 - Small increments. No change set larger than one component + its tests.
 - Explicit error handling. No silent failures, no bare try-catch. Every catch
   either recovers meaningfully or rethrows with context. "Degrade loudly" is a
@@ -33,6 +34,7 @@ deviations require my approval and an ADR in docs/adr/.
   list it at the end under "Noticed, not touched" instead of fixing it.
 - Git: conventional commits, imperative mood. Do not add yourself as co-author.
 - No timeline estimates.
+- Keep a comment that states a security reason for a gate, policy, extraction or fetch rule. Comment audits and `/correct` passes must not delete or shorten it. Nothing enforces this rule, so it relies on review.
 - When you verify a fact from the plan or from code, cite it (file:line or
   PLAN §). Future sessions depend on this.
 
@@ -48,6 +50,10 @@ deviations require my approval and an ADR in docs/adr/.
   commit `dist/action/`; `check:action` fails if it is stale.
 - Golden fixtures: `node scripts/generate-golden-fixtures.mjs`. Regenerate only
   when a case is meant to change, and explain the change in the commit message.
+- Behavior proof: after any change to detection, severity, the gate, or report
+  output, run `/verify-capdelta` (`.claude/skills/verify-capdelta/SKILL.md`)
+  and cite its evidence in the PR. Unit tests alone don't show what the CLI
+  reports.
 
 ## Map
 
