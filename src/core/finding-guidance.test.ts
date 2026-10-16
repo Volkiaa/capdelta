@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { ALLOWLISTED_CAPABILITIES } from "./capdelta-config.js";
-import type { PackageAnalysisFailure } from "./capability-analysis-pipeline.js";
 import {
   ANALYSIS_ISSUE_CLASSES,
   ANALYSIS_ISSUE_GUIDANCE,
@@ -28,6 +27,7 @@ import {
   analysisIssueSeverity,
   isOperationalFailure,
   isUnanalyzableIssue,
+  toStageKindPair,
 } from "./run-severity.js";
 import type { SignalFindingKind } from "./signal-differ.js";
 
@@ -35,16 +35,6 @@ function expectGuidance(guidance: Guidance | null): void {
   if (guidance === null) throw new Error("expected guidance, got null");
   expect(guidance.whyItMatters.length).toBeGreaterThan(0);
   expect(guidance.whatToCheck.length).toBeGreaterThan(0);
-}
-
-function operationalProbe(issue: {
-  stage: JsonReportAnalysisIssue["stage"];
-  kind: ReportAnalysisIssueKind;
-}): PackageAnalysisFailure {
-  return {
-    stage: issue.stage,
-    failure: { kind: issue.kind },
-  } as PackageAnalysisFailure;
 }
 
 const CLASS_CASES: {
@@ -163,7 +153,7 @@ describe("finding guidance", () => {
       const issue = { stage, kind };
       const severity = analysisIssueSeverity(issue);
       const unanalyzable = isUnanalyzableIssue(issue);
-      const operational = isOperationalFailure(operationalProbe(issue));
+      const operational = isOperationalFailure(toStageKindPair(issue));
       expect(analysisIssueClass(issue)).toBe(expected);
       if (expected === "operational") {
         expect(operational).toBe(true);

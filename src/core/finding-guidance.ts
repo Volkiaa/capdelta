@@ -8,7 +8,6 @@
  */
 import type { ShapeRuleId, FindingSeverity } from "./capability-differ.js";
 import type { Capability } from "./contract/capability-set.js";
-import type { PackageAnalysisFailure } from "./capability-analysis-pipeline.js";
 import type { JsonReportAnalysisIssue } from "./report-contract.js";
 import type { SignalFindingKind } from "./signal-differ.js";
 import {
@@ -17,6 +16,7 @@ import {
   analysisIssueSeverity,
   isOperationalFailure,
   isUnanalyzableIssue,
+  toStageKindPair,
 } from "./run-severity.js";
 
 export interface Guidance {
@@ -231,21 +231,6 @@ export function signalGuidance(kind: SignalFindingKind): Guidance {
   return SIGNAL_GUIDANCE[kind];
 }
 
-/**
- * `isOperationalFailure` classifies the pipeline's discriminated failure, but
- * the JSON report keeps `stage` and `kind` in separate fields. Rebuild the
- * minimal pair the predicate inspects (`stage` plus `failure.kind`) so guidance
- * reuses the gate's decision instead of copying its switch.
- */
-function operationalProbe(
-  issue: Pick<JsonReportAnalysisIssue, "stage" | "kind">,
-): PackageAnalysisFailure {
-  return {
-    stage: issue.stage,
-    failure: { kind: issue.kind },
-  } as PackageAnalysisFailure;
-}
-
 export function analysisIssueClass(
   issue: Pick<JsonReportAnalysisIssue, "stage" | "kind">,
 ): AnalysisIssueClass | null {
@@ -263,7 +248,7 @@ export function analysisIssueClass(
   }
   if (isUnanalyzableIssue(issue)) return "unanalyzable";
   // ADR-018, ADR-019
-  if (isOperationalFailure(operationalProbe(issue))) return "operational";
+  if (isOperationalFailure(toStageKindPair(issue))) return "operational";
   if (analysisIssueSeverity(issue) === null) return null;
   throw new SeverityGateError(
     `no guidance class for analysis issue ${issue.stage}/${issue.kind}`,
