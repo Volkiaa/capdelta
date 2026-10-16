@@ -8,6 +8,7 @@ import {
   type CapabilitySet,
 } from "../contract/capability-set.js";
 import {
+  JavaScriptCapabilityExtractorConfigurationError,
   JavaScriptCapabilityExtractorError,
   extractNpmJavaScriptCapabilities,
   mergeJavaScriptCapabilityLayer,
@@ -32,6 +33,19 @@ describe("analysis cancellation", () => {
           signal: controller.signal,
         }),
       ).rejects.toThrow(JavaScriptCapabilityExtractorError);
+    });
+  });
+
+  it("rejects a signal-like object without removeEventListener", async () => {
+    await withPackage({ "index.js": "inert" }, async (root) => {
+      await expect(
+        extractNpmJavaScriptCapabilities({ root }, manifestSet, {
+          signal: {
+            aborted: false,
+            addEventListener: () => undefined,
+          } as unknown as AbortSignal,
+        }),
+      ).rejects.toThrow(JavaScriptCapabilityExtractorConfigurationError);
     });
   });
 });

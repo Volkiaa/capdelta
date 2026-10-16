@@ -9,7 +9,7 @@ import {
   type AnalysisStopKind,
 } from "../analysis-execution-policy.js";
 import { NamedError } from "../named-error.js";
-import { errorName } from "../guards.js";
+import { errorName, isAbortSignal } from "../guards.js";
 import type { VerifiedTarball } from "./fetcher.js";
 
 export type ExtractionFailureKind =
@@ -437,17 +437,6 @@ function classifyFailure(error: unknown): ExtractionFailure {
 
 function throwIfStopped(signal: AbortSignal | undefined): void {
   if (signal?.aborted === true) throw new ExtractionStoppedError(signal);
-}
-
-function isAbortSignal(value: unknown): value is AbortSignal {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "aborted" in value &&
-    typeof value.aborted === "boolean" &&
-    "addEventListener" in value &&
-    typeof value.addEventListener === "function"
-  );
 }
 
 function isDecompressionRatioError(error: unknown): boolean {

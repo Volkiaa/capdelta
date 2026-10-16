@@ -19,7 +19,7 @@ import {
 } from "../signal-extractor.js";
 import { analysisStopDetail } from "../analysis-execution-policy.js";
 import { NamedError } from "../named-error.js";
-import { errorName, isRecord } from "../guards.js";
+import { errorName, isAbortSignal, isRecord } from "../guards.js";
 import { compareEvidence, compareText } from "../compare.js";
 import type { ExtractedTarball } from "./safe-extractor.js";
 import type {
@@ -506,17 +506,6 @@ function throwIfStopped(signal: AbortSignal | undefined): void {
   if (signal?.aborted === true) {
     throw new JavaScriptCapabilityExtractorError(analysisStopDetail(signal));
   }
-}
-
-function isAbortSignal(value: unknown): value is AbortSignal {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "aborted" in value &&
-    typeof value.aborted === "boolean" &&
-    "addEventListener" in value &&
-    typeof value.addEventListener === "function"
-  );
 }
 
 function workerUrl(): URL {
