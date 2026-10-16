@@ -12,7 +12,7 @@ import { CliUsageError } from "./cli-errors.js";
  */
 export const USAGE_ERROR_EXIT_CODE = 64;
 export const STRICT_ANALYSIS_EXIT_CODE = 2;
-/** PLAN §4.5: only CRITICAL fails by default. */
+// PLAN §4.5
 export const DEFAULT_FAIL_ON: FailOn = "CRITICAL";
 
 export const CLI_HELP = [
@@ -126,7 +126,6 @@ function parseFailOnArgument(value: string | undefined): FailOn {
   try {
     return parseFailOn(value);
   } catch (error: unknown) {
-    // Only the known parse failure is a user mistake; anything else is a bug.
     if (error instanceof SeverityGateConfigurationError) {
       throw new CliUsageError(
         "--fail-on must be CRITICAL, HIGH, MEDIUM, LOW, INFO, or none",

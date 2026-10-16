@@ -1,8 +1,4 @@
-/**
- * Ecosystem-agnostic capability-set contract (PLAN §2, §4.3; ADR-004).
- * Ecosystem implementations populate these records; the Differ and reporters
- * consume them without understanding package-manager-specific manifest keys.
- */
+// PLAN §2, §4.3; ADR-004
 
 export const CAPABILITY_SET_SCHEMA_VERSION = 1 as const;
 

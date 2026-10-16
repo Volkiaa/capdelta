@@ -1,13 +1,4 @@
-/**
- * M5 formal measurement (PLAN §7.4, docs/m5-measurement-2026-10-12.md).
- *
- *   select <corpus.json> <package...>   freeze exact pairs (URLs + SHA-512)
- *   run <corpus.json> <results.json>    analyze the frozen pairs only
- *
- * Static only: verified SRI, safe extraction, no install or execution. The
- * gate decision comes from the production policy (buildRunReport +
- * evaluateSeverityGate, threshold CRITICAL, strict off, no allowlist).
- */
+// PLAN §7.4
 import { execFileSync } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
@@ -23,7 +14,6 @@ import { changedPackage, recentVersions } from "./fp-check.js";
 
 const BUMPS_PER_PACKAGE = 3;
 const MAX_ATTEMPTS = 3;
-/** Failures that say nothing about the artifact and may be retried. */
 const TRANSIENT_FETCH_KINDS = new Set(["network-error", "timeout"]);
 
 export interface FrozenCorpus {
@@ -44,7 +34,6 @@ export interface Attempt {
   report: JsonRunReport;
 }
 
-/** True when every failure of an unavailable run is a transient fetch error. */
 export function isTransient(report: JsonRunReport): boolean {
   const failures = report.packages.flatMap((item) =>
     item.status === "unavailable" ? item.failures : [],
@@ -107,7 +96,7 @@ async function analyzeOnce(pair: ChangedPackage): Promise<Attempt> {
     status:
       report.summary.unavailablePackages === 0 ? "analyzed" : "unavailable",
     transient: isTransient(report),
-    // ADR-019 decision 5: this counts the severity gate only, not operational exit 1.
+    // ADR-019
     gateFail: evaluateSeverityGate(report, "CRITICAL").fail,
     strictIncomplete: hasUnanalyzedContent(run),
     report,
@@ -120,7 +109,6 @@ async function run(corpusPath: string, out: string): Promise<void> {
   const results: { pair: ChangedPackage; attempts: Attempt[] }[] = [];
   for (const pair of corpus.pairs) {
     const attempts: Attempt[] = [];
-    // Retry only transient fetch failures, at most twice, on the same pair.
     for (let index = 0; index < MAX_ATTEMPTS; index += 1) {
       const attempt = await analyzeOnce(pair);
       attempts.push(attempt);

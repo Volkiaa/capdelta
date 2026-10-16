@@ -1,7 +1,3 @@
-// Packs every golden case listed in test/fixtures/golden/cases.json, and every
-// attack-reconstruction package in test/fixtures/reconstructions/inventory.json,
-// into deterministic npm-style tarballs. It only reads and archives fixture bytes:
-// it never imports fixture code or runs npm, lifecycle hooks, or installs.
 import { createHash } from "node:crypto";
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -80,10 +76,7 @@ for (const incident of inventory.incidents) {
       }
       await rewriteEntryModes(tarball, entryModes);
     }
-    // Manifest bytes are JSON data, read as text; no fixture code is loaded.
-    // A fixture may make package.json a non-regular entry (an ADR-019 evasion),
-    // which cannot be read as a manifest; the inventory then supplies the
-    // identity via `packageMeta` so the lockfile entry can still be written.
+    // ADR-019
     const manifest =
       incident.packageMeta?.[id] ??
       JSON.parse(
@@ -147,10 +140,6 @@ async function packTree(sourceRoot, tarball) {
 }
 
 /**
- * Rewrites the mode of named entries in a packed tarball and re-gzips it
- * deterministically. portable packing forces a 0o600 floor, so a fixture that
- * needs a mode-000 entry (an ADR-019 evasion) cannot reach it through tar.c;
- * this patches the ustar headers directly and fixes each checksum.
  *
  * This is a short-ASCII ustar fixture helper only. It walks the archive by the
  * fixed 512-byte header/body arithmetic and edits the 8-byte mode field of the
@@ -219,7 +208,6 @@ function writeChecksum(header) {
   }
 }
 
-/** Reconstruction fixtures keep one root, so their manifest is unambiguous. */
 async function soleRoot(sourceRoot) {
   const roots = await readdir(sourceRoot);
   if (roots.length !== 1) {
@@ -228,10 +216,6 @@ async function soleRoot(sourceRoot) {
   return roots[0];
 }
 
-/**
- * Each top-level directory is an archive root, normally just package/. A
- * fixture may use another root (e.g. x/) to exercise npm's strip-one layout.
- */
 async function topLevelRoots(sourceRoot) {
   const entries = await readdir(sourceRoot, { withFileTypes: true });
   const roots = entries
@@ -251,7 +235,6 @@ async function sri(tarball) {
     .digest("base64")}`;
 }
 
-/** Sorted relative paths of regular files; symlinks and others are refused. */
 async function listRegularFiles(root, relative) {
   const entries = await readdir(join(root, relative), { withFileTypes: true });
   const files = [];

@@ -20,28 +20,20 @@ import {
 } from "./run-severity.js";
 
 export interface Guidance {
-  /** One or two sentences on why the change matters to a reviewer. */
   whyItMatters: string;
-  /** One sentence on what to check. */
   whatToCheck: string;
 }
 
-/** The capability kinds that carry guidance: manifest kinds plus code kinds. */
 export type CapabilityGuidanceKind = Capability["kind"];
 
-/**
- * The analysis-issue classes a reviewer needs guidance for. `integrity-mismatch`
- * and the lockfile/registry fetch failure are decided by the artifact or its
- * lockfile entry; `unanalyzable` is ADR-016; `operational` is ADR-018, extended
- * by ADR-019 to residual filesystem and manifest-read failures.
- */
+// ADR-016, ADR-018, ADR-019
 export type AnalysisIssueClass =
   | "integrity-mismatch"
   | "lockfile-or-registry-fetch-failure"
   | "unanalyzable"
   | "operational";
 
-/** Every PLAN §4.4 shape rule, so a new rule cannot ship without guidance. */
+// PLAN §4.4
 export const SHAPE_RULE_IDS: readonly ShapeRuleId[] = [
   "install-code-execution",
   "secret-exfiltration",
@@ -50,7 +42,6 @@ export const SHAPE_RULE_IDS: readonly ShapeRuleId[] = [
   "dynamic-or-native-code",
 ];
 
-/** Every analysis-issue class, so a new class cannot ship without guidance. */
 export const ANALYSIS_ISSUE_CLASSES: readonly AnalysisIssueClass[] = [
   "integrity-mismatch",
   "lockfile-or-registry-fetch-failure",
@@ -58,14 +49,12 @@ export const ANALYSIS_ISSUE_CLASSES: readonly AnalysisIssueClass[] = [
   "operational",
 ];
 
-/** PLAN §4.5: only CRITICAL and HIGH changes carry reviewer guidance. */
+// PLAN §4.5
 export function guidanceWarranted(severity: FindingSeverity): boolean {
   return severity === "CRITICAL" || severity === "HIGH";
 }
 
-// PLAN §4.5 framing: describe what the code could do, never claim malware, and
-// always ask the reviewer to review the change. Shared by the install-hook
-// shape and the INSTALL_HOOK capability, which describe the same event.
+// PLAN §4.5
 const INSTALL_HOOK_GUIDANCE: Guidance = {
   whyItMatters:
     "Install hooks could run automatically during npm install, before any code imports the package, with the installing user's permissions, unless install scripts are disabled.",
@@ -73,10 +62,6 @@ const INSTALL_HOOK_GUIDANCE: Guidance = {
     "Check that the upstream repository and release notes explain the new hook.",
 };
 
-/**
- * One lookup per shape rule. Keyed by the ShapeRuleId union so a new rule fails
- * to compile until it has guidance.
- */
 export const SHAPE_GUIDANCE: Readonly<Record<ShapeRuleId, Guidance>> = {
   "install-hook-change": INSTALL_HOOK_GUIDANCE,
   "install-code-execution": {
@@ -104,10 +89,6 @@ export const SHAPE_GUIDANCE: Readonly<Record<ShapeRuleId, Guidance>> = {
   },
 };
 
-/**
- * One lookup per capability kind, covering the four manifest kinds and every
- * CodeCapabilityKind. Keyed by the capability-kind union for exhaustiveness.
- */
 export const CAPABILITY_GUIDANCE: Readonly<
   Record<CapabilityGuidanceKind, Guidance>
 > = {
@@ -179,7 +160,6 @@ export const CAPABILITY_GUIDANCE: Readonly<
   },
 };
 
-/** One lookup per signal kind, keyed by the SignalFindingKind union. */
 export const SIGNAL_GUIDANCE: Readonly<Record<SignalFindingKind, Guidance>> = {
   "new-external-endpoint": {
     whyItMatters:
@@ -211,10 +191,6 @@ export const SIGNAL_GUIDANCE: Readonly<Record<SignalFindingKind, Guidance>> = {
   },
 };
 
-/**
- * One lookup per analysis-issue class, keyed by the AnalysisIssueClass union.
- * `analysisIssueClass` selects the class from the (stage, kind) pair.
- */
 export const ANALYSIS_ISSUE_GUIDANCE: Readonly<
   Record<AnalysisIssueClass, Guidance>
 > = {
@@ -270,14 +246,6 @@ function operationalProbe(
   } as PackageAnalysisFailure;
 }
 
-/**
- * Classify one analysis issue with the same helpers the gate uses, so guidance
- * can never disagree with severity. Returns `null` for a severity-null issue
- * that is not an operational failure: it carries no guidance, and every caller
- * must handle the `null` explicitly. The helpers are exhaustive over the
- * correlated (stage, kind) union and throw for a pair the pipeline cannot
- * produce, so an unknown kind can never fall through silently.
- */
 export function analysisIssueClass(
   issue: Pick<JsonReportAnalysisIssue, "stage" | "kind">,
 ): AnalysisIssueClass | null {
@@ -294,8 +262,7 @@ export function analysisIssueClass(
     return "lockfile-or-registry-fetch-failure";
   }
   if (isUnanalyzableIssue(issue)) return "unanalyzable";
-  // ADR-018, ADR-019: operational if and only if the gate's own predicate says
-  // so, including a residual filesystem/manifest-read failure.
+  // ADR-018, ADR-019
   if (isOperationalFailure(operationalProbe(issue))) return "operational";
   if (analysisIssueSeverity(issue) === null) return null;
   throw new SeverityGateError(
@@ -303,10 +270,6 @@ export function analysisIssueClass(
   );
 }
 
-/**
- * Guidance for one analysis issue, or `null` when `analysisIssueClass` returns
- * `null` (a severity-null, non-operational issue). Callers handle `null`.
- */
 export function analysisIssueGuidance(
   issue: Pick<JsonReportAnalysisIssue, "stage" | "kind">,
 ): Guidance | null {

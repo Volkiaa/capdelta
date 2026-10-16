@@ -1,18 +1,9 @@
-/**
- * Dependency-budget gate (PLAN §10): capdelta targets fewer than 10 runtime
- * dependencies. CI fails when the count of direct `dependencies` in
- * package.json reaches 10. The transitive runtime count (from
- * package-lock.json) is reported for visibility but not gated.
- *
- * Zero-dependency by design: a budget checker that needed dependencies to run
- * would undermine its own point.
- */
+// PLAN §10
 import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 export const MAX_RUNTIME_DEPS = 10; // budget is "< 10", so a count of 10 fails
 
-/** @param {{ dependencies?: Record<string, string> }} manifest */
 export function countDirectRuntimeDeps(manifest) {
   return Object.keys(manifest.dependencies ?? {}).length;
 }
@@ -58,8 +49,6 @@ function main() {
   }
 }
 
-// Run main() only when executed directly (`node scripts/check-dep-budget.mjs`),
-// not when imported by the unit tests.
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   main();
 }

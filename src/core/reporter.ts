@@ -141,7 +141,6 @@ export function renderJsonRunReport(run: CapabilityAnalysisRun): string {
   return formatJsonRunReport(buildRunReport(run));
 }
 
-/** Formats an already-built run report, so callers can also gate on it. */
 export function formatJsonRunReport(report: JsonRunReport): string {
   return `${JSON.stringify(report, null, 2)}\n`;
 }
@@ -154,7 +153,6 @@ export function renderTextRunReport(run: CapabilityAnalysisRun): string {
   return formatTextRunReport(buildRunReport(run));
 }
 
-/** Formats an already-built run report, so callers can also gate on it. */
 export function formatTextRunReport(report: JsonRunReport): string {
   const severitySummary = severityCountsText(report.summary.bySeverity);
   const lines = [
@@ -200,8 +198,7 @@ export function formatTextRunReport(report: JsonRunReport): string {
       ...item.failures.flatMap(analysisIssueLines),
     );
     if (item.exception !== undefined) {
-      // ADR-017: the package is still unanalyzed; the reviewed exception only
-      // releases it from the severity gate.
+      // ADR-017
       lines.push(`reviewed exception: ${quote(item.exception.reason)}`);
     }
   }
@@ -259,17 +256,14 @@ function analysisIssueText(issue: JsonReportAnalysisIssue): string {
     issue.evidence === null ? null : `Evidence ${evidenceText(issue.evidence)}`,
   ].filter((item): item is string => item !== null);
   const severity = issue.severity === null ? "" : `[${issue.severity}] `;
-  // ADR-016: label issues capdelta could not inspect, distinct from integrity
-  // mismatches and from capability findings.
+  // ADR-016
   const label = isUnanalyzableIssue(issue) ? "could not analyze: " : "";
   return `${severity}${label}[${issue.stage}/${issue.kind}] ${quote(issue.detail)}${context.length === 0 ? "" : `; ${context.join("; ")}`}`;
 }
 
-/** A finding line plus its reviewer guidance when the severity warrants it. */
 function analysisIssueLines(issue: JsonReportAnalysisIssue): string[] {
   const lines = [`- ${analysisIssueText(issue)}`];
   if (issue.severity !== null) {
-    // A severity-bearing issue always classifies; a null means no guidance.
     const guidance = analysisIssueGuidance(issue);
     if (guidance !== null) {
       lines.push(...findingGuidanceLines(issue.severity, guidance));
