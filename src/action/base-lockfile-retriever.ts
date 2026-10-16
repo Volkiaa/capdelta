@@ -1,5 +1,6 @@
 import { isNormalizedRelativePosixPath } from "../core/repository-path.js";
 import { NamedError } from "../core/named-error.js";
+import { isRecord } from "../core/guards.js";
 import { httpStatusOf } from "./http-error-fields.js";
 const DEFAULT_MAX_LOCKFILE_BYTES = 50 * 1024 * 1024;
 const COMMIT_ID = /^[0-9a-f]{40,64}$/iu;
@@ -241,8 +242,4 @@ function parseRawBytes(data: unknown): Uint8Array {
   throw new GitHubContentsContractError(
     "GitHub Contents API returned an invalid raw response",
   );
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

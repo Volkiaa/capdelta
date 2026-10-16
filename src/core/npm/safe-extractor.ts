@@ -9,6 +9,7 @@ import {
   type AnalysisStopKind,
 } from "../analysis-execution-policy.js";
 import { NamedError } from "../named-error.js";
+import { errorName } from "../guards.js";
 import type { VerifiedTarball } from "./fetcher.js";
 
 export type ExtractionFailureKind =
@@ -459,8 +460,4 @@ function isDecompressionRatioError(error: unknown): boolean {
 
 async function removeRoot(root: string): Promise<void> {
   await rm(root, { recursive: true, force: true, maxRetries: 2 });
-}
-
-function errorName(error: unknown): string {
-  return error instanceof Error ? error.name : typeof error;
 }

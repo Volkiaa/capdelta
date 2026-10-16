@@ -19,6 +19,7 @@ import {
 } from "../signal-extractor.js";
 import { analysisStopDetail } from "../analysis-execution-policy.js";
 import { NamedError } from "../named-error.js";
+import { errorName, isRecord } from "../guards.js";
 import { compareEvidence, compareText } from "../compare.js";
 import type { ExtractedTarball } from "./safe-extractor.js";
 import type {
@@ -533,11 +534,4 @@ function diagnostic(
   file: string,
 ): AnalysisDiagnostic {
   return { kind, detail, evidence: [{ file, line: 1, snippet: "" }] };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-function errorName(error: unknown): string {
-  return error instanceof Error ? error.name : typeof error;
 }
