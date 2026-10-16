@@ -20,6 +20,7 @@ import type {
   GitHubContentsClient,
   GitHubContentsRequest,
 } from "./action/base-lockfile-retriever.js";
+import { isRecord } from "./core/guards.js";
 
 const MAX_LOCKFILE_BYTES = 50 * 1024 * 1024;
 const MAX_ERROR_CHARACTERS = 500;
@@ -274,10 +275,6 @@ async function uploadSarif(
     ref: target.ref,
     sarif: compressed.toString("base64"),
   });
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function safeError(error: unknown): string {

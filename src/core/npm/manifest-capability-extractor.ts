@@ -22,6 +22,7 @@ import {
   type AnalysisStopKind,
 } from "../analysis-execution-policy.js";
 import { NamedError } from "../named-error.js";
+import { errorName } from "../guards.js";
 import { compareText } from "../compare.js";
 import type { ExtractedTarball } from "./safe-extractor.js";
 
@@ -659,8 +660,4 @@ function hasErrorCode(error: unknown, code: string): boolean {
     typeof (error as NodeJS.ErrnoException).code === "string" &&
     (error as NodeJS.ErrnoException).code === code
   );
-}
-
-function errorName(error: unknown): string {
-  return error instanceof Error ? error.name : typeof error;
 }

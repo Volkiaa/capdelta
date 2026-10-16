@@ -56,6 +56,7 @@ import {
 } from "./capdelta-config.js";
 import { applyUnanalyzableExceptions } from "./unanalyzable-exceptions.js";
 import { compareText } from "./compare.js";
+import { errorName } from "./guards.js";
 
 export type AnalysisSide = "old" | "new";
 
@@ -1089,10 +1090,6 @@ function callSyncWithContext<T>(context: string, operation: () => T): T {
       cause: error,
     });
   }
-}
-
-function errorName(error: unknown): string {
-  return error instanceof Error ? error.name : typeof error;
 }
 
 /** M1 compatibility aliases; new callers should use capability terminology. */

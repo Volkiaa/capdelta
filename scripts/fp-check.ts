@@ -1,6 +1,7 @@
 import { analyzeChangedPackages } from "../src/core/capability-analysis-pipeline.js";
 import type { ChangedPackage } from "../src/core/contract/lockfile-diff.js";
 import type { FindingSeverity } from "../src/core/capability-differ.js";
+import { isRecord } from "../src/core/guards.js";
 import { pathToFileURL } from "node:url";
 
 const DEFAULT_BUMPS = 3;
@@ -282,10 +283,6 @@ export function changedPackage(
 
 function emptySeverities(): Record<FindingSeverity, number> {
   return { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0, INFO: 0 };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function errorMessage(error: unknown): string {
