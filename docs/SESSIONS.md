@@ -723,3 +723,47 @@ escapes; worth considering a CI grep for control characters in source files.
   reasons down to a bare ADR number.
 - A `git apply --unidiff-zero` restore can land at the wrong line. After restoring hunks, compare each restored
   block's neighbors with main.
+
+## 2026-10-16, duplicate-code merges
+
+### 1. What landed
+
+- **Plan.** A token-window clone detector and a check of function names defined in more than one file found 11
+  clusters of duplicated code in `src/` and `scripts/`. The plan, with every copy's file and line at f5a2aa0, is outside
+  the repo, at `~/.claude/projects/-home-amsn-orca-capdelta/notes/dedupe-plan-f5a2aa0.md`.
+- **Merges (#93, #95, #97 to #104, #106).**
+  - #93 adds `NamedError`, the base for 17 error classes.
+  - #95 shares `compareText` and `compareEvidence` in `src/core/compare.ts`.
+  - #97 and #98 share `isRecord`, `errorName`, and the strict `isAbortSignal` in `src/core/guards.ts`. #98 also
+    replaces the lockfile differ's `isPlainObject`.
+  - #99 keeps one `truncate`, in `report-builder.ts`, and deletes `truncateCliMessage`.
+  - #100 shares the CLI's `decodeUtf8` from `cli-errors.ts`.
+  - #101 adds `src/core/line-index.ts` for both extractors' evidence line numbers.
+  - #102 merges the signal extractor's two grouping functions and its two IP literal loops.
+  - #103 adds `forEachInOrder` in `src/core/worker-pool.ts` for the fetcher's pool and the pipeline's two pools.
+  - #104 shares the value check for `--base` and `--config`.
+  - #106 moves the manifest extractor's signal check to the shared guard.
+- **Behavior changes.** The user approved two, both for direct library callers only. #98 makes the safe extractor and
+  the JavaScript capability extractor reject a signal-like object without `removeEventListener`. #106 does the same
+  for the manifest extractor and turns its `TypeError` on a `null` signal into its configuration error.
+- **Verification.** Before #93, twenty verify-capdelta CLI drives were recorded twice on main at 92c7100 and matched
+  byte for byte. They cover text and JSON reports, gateSeverity, exit codes 0, 1, 2, and 64, first-run mode, the
+  base-commit allowlist, `--config`, an invalid UTF-8 lockfile, and usage errors. Every PR matched that baseline, and
+  main at b909787 matches it too. Golden fixtures and reconstructions did not change. Codex reviewed every PR that
+  touched extraction, fetching, the gate, policy reading, or untrusted parsing, and approved each one.
+
+### 2. Half-done and exact resume point
+
+- Nothing is half-done. Rejected merges, with reasons, are in the plan's Appendix B. The largest is the two head
+  lockfile readers in `src/action.ts` and `src/cli/run-cli.ts`, which would change the Action's error text.
+
+### 3. ADR status
+
+- No ADR changed.
+
+### 4. Lessons
+
+- Interactive Codex in an Orca terminal stopped at a hook-trust prompt that Orca would not let the orchestrator answer.
+  Headless `codex exec -s read-only` worked for every review.
+- Running `check:action` deletes and rebuilds `dist/action/`. A reviewer that reads the worktree during that window
+  reports deleted files that are not deleted.
