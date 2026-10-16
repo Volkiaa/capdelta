@@ -307,7 +307,7 @@ describe("analyzeChangedPackages", () => {
     expect(operationalFailureCount(result)).toBe(0);
   });
 
-  it("keeps the run-level stop when cancellation lands before the fetch result is processed (ADR-018)", async () => {
+  it("supersedes the transient fetch failure with the run-level abort but still counts the package as an operational failure (ADR-018)", async () => {
     const controller = new AbortController();
     let markFetched: (() => void) | undefined;
     const fetched = new Promise<void>((resolve) => {
@@ -346,8 +346,6 @@ describe("analyzeChangedPackages", () => {
     releaseFetch?.();
     const result = await pending;
 
-    // The transient fetch failure is superseded by the run-level stop, but the
-    // stop itself is operational, so the package still counts.
     expect(result.packages[0]).toMatchObject({
       status: "unavailable",
       failures: [{ stage: "analysis", failure: { kind: "analysis-aborted" } }],
@@ -964,7 +962,7 @@ describe("analyzeChangedPackages", () => {
     });
   });
 
-  it("keeps an excepted old-side extraction failure gating when the new side is clean (amendment C.2)", async () => {
+  it("keeps an excepted old-side extraction failure gating when no new-side failure was inspected and bound (amendment C.2)", async () => {
     const oldTarball: VerifiedTarball = {
       integrity: "sha512-old",
       bytes: new Uint8Array([1]),
@@ -1031,15 +1029,13 @@ describe("analyzeChangedPackages", () => {
     expect(item.failures).toMatchObject([
       { stage: "old-extraction", failure: { kind: "invalid-archive" } },
     ]);
-    // The old-side exception cannot release the package: no new-side failure
-    // was inspected and bound.
     expect(item.exception).toBeUndefined();
     expect(evaluateSeverityGate(buildRunReport(result), "CRITICAL").fail).toBe(
       true,
     );
   });
 
-  it("extracts the new side after an old-side failure and cleans both directories", async () => {
+  it("extracts the new side after an old-manifest failure and cleans both full extraction roots", async () => {
     const cleanups: string[] = [];
     const oldTarball: VerifiedTarball = {
       integrity: "sha512-old",
@@ -1106,8 +1102,6 @@ describe("analyzeChangedPackages", () => {
       status: "unavailable",
       failures: [{ stage: "old-manifest" }],
     });
-    // Both full extraction roots were created and cleaned: the old side before
-    // its manifest failure, and the new side that the amendment now reaches.
     expect(cleanups).toEqual(
       expect.arrayContaining(["full:sha512-old", "full:sha512-new"]),
     );
@@ -1154,8 +1148,7 @@ describe("analyzeChangedPackages", () => {
   });
 });
 
-// ADR-019 decision 2
-describe("manifest-not-regular (ADR-019)", () => {
+describe("full extraction reads the nested package.json as manifest-not-regular and the manifest-only preflight reads it as manifest-missing (ADR-019 decision 2)", () => {
   async function pack(entries: Record<string, string>) {
     const work = await mkdtemp(join(tmpdir(), "capdelta-pipeline-manifest-"));
     try {
@@ -1285,10 +1278,7 @@ describe("manifest-not-regular (ADR-019)", () => {
     });
   });
 
-  it("reports the same layout on the new side as manifest-missing", async () => {
-    // The manifest-only preflight keeps only entries whose effective path is
-    // exactly package.json, so package/package.json/child.js never creates the
-    // file and the read is a miss, not a non-regular directory.
+  it("reads the nested layout as manifest-missing because the manifest-only preflight keeps only the exact package.json entry", async () => {
     const name = "manifest-dir-fixture";
     const report = await runLayout({
       name,
