@@ -2,7 +2,11 @@ import { spawn, type ChildProcessByStdio } from "node:child_process";
 import { isNormalizedRelativePosixPath } from "../core/repository-path.js";
 import { truncate } from "../core/report-builder.js";
 import type { Readable } from "node:stream";
-import { CliOperationalError, MAX_CLI_ERROR_CHARS } from "./cli-errors.js";
+import {
+  CliOperationalError,
+  decodeUtf8,
+  MAX_CLI_ERROR_CHARS,
+} from "./cli-errors.js";
 
 const LOCKFILE_NAME = "package-lock.json";
 const GIT_METADATA_OUTPUT_BYTES = 1024 * 1024;
@@ -382,14 +386,4 @@ function gitDetail(result: GitResult): string {
   return detail.length === 0
     ? `Git exited ${String(result.exitCode)}`
     : truncate(detail, MAX_CLI_ERROR_CHARS);
-}
-
-function decodeUtf8(bytes: Uint8Array, description: string): string {
-  try {
-    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-  } catch (error: unknown) {
-    throw new CliOperationalError(`${description} is not valid UTF-8`, {
-      cause: error,
-    });
-  }
 }

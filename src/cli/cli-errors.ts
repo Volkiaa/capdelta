@@ -11,6 +11,16 @@ export class CliUsageError extends CliError {}
 
 export class CliOperationalError extends CliError {}
 
+export function decodeUtf8(bytes: Uint8Array, description: string): string {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch (error: unknown) {
+    throw new CliOperationalError(`${description} is not valid UTF-8`, {
+      cause: error,
+    });
+  }
+}
+
 export function terminalSafeText(value: string): string {
   return JSON.stringify(truncate(value, MAX_CLI_ERROR_CHARS)).slice(1, -1);
 }
