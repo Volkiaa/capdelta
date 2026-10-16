@@ -1,4 +1,5 @@
 import { isNormalizedRelativePosixPath } from "../core/repository-path.js";
+import { NamedError } from "../core/named-error.js";
 import { httpStatusOf } from "./http-error-fields.js";
 const DEFAULT_MAX_LOCKFILE_BYTES = 50 * 1024 * 1024;
 const COMMIT_ID = /^[0-9a-f]{40,64}$/iu;
@@ -35,12 +36,7 @@ export type BaseLockfileResult =
   | { status: "found"; ref: string; text: string }
   | { status: "missing"; ref: string };
 
-export class GitHubContentsError extends Error {
-  constructor(message: string, options?: ErrorOptions) {
-    super(message, options);
-    this.name = new.target.name;
-  }
-}
+export class GitHubContentsError extends NamedError {}
 
 export class GitHubContentsConfigurationError extends GitHubContentsError {}
 

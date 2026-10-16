@@ -1,5 +1,6 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { analysisStopDetail } from "../analysis-execution-policy.js";
+import { NamedError } from "../named-error.js";
 import type { ChangedPackage } from "../contract/lockfile-diff.js";
 
 /** Verified, inert tarball bytes. Safe extraction is a separate M1 component. */
@@ -92,12 +93,7 @@ export interface FetcherOptions {
   sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
 }
 
-export class FetcherError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = new.target.name;
-  }
-}
+export class FetcherError extends NamedError {}
 
 /** Invalid caller configuration: continuing would make the security limits meaningless. */
 export class FetcherConfigurationError extends FetcherError {}

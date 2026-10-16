@@ -1,3 +1,5 @@
+import { NamedError } from "../named-error.js";
+
 /**
  * Errors thrown when a whole lockfile is untrustworthy and no diff can be
  * produced at all. Per-entry problems never throw — they surface as
@@ -6,14 +8,11 @@
 
 export type LockfileSide = "old" | "new";
 
-export class LockfileError extends Error {
+export class LockfileError extends NamedError {
   readonly which: LockfileSide;
 
   constructor(message: string, which: LockfileSide) {
     super(`${which} lockfile: ${message}`);
-    // new.target.name gives the concrete subclass name even when the error
-    // is constructed via super() from a subclass.
-    this.name = new.target.name;
     this.which = which;
   }
 }

@@ -8,6 +8,7 @@ import {
   analysisStopKind,
   type AnalysisStopKind,
 } from "../analysis-execution-policy.js";
+import { NamedError } from "../named-error.js";
 import type { VerifiedTarball } from "./fetcher.js";
 
 export type ExtractionFailureKind =
@@ -58,12 +59,7 @@ export interface ExtractorOptions {
   signal?: AbortSignal;
 }
 
-export class ExtractorError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = new.target.name;
-  }
-}
+export class ExtractorError extends NamedError {}
 
 /** Invalid caller configuration: the extractor cannot safely weaken its caps. */
 export class ExtractorConfigurationError extends ExtractorError {}
@@ -87,7 +83,7 @@ const MAX_META_ENTRY_BYTES = 64 * 1024;
 const ALLOWED_ENTRY_TYPES = new Set(["File", "OldFile", "Directory"]);
 
 /** A deliberate rejection caused by attacker-controlled archive contents. */
-class ArchiveRejectedError extends Error {
+class ArchiveRejectedError extends NamedError {
   constructor(
     readonly kind: Exclude<
       ExtractionFailureKind,
@@ -99,16 +95,14 @@ class ArchiveRejectedError extends Error {
     message: string,
   ) {
     super(message);
-    this.name = new.target.name;
   }
 }
 
-class ExtractionStoppedError extends Error {
+class ExtractionStoppedError extends NamedError {
   readonly kind: AnalysisStopKind;
 
   constructor(signal: AbortSignal) {
     super(analysisStopDetail(signal));
-    this.name = new.target.name;
     this.kind = analysisStopKind(signal) ?? "analysis-aborted";
   }
 }

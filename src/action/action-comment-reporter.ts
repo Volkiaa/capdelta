@@ -4,6 +4,7 @@ import type {
   JsonReportSignalFinding,
   JsonRunReport,
 } from "../core/reporter.js";
+import { NamedError } from "../core/named-error.js";
 import type { FindingSeverity } from "../core/capability-differ.js";
 import {
   analysisIssueClass,
@@ -97,12 +98,7 @@ export type CommentPublishResult =
   | { status: "updated"; commentId: number }
   | { status: "summary-only"; reason: "fork" | "token-denied" };
 
-export class ActionCommentError extends Error {
-  constructor(message: string, options?: ErrorOptions) {
-    super(message, options);
-    this.name = new.target.name;
-  }
-}
+export class ActionCommentError extends NamedError {}
 
 export class ActionCommentConfigurationError extends ActionCommentError {}
 
