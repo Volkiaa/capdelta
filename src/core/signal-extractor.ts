@@ -81,7 +81,6 @@ export function observeSignalSource(input: SignalSourceInput): {
   };
 }
 
-/** Combines per-file observations into a stable, deduplicated signal set. */
 export function buildSignalSet(
   observations: readonly ReturnType<typeof observeSignalSource>[],
 ): SignalSet {
@@ -115,7 +114,6 @@ function detectEndpoints(
     try {
       parsed = new URL(value);
     } catch {
-      // A bounded lexical candidate is not evidence of a valid endpoint.
       continue;
     }
     const rawHost = parsed.hostname

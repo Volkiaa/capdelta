@@ -112,7 +112,6 @@ export function lockfileFindingSeverity(
     case "version-downgrade":
       return "INFO";
     default: {
-      // Compile-time exhaustiveness: a new kind must be classified here.
       const unclassified: never = kind;
       throw new SeverityGateError(
         `unclassified lockfile finding kind ${JSON.stringify(unclassified)}`,
@@ -169,7 +168,6 @@ export function analysisIssueSeverity(
     case "new-cleanup":
       return null;
     default: {
-      // Compile-time exhaustiveness: a new stage must be classified here.
       const unclassified: never = classified;
       throw new SeverityGateError(
         `unclassified analysis issue stage ${JSON.stringify(unclassified)}`,
@@ -412,7 +410,6 @@ function isStopKind(
   }
 }
 
-/** Parse a threshold without silently accepting misspellings. */
 export function parseFailOn(value: string): FailOn {
   const normalized = value.trim().toUpperCase();
   if (normalized === "NONE") return "none";
@@ -432,7 +429,6 @@ export function assessRunSeverity(report: JsonRunReport): SeverityAssessment {
   };
 }
 
-/** Apply an inclusive severity threshold; callers choose the default. */
 export function evaluateSeverityGate(
   report: JsonRunReport,
   threshold: FailOn,

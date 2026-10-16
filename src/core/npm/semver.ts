@@ -9,7 +9,6 @@ const SEMVER_RE =
 
 interface ParsedSemver {
   numbers: [number, number, number];
-  /** Dot-separated prerelease identifiers; empty = release version. */
   prerelease: string[];
 }
 
@@ -63,7 +62,6 @@ export function compareSemver(a: string, b: string): -1 | 0 | 1 | null {
     }
   }
 
-  // Equal x.y.z: a prerelease ranks below the corresponding release.
   if (pa.prerelease.length === 0 && pb.prerelease.length === 0) return 0;
   if (pa.prerelease.length === 0) return 1;
   if (pb.prerelease.length === 0) return -1;

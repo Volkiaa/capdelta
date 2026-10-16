@@ -329,7 +329,6 @@ async function extract(
   throwIfStopped(options.signal);
 }
 
-/** Returns the entry's installed path, or null when strip-one drops it. */
 function validateArchiveEntry(entry: ReadEntry): string | null {
   if (!ALLOWED_ENTRY_TYPES.has(entry.type)) {
     if (entry.type === "Link" || entry.type === "SymbolicLink") {

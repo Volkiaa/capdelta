@@ -287,7 +287,6 @@ function assignField(
       target.kind = parsed as ExceptableUnanalyzableKind;
       return;
     default: {
-      // Exhaustiveness: every allowed key is handled above.
       const unhandled: never = field;
       throw new CapdeltaConfigParseError(
         `line ${String(lineNumber)}: unhandled field ${JSON.stringify(unhandled)}`,

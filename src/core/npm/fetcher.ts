@@ -341,10 +341,6 @@ async function fetchArtifact(
   }
 }
 
-/**
- * One download attempt with its own timeout controller, wired to the run's
- * abort signal. The outcome carries whether the failure is retryable.
- */
 async function fetchAttempt(
   url: string,
   expected: readonly string[],
@@ -471,7 +467,6 @@ async function fetchAttempt(
   }
 }
 
-/** A run deadline or caller cancellation stopped the artifact operation. */
 function abortedArtifact(
   url: string,
   signal: AbortSignal | undefined,
@@ -490,7 +485,6 @@ function isRetryableHttpStatus(status: number): boolean {
   return status === 408 || status === 429 || (status >= 500 && status <= 599);
 }
 
-/** Real backoff; resolves early when the run's abort signal fires. */
 function defaultSleep(ms: number, signal?: AbortSignal): Promise<void> {
   if (signal?.aborted === true) return Promise.resolve();
   return new Promise<void>((resolve) => {

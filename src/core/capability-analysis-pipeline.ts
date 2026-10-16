@@ -250,7 +250,6 @@ const DEFAULT_ADAPTERS: CapabilityAnalysisAdapters = {
 export const analyzeChangedPackages =
   createCapabilityAnalysisPipeline(DEFAULT_ADAPTERS);
 
-/** Internal construction seam used by inert orchestration tests. */
 export function createCapabilityAnalysisPipeline(
   adapters: CapabilityAnalysisAdapters,
 ): (
