@@ -1,3 +1,4 @@
+import { isAbortSignal } from "./guards.js";
 import { NamedError } from "./named-error.js";
 
 export interface AnalysisExecutionPolicy {
@@ -195,17 +196,4 @@ function numericPolicyEntries(
     ["javascript.maxSourceBytes", policy.javascript.maxSourceBytes],
     ["javascript.parseTimeoutMs", policy.javascript.parseTimeoutMs],
   ];
-}
-
-function isAbortSignal(value: unknown): value is AbortSignal {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "aborted" in value &&
-    typeof value.aborted === "boolean" &&
-    "addEventListener" in value &&
-    typeof value.addEventListener === "function" &&
-    "removeEventListener" in value &&
-    typeof value.removeEventListener === "function"
-  );
 }

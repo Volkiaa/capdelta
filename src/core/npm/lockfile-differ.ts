@@ -22,6 +22,7 @@ import {
   UnsupportedLockfileVersionError,
   type LockfileSide,
 } from "./errors.js";
+import { isRecord } from "../guards.js";
 import { compareSemver } from "./semver.js";
 
 const NPM_REGISTRY_HOST = "registry.npmjs.org";
@@ -180,11 +181,6 @@ function nameFromPath(path: string): string {
   return index === -1 ? path : path.slice(index + NODE_MODULES_SEGMENT.length);
 }
 
-/** The one definition of "a plain JSON object" used on every untrusted-input boundary in this file. */
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 /** Integrity changed while the version stayed the same: the tampered-bytes signal. An old entry with no integrity means integrity was added, not changed. */
 function integrityChangedAtSameVersion(old: Entry, entry: Entry): boolean {
   return (
@@ -230,7 +226,7 @@ function validateLockfile(
   input: unknown,
   which: LockfileSide,
 ): Record<string, unknown> {
-  if (!isPlainObject(input)) {
+  if (!isRecord(input)) {
     throw new MalformedLockfileError(which, "not a JSON object");
   }
   const version = input.lockfileVersion;
@@ -238,7 +234,7 @@ function validateLockfile(
     throw new UnsupportedLockfileVersionError(which, version);
   }
   const packages = input.packages;
-  if (!isPlainObject(packages)) {
+  if (!isRecord(packages)) {
     throw new MalformedLockfileError(
       which,
       `lockfileVersion ${String(version)} without a "packages" object`,
@@ -249,7 +245,7 @@ function validateLockfile(
 
 function parseEntry(path: string, raw: unknown): ParsedEntry {
   const fallbackName = nameFromPath(path);
-  if (!isPlainObject(raw)) {
+  if (!isRecord(raw)) {
     return { ok: false, name: fallbackName, detail: "entry is not an object" };
   }
   const record = raw;

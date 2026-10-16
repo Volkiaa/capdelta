@@ -1,5 +1,6 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { analysisStopDetail } from "../analysis-execution-policy.js";
+import { isAbortSignal } from "../guards.js";
 import { NamedError } from "../named-error.js";
 import type { ChangedPackage } from "../contract/lockfile-diff.js";
 
@@ -570,19 +571,6 @@ function isAborted(signal: AbortSignal | undefined): boolean {
 /** ADR-018: true once the run's deadline timestamp has been reached. */
 function isPastDeadline(options: ResolvedOptions): boolean {
   return options.deadlineAt !== undefined && Date.now() >= options.deadlineAt;
-}
-
-function isAbortSignal(value: unknown): value is AbortSignal {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "aborted" in value &&
-    typeof value.aborted === "boolean" &&
-    "addEventListener" in value &&
-    typeof value.addEventListener === "function" &&
-    "removeEventListener" in value &&
-    typeof value.removeEventListener === "function"
-  );
 }
 
 function assertChangedPackageInvariant(changedPackage: ChangedPackage): void {

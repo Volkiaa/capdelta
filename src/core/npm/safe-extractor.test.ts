@@ -435,6 +435,17 @@ describe("extractVerifiedTarball", () => {
     ).rejects.toBeInstanceOf(ExtractorConfigurationError);
   });
 
+  it("rejects a signal-like object without removeEventListener", async () => {
+    await expect(
+      extractVerifiedTarball(tarball([]), {
+        signal: {
+          aborted: false,
+          addEventListener: () => undefined,
+        } as unknown as AbortSignal,
+      }),
+    ).rejects.toBeInstanceOf(ExtractorConfigurationError);
+  });
+
   describe("mode normalization (ADR-019)", () => {
     async function modeBits(path: string): Promise<number> {
       return (await stat(path)).mode & 0o7777;

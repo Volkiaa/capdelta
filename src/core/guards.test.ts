@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { errorName, isRecord } from "./guards.js";
+import { errorName, isAbortSignal, isRecord } from "./guards.js";
 
 class WidgetError extends Error {
   constructor() {
@@ -23,6 +23,18 @@ describe("isRecord", () => {
 
   it("rejects a primitive", () => {
     expect(isRecord("value")).toBe(false);
+  });
+});
+
+describe("isAbortSignal", () => {
+  it("accepts a real AbortSignal", () => {
+    expect(isAbortSignal(new AbortController().signal)).toBe(true);
+  });
+
+  it("rejects an object with aborted and addEventListener but no removeEventListener", () => {
+    expect(
+      isAbortSignal({ aborted: false, addEventListener: () => undefined }),
+    ).toBe(false);
   });
 });
 
