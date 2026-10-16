@@ -27,7 +27,7 @@ expect_rc() {
   fi
 }
 
-# import_bundle and the cap function read the global $tmp.
+# Scratch directory for the test and for import_bundle's working files.
 tmp="$(mktemp -d)"
 trap 'chmod -R u+rwX "$tmp" 2>/dev/null || true; rm -rf "$tmp"' EXIT
 
@@ -58,7 +58,7 @@ expect_reject() {
   new_dest "$dest"
 
   local actual=0
-  import_bundle "$tarfile" "$dest" >/dev/null 2>&1 || actual=$?
+  import_bundle "$tarfile" "$dest" "$tmp" >/dev/null 2>&1 || actual=$?
   expect_rc 1 "$actual" "$description"
   assert_untouched "$dest" "$description"
 }
@@ -78,7 +78,7 @@ make_valid_tar "$tmp/valid.tar"
 dest="$tmp/dest-accept"
 new_dest "$dest"
 actual=0
-import_bundle "$tmp/valid.tar" "$dest" >/dev/null 2>&1 || actual=$?
+import_bundle "$tmp/valid.tar" "$dest" "$tmp" >/dev/null 2>&1 || actual=$?
 expect_rc 0 "$actual" "accepts a bundle with exactly the tracked files"
 if [[ -f "$dest/dist/action/index.js" && -f "$dest/dist/action/parser-worker/index.js" ]]; then
   pass "valid bundle was imported"
@@ -144,7 +144,7 @@ tar -cf "$tmp/mode000-ok.tar" --mode=000 -C "$stage" dist/action
 dest="$tmp/dest-mode000"
 new_dest "$dest"
 actual=0
-import_bundle "$tmp/mode000-ok.tar" "$dest" >/dev/null 2>&1 || actual=$?
+import_bundle "$tmp/mode000-ok.tar" "$dest" "$tmp" >/dev/null 2>&1 || actual=$?
 expect_rc 0 "$actual" "accepts a mode-000 directory holding only tracked files"
 
 printf 'not a tar archive\n' >"$tmp/corrupt.tar"
@@ -188,7 +188,7 @@ expect_reject "$tmp/valid.tar.gz" "rejects a gzip-compressed bundle"
 dest="$tmp/dest-extracted-cap"
 new_dest "$dest"
 actual=0
-MAX_EXTRACTED_BYTES=5000 import_bundle "$tmp/valid.tar" "$dest" >/dev/null 2>&1 || actual=$?
+MAX_EXTRACTED_BYTES=5000 import_bundle "$tmp/valid.tar" "$dest" "$tmp" >/dev/null 2>&1 || actual=$?
 expect_rc 1 "$actual" "rejects members totalling more than the extracted cap"
 assert_untouched "$dest" "rejects members totalling more than the extracted cap"
 
@@ -201,7 +201,7 @@ tar --owner='x 0 y' --group=z -cf "$tmp/spaced-owner.tar" -C "$stage" dist/actio
 dest="$tmp/dest-spaced-owner"
 new_dest "$dest"
 actual=0
-MAX_EXTRACTED_BYTES=5000 import_bundle "$tmp/spaced-owner.tar" "$dest" >/dev/null 2>&1 || actual=$?
+MAX_EXTRACTED_BYTES=5000 import_bundle "$tmp/spaced-owner.tar" "$dest" "$tmp" >/dev/null 2>&1 || actual=$?
 expect_rc 1 "$actual" "rejects an oversized member hidden behind an owner name with spaces"
 assert_untouched "$dest" "rejects an oversized member hidden behind an owner name with spaces"
 
