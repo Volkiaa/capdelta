@@ -33,3 +33,10 @@ updates:
       # and capdelta cannot parse it.
       - dependency-name: "@vercel/ncc"
         versions: ["0.45.0"]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 3
+    open-pull-requests-limit: 5
