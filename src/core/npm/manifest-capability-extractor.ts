@@ -24,6 +24,7 @@ import {
 import { NamedError } from "../named-error.js";
 import { errorName } from "../guards.js";
 import { compareText } from "../compare.js";
+import { lineIndexAt, lineStarts } from "../line-index.js";
 import type { ExtractedTarball } from "./safe-extractor.js";
 
 const MANIFEST_FILE = "package.json";
@@ -561,23 +562,11 @@ function findDuplicateProperty(node: JsonNode): PropertyNode | undefined {
 }
 
 function createSourceDocument(text: string): SourceDocument {
-  const lineStarts = [0];
-  for (let index = 0; index < text.length; index += 1) {
-    if (text[index] === "\n") lineStarts.push(index + 1);
-  }
-  return { text, lineStarts };
+  return { text, lineStarts: lineStarts(text) };
 }
 
 function evidenceAt(source: SourceDocument, offset: number): Evidence {
-  let low = 0;
-  let high = source.lineStarts.length;
-  while (low < high) {
-    const middle = Math.floor((low + high) / 2);
-    const start = source.lineStarts[middle];
-    if (start !== undefined && start <= offset) low = middle + 1;
-    else high = middle;
-  }
-  const lineIndex = Math.max(0, low - 1);
+  const lineIndex = lineIndexAt(source.lineStarts, offset);
   const lineStart = source.lineStarts[lineIndex] ?? 0;
   const nextLineStart = source.lineStarts[lineIndex + 1] ?? source.text.length;
   const lineEnd =
