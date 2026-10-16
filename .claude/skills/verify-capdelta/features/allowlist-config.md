@@ -42,5 +42,7 @@ YML
 - `husky@5.1.0` adds a HIGH `new-external-endpoint` finding (`typicode.github.io`), which the allowlist can suppress. Observed 2026-10-16.
 - The capability must be an allowlisted name such as `INSTALL_HOOK`, `NET`, or a
   signal kind like `new-external-endpoint`.
-- An absent allowlist at base means no exceptions, with a warning. An invalid one
-  at base fails the run. Neither falls back to head policy.
+- An absent allowlist at base means no exceptions. The run warns only when
+  `--config` names the file or the file differs from base; an absent default
+  `.capdelta.yml` is silent. An invalid one at base fails the run. Neither falls
+  back to head policy.

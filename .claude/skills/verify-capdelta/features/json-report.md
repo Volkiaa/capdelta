@@ -26,6 +26,9 @@ Preconditions: `bin/doctor` exits 0, and the `esbuild` scenario from
 ## Gotchas
 
 - Text output truncates evidence; use `--format json` for assertions.
-- `gateSeverity` counts only unsuppressed severity-bearing findings, so an
-  allowlist can zero it while the finding stays in the report.
-- Use `--fail-on none` when you want the JSON even though the gate would fail.
+- `gateSeverity` counts unsuppressed severity-bearing findings, lockfile
+  findings, severity-bearing analysis issues, and each unavailable package once
+  at its highest severity. An allowlist can zero a finding's count while the
+  finding stays in the report.
+- The JSON is printed even when the gate fails. `--fail-on none` changes only
+  the exit code, from 1 to 0.
