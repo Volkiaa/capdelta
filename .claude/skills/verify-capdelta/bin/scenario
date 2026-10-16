@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+set -eu
+SCRATCH_BASE="${CAPDELTA_VERIFY_TMP:-${TMPDIR:-/tmp}}"
+RUN_ID="${CAPDELTA_VERIFY_RUN_ID:-}"
+OFFLINE=0
+FIRST_RUN=0
+CONFIG_SRC=""
+CONFIG_DEST=""
+POS=()
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --offline) OFFLINE=1; shift ;;
+    --first-run) FIRST_RUN=1; shift ;;
+    --run-id) RUN_ID="${2:?--run-id requires a value}"; shift 2 ;;
+    --base-config)
+      CONFIG_SRC="${2:?--base-config requires SRC}"
+      CONFIG_DEST="${3:?--base-config requires DEST}"
+      shift 3
+      ;;
+    --*) printf 'scenario: unknown option %s\n' "$1" >&2; exit 2 ;;
+    *) POS+=("$1"); shift ;;
+  esac
+done
+if [ "${#POS[@]}" -ne 3 ]; then
+  printf 'usage: scenario [--offline] [--first-run] [--run-id ID] [--base-config SRC DEST] <pkg> <old> <new>\n' >&2
+  exit 2
+fi
+if [ "$OFFLINE" -eq 1 ] && [ "$FIRST_RUN" -eq 1 ]; then
+  printf 'scenario: --offline and --first-run cannot be combined\n' >&2
+  exit 2
+fi
+PKG="${POS[0]}"
+OLD="${POS[1]}"
+NEW="${POS[2]}"
+[ -n "$RUN_ID" ] || RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)-$$"
+RUN_ROOT="$SCRATCH_BASE/capdelta-verify-$RUN_ID"
+REPO="$RUN_ROOT/repo"
+rm -rf "$RUN_ROOT"
+mkdir -p "$REPO"
+printf 'verify-capdelta run %s\n' "$RUN_ID" > "$RUN_ROOT/.capdelta-verify-run"
+
+cd "$REPO"
+git init -q
+git config user.email "verify-capdelta@example.invalid"
+git config user.name "verify-capdelta"
+printf '{\n  "name": "capdelta-verify-scratch",\n  "version": "0.0.0",\n  "private": true\n}\n' > package.json
+if [ -n "$CONFIG_SRC" ]; then
+  mkdir -p "$(dirname "$CONFIG_DEST")"
+  cp "$CONFIG_SRC" "$CONFIG_DEST"
+fi
+
+# A private host makes the entry unanalyzable before any fetch, so the offline
+# variant needs no network.
+write_lock() {
+  printf '{"name":"capdelta-verify-scratch","version":"0.0.0","lockfileVersion":3,"requires":true,"packages":{"":{"name":"capdelta-verify-scratch","version":"0.0.0","dependencies":{"%s":"^%s"}},"node_modules/%s":{"version":"%s","resolved":"https://npm.corp.example.com/%s/-/%s-%s.tgz","integrity":"sha512-VkVSSUZBS0UkRVZFUklGWQ=="}}}\n' \
+    "$PKG" "$1" "$PKG" "$1" "$PKG" "$PKG" "$1" > package-lock.json
+}
+
+if [ "$OFFLINE" -eq 1 ]; then
+  write_lock "$OLD"
+  git add -A && git commit -qm "base: $PKG $OLD"
+  write_lock "$NEW"
+elif [ "$FIRST_RUN" -eq 1 ]; then
+  git add -A && git commit -qm "base: no lockfile"
+  npm install --package-lock-only --ignore-scripts "$PKG@$NEW" >/dev/null
+else
+  npm install --package-lock-only --ignore-scripts "$PKG@$OLD" >/dev/null
+  git add -A && git commit -qm "base: $PKG $OLD"
+  npm install --package-lock-only --ignore-scripts "$PKG@$NEW" >/dev/null
+fi
+printf '%s\n' "$REPO"
