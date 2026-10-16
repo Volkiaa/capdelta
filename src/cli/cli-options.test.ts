@@ -47,12 +47,14 @@ describe("CLI options", () => {
 
   it.each([
     { argv: ["--base"], message: "--base requires a Git revision" },
+    { argv: ["--base", ""], message: "--base requires a Git revision" },
     {
       argv: ["--base", "main", "--base", "HEAD"],
       message: "--base may only be provided once",
     },
     { argv: ["--format"], message: "--format must be text or json" },
     { argv: ["--config"], message: "--config requires a path" },
+    { argv: ["--config", ""], message: "--config requires a path" },
     {
       argv: ["--strict", "--strict"],
       message: "--strict may only be provided once",
