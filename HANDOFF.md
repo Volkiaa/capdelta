@@ -1,11 +1,11 @@
 # HANDOFF
 
 The starting point for the next capdelta session. Read this first, then CLAUDE.md. `docs/SESSIONS.md` has the full
-history, and docs/PLAN.md (rev. 3) is the spec. Last updated 2026-10-16.
+history, and docs/PLAN.md (rev. 3) is the spec. Last updated 2026-10-16 (evening).
 
 ## Where main stands
 
-main is at a234ad3 plus this PR, which makes Dependabot ignore `typescript` 7.x and `@vercel/ncc` 0.45.0 (#72 is closed: TypeScript 7 is outside typescript-eslint's peer range, so `npm ci` fails with ERESOLVE). #74 adds `scripts/package-action-sandboxed.sh`, #73 bumps fast-check to 4.10.2, #70 makes CI install with `npm ci --ignore-scripts`, #71 groups every package that changes `dist/action/` into one weekly Dependabot PR (`action-bundle`), and #64 (ncc 0.45.0) is closed. Finding guidance (#52-#55) and ADR-019
+main is at 1c36600 plus this PR. The comment audit (#78 to #91) is finished: about 450 lines of redundant comments are gone, and eight refactors replaced the comments that explained surprising code. `toStageKindPair` now checks the report's `(stage, kind)` pairs at runtime instead of casting them (#88), and ADR-021 records the sandboxed rebuild's threat model (#90). Before that, main was at a234ad3 plus #75, which makes Dependabot ignore `typescript` 7.x and `@vercel/ncc` 0.45.0 (#72 is closed: TypeScript 7 is outside typescript-eslint's peer range, so `npm ci` fails with ERESOLVE). #74 adds `scripts/package-action-sandboxed.sh`, #73 bumps fast-check to 4.10.2, #70 makes CI install with `npm ci --ignore-scripts`, #71 groups every package that changes `dist/action/` into one weekly Dependabot PR (`action-bundle`), and #64 (ncc 0.45.0) is closed. Finding guidance (#52-#55) and ADR-019
 (#56-#58) are merged. The README restructure (#60) moved the reference material to `docs/cli.md`,
 `docs/github-action.md`, `docs/resource-limits.md`, `docs/api.md` and `docs/development.md`. ADR-020 (#61) makes the
 Action post the comment and SARIF on Dependabot PRs. #62 pins the dogfood workflow to it and adds a 3-day Dependabot
@@ -42,6 +42,8 @@ cooldown, and Dependabot bumps #63, #65, #66 and #67 are merged. Every way a cha
 
 ## Open questions for the user
 
+- `scripts/m5-measure.ts` cites `docs/m5-measurement-2026-10-12.md`, which does not exist. The measurement lives in
+  `docs/m5-2026-10-12/`. Fix the reference when M5 is published.
 - Should the PR comment's guidance follow only the rows shown after the row cap? Today it covers every CRITICAL/HIGH
   class.
 - Should lockfile findings (`integrity-changed-version-same`, HIGH) get guidance?
