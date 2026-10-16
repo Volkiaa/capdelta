@@ -383,4 +383,31 @@ describe("extractNpmManifestCapabilities", () => {
       ).rejects.toBeInstanceOf(ManifestCapabilityExtractorConfigurationError);
     });
   });
+
+  it("rejects a null signal with the configuration error", async () => {
+    await withManifest("{}", async (root) => {
+      const result = extractNpmManifestCapabilities({ root }, SUBJECT, {
+        signal: null as unknown as AbortSignal,
+      });
+      await expect(result).rejects.toBeInstanceOf(
+        ManifestCapabilityExtractorConfigurationError,
+      );
+      await expect(result).rejects.toThrow("signal must implement AbortSignal");
+    });
+  });
+
+  it("rejects a signal-like object without removeEventListener with the configuration error", async () => {
+    await withManifest("{}", async (root) => {
+      const result = extractNpmManifestCapabilities({ root }, SUBJECT, {
+        signal: {
+          aborted: false,
+          addEventListener: () => undefined,
+        } as unknown as AbortSignal,
+      });
+      await expect(result).rejects.toBeInstanceOf(
+        ManifestCapabilityExtractorConfigurationError,
+      );
+      await expect(result).rejects.toThrow("signal must implement AbortSignal");
+    });
+  });
 });
