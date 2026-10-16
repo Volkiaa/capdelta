@@ -1,3 +1,5 @@
+import { NamedError } from "./named-error.js";
+
 export interface AnalysisExecutionPolicy {
   /** PLAN §2 approximate whole-run wall-clock budget. */
   deadlineMs?: number;
@@ -54,12 +56,7 @@ export interface AnalysisRunControl {
   dispose(): void;
 }
 
-export class AnalysisExecutionPolicyError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = new.target.name;
-  }
-}
+export class AnalysisExecutionPolicyError extends NamedError {}
 
 export class AnalysisExecutionPolicyConfigurationError extends AnalysisExecutionPolicyError {}
 

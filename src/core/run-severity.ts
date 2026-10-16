@@ -13,6 +13,7 @@ import type {
   JsonRunReport,
   SeverityCounts,
 } from "./report-contract.js";
+import { NamedError } from "./named-error.js";
 
 /**
  * Run-level severity policy shared by every consumer (CLI, Action, reporters).
@@ -89,12 +90,7 @@ export const FETCH_STAGE_CRITICAL_KINDS: readonly FetchFailureKind[] = [
   "invalid-response",
 ];
 
-export class SeverityGateError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = new.target.name;
-  }
-}
+export class SeverityGateError extends NamedError {}
 
 export class SeverityGateConfigurationError extends SeverityGateError {}
 

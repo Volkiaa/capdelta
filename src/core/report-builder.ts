@@ -30,6 +30,7 @@ import {
   lockfileFindingSeverity,
   SEVERITIES,
 } from "./run-severity.js";
+import { NamedError } from "./named-error.js";
 import { createHash } from "node:crypto";
 
 /** Attacker-controlled text bounds shared by every report format (PLAN §3). */
@@ -38,12 +39,7 @@ export const MAX_VALUE_CHARS = 240;
 const MAX_EVIDENCE_FILE_CHARS = 200;
 const MAX_EVIDENCE_SNIPPET_CHARS = 240;
 
-export class ReporterError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = new.target.name;
-  }
-}
+export class ReporterError extends NamedError {}
 
 /** The Differ result violates the Reporter contract. */
 export class ReporterContractError extends ReporterError {}

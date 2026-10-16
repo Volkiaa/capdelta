@@ -1,13 +1,10 @@
+import { NamedError } from "../core/named-error.js";
+
 const MAX_ERROR_CHAIN_LENGTH = 3;
 
 export const MAX_CLI_ERROR_CHARS = 500;
 
-export class CliError extends Error {
-  constructor(message: string, options?: ErrorOptions) {
-    super(message, options);
-    this.name = new.target.name;
-  }
-}
+export class CliError extends NamedError {}
 
 export class CliUsageError extends CliError {}
 

@@ -3,6 +3,7 @@ import {
   hasUnanalyzedContent,
   type CapabilityAnalysisRun,
 } from "../core/capability-analysis-pipeline.js";
+import { NamedError } from "../core/named-error.js";
 import { diffNpmLockfiles } from "../core/npm/lockfile-differ.js";
 import { isNormalizedRelativePosixPath } from "../core/repository-path.js";
 import {
@@ -99,12 +100,7 @@ export type ActionOutcome =
       operationalFailureCount: number;
     };
 
-export class ActionRunnerError extends Error {
-  constructor(message: string, options?: ErrorOptions) {
-    super(message, options);
-    this.name = new.target.name;
-  }
-}
+export class ActionRunnerError extends NamedError {}
 
 export class ActionRunnerConfigurationError extends ActionRunnerError {}
 

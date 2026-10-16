@@ -8,18 +8,14 @@ import type {
   UnanalyzableExceptionEntry,
 } from "./capdelta-config.js";
 import { analysisIssueSeverity } from "./run-severity.js";
+import { NamedError } from "./named-error.js";
 
 /** A reviewed exception matched to an unavailable package (ADR-017 §2). */
 export interface UnanalyzableException {
   reason: string;
 }
 
-export class UnanalyzableExceptionError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = new.target.name;
-  }
-}
+export class UnanalyzableExceptionError extends NamedError {}
 
 /**
  * ADR-017 §2 as amended: mark an unavailable package as reviewed only when

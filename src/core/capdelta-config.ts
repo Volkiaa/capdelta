@@ -8,6 +8,7 @@ import {
   FETCH_STAGE_CRITICAL_KINDS,
   type ExceptableUnanalyzableKind,
 } from "./run-severity.js";
+import { NamedError } from "./named-error.js";
 
 /** A reviewed exception to the default severity gate (PLAN §4.4). */
 export interface CapabilityAllowlistEntry {
@@ -69,12 +70,7 @@ export const ALLOWLISTED_CAPABILITIES: readonly AllowlistedCapability[] = [
   "obfuscation-pattern-added",
 ];
 
-export class CapdeltaConfigError extends Error {
-  constructor(message: string, options?: ErrorOptions) {
-    super(message, options);
-    this.name = new.target.name;
-  }
-}
+export class CapdeltaConfigError extends NamedError {}
 
 export class CapdeltaConfigParseError extends CapdeltaConfigError {}
 export class CapdeltaConfigContractError extends CapdeltaConfigError {}

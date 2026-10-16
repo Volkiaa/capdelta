@@ -12,6 +12,7 @@ import {
 } from "./contract/capability-set.js";
 import { emptySignalSet } from "./signal-extractor.js";
 import { diffSignals, type SignalFinding } from "./signal-differ.js";
+import { NamedError } from "./named-error.js";
 
 type ManifestCapability =
   | InstallHookCapability
@@ -72,12 +73,7 @@ export interface CapabilityDiffResult {
   diagnostics: readonly CapabilityDiffDiagnostic[];
 }
 
-export class CapabilityDifferError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = new.target.name;
-  }
-}
+export class CapabilityDifferError extends NamedError {}
 
 /** The producer violated the ecosystem-agnostic capability-set contract. */
 export class CapabilityDifferContractError extends CapabilityDifferError {}

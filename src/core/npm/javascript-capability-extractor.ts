@@ -18,6 +18,7 @@ import {
   type SignalSourceInput,
 } from "../signal-extractor.js";
 import { analysisStopDetail } from "../analysis-execution-policy.js";
+import { NamedError } from "../named-error.js";
 import type { ExtractedTarball } from "./safe-extractor.js";
 import type {
   ParserRequest,
@@ -64,12 +65,7 @@ export function mergeJavaScriptCapabilityLayer(
   };
 }
 
-export class JavaScriptCapabilityExtractorError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = new.target.name;
-  }
-}
+export class JavaScriptCapabilityExtractorError extends NamedError {}
 
 export class JavaScriptCapabilityExtractorConfigurationError extends JavaScriptCapabilityExtractorError {}
 export class JavaScriptCapabilityExtractorContractError extends JavaScriptCapabilityExtractorError {}

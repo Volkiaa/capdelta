@@ -21,6 +21,7 @@ import {
   analysisStopKind,
   type AnalysisStopKind,
 } from "../analysis-execution-policy.js";
+import { NamedError } from "../named-error.js";
 import type { ExtractedTarball } from "./safe-extractor.js";
 
 const MANIFEST_FILE = "package.json";
@@ -69,12 +70,7 @@ export interface ManifestCapabilityExtractorOptions {
   signal?: AbortSignal;
 }
 
-export class ManifestCapabilityExtractorError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = new.target.name;
-  }
-}
+export class ManifestCapabilityExtractorError extends NamedError {}
 
 /** Caller supplied an option that cannot enforce a meaningful cap. */
 export class ManifestCapabilityExtractorConfigurationError extends ManifestCapabilityExtractorError {}
