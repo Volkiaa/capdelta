@@ -1,11 +1,8 @@
 import { spawn, type ChildProcessByStdio } from "node:child_process";
 import { isNormalizedRelativePosixPath } from "../core/repository-path.js";
+import { truncate } from "../core/report-builder.js";
 import type { Readable } from "node:stream";
-import {
-  CliOperationalError,
-  MAX_CLI_ERROR_CHARS,
-  truncateCliMessage,
-} from "./cli-errors.js";
+import { CliOperationalError, MAX_CLI_ERROR_CHARS } from "./cli-errors.js";
 
 const LOCKFILE_NAME = "package-lock.json";
 const GIT_METADATA_OUTPUT_BYTES = 1024 * 1024;
@@ -384,7 +381,7 @@ function gitDetail(result: GitResult): string {
   const detail = decodeUtf8(result.stderr, "Git error output").trim();
   return detail.length === 0
     ? `Git exited ${String(result.exitCode)}`
-    : truncateCliMessage(detail, MAX_CLI_ERROR_CHARS);
+    : truncate(detail, MAX_CLI_ERROR_CHARS);
 }
 
 function decodeUtf8(bytes: Uint8Array, description: string): string {

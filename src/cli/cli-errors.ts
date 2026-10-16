@@ -1,4 +1,5 @@
 import { NamedError } from "../core/named-error.js";
+import { truncate } from "../core/report-builder.js";
 
 const MAX_ERROR_CHAIN_LENGTH = 3;
 
@@ -11,7 +12,7 @@ export class CliUsageError extends CliError {}
 export class CliOperationalError extends CliError {}
 
 export function terminalSafeText(value: string): string {
-  return JSON.stringify(truncateCliMessage(value)).slice(1, -1);
+  return JSON.stringify(truncate(value, MAX_CLI_ERROR_CHARS)).slice(1, -1);
 }
 
 export function terminalSafeError(error: unknown): string {
@@ -29,17 +30,8 @@ export function terminalSafeError(error: unknown): string {
     current = current.cause;
   }
   const message = messages.join("; ");
-  const escaped = JSON.stringify(truncateCliMessage(message));
+  const escaped = JSON.stringify(truncate(message, MAX_CLI_ERROR_CHARS));
   return escaped.slice(1, -1);
-}
-
-export function truncateCliMessage(
-  value: string,
-  maxCharacters = MAX_CLI_ERROR_CHARS,
-): string {
-  const characters = Array.from(value);
-  if (characters.length <= maxCharacters) return value;
-  return `${characters.slice(0, maxCharacters - 1).join("")}…`;
 }
 
 function errorSummary(error: unknown): string {
