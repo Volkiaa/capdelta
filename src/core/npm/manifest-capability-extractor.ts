@@ -22,6 +22,7 @@ import {
   type AnalysisStopKind,
 } from "../analysis-execution-policy.js";
 import { NamedError } from "../named-error.js";
+import { compareText } from "../compare.js";
 import type { ExtractedTarball } from "./safe-extractor.js";
 
 const MANIFEST_FILE = "package.json";
@@ -641,12 +642,6 @@ function compareDiagnostics(
     JSON.stringify([left.kind, left.detail]),
     JSON.stringify([right.kind, right.detail]),
   );
-}
-
-function compareText(left: string, right: string): number {
-  if (left < right) return -1;
-  if (left > right) return 1;
-  return 0;
 }
 
 function unscopedName(packageName: string): string {

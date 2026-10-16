@@ -22,6 +22,7 @@ import {
   type Guidance,
 } from "./finding-guidance.js";
 import { isNormalizedRelativePosixPath } from "./repository-path.js";
+import { compareText } from "./compare.js";
 import { isUnanalyzableIssue, analysisIssueSeverity } from "./run-severity.js";
 
 export const SARIF_VERSION = "2.1.0" as const;
@@ -420,8 +421,4 @@ function shapeSuppression(reasons: readonly (string | undefined)[]): {
 
 function suppressionText(reason: string | undefined): string {
   return reason === undefined ? "" : ` Suppressed (${reason})`;
-}
-
-function compareText(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
 }

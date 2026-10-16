@@ -5,6 +5,7 @@ import type {
   JsonRunReport,
 } from "../core/reporter.js";
 import { NamedError } from "../core/named-error.js";
+import { compareText } from "../core/compare.js";
 import type { FindingSeverity } from "../core/capability-differ.js";
 import {
   analysisIssueClass,
@@ -631,12 +632,6 @@ function truncate(value: string, maxCharacters: number): string {
   if (characters.length <= maxCharacters) return value;
   if (maxCharacters === 0) return "";
   return `${characters.slice(0, Math.max(0, maxCharacters - 1)).join("")}…`;
-}
-
-function compareText(left: string, right: string): number {
-  if (left < right) return -1;
-  if (left > right) return 1;
-  return 0;
 }
 
 function validateDelivery(delivery: CommentDelivery): void {

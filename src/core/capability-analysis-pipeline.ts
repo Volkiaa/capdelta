@@ -55,6 +55,7 @@ import {
   type CapdeltaConfig,
 } from "./capdelta-config.js";
 import { applyUnanalyzableExceptions } from "./unanalyzable-exceptions.js";
+import { compareText } from "./compare.js";
 
 export type AnalysisSide = "old" | "new";
 
@@ -724,10 +725,6 @@ function preflightStopped(
     changedPackage,
     failures: stopped.failures,
   };
-}
-
-function compareText(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
 }
 
 function prioritizePreflightPackages(

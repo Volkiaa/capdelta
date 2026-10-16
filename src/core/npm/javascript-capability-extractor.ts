@@ -19,6 +19,7 @@ import {
 } from "../signal-extractor.js";
 import { analysisStopDetail } from "../analysis-execution-policy.js";
 import { NamedError } from "../named-error.js";
+import { compareEvidence, compareText } from "../compare.js";
 import type { ExtractedTarball } from "./safe-extractor.js";
 import type {
   ParserRequest,
@@ -534,16 +535,6 @@ function diagnostic(
   return { kind, detail, evidence: [{ file, line: 1, snippet: "" }] };
 }
 
-function compareEvidence(left: Evidence, right: Evidence): number {
-  return compareText(
-    JSON.stringify([left.file, left.line, left.snippet]),
-    JSON.stringify([right.file, right.line, right.snippet]),
-  );
-}
-
-function compareText(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
-}
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
