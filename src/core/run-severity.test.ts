@@ -260,6 +260,18 @@ describe("run severity classification", () => {
     ).toThrow(SeverityGateError);
   });
 
+  it.each(["unknown", "__proto__", "constructor", "toString"])(
+    "throws SeverityGateError for the stage %j",
+    (stage) => {
+      expect(() =>
+        toStageKindPair({
+          stage: stage as JsonReportAnalysisIssue["stage"],
+          kind: "timeout",
+        }),
+      ).toThrow(SeverityGateError);
+    },
+  );
+
   // ADR-017 amendment A
   it("derives EXCEPTABLE_UNANALYZABLE_KINDS from the extraction and manifest stages", () => {
     const derived = new Set<string>();

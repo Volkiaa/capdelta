@@ -232,6 +232,7 @@ const STAGE_KINDS = {
 function isStageKindPair(
   issue: Pick<JsonReportAnalysisIssue, "stage" | "kind">,
 ): issue is AnalysisIssueClassification {
+  if (!Object.hasOwn(STAGE_KINDS, issue.stage)) return false;
   const kinds: readonly string[] = STAGE_KINDS[issue.stage];
   return kinds.some((kind) => kind === issue.kind);
 }
