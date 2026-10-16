@@ -1,9 +1,6 @@
 import type { Evidence } from "./contract/capability-set.js";
 
-/**
- * Orders by UTF-16 code unit, matching the default Array.prototype.sort so a
- * sort with this comparator is stable across every string.
- */
+// UTF-16 code-unit order, as in the default Array.prototype.sort, never locale order.
 export function compareText(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
 }
