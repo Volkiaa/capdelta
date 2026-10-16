@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -eu
+SCRATCH_BASE="${CAPDELTA_VERIFY_TMP:-${TMPDIR:-/tmp}}"
+EVIDENCE_BASE="${CAPDELTA_VERIFY_EVIDENCE:-$HOME/.local/state/capdelta-verify}"
+RUN_ID="${CAPDELTA_VERIFY_RUN_ID:-}"
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --run-id) RUN_ID="${2:?--run-id requires a value}"; shift 2 ;;
+    *) printf 'usage: cleanup [--run-id ID]\n' >&2; exit 2 ;;
+  esac
+done
+removed=0
+for root in "$SCRATCH_BASE"/capdelta-verify-*; do
+  [ -e "$root" ] || continue
+  # Only remove dirs this skill created, marked at creation time.
+  [ -f "$root/.capdelta-verify-run" ] || continue
+  if [ -n "$RUN_ID" ] && [ "$root" != "$SCRATCH_BASE/capdelta-verify-$RUN_ID" ]; then
+    continue
+  fi
+  rm -rf "$root"
+  printf 'cleanup: removed %s\n' "$root"
+  removed=$((removed + 1))
+done
+printf 'cleanup: removed %s scratch run(s); evidence kept at %s\n' "$removed" "$EVIDENCE_BASE"

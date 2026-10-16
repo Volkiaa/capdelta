@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+set -eu
+BIN="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(cd "$BIN/../../../.." && pwd)"
+EVIDENCE_BASE="${CAPDELTA_VERIFY_EVIDENCE:-$HOME/.local/state/capdelta-verify}"
+RUN_ID="${CAPDELTA_VERIFY_RUN_ID:-}"
+REPO=""
+NAME=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --repo) REPO="${2:?--repo requires a value}"; shift 2 ;;
+    --name) NAME="${2:?--name requires a value}"; shift 2 ;;
+    --run-id) RUN_ID="${2:?--run-id requires a value}"; shift 2 ;;
+    --) shift; break ;;
+    *) printf 'drive: unexpected argument %s (put CLI flags after --)\n' "$1" >&2; exit 2 ;;
+  esac
+done
+if [ -z "$REPO" ] || [ -z "$NAME" ]; then
+  printf 'usage: drive --repo <path> --name <label> [--run-id ID] -- <cli args>\n' >&2
+  exit 2
+fi
+if [ ! -d "$REPO/.git" ]; then
+  printf 'drive: %s is not a git repo\n' "$REPO" >&2
+  exit 2
+fi
+if [ -z "$RUN_ID" ]; then
+  RUN_ID="${REPO%/repo}"
+  RUN_ID="${RUN_ID##*capdelta-verify-}"
+fi
+OUT_DIR="$EVIDENCE_BASE/$RUN_ID"
+mkdir -p "$OUT_DIR"
+{
+  printf 'cd %s && node %s' "$REPO" "$ROOT/dist/cli.js"
+  printf ' %q' "$@"
+  printf '\n'
+} > "$OUT_DIR/$NAME.cmd"
+set +e
+(cd "$REPO" && node "$ROOT/dist/cli.js" "$@") > "$OUT_DIR/$NAME.out" 2> "$OUT_DIR/$NAME.err"
+code=$?
+set -e
+printf '%s\n' "$code" > "$OUT_DIR/$NAME.exit"
+printf 'drive: cli exit %s; evidence %s\n' "$code" "$OUT_DIR" >&2
+printf '%s\n' "$OUT_DIR"
+exit "$code"
