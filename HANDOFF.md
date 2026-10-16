@@ -1,11 +1,11 @@
 # HANDOFF
 
 The starting point for the next capdelta session. Read this first, then CLAUDE.md. `docs/SESSIONS.md` has the full
-history, and docs/PLAN.md (rev. 3) is the spec. Last updated 2026-10-14 (second session).
+history, and docs/PLAN.md (rev. 3) is the spec. Last updated 2026-10-16.
 
 ## Where main stands
 
-main is at cb5b882 plus this PR (`scripts/package-action-sandboxed.sh`). #70 makes CI install with `npm ci --ignore-scripts`, #71 groups every package that changes `dist/action/` into one weekly Dependabot PR (`action-bundle`), and #64 (ncc 0.45.0) is closed. Finding guidance (#52-#55) and ADR-019
+main is at a234ad3 plus this PR, which makes Dependabot ignore `typescript` 7.x and `@vercel/ncc` 0.45.0 (#72 is closed: TypeScript 7 is outside typescript-eslint's peer range, so `npm ci` fails with ERESOLVE). #74 adds `scripts/package-action-sandboxed.sh`, #73 bumps fast-check to 4.10.2, #70 makes CI install with `npm ci --ignore-scripts`, #71 groups every package that changes `dist/action/` into one weekly Dependabot PR (`action-bundle`), and #64 (ncc 0.45.0) is closed. Finding guidance (#52-#55) and ADR-019
 (#56-#58) are merged. The README restructure (#60) moved the reference material to `docs/cli.md`,
 `docs/github-action.md`, `docs/resource-limits.md`, `docs/api.md` and `docs/development.md`. ADR-020 (#61) makes the
 Action post the comment and SARIF on Dependabot PRs. #62 pins the dogfood workflow to it and adds a 3-day Dependabot
@@ -32,7 +32,9 @@ cooldown, and Dependabot bumps #63, #65, #66 and #67 are merged. Every way a cha
    "Updating bundled dependencies" in `docs/development.md`: run `scripts/package-action-sandboxed.sh` from a clean
    checkout of the Dependabot branch, review the `dist/action/` diff, commit, push without force. Never run `npm ci` or
    the verification on the host for such a branch. The rule behind it: no job or machine that holds credentials runs
-   updated dependency code. The script only accepts a bundle whose files exactly match `git ls-files dist/action`.
+   updated dependency code. The script only accepts a bundle whose files exactly match `git ls-files dist/action`. If
+   the script fails in `npm ci`, the bump itself is broken. Ignore the version in `.github/dependabot.yml` as with #72.
+   Remove the `typescript` ignore once typescript-eslint accepts TypeScript 7.
 2. **M5 publication.** Note that M5's `gateFail` is severity-only and does not count operational exit 1
    (`scripts/m5-measure.ts:110`). Never edit `docs/m5-2026-10-12/`.
 3. **Noise reduction on a new held-out corpus.**
@@ -74,7 +76,7 @@ cooldown, and Dependabot bumps #63, #65, #66 and #67 are merged. Every way a cha
 
 ## Housekeeping
 
-- Open: the `sandboxed-rebuild` PR and its worktree, and the `codex-review-sandbox` worktree. Remove both worktrees after the merge.
+- No open PRs or worker worktrees as of 2026-10-16.
 - Codex cannot review this script: OpenAI's cyber filter blocked it twice. A Sonnet subagent reviewed it in four passes and found four real defects (bare-repo layout, ignored tar exits, gzip bomb, owner-name size spoofing). Use Sonnet as the fallback when Codex is blocked.
 - `npm ci` reports 2 high-severity advisories in dev dependencies; not yet looked at.
 - Check spend with `npx --no-install codeburn models -p today`, run from a scratch directory.

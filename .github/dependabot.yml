@@ -23,3 +23,13 @@ updates:
           - "jsonc-parser"
           - "tar"
           - "typescript"
+    ignore:
+      # typescript-eslint 8.71.1 accepts typescript >=4.8.4 <6.1.0, so npm ci
+      # fails with ERESOLVE on 7.x (#72). Remove once typescript-eslint
+      # supports TypeScript 7.
+      - dependency-name: "typescript"
+        versions: [">= 7.0.0"]
+      # Declined in #64: the V8 code cache dist/ncc/index.js.cache.js changed,
+      # and capdelta cannot parse it.
+      - dependency-name: "@vercel/ncc"
+        versions: ["0.45.0"]
