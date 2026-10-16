@@ -1,6 +1,6 @@
 # ADR-022: Release the Action from CI only, behind an approval, with signed provenance
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-16
 - **Plan reference:** PLAN §10 ("Own supply chain: pinned lockfile, npm provenance attestations on release, releases from CI only")
 
