@@ -14,11 +14,14 @@ commit you pin:
 git clone https://github.com/Volkiaa/capdelta && cd capdelta
 git checkout <the SHA you pin>
 gh attestation verify dist/action/index.js -R Volkiaa/capdelta
+gh attestation verify dist/action/javascript-parser-worker.js -R Volkiaa/capdelta
 ```
 
-A pass means GitHub Actions built and attested that exact file in this
-repository's `release.yml` workflow from a `v*` tag. A failure means the file
-did not come from a capdelta release. Do not use it.
+The Action bundle is two executable files, and both are attested. `index.js`
+starts `javascript-parser-worker.js` as a worker thread, so verify both. A pass
+means GitHub Actions built and attested that exact file in this repository's
+`release.yml` workflow from a `v*` tag. A failure means the file did not come
+from a capdelta release. Do not use it.
 
 ## Controls
 

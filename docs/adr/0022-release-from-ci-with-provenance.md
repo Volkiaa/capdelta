@@ -69,3 +69,25 @@ supply-chain attack, so its own releases must be verifiable.
   it lives outside this repository.
 - Revisit this ADR if capdelta is published to npm (point 8) or gains a second
   maintainer, who should become a required reviewer instead of the author.
+
+## Amendment A (2026-10-17)
+
+A security review of `release.yml` found two defects in the release as written
+above. Decisions 4 and 6 stand as written; this section records what changed.
+
+1. **Both bundle files are attested.** `dist/action/index.js` starts
+   `dist/action/javascript-parser-worker.js` as a worker thread, but decision 4
+   attested only `index.js`. A replaced worker would still pass
+   `gh attestation verify`. Both `actions/attest-build-provenance` and
+   `actions/attest-sbom` now list both files in `subject-path`. The files are
+   listed explicitly rather than by glob, so `dist/action/package.json` is not
+   a subject. Decision 6's verification instruction now runs
+   `gh attestation verify` for each of the two files, as documented in
+   `docs/security-pipeline.md`.
+2. **The SBOM lists the bundled @actions packages.** `npm sbom --omit dev`
+   dropped `@actions/artifact`, `@actions/core` and `@actions/github` because
+   `package.json` declared them as devDependencies, yet ncc bundles them into
+   `dist/action/index.js`. They are runtime dependencies for that reason and
+   now sit in `dependencies`, which takes the direct runtime count from 4 to 7
+   of the PLAN §10 budget of fewer than 10. The `--omit dev` flag stays in
+   `release.yml`.
