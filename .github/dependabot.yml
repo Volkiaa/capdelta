@@ -4,10 +4,10 @@ updates:
     directory: /
     schedule:
       interval: weekly
-    # Propose a version only after it has been public for 3 days, which gives
+    # Propose a version only after it has been public for 7 days, which gives
     # the registry time to pull a compromised release before it reaches a PR.
     cooldown:
-      default-days: 3
+      default-days: 7
     open-pull-requests-limit: 5
     # Every package whose bump changes dist/action/ comes in one PR, so the
     # bundle is rebuilt and reviewed by hand at most once per week. That is
@@ -33,3 +33,10 @@ updates:
       # and capdelta cannot parse it.
       - dependency-name: "@vercel/ncc"
         versions: ["0.45.0"]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
