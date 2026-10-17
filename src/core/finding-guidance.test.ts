@@ -4,6 +4,7 @@ import {
   ANALYSIS_ISSUE_CLASSES,
   ANALYSIS_ISSUE_GUIDANCE,
   CAPABILITY_GUIDANCE,
+  LOCKFILE_GUIDANCE,
   SHAPE_GUIDANCE,
   SHAPE_RULE_IDS,
   SIGNAL_GUIDANCE,
@@ -11,12 +12,14 @@ import {
   analysisIssueGuidance,
   capabilityGuidance,
   guidanceWarranted,
+  lockfileGuidance,
   shapeGuidance,
   signalGuidance,
   type AnalysisIssueClass,
   type CapabilityGuidanceKind,
   type Guidance,
 } from "./finding-guidance.js";
+import type { LockfileFindingKind } from "./contract/lockfile-diff.js";
 import type {
   JsonReportAnalysisIssue,
   ReportAnalysisIssueKind,
@@ -27,6 +30,7 @@ import {
   analysisIssueSeverity,
   isOperationalFailure,
   isUnanalyzableIssue,
+  lockfileFindingSeverity,
   toStageKindPair,
 } from "./run-severity.js";
 import type { SignalFindingKind } from "./signal-differ.js";
@@ -145,6 +149,18 @@ describe("finding guidance", () => {
     );
     for (const issueClass of ANALYSIS_ISSUE_CLASSES) {
       expectGuidance(ANALYSIS_ISSUE_GUIDANCE[issueClass]);
+    }
+  });
+
+  it("covers every lockfile finding kind with guidance", () => {
+    const kinds: readonly LockfileFindingKind[] = [
+      "integrity-changed-version-same",
+      "version-downgrade",
+    ];
+    expect(Object.keys(LOCKFILE_GUIDANCE).sort()).toEqual([...kinds].sort());
+    for (const kind of kinds) {
+      expectGuidance(lockfileGuidance(kind));
+      expect(() => lockfileFindingSeverity(kind)).not.toThrow();
     }
   });
 
@@ -279,6 +295,7 @@ describe("finding guidance", () => {
       ...Object.values(SHAPE_GUIDANCE),
       ...Object.values(CAPABILITY_GUIDANCE),
       ...Object.values(SIGNAL_GUIDANCE),
+      ...Object.values(LOCKFILE_GUIDANCE),
       ...Object.values(ANALYSIS_ISSUE_GUIDANCE),
     ].flatMap((guidance) => [guidance.whyItMatters, guidance.whatToCheck]);
     expect(strings.length).toBeGreaterThan(0);

@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { describe, expect, it, vi } from "vitest";
 import type { JsonRunReport } from "../core/reporter.js";
 import {
@@ -90,6 +91,43 @@ function adversarialReport(firstRun = false): JsonRunReport {
     ],
     lockfileFindings: [],
     skipped: [],
+  };
+}
+
+function lockfileReport(
+  findings: readonly JsonRunReport["lockfileFindings"][number][],
+): JsonRunReport {
+  const base = adversarialReport();
+  const counts = { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0, INFO: 0 };
+  for (const finding of findings) counts[finding.severity] += 1;
+  return {
+    ...base,
+    summary: {
+      ...base.summary,
+      changedPackages: 0,
+      analyzedPackages: 0,
+      capabilityFindings: 0,
+      analysisIssues: 0,
+      lockfileFindings: findings.length,
+      bySeverity: counts,
+      gateSeverity: counts,
+    },
+    packages: [],
+    lockfileFindings: [...findings],
+  };
+}
+
+function lockfileFinding(
+  overrides: Partial<JsonRunReport["lockfileFindings"][number]> = {},
+): JsonRunReport["lockfileFindings"][number] {
+  return {
+    kind: "integrity-changed-version-same",
+    name: "golden-integrity",
+    path: "node_modules/golden-integrity",
+    oldVersion: "1.0.0",
+    newVersion: "1.0.0",
+    severity: "HIGH",
+    ...overrides,
   };
 }
 
@@ -569,6 +607,73 @@ describe("renderActionComment", () => {
     expect(body).toContain("| CRITICAL |");
     expect(body).toContain("postinstall");
     expect(body).not.toContain("| INFO |");
+  });
+
+  it("renders a lockfile finding row with every lockfile string escaped", () => {
+    const payloadName = "evil|name<x>](http://x)";
+    const report = lockfileReport([
+      lockfileFinding({ name: payloadName, path: "node_modules/evil" }),
+    ]);
+
+    const body = renderActionComment(report);
+
+    expect(body).toContain("### Findings to review");
+    expect(body).toContain("&#124;"); // escaped pipe from the package name
+    expect(body).toContain("&#60;x&#62;");
+    expect(body).toContain("integrity&#45;changed&#45;version&#45;same");
+    expect(body).toContain(
+      "node&#95;modules&#47;evil&#58; 1&#46;0&#46;0 &#45;&#62; 1&#46;0&#46;0",
+    );
+    expect(body).not.toContain("](http://x)");
+    expect(body).not.toContain("<x>");
+    expect(body).toContain("Showing 1 of 1 findings");
+  });
+
+  it("counts lockfile findings toward the row cap and the Showing line", () => {
+    const report = adversarialReport();
+    report.summary = {
+      ...report.summary,
+      lockfileFindings: 1,
+      bySeverity: { CRITICAL: 1, HIGH: 1, MEDIUM: 0, LOW: 0, INFO: 0 },
+      gateSeverity: { CRITICAL: 1, HIGH: 1, MEDIUM: 0, LOW: 0, INFO: 0 },
+    };
+    report.lockfileFindings = [lockfileFinding({ severity: "HIGH" })];
+
+    const body = renderActionComment(report, { maxRows: 1 });
+
+    expect(body).toContain("Showing 1 of 2 findings");
+    expect(body).toContain("postinstall");
+    expect(body).not.toContain(
+      "node&#95;modules&#47;golden&#45;integrity&#58;",
+    );
+  });
+
+  it("adds lockfile guidance for a HIGH finding and not an INFO one", () => {
+    const high = renderActionComment(lockfileReport([lockfileFinding()]));
+    expect(high).toContain("### What these mean");
+    expect(high).toContain("integrity&#45;changed&#45;version&#45;same");
+    expect(high).toContain(
+      "npm does not let a published version change its contents",
+    );
+
+    const info = renderActionComment(
+      lockfileReport([
+        lockfileFinding({ kind: "version-downgrade", severity: "INFO" }),
+      ]),
+    );
+    expect(info).toContain("version&#45;downgrade");
+    expect(info).not.toContain("### What these mean");
+  });
+
+  it("renders the integrity-changed-version-same golden PR comment", async () => {
+    const fixture = new URL(
+      "../../test/fixtures/golden/integrity-changed-version-same/",
+      import.meta.url,
+    );
+    const json = await readFile(new URL("expected-run.json", fixture), "utf8");
+    expect(renderActionComment(JSON.parse(json) as JsonRunReport)).toBe(
+      await readFile(new URL("expected-comment.md", fixture), "utf8"),
+    );
   });
 
   it("fails loudly when even the fixed summary cannot fit", () => {

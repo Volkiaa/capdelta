@@ -9,6 +9,7 @@
 import type { ShapeRuleId, FindingSeverity } from "./capability-differ.js";
 import type { Capability } from "./contract/capability-set.js";
 import type { JsonReportAnalysisIssue } from "./report-contract.js";
+import type { LockfileFindingKind } from "./contract/lockfile-diff.js";
 import type { SignalFindingKind } from "./signal-differ.js";
 import {
   FETCH_STAGE_CRITICAL_KINDS,
@@ -191,6 +192,23 @@ export const SIGNAL_GUIDANCE: Readonly<Record<SignalFindingKind, Guidance>> = {
   },
 };
 
+export const LOCKFILE_GUIDANCE: Readonly<
+  Record<LockfileFindingKind, Guidance>
+> = {
+  "integrity-changed-version-same": {
+    whyItMatters:
+      "npm does not let a published version change its contents, so different bytes under the same version mean the lockfile entry, its resolved URL, or the registry changed.",
+    whatToCheck:
+      "Compare the old and new resolved and integrity fields, find the commit that changed them, and regenerate the lockfile from a trusted registry if nobody can explain the change.",
+  },
+  "version-downgrade": {
+    whyItMatters:
+      "A lower version can bring back bugs or vulnerabilities that a later release fixed.",
+    whatToCheck:
+      "Confirm the downgrade was intended and check the older version's security advisories.",
+  },
+};
+
 export const ANALYSIS_ISSUE_GUIDANCE: Readonly<
   Record<AnalysisIssueClass, Guidance>
 > = {
@@ -229,6 +247,10 @@ export function capabilityGuidance(kind: CapabilityGuidanceKind): Guidance {
 
 export function signalGuidance(kind: SignalFindingKind): Guidance {
   return SIGNAL_GUIDANCE[kind];
+}
+
+export function lockfileGuidance(kind: LockfileFindingKind): Guidance {
+  return LOCKFILE_GUIDANCE[kind];
 }
 
 export function analysisIssueClass(
