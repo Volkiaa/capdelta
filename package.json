@@ -38,9 +38,6 @@
     "fp-check": "tsx scripts/fp-check.ts"
   },
   "devDependencies": {
-    "@actions/artifact": "^6.3.1",
-    "@actions/core": "^3.0.1",
-    "@actions/github": "^9.1.1",
     "@eslint/js": "^10.0.1",
     "@types/node": "^26.6.5",
     "@vercel/ncc": "^0.44.1",
@@ -54,6 +51,9 @@
     "vitest": "^5.0.4"
   },
   "dependencies": {
+    "@actions/artifact": "^6.3.1",
+    "@actions/core": "^3.0.1",
+    "@actions/github": "^9.1.1",
     "acorn": "^8.19.0",
     "acorn-walk": "^8.3.5",
     "jsonc-parser": "^3.3.1",
