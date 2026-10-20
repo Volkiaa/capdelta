@@ -771,6 +771,30 @@ describe("endpoint context", () => {
     ).toEqual([{ host: "a.test", context: "embedded-text" }]);
   });
 
+  it("keeps a whole-string URL literal when an escape sequence follows it", async () => {
+    expect(
+      await endpointsOf({ "index.js": 'fetch("https://a.test/x\\n");' }),
+    ).toEqual([{ host: "a.test", context: "literal" }]);
+  });
+
+  it("keeps a URL literal when an escape sequence sits in its path", async () => {
+    expect(
+      await endpointsOf({ "index.js": 'fetch("https://a.test/\\x61b");' }),
+    ).toEqual([{ host: "a.test", context: "literal" }]);
+  });
+
+  it("classifies a URL followed by a word in the same string as embedded-text", async () => {
+    expect(
+      await endpointsOf({ "index.js": 'fetch("https://a.test/c? x");' }),
+    ).toEqual([{ host: "a.test", context: "embedded-text" }]);
+  });
+
+  it("does not classify a bare IP literal by its string", async () => {
+    expect(
+      await endpointsOf({ "index.js": 'const u = "connect to 8.8.4.4 now";' }),
+    ).toEqual([{ host: "8.8.4.4", context: "unknown" }]);
+  });
+
   it("classifies a template that ends at an expression as literal", async () => {
     expect(
       await endpointsOf({

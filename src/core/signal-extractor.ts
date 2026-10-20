@@ -147,7 +147,7 @@ function detectEndpoints(
   starts: readonly number[],
   confidence: SignalEndpointObservation["confidence"],
   inComment: (start: number, end: number) => boolean,
-  contextAt: (start: number, end: number) => SignalEndpointContext,
+  contextAt: (start: number) => SignalEndpointContext,
 ): SignalEndpointObservation[] {
   const found: SignalEndpointObservation[] = [];
   for (const match of source.matchAll(URL_LITERAL_RE)) {
@@ -155,7 +155,7 @@ function detectEndpoints(
     const index = match.index;
     // Documentation links in comments are not runtime endpoints; a match that
     // runs into a comment ("https://x\n" after a label) is not one either.
-    if (inComment(index, index + value.length)) continue;
+    if (inComment(index, index + match[0].length)) continue;
     let parsed: URL;
     try {
       parsed = new URL(value);
@@ -179,9 +179,8 @@ function detectEndpoints(
         source,
         starts,
         index,
-        index + value.length,
         confidence,
-        contextAt,
+        contextAt(index),
       ),
     );
   }
@@ -201,9 +200,9 @@ function detectEndpoints(
           source,
           starts,
           index,
-          index + value.length,
           confidence,
-          contextAt,
+          // ADR-024 covers URLs only; a bare IP literal keeps today's severity.
+          "unknown",
         ),
       );
     }
@@ -217,18 +216,17 @@ function endpoint(
   endpointType: SignalEndpointObservation["endpointType"],
   source: string,
   starts: readonly number[],
-  start: number,
-  end: number,
+  index: number,
   confidence: SignalEndpointObservation["confidence"],
-  contextAt: (start: number, end: number) => SignalEndpointContext,
+  context: SignalEndpointContext,
 ): SignalEndpointObservation {
   return {
     kind: "EXTERNAL_ENDPOINT",
     endpointType,
     normalizedValue: value,
     confidence,
-    context: contextAt(start, end),
-    evidence: [{ ...evidenceAt(source, starts, start), file }],
+    context,
+    evidence: [{ ...evidenceAt(source, starts, index), file }],
   };
 }
 
@@ -372,15 +370,16 @@ function strongestContext(
 
 /**
  * Binary-search lookup over validated, ordered string content ranges. A match
- * that starts inside a range is "literal" when the range's trimmed content
- * equals the matched part, including when a template expression ends the
- * range. Otherwise it is "embedded-text".
+ * that starts inside a range is "embedded-text" when the range's trimmed raw
+ * content holds whitespace, meaning other words sit next to the URL, and
+ * "literal" otherwise. Escape sequences such as `\n` are not whitespace in
+ * the raw text, so an escape can keep a URL literal but never demote it.
  */
 function contextLookup(
   file: string,
   ranges: readonly (readonly [number, number])[],
   source: string,
-): (start: number, end: number) => SignalEndpointContext {
+): (start: number) => SignalEndpointContext {
   let previousEnd = 0;
   for (const [start, end] of ranges) {
     if (
@@ -396,7 +395,7 @@ function contextLookup(
     }
     previousEnd = end;
   }
-  return (start, end) => {
+  return (start) => {
     let low = 0;
     let high = ranges.length;
     while (low < high) {
@@ -407,9 +406,9 @@ function contextLookup(
     }
     const range = ranges[low - 1];
     if (range === undefined || range[1] <= start) return "unknown";
-    const content = source.slice(range[0], range[1]).trim();
-    const matched = source.slice(start, Math.min(end, range[1])).trim();
-    return content === matched ? "literal" : "embedded-text";
+    return /\s/u.test(source.slice(range[0], range[1]).trim())
+      ? "embedded-text"
+      : "literal";
   };
 }
 
