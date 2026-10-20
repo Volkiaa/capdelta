@@ -870,7 +870,7 @@ escapes; worth considering a CI grep for control characters in source files.
 
 ### 2. Half-done and exact resume point
 
-- D1b stopped after two consecutive Codex BLOCKs. The branch `Volkiaa/d1b-endpoint-context` is unpushed, and its
+- D1b stopped after two consecutive Codex BLOCKs. The branch `Volkiaa/d1b-endpoint-context` is pushed without a PR, and its
   worktree is kept. `.scratch/next/d1b-stopped.md` has the cause and a proposed fix. D1c and D1d wait on it.
 
 ### 3. ADR status

@@ -36,7 +36,7 @@ second `start` row on.
     Codex BLOCKs. Both found strings whose runtime value is a single URL
     while the raw source looks like prose (a backslash-newline continuation,
     then escaped whitespace at the ends). The branch `Volkiaa/d1b-endpoint-context`
-    and its worktree are kept, unpushed.
+    is pushed (no PR), and its worktree is kept.
     `.scratch/next/d1b-stopped.md` gives the root cause, which is classifying
     raw text instead of the cooked value, and proposes a fix.
 
