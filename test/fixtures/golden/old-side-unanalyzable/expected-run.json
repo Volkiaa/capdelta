@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 5,
+  "firstRun": false,
+  "summary": {
+    "changedPackages": 1,
+    "analyzedPackages": 1,
+    "unavailablePackages": 0,
+    "skippedLockfileEntries": 0,
+    "capabilityFindings": 0,
+    "signalFindings": 0,
+    "analysisDiagnostics": 0,
+    "analysisIssues": 1,
+    "lockfileFindings": 0,
+    "bySeverity": {
+      "CRITICAL": 0,
+      "HIGH": 0,
+      "MEDIUM": 0,
+      "LOW": 0,
+      "INFO": 0
+    },
+    "gateSeverity": {
+      "CRITICAL": 0,
+      "HIGH": 0,
+      "MEDIUM": 0,
+      "LOW": 0,
+      "INFO": 0
+    }
+  },
+  "packages": [
+    {
+      "status": "analyzed",
+      "report": {
+        "schemaVersion": 5,
+        "package": {
+          "ecosystem": "npm",
+          "name": "golden-old-side-unanalyzable",
+          "oldVersion": null,
+          "newVersion": "2.0.0",
+          "newPackage": true
+        },
+        "reportId": "capdelta-bb93d85e1e212dc35719",
+        "summary": {
+          "findings": 0,
+          "capabilityFindings": 0,
+          "signalFindings": 0,
+          "diagnostics": 0,
+          "bySeverity": {
+            "CRITICAL": 0,
+            "HIGH": 0,
+            "MEDIUM": 0,
+            "LOW": 0,
+            "INFO": 0
+          }
+        },
+        "findings": [],
+        "signalFindings": [],
+        "shapes": [],
+        "diagnostics": []
+      },
+      "issues": [],
+      "baselineFailures": [
+        {
+          "stage": "old-extraction",
+          "side": "old",
+          "kind": "link-entry",
+          "detail": "archive contains SymbolicLink",
+          "url": null,
+          "evidence": null,
+          "severity": "CRITICAL"
+        }
+      ]
+    }
+  ],
+  "lockfileFindings": [],
+  "skipped": [],
+  "budget": {
+    "deadlineMs": 300000,
+    "prioritization": "install-script-first",
+    "startedPackages": 1,
+    "completedPackages": 1,
+    "unstartedPackages": 0,
+    "deadlineExceeded": false,
+    "partial": false
+  }
+}

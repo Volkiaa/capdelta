@@ -108,5 +108,20 @@
     "packageName": "golden-dependency-added",
     "oldVersion": "1.0.0",
     "newVersion": "2.0.0"
+  },
+  {
+    "name": "old-side-unanalyzable",
+    "row": "Old version unanalyzable, new version clean (ADR-023)",
+    "mode": "pipeline",
+    "packageName": "golden-old-side-unanalyzable",
+    "oldVersion": "1.0.0",
+    "newVersion": "2.0.0",
+    "oldResolvedUrl": "https://registry.npmjs.org/golden-old-side-unanalyzable/-/golden-old-side-unanalyzable-1.0.0.tgz",
+    "newResolvedUrl": "https://registry.npmjs.org/golden-old-side-unanalyzable/-/golden-old-side-unanalyzable-2.0.0.tgz",
+    "entryLinks": {
+      "v1": {
+        "package/link": "../../outside"
+      }
+    }
   }
 ]

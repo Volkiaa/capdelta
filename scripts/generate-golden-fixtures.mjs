@@ -1,5 +1,14 @@
 import { createHash } from "node:crypto";
-import { readdir, readFile, writeFile } from "node:fs/promises";
+import {
+  cp,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL, URL } from "node:url";
 import { gzipSync, gunzipSync } from "node:zlib";
@@ -26,16 +35,23 @@ async function main() {
   const cases = JSON.parse(
     await readFile(join(goldenRoot, "cases.json"), "utf8"),
   );
+  const only = process.argv[2];
 
-  for (const goldenCase of cases) {
+  for (const goldenCase of cases.filter(
+    (item) => only === undefined || item.name === only,
+  )) {
     const caseRoot = join(goldenRoot, goldenCase.name);
     const integrities = {};
     for (const version of ["v1", "v2"]) {
       const tarball = join(caseRoot, `${version}.tgz`);
-      await packTree(join(caseRoot, `source-${version}`), tarball);
+      await packTree(
+        join(caseRoot, `source-${version}`),
+        tarball,
+        goldenCase.entryLinks?.[version],
+      );
       integrities[version] = await sri(tarball);
     }
-    if (goldenCase.mode === "lockfile") {
+    if (goldenCase.mode !== "package") {
       await writeLockfile(
         join(caseRoot, "old-lockfile.json"),
         goldenCase,
@@ -60,7 +76,9 @@ async function main() {
     await readFile(join(reconstructionRoot, "inventory.json"), "utf8"),
   );
 
-  for (const incident of inventory.incidents) {
+  for (const incident of inventory.incidents.filter(
+    (item) => only === undefined || item.name === only,
+  )) {
     const incidentRoot = join(reconstructionRoot, incident.name);
     const ids = [
       ...new Set(
@@ -74,7 +92,7 @@ async function main() {
     for (const id of ids) {
       const sourceRoot = join(incidentRoot, "packages", id);
       const tarball = join(incidentRoot, "packages", `${id}.tgz`);
-      await packTree(sourceRoot, tarball);
+      await packTree(sourceRoot, tarball, incident.entryLinks?.[id]);
       const entryModes = incident.entryModes?.[id];
       if (entryModes !== undefined) {
         for (const [path, declared] of Object.entries(entryModes)) {
@@ -142,17 +160,44 @@ async function main() {
   }
 }
 
-async function packTree(sourceRoot, tarball) {
-  await tar.c(
-    {
-      cwd: sourceRoot,
-      file: tarball,
-      gzip: true,
-      portable: true,
-      mtime: new Date(0),
-    },
-    (await topLevelRoots(sourceRoot)).flatMap((files) => files),
-  );
+async function packTree(sourceRoot, tarball, entryLinks = {}) {
+  const files = (await topLevelRoots(sourceRoot)).flatMap((items) => items);
+  const links = Object.entries(entryLinks);
+  if (links.length === 0) {
+    await tar.c(
+      {
+        cwd: sourceRoot,
+        file: tarball,
+        gzip: true,
+        portable: true,
+        mtime: new Date(0),
+      },
+      files,
+    );
+    return;
+  }
+  // Stage the declared links in a scratch copy so the source tree stays
+  // regular-file-only and no symlink is followed or kept.
+  const work = await mkdtemp(join(tmpdir(), "capdelta-pack-"));
+  try {
+    const staging = join(work, "source");
+    await cp(sourceRoot, staging, { recursive: true });
+    for (const [path, target] of links) {
+      await symlink(target, join(staging, path));
+    }
+    await tar.c(
+      {
+        cwd: staging,
+        file: tarball,
+        gzip: true,
+        portable: true,
+        mtime: new Date(0),
+      },
+      [...files, ...links.map(([path]) => path)],
+    );
+  } finally {
+    await rm(work, { recursive: true, force: true });
+  }
 }
 
 export async function rewriteAsciiUstarEntryModes(tarball, entryModes) {

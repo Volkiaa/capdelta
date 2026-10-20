@@ -809,11 +809,12 @@ async function analyzeFetchedPackage(
   }
 
   if (oldFailures !== null) {
-    // ADR-017 amendment C.2: the exception must bind the new side, so still
+    // ADR-017 amendment C.2: an exception must bind the new side, so still
     // extract the new artifact and read its manifest after an old-side
-    // failure. The new side's failure, if any, is recorded too; the package
-    // stays unavailable either way. A fetch failure never reaches here, and
-    // every path below still goes through the existing cleanup handling.
+    // failure when the new side also fails. ADR-023: when it is clean,
+    // analyze it as newly added, because the old version only ever hides
+    // capabilities. A fetch failure never reaches here, and every path below
+    // still goes through the existing cleanup handling.
     if (isAborted(signal)) {
       return { status: "unavailable", changedPackage, failures: oldFailures };
     }
@@ -826,12 +827,29 @@ async function analyzeFetchedPackage(
       adapters,
       preflight.newManifest,
     );
+    if (!newestAfterOldFailure.ok) {
+      return {
+        status: "unavailable",
+        changedPackage,
+        failures: prependFailures(oldFailures, newestAfterOldFailure.failures),
+      };
+    }
+    issues.push(...newestAfterOldFailure.issues);
+    if (isAborted(signal)) {
+      return policyUnavailable(changedPackage, signal, issues);
+    }
     return {
-      status: "unavailable",
+      status: "analyzed",
       changedPackage,
-      failures: newestAfterOldFailure.ok
-        ? oldFailures
-        : prependFailures(oldFailures, newestAfterOldFailure.failures),
+      diff: applyCapabilityAllowlist(
+        callSyncWithContext(
+          `capability diff for ${JSON.stringify(changedPackage.name)}`,
+          () => adapters.diff(null, newestAfterOldFailure.set),
+        ),
+        options.config,
+      ),
+      issues: uniqueIssues(issues),
+      baselineFailures: oldFailures,
     };
   }
 
