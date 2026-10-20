@@ -21,6 +21,7 @@ import {
 
 const PAYLOAD =
   "</td></tr><script>alert(1)</script>\n| [click](javascript:alert(1)) ![x](https://evil.example) <!-- capdelta:manifest-report:v1 --> `code` @everyone\u001b\u202e";
+const MAX_ROWS = 10;
 
 function adversarialReport(firstRun = false): JsonRunReport {
   return {
@@ -88,6 +89,7 @@ function adversarialReport(firstRun = false): JsonRunReport {
             severity: null,
           },
         ],
+        baselineFailures: [],
       },
     ],
     lockfileFindings: [],
@@ -130,6 +132,28 @@ function lockfileFinding(
     severity: "HIGH",
     ...overrides,
   };
+}
+
+function reportWithBaselineFailures(count: number): JsonRunReport {
+  const report = adversarialReport();
+  const item = report.packages[0];
+  if (item?.status !== "analyzed") {
+    throw new Error("inert fixture must be analyzed");
+  }
+  item.baselineFailures = Array.from({ length: count }, (_, index) => ({
+    stage: "old-extraction" as const,
+    side: "old" as const,
+    kind: "invalid-archive" as const,
+    detail: `baseline failure ${String(index)}`,
+    url: null,
+    evidence: null,
+    severity: null,
+  }));
+  report.summary = {
+    ...report.summary,
+    analysisIssues: report.summary.analysisIssues + count,
+  };
+  return report;
 }
 
 function reportWithGuidanceFreeTwin(): {
@@ -449,6 +473,118 @@ describe("renderActionComment", () => {
     expect(body).not.toContain("### What these mean");
   });
 
+  it("renders a baseline failure line for an analyzed package", () => {
+    const report = adversarialReport();
+    const item = report.packages[0];
+    if (item?.status !== "analyzed") {
+      throw new Error("inert fixture must be analyzed");
+    }
+    item.baselineFailures = [
+      {
+        stage: "old-extraction",
+        side: "old",
+        kind: "invalid-archive",
+        detail: PAYLOAD,
+        url: null,
+        evidence: null,
+        severity: "CRITICAL",
+      },
+    ];
+    report.summary = { ...report.summary, analysisIssues: 2 };
+    const body = renderActionComment(report);
+    expect(body).toContain(
+      "Old version could not be analyzed (invalid-archive); every capability of the new version is reported as added.",
+    );
+  });
+
+  it("caps baseline failures at maxRows and counts only the shown ones", () => {
+    const body = renderActionComment(reportWithBaselineFailures(MAX_ROWS + 3), {
+      maxRows: MAX_ROWS,
+    });
+
+    expect(body.match(/Old version could not be analyzed/gu)).toHaveLength(
+      MAX_ROWS,
+    );
+    expect(body).toContain(
+      `Showing 1 of 1 findings and ${String(MAX_ROWS + 1)} of ${String(MAX_ROWS + 4)} analysis gaps.`,
+    );
+  });
+
+  it("caps reviewed exceptions and reports how many the artifact holds", () => {
+    const withExceptions = (count: number): JsonRunReport => {
+      const report = adversarialReport();
+      report.summary = {
+        ...report.summary,
+        changedPackages: count,
+        analyzedPackages: 0,
+        unavailablePackages: count,
+        capabilityFindings: 0,
+        analysisIssues: 0,
+        bySeverity: { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0, INFO: 0 },
+        gateSeverity: { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0, INFO: 0 },
+      };
+      report.packages = Array.from({ length: count }, (_, index) => ({
+        status: "unavailable" as const,
+        package: {
+          ecosystem: "npm" as const,
+          name: `excepted-${String(index)}`,
+          oldVersion: "1.0.0",
+          newVersion: "2.0.0",
+          newPackage: false,
+        },
+        failures: [
+          {
+            stage: "new-extraction" as const,
+            side: "new" as const,
+            kind: "expanded-size-limit" as const,
+            detail: "expanded size over the extraction cap",
+            url: null,
+            evidence: null,
+            severity: null,
+          },
+        ],
+        exception: { reason: "reviewed oversized fixture" },
+      }));
+      return report;
+    };
+
+    const over = renderActionComment(withExceptions(MAX_ROWS + 3), {
+      maxRows: MAX_ROWS,
+    });
+    expect(over.match(/reviewed exception:/gu)).toHaveLength(MAX_ROWS);
+    expect(over).toContain(
+      "- 3 more reviewed exceptions are in the workflow artifact.",
+    );
+
+    expect(
+      renderActionComment(withExceptions(MAX_ROWS), { maxRows: MAX_ROWS }),
+    ).not.toContain("more reviewed exception");
+    expect(
+      renderActionComment(withExceptions(MAX_ROWS + 1), { maxRows: MAX_ROWS }),
+    ).toContain("- 1 more reviewed exception is in the workflow artifact.");
+
+    const none = renderActionComment(withExceptions(2), { maxRows: 0 });
+    expect(none).toContain("### Reviewed exceptions");
+    expect(none).toContain(
+      "- 2 more reviewed exceptions are in the workflow artifact.",
+    );
+  });
+
+  it("fits when uncapped baseline failures would exceed maxCharacters", () => {
+    const capReport = reportWithBaselineFailures(MAX_ROWS);
+    capReport.summary = { ...capReport.summary, analysisIssues: 101 };
+    const cap = Array.from(
+      renderActionComment(capReport, { maxRows: MAX_ROWS }),
+    ).length;
+
+    const body = renderActionComment(reportWithBaselineFailures(100), {
+      maxCharacters: cap,
+      maxRows: MAX_ROWS,
+    });
+
+    expect(Array.from(body).length).toBeLessThanOrEqual(cap);
+  });
+
   it("labels unanalyzable issues in the analysis gaps table", () => {
     const report = adversarialReport();
     report.summary = {
@@ -603,6 +739,7 @@ describe("renderActionComment", () => {
         diagnostics: [],
       },
       issues: [],
+      baselineFailures: [],
     };
     const body = renderActionComment(
       {

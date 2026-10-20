@@ -359,8 +359,21 @@ function buildComment(
     );
   }
 
-  const exceptions = collectExceptions(report);
-  if (exceptions.length > 0) {
+  const allExceptions = collectExceptions(report);
+  const exceptions = allExceptions.slice(0, maxRows);
+  const baselineFailures = collectBaselineFailures(report).slice(0, maxRows);
+  if (baselineFailures.length > 0) {
+    lines.push(
+      "",
+      "### Baseline failures",
+      "",
+      ...baselineFailures.map(
+        ({ packageName, issue }) =>
+          `- ${escapeMarkdownText(packageName, MAX_IDENTITY_CHARS)}: Old version could not be analyzed (${truncate(issue.kind, MAX_IDENTITY_CHARS)}); every capability of the new version is reported as added.`,
+      ),
+    );
+  }
+  if (allExceptions.length > 0) {
     // ADR-017
     lines.push(
       "",
@@ -371,6 +384,13 @@ function buildComment(
           `- ${escapeMarkdownText(packageName, MAX_IDENTITY_CHARS)}: reviewed exception: ${escapeMarkdownText(reason, MAX_DETAIL_CHARS)}`,
       ),
     );
+    const hiddenExceptions = allExceptions.length - exceptions.length;
+    if (hiddenExceptions > 0) {
+      // ADR-017: a suppressed finding must not disappear from the reviewer's view.
+      lines.push(
+        `- ${String(hiddenExceptions)} more reviewed ${hiddenExceptions === 1 ? "exception is" : "exceptions are"} in the workflow artifact.`,
+      );
+    }
   }
 
   if (guidance.length > 0) {
@@ -391,7 +411,7 @@ function buildComment(
     report.summary.capabilityFindings +
     (report.summary.signalFindings ?? 0) +
     report.summary.lockfileFindings;
-  const shownIssues = issues.length;
+  const shownIssues = issues.length + baselineFailures.length;
   const totalIssues = report.summary.analysisIssues;
   lines.push(
     "",
@@ -487,6 +507,19 @@ function collectIssues(
       issue,
     }));
   });
+}
+
+function collectBaselineFailures(
+  report: JsonRunReport,
+): { packageName: string; issue: JsonReportAnalysisIssue }[] {
+  return report.packages.flatMap((item) =>
+    item.status === "analyzed"
+      ? item.baselineFailures.map((issue) => ({
+          packageName: item.report.package.name,
+          issue,
+        }))
+      : [],
+  );
 }
 
 function collectExceptions(

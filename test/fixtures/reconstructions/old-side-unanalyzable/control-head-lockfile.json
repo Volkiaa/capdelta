@@ -1,0 +1,17 @@
+{
+  "name": "reconstruction-project",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "name": "reconstruction-project",
+      "version": "1.0.0"
+    },
+    "node_modules/capdelta-fixture-old-side-unanalyzable": {
+      "version": "1.0.2-control",
+      "resolved": "https://registry.npmjs.org/capdelta-fixture-old-side-unanalyzable/-/capdelta-fixture-old-side-unanalyzable-1.0.2-control.tgz",
+      "integrity": "sha512-0cD96n7901rJVUvI2Bm+kLe7HN4vK1NzwG4/oSR68faemJsq7A8moWSPAFxMM4RWgda0QRYK3VDrz2rD54I5Uw=="
+    }
+  }
+}

@@ -4,6 +4,7 @@ import type {
   FindingSeverity,
 } from "./capability-differ.js";
 import type {
+  AnalyzedPackage,
   CapabilityAnalysisRun,
   PackageAnalysisFailure,
 } from "./capability-analysis-pipeline.js";
@@ -37,6 +38,12 @@ import {
 export const SARIF_VERSION = "2.1.0" as const;
 const SARIF_SCHEMA = "https://json.schemastore.org/sarif-2.1.0.json";
 const INTEGRITY_RULE_ID = "CAPDELTA-INTEGRITY-MISMATCH";
+const BASELINE_GUIDANCE: Guidance = {
+  whyItMatters:
+    "The old version could not be analyzed, so capdelta reports every capability of the new version as added.",
+  whatToCheck:
+    "Treat the additions as unreviewed and inspect the old version manually if the comparison matters.",
+};
 
 interface SarifResult {
   ruleId: string;
@@ -122,6 +129,7 @@ export function renderSarifReport(
       results.push(result);
     }
     if (item.status !== "analyzed") continue;
+    appendBaselineResults(item, results, ruleIds, ruleGuidance);
     const subject = item.diff.subject;
     const memberSuppression = new Map(
       item.diff.findings.map((finding) => [
@@ -364,6 +372,49 @@ function issueResult(
   };
 }
 
+function appendBaselineResults(
+  item: AnalyzedPackage,
+  results: SarifResult[],
+  ruleIds: Set<string>,
+  ruleGuidance: Map<string, Guidance>,
+): void {
+  for (const issue of item.baselineFailures) {
+    const ruleId = `CAPDELTA-BASELINE-${issue.failure.kind.toUpperCase()}`;
+    ruleIds.add(ruleId);
+    ruleGuidance.set(ruleId, BASELINE_GUIDANCE);
+    results.push(baselineFailureResult(item.changedPackage, issue));
+  }
+}
+
+function baselineFailureResult(
+  changedPackage: ChangedPackage,
+  issue: PackageAnalysisFailure,
+): SarifResult {
+  // The kind is a fixed taxonomy, but bound it like every other report string.
+  const kind = truncate(issue.failure.kind, MAX_IDENTITY_CHARS);
+  return {
+    ruleId: `CAPDELTA-BASELINE-${issue.failure.kind.toUpperCase()}`,
+    level: "note",
+    message: {
+      text: `Old version could not be analyzed (${kind}); every capability of the new version is reported as added.`,
+    },
+    locations: [],
+    properties: {
+      kind: "baseline-failure",
+      stage: issue.stage,
+      issue: issue.failure.kind,
+      side: "old",
+      severity: analysisIssueSeverity({
+        stage: issue.stage,
+        kind: issue.failure.kind,
+      }),
+      package: truncate(changedPackage.name, MAX_IDENTITY_CHARS),
+      version: truncate(changedPackage.newVersion, MAX_IDENTITY_CHARS),
+      evidence: [],
+    },
+  };
+}
+
 function appendLockfileResults(
   findings: readonly LockfileFinding[],
   lockfilePath: string | undefined,
@@ -453,6 +504,8 @@ function ruleDescription(id: string, unanalyzable: boolean): string {
     return "Downloaded artifact does not match lockfile integrity";
   }
   if (id.startsWith("CAPDELTA-LOCKFILE-")) return "Lockfile entry changed";
+  if (id.startsWith("CAPDELTA-BASELINE-"))
+    return "Old version could not be analyzed";
   if (id.startsWith("CAPDELTA-SHAPE-")) return "Capability shape gained";
   if (id.startsWith("CAPDELTA-SIGNAL-")) return "Behavioral signal gained";
   return "Capability gained";

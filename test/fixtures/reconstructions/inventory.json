@@ -125,7 +125,7 @@
       ],
       "kept": "The base tarball stores a regular entry package/package.json/child.js, so extracting it makes package.json a directory even though npm still installs the package. The manifest read is then a post-verification failure decided by the bytes, not an environmental read error.",
       "omitted": "Everything else: the package is a minimal synthetic stand-in. child.js is inert data and is never imported or executed.",
-      "expected": "The old-side manifest is manifest-not-regular, CRITICAL, so the package is unavailable and the default CRITICAL gate fails. The new side reads cleanly, so an old-side-only reviewed exception does not release it (ADR-017 rule C.2).",
+      "expected": "The old-side manifest is manifest-not-regular, CRITICAL, and becomes a baseline failure. The new side reads cleanly, so the package is analyzed as newly added (ADR-023), the default CRITICAL gate passes, and --strict still reports the unanalyzed old version.",
       "packageMeta": {
         "victim-1.0.0": {
           "name": "capdelta-fixture-manifest-directory",
@@ -136,6 +136,30 @@
         "attack": {
           "base": ["victim-1.0.0"],
           "head": ["victim-1.0.1"]
+        }
+      }
+    },
+    {
+      "name": "old-side-unanalyzable",
+      "title": "Synthetic unanalyzable baseline (not a historical incident)",
+      "date": "n/a: regression for ADR-023",
+      "sources": ["https://github.com/isaacs/node-tar/blob/main/src/unpack.ts"],
+      "kept": "The old tarball carries a symlink entry. capdelta rejects link entries before extraction, so the old side fails with link-entry and npm would have installed that version. The attack head adds a registry \"postinstall\": \"node setup.js\" in package.json, and setup.js is inert.",
+      "omitted": "Everything else: the package is a minimal synthetic stand-in. The link target is never created, followed, or written, and setup.js is never executed.",
+      "expected": "The old-side link-entry failure is CRITICAL but becomes a baseline failure. The attack head is analyzed as newly added, its registry postinstall hook gates CRITICAL, and the default gate fails. The control head has no install script and no capabilities, so it is analyzed, the gate passes, and the baseline failure stays visible.",
+      "entryLinks": {
+        "victim-1.0.0": {
+          "package/link": "../../outside"
+        }
+      },
+      "scenarios": {
+        "attack": {
+          "base": ["victim-1.0.0"],
+          "head": ["victim-1.0.1"]
+        },
+        "control": {
+          "base": ["victim-1.0.0"],
+          "head": ["victim-1.0.2-control"]
         }
       }
     }

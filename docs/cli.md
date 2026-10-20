@@ -149,6 +149,11 @@ only those exact bytes from the severity gate; every new version and every
 swapped tarball needs a fresh review, and `--strict` still returns exit `2`
 because the package remains unanalyzed.
 
+An exception for the old side alone is no longer needed when the new side reads
+cleanly. capdelta analyzes the package as newly added (ADR-023), reports every
+capability of the new version as added, gates them normally, and still shows the
+old failure as a baseline failure. `--strict` still returns exit 2.
+
 Known cost: a tarball over the _download_ cap fails at fetch time with
 `size-limit-exceeded`, so it can no longer be excepted. Raising the fetch cap is
 the fix, but neither the CLI nor the GitHub Action exposes it today, so that is

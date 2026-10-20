@@ -5,7 +5,10 @@ import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 import * as tar from "tar";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { rewriteAsciiUstarEntryModes } from "./generate-golden-fixtures.mjs";
+import {
+  rewriteAsciiUstarEntryModes,
+  validateEntryLinks,
+} from "./generate-golden-fixtures.mjs";
 
 let workDir;
 
@@ -93,5 +96,35 @@ describe("rewriteAsciiUstarEntryModes", () => {
       onentry: (entry) => modes.set(entry.path, entry.mode),
     });
     expect(modes.get("pkg/index.js") & 0o777).toBe(0o600);
+  });
+});
+
+describe("validateEntryLinks", () => {
+  it("accepts a plain link inside the package", () => {
+    expect(() =>
+      validateEntryLinks([["package/link", "/etc/inert-target"]]),
+    ).not.toThrow();
+  });
+
+  it.each([
+    ["../escape", "target"],
+    ["package/../escape", "target"],
+    ["/abs/link", "target"],
+    ["package/./link", "target"],
+    ["package\\link", "target"],
+    ["", "target"],
+  ])("rejects the link path %j", (path, target) => {
+    expect(() => validateEntryLinks([[path, target]])).toThrow(
+      /invalid fixture entry link/u,
+    );
+  });
+
+  it("rejects a link placed under another link", () => {
+    expect(() =>
+      validateEntryLinks([
+        ["package/link", "/tmp/existing-dir"],
+        ["package/link/payload", "target"],
+      ]),
+    ).toThrow(/sits under link/u);
   });
 });

@@ -58,6 +58,7 @@ import { applyUnanalyzableExceptions } from "./unanalyzable-exceptions.js";
 import { compareText } from "./compare.js";
 import { errorName } from "./guards.js";
 import { forEachInOrder } from "./worker-pool.js";
+import { isOperationalFailure, toStageKindPair } from "./run-severity.js";
 
 export type AnalysisSide = "old" | "new";
 
@@ -86,6 +87,12 @@ export interface AnalyzedPackage {
   diff: CapabilityDiffResult;
   /** Non-fatal but loud issues, currently cleanup failures after analysis. */
   issues: readonly PackageAnalysisFailure[];
+  /**
+   * Failures from the old side that did not stop analysis of the new side.
+   * The diff is reported as a newly added package; these failures stay visible
+   * and never gate.
+   */
+  baselineFailures: readonly PackageAnalysisFailure[];
 }
 
 export interface UnavailablePackage {
@@ -146,7 +153,9 @@ export function hasUnanalyzedContent(run: CapabilityAnalysisRun): boolean {
     run.summary.skipped > 0 ||
     run.packages.some((item) =>
       item.status === "analyzed"
-        ? item.issues.length > 0 || item.diff.diagnostics.length > 0
+        ? item.issues.length > 0 ||
+          item.baselineFailures.length > 0 ||
+          item.diff.diagnostics.length > 0
         : true,
     ) ||
     run.budget?.partial === true
@@ -801,11 +810,12 @@ async function analyzeFetchedPackage(
   }
 
   if (oldFailures !== null) {
-    // ADR-017 amendment C.2: the exception must bind the new side, so still
+    // ADR-017 amendment C.2: an exception must bind the new side, so still
     // extract the new artifact and read its manifest after an old-side
-    // failure. The new side's failure, if any, is recorded too; the package
-    // stays unavailable either way. A fetch failure never reaches here, and
-    // every path below still goes through the existing cleanup handling.
+    // failure when the new side also fails. ADR-023: when it is clean,
+    // analyze it as newly added, because the old version only ever hides
+    // capabilities. A fetch failure never reaches here, and every path below
+    // still goes through the existing cleanup handling.
     if (isAborted(signal)) {
       return { status: "unavailable", changedPackage, failures: oldFailures };
     }
@@ -818,12 +828,37 @@ async function analyzeFetchedPackage(
       adapters,
       preflight.newManifest,
     );
+    if (!newestAfterOldFailure.ok) {
+      return {
+        status: "unavailable",
+        changedPackage,
+        failures: prependFailures(oldFailures, newestAfterOldFailure.failures),
+      };
+    }
+    // ADR-023 covers unanalyzable old failures only. An operational one
+    // (ADR-018, ADR-019) keeps the package unavailable so the run still exits 1.
+    if (oldFailures.some(isOperationalPipelineFailure)) {
+      return { status: "unavailable", changedPackage, failures: oldFailures };
+    }
+    issues.push(...newestAfterOldFailure.issues);
+    if (isAborted(signal)) {
+      return policyUnavailable(changedPackage, signal, [
+        ...oldFailures,
+        ...issues,
+      ]);
+    }
     return {
-      status: "unavailable",
+      status: "analyzed",
       changedPackage,
-      failures: newestAfterOldFailure.ok
-        ? oldFailures
-        : prependFailures(oldFailures, newestAfterOldFailure.failures),
+      diff: applyCapabilityAllowlist(
+        callSyncWithContext(
+          `capability diff for ${JSON.stringify(changedPackage.name)}`,
+          () => adapters.diff(null, newestAfterOldFailure.set),
+        ),
+        options.config,
+      ),
+      issues: uniqueIssues(issues),
+      baselineFailures: oldFailures,
     };
   }
 
@@ -863,7 +898,16 @@ async function analyzeFetchedPackage(
       options.config,
     ),
     issues: uniqueIssues(issues),
+    baselineFailures: [],
   };
+}
+
+function isOperationalPipelineFailure(
+  failure: PackageAnalysisFailure,
+): boolean {
+  return isOperationalFailure(
+    toStageKindPair({ stage: failure.stage, kind: failure.failure.kind }),
+  );
 }
 
 function policyUnavailable(

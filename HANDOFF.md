@@ -1,31 +1,46 @@
 # HANDOFF
 
 Start here, then read CLAUDE.md. `docs/SESSIONS.md` has the history and
-docs/PLAN.md (rev. 3) is the spec. Last updated 2026-10-20 (evening).
+docs/PLAN.md (rev. 3) is the spec. Last updated 2026-10-20 (night).
 
 ## Where main stands
 
-main includes #129, and CI is green on it. No PRs are open.
+main includes #135, and CI is green on it. No PRs are open.
 
-On 2026-10-20, after M5 became publication-ready (#123 to #125):
+On the night of 2026-10-20 the maintainer approved both designs and a
+DeepSeek-worker run implemented them. Plan, tickets and decision log:
+`.scratch/next/` (gitignored, main checkout), `decisions.tsv` from its
+second `start` row on.
 
-- **#127.** The PR comment row for the `install` hook read "changed install
-  install hook". It now quotes the hook name, as the text report does:
-  `changed "install" install hook`.
-- **#128.** Running a golden or reconstruction test directly without
-  `npm run build` now fails with a message naming the missing parser worker,
-  instead of degrading to `unparseable-source` diagnostics.
-- **#129.** Golden comparisons use vitest's `toMatchFileSnapshot` on the
-  existing `expected-*` files. After an intended report change, run
-  `npm run build && npx vitest run <golden test file> -u` and review the diff.
-  Put `-u` after the path, because vitest 5 reads the next argument as the
-  update type.
+- **D2, new-side analysis: shipped.**
+  - #131 adds ADR-023.
+  - #133 adds `baselineFailures` to analyzed packages in the JSON report,
+    text, PR comment and SARIF (level `note`).
+  - #134 makes the pipeline fill it. The old version may fail extraction or
+    the manifest read with a CRITICAL failure while the new version reads
+    cleanly. The package is then analyzed as newly added, and the old
+    failure is reported but not gated. An operational old failure keeps the
+    package unavailable, so exit 1 still holds. This lowers `gateSeverity`
+    on purpose. A real drive on `@tabler/icons-react` 3.48.0 -> 3.49.0 moved
+    from CRITICAL 2 to CRITICAL 1. The old version is over the
+    10,000-entry cap, and its dependency `@tabler/icons` still fails on its
+    new side.
+  - #135 documents it in the README and `docs/cli.md`.
+- **D1, URLs mentioned in text: half done, stopped.**
+  - #131 adds ADR-024 (a new host seen only inside prose becomes LOW).
+  - #132 freezes a 30 x 3 corpus split 15/15 by package
+    (`docs/heldout-2026-10-20/`) and records its baseline. No pair adds a
+    host through a URL, so finding counts can't show the change. D1d also
+    plans to measure the classifier on every URL the new versions contain.
+  - D1b (classify each URL by its string) stopped after two consecutive
+    Codex BLOCKs. Both found strings whose runtime value is a single URL
+    while the raw source looks like prose (a backslash-newline continuation,
+    then escaped whitespace at the ends). The branch `Volkiaa/d1b-endpoint-context`
+    is pushed (no PR), and its worktree is kept.
+    `.scratch/next/d1b-stopped.md` gives the root cause, which is classifying
+    raw text instead of the cooked value, and proposes a fix.
 
-The blog is parked at the maintainer's request (2026-10-20). The draft stays
-in `docs/blog/` and nothing is posted.
-
-The run's plan, decision log and both design proposals are in `.scratch/next/`
-(gitignored, main checkout).
+The blog is still parked. The draft stays in `docs/blog/`.
 
 ## Next, in order
 
@@ -35,30 +50,17 @@ The run's plan, decision log and both design proposals are in `.scratch/next/`
      `dist/action/javascript-parser-worker.js` on a checkout of the tag;
    - repin `.github/workflows/capdelta.yml` to the release commit with a
      `# v0.1.0` comment, so Dependabot proposes later releases.
-2. **Noise reduction. The design waits for maintainer approval.**
-   `.scratch/next/d1-noise-design.md` proposes the following:
-   - A URL inside a string that also holds other text becomes LOW.
-   - A URL that is the whole string stays HIGH.
-   - A file that failed to parse keeps today's behaviour.
-
-   In every reconstruction and golden case, the endpoint URL is a whole
-   literal, and no gate depends on the endpoint finding
-   (`.scratch/next/r3-endpoints.md`). The design also plans a new frozen
-   corpus with a tuning half and a held-out half, because M5 had no held-out
-   split. Two decisions are open: LOW or MEDIUM for embedded URLs, and the
-   corpus size.
-
-3. **New-side analysis. The design waits for maintainer approval.**
-   `.scratch/next/d2-newside-design.md` addresses one case: the old side
-   fails extraction or the manifest read, and the new side reads cleanly.
-   Today that package gates and can't be excepted, because ADR-017 C.2 needs
-   a new-side failure (`docs/adr/0017-reviewed-unanalyzable-exceptions.md:73-84,131-135`).
-   The proposal analyzes the new side as a newly added package, so every
-   capability shows as added and gates normally. The old failure is reported
-   but doesn't gate. It needs ADR-023, and it lowers the gate in exactly that
-   case, on purpose.
-4. **Post the blog** once the maintainer un-parks it. PLAN §6 names tl;dr sec,
-   Detection Engineering Weekly and r/netsec.
+2. **D1b, third attempt. It needs the maintainer's go-ahead** because the same
+   unit failed twice. Read `.scratch/next/d1b-stopped.md`. The proposal is to
+   classify the cooked string value (`Literal.value`,
+   `TemplateElement.value.cooked`), normalized the way the WHATWG URL parser
+   normalizes input. A URL becomes `embedded-text` only when both the cooked
+   value and the raw text hold whitespace. Then D1c (severity, golden case,
+   destination-swap boundary test, `.scratch/next/tickets/d1c.md`) and D1d
+   (held-out run and write-up).
+3. **Post the blog** once the maintainer un-parks it. PLAN §6 names tl;dr sec,
+   Detection Engineering Weekly and r/netsec. `docs/blog/` still lists
+   new-side analysis as a next step. Update that line before posting.
 
 Small follow-ups, not started:
 
@@ -69,6 +71,14 @@ Small follow-ups, not started:
 - The noise class with the most rows is zod's 86 `unparseable-file` MEDIUMs
   from published TypeScript (`docs/m5-2026-10-12/labels.json:35-40`). D1
   doesn't cover them.
+- In the D1 tuning baseline, http-server 13.1.0 -> 14.0.0 fails the default
+  gate with a `secret-exfiltration` shape. The shape comes from a TLS
+  passphrase environment variable read in a file that requires `https`. It
+  is not labelled yet.
+- The IPv6 literal pattern matches characters in minified data (`c::9bb` in
+  markdown-it 15.0.3). ADR-024 does not cover IP literals.
+- The PR comment's baseline-failure section is not capped by `maxRows`. The
+  reviewed-exceptions section works the same way.
 
 ## Decisions from 2026-10-17
 
