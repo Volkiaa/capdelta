@@ -102,9 +102,11 @@ Limits of this measurement:
 - The first snippet does not always show the occurrence that decided the
   context. One observation merges every file on a side, and `unknown`
   outranks `embedded-text`. pino's `bin.js` holds github.com inside prose, but
-  `pino.d.ts` also names it. capdelta does not parse `.d.ts` files, so the
-  host is `unknown`. Most tuning `unknown` rows (66 of 78) are openai's
-  published TypeScript sources.
+  so does a comment in `test/types/pino-type-only.tst.ts`. capdelta scans
+  published `.ts` files (it skips only `.d.ts`,
+  `src/core/npm/javascript-capability-extractor.ts:135`) but cannot parse
+  them, so their comments are not excluded and their URLs are `unknown`. Most
+  tuning `unknown` rows (66 of 78) are openai's published TypeScript sources.
 - `literal` still covers documentation links printed alone, such as
   `console.warn("https://github.com/highlightjs/highlight.js/wiki/security")`
   in highlight.js and the ejs and browserslist error links. ADR-024 keeps
