@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -509,8 +510,16 @@ function throwIfStopped(signal: AbortSignal | undefined): void {
 }
 
 function workerUrl(): URL {
-  if (import.meta.url.endsWith(".ts"))
-    return pathToFileURL(resolve("dist/core/npm/javascript-parser-worker.js"));
+  if (import.meta.url.endsWith(".ts")) {
+    // Tests load the compiled worker. Check it here so a missing build fails
+    // with this message instead of a worker "error" event turned diagnostic.
+    const builtWorker = resolve("dist/core/npm/javascript-parser-worker.js");
+    if (!existsSync(builtWorker))
+      throw new JavaScriptCapabilityExtractorConfigurationError(
+        `${builtWorker} is missing. Run npm run build before running this test directly.`,
+      );
+    return pathToFileURL(builtWorker);
+  }
   // Keep ncc from copying TypeScript as a hashed raw asset. The Action
   // packaging script builds this stable worker entry as JavaScript itself.
   const workerFile = ["javascript", "parser", "worker.js"].join("-");
