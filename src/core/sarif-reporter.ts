@@ -7,8 +7,12 @@ import type {
   CapabilityAnalysisRun,
   PackageAnalysisFailure,
 } from "./capability-analysis-pipeline.js";
-import type { ChangedPackage } from "./contract/lockfile-diff.js";
+import type {
+  ChangedPackage,
+  LockfileFinding,
+} from "./contract/lockfile-diff.js";
 import {
+  MAX_EVIDENCE_FILE_CHARS,
   MAX_IDENTITY_CHARS,
   MAX_VALUE_CHARS,
   ReporterContractError,
@@ -17,13 +21,18 @@ import {
 import {
   analysisIssueGuidance,
   capabilityGuidance,
+  lockfileGuidance,
   shapeGuidance,
   signalGuidance,
   type Guidance,
 } from "./finding-guidance.js";
 import { isNormalizedRelativePosixPath } from "./repository-path.js";
 import { compareText } from "./compare.js";
-import { isUnanalyzableIssue, analysisIssueSeverity } from "./run-severity.js";
+import {
+  isUnanalyzableIssue,
+  analysisIssueSeverity,
+  lockfileFindingSeverity,
+} from "./run-severity.js";
 
 export const SARIF_VERSION = "2.1.0" as const;
 const SARIF_SCHEMA = "https://json.schemastore.org/sarif-2.1.0.json";
@@ -207,6 +216,13 @@ export function renderSarifReport(
       );
     }
   }
+  appendLockfileResults(
+    run.lockfileFindings,
+    lockfilePath,
+    results,
+    ruleIds,
+    ruleGuidance,
+  );
   results.sort((left, right) =>
     compareText(
       JSON.stringify([left.ruleId, left.message.text, left.locations]),
@@ -344,18 +360,70 @@ function issueResult(
   if (lockfilePath === undefined) return result;
   return {
     ...result,
-    locations: [
-      {
-        // Repository-root-relative, so no uriBaseId; each segment is encoded
-        // once so %, #, ? and spaces stay filename characters.
-        physicalLocation: {
-          artifactLocation: {
-            uri: lockfilePath.split("/").map(encodeURIComponent).join("/"),
-          },
+    locations: lockfileLocation(lockfilePath),
+  };
+}
+
+function appendLockfileResults(
+  findings: readonly LockfileFinding[],
+  lockfilePath: string | undefined,
+  results: SarifResult[],
+  ruleIds: Set<string>,
+  ruleGuidance: Map<string, Guidance>,
+): void {
+  for (const finding of findings) {
+    const result = lockfileResult(finding, lockfilePath);
+    ruleIds.add(result.ruleId);
+    ruleGuidance.set(result.ruleId, lockfileGuidance(finding.kind));
+    results.push(result);
+  }
+}
+
+function lockfileResult(
+  finding: LockfileFinding,
+  lockfilePath: string | undefined,
+): SarifResult {
+  const ruleId = `CAPDELTA-LOCKFILE-${finding.kind.toUpperCase()}`;
+  // Lockfile name, path, and versions are attacker-controlled: bound them
+  // exactly as the JSON report does (report-builder.ts:117-126, PLAN §3).
+  const name = truncate(finding.name, MAX_IDENTITY_CHARS);
+  const path = truncate(finding.path, MAX_EVIDENCE_FILE_CHARS);
+  const oldVersion =
+    finding.oldVersion === null
+      ? null
+      : truncate(finding.oldVersion, MAX_IDENTITY_CHARS);
+  const newVersion = truncate(finding.newVersion, MAX_IDENTITY_CHARS);
+  const result = resultFor(
+    ruleId,
+    lockfileFindingSeverity(finding.kind),
+    `Review this change: ${finding.kind} for ${name} at ${path}: ${oldVersion ?? "<new package>"} -> ${newVersion}.`,
+    [],
+    name,
+    newVersion,
+    {
+      kind: "lockfile",
+      lockfileFinding: finding.kind,
+      path,
+      oldVersion,
+      newVersion,
+    },
+  );
+  if (lockfilePath === undefined) return result;
+  return { ...result, locations: lockfileLocation(lockfilePath) };
+}
+
+function lockfileLocation(lockfilePath: string): readonly unknown[] {
+  return [
+    {
+      // Repository-root-relative, so no uriBaseId; each segment is encoded
+      // once so %, #, ? and spaces stay filename characters.
+      physicalLocation: {
+        artifactLocation: {
+          uri: lockfilePath.split("/").map(encodeURIComponent).join("/"),
         },
       },
-    ],
-  };
+    },
+  ];
 }
 
 function syntheticUri(
@@ -384,6 +452,7 @@ function ruleDescription(id: string, unanalyzable: boolean): string {
   if (id === INTEGRITY_RULE_ID) {
     return "Downloaded artifact does not match lockfile integrity";
   }
+  if (id.startsWith("CAPDELTA-LOCKFILE-")) return "Lockfile entry changed";
   if (id.startsWith("CAPDELTA-SHAPE-")) return "Capability shape gained";
   if (id.startsWith("CAPDELTA-SIGNAL-")) return "Behavioral signal gained";
   return "Capability gained";

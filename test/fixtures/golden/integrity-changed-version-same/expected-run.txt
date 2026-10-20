@@ -10,3 +10,5 @@ Review this change: no capability or signal additions; 0 diagnostics.
 
 Lockfile findings:
 - [HIGH] [integrity-changed-version-same] "golden-integrity" at "node_modules/golden-integrity": "1.0.0" -> "1.0.0"
+  Why: npm does not let a published version change its contents, so different bytes under the same version mean the lockfile entry, its resolved URL, or the registry changed.
+  Check: Compare the old and new resolved and integrity fields, find the commit that changed them, and regenerate the lockfile from a trusted registry if nobody can explain the change.

@@ -36,7 +36,7 @@ import { createHash } from "node:crypto";
 /** Attacker-controlled text bounds shared by every report format (PLAN §3). */
 export const MAX_IDENTITY_CHARS = 160;
 export const MAX_VALUE_CHARS = 240;
-const MAX_EVIDENCE_FILE_CHARS = 200;
+export const MAX_EVIDENCE_FILE_CHARS = 200;
 const MAX_EVIDENCE_SNIPPET_CHARS = 240;
 
 export class ReporterError extends NamedError {}
