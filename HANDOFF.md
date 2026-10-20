@@ -1,46 +1,33 @@
 # HANDOFF
 
 Start here, then read CLAUDE.md. `docs/SESSIONS.md` has the history and
-docs/PLAN.md (rev. 3) is the spec. Last updated 2026-10-20 (night).
+docs/PLAN.md (rev. 3) is the spec. Last updated 2026-10-21 (early morning).
 
 ## Where main stands
 
-main includes #135, and CI is green on it. No PRs are open.
+main includes #141, and CI is green on it. No PRs are open. Plan, tickets and
+decision log for the last three runs: `.scratch/next/` (gitignored, main
+checkout), `decisions.tsv` from its third `start` row on for this run.
 
-On the night of 2026-10-20 the maintainer approved both designs and a
-DeepSeek-worker run implemented them. Plan, tickets and decision log:
-`.scratch/next/` (gitignored, main checkout), `decisions.tsv` from its
-second `start` row on.
+- **D2, new-side analysis (ADR-023): shipped** in #131 and #133-#135.
+- **D1, URLs mentioned in text (ADR-024): shipped.**
+  - #138 records each URL's context: `literal`, `embedded-text` or `unknown`.
+    The third attempt classifies the cooked string value as well as the raw
+    source. A URL is `embedded-text` only when both hold whitespace. Codex
+    approved it after blocking the two raw-text-only versions.
+  - #139 reports a new host seen only as `embedded-text` at LOW with
+    `(mentioned in text)`. A real drive moved husky 5.0.9 -> 5.1.0's
+    `typicode.github.io` from HIGH to LOW, so `--fail-on HIGH` without an
+    allowlist now exits 0 instead of 1. axios 0.27.2 -> 1.0.0 stays at HIGH 12.
+  - #140 measures it on the frozen corpus (`docs/heldout-2026-10-20/README.md`,
+    "After ADR-024"). Finding counts are unchanged, as predicted. All 82
+    `embedded-text` observations are prose.
+  - #141 documents it in the README and refreshes the blog draft's next-steps
+    paragraph.
+- **#137** caps the PR comment's baseline-failure and reviewed-exception
+  lists at `maxRows`, with a count of hidden exceptions.
 
-- **D2, new-side analysis: shipped.**
-  - #131 adds ADR-023.
-  - #133 adds `baselineFailures` to analyzed packages in the JSON report,
-    text, PR comment and SARIF (level `note`).
-  - #134 makes the pipeline fill it. The old version may fail extraction or
-    the manifest read with a CRITICAL failure while the new version reads
-    cleanly. The package is then analyzed as newly added, and the old
-    failure is reported but not gated. An operational old failure keeps the
-    package unavailable, so exit 1 still holds. This lowers `gateSeverity`
-    on purpose. A real drive on `@tabler/icons-react` 3.48.0 -> 3.49.0 moved
-    from CRITICAL 2 to CRITICAL 1. The old version is over the
-    10,000-entry cap, and its dependency `@tabler/icons` still fails on its
-    new side.
-  - #135 documents it in the README and `docs/cli.md`.
-- **D1, URLs mentioned in text: half done, stopped.**
-  - #131 adds ADR-024 (a new host seen only inside prose becomes LOW).
-  - #132 freezes a 30 x 3 corpus split 15/15 by package
-    (`docs/heldout-2026-10-20/`) and records its baseline. No pair adds a
-    host through a URL, so finding counts can't show the change. D1d also
-    plans to measure the classifier on every URL the new versions contain.
-  - D1b (classify each URL by its string) stopped after two consecutive
-    Codex BLOCKs. Both found strings whose runtime value is a single URL
-    while the raw source looks like prose (a backslash-newline continuation,
-    then escaped whitespace at the ends). The branch `Volkiaa/d1b-endpoint-context`
-    is pushed (no PR), and its worktree is kept.
-    `.scratch/next/d1b-stopped.md` gives the root cause, which is classifying
-    raw text instead of the cooked value, and proposes a fix.
-
-The blog is still parked. The draft stays in `docs/blog/`.
+The blog is still parked. The draft in `docs/blog/` is current.
 
 ## Next, in order
 
@@ -50,35 +37,45 @@ The blog is still parked. The draft stays in `docs/blog/`.
      `dist/action/javascript-parser-worker.js` on a checkout of the tag;
    - repin `.github/workflows/capdelta.yml` to the release commit with a
      `# v0.1.0` comment, so Dependabot proposes later releases.
-2. **D1b, third attempt. It needs the maintainer's go-ahead** because the same
-   unit failed twice. Read `.scratch/next/d1b-stopped.md`. The proposal is to
-   classify the cooked string value (`Literal.value`,
-   `TemplateElement.value.cooked`), normalized the way the WHATWG URL parser
-   normalizes input. A URL becomes `embedded-text` only when both the cooked
-   value and the raw text hold whitespace. Then D1c (severity, golden case,
-   destination-swap boundary test, `.scratch/next/tickets/d1c.md`) and D1d
-   (held-out run and write-up).
-3. **Post the blog** once the maintainer un-parks it. PLAN §6 names tl;dr sec,
-   Detection Engineering Weekly and r/netsec. `docs/blog/` still lists
-   new-side analysis as a next step. Update that line before posting.
+2. **Post the blog** once the maintainer un-parks it. PLAN §6 names tl;dr sec,
+   Detection Engineering Weekly and r/netsec.
+3. **Designs that need the maintainer's approval.** None is started.
+   - IPv6 literals in minified data. markdown-it 15.0.3 matches `=C::9bb~` in
+     its entity trie. That is valid IPv6 syntax, so a tighter regex or `isIP`
+     cannot reject it. A fix needs a context rule for IP literals, such as
+     "only a whole string literal or a URL host counts". ADR-024 excludes IP
+     literals, so this needs an ADR.
+   - Parser worker load failure. If a built CLI or Action can't load its
+     parser worker, every file becomes an `unparseable-source` diagnostic
+     (`src/core/npm/javascript-capability-extractor.ts:453`). Proposal: a
+     worker `error` before its first message ever is a run-level operational
+     failure (exit 1), not a per-file parse result. This changes report
+     semantics.
+   - Published TypeScript. zod's 86 `unparseable-file` MEDIUMs
+     (`docs/m5-2026-10-12/labels.json:35-40`) are the largest noise class.
+     The same root makes URLs in `.ts` files `unknown`, including URLs in
+     their comments, so they keep HIGH (66 of 78 tuning `unknown` rows,
+     openai).
+   - The endpoint regex's leading `\b` finds no URL glued to an escape tail,
+     as in `"\x20https://evil.test/x"`. Concatenation (`"ht" + "tps://..."`)
+     already evades it, and #139 has a boundary test documenting that.
+     Scanning cooked string values would close both gaps. That is a detection
+     change.
 
 Small follow-ups, not started:
 
-- If a built CLI or Action can't load its parser worker, the failure becomes
-  per-file `unparseable-source` diagnostics
-  (`src/core/npm/javascript-capability-extractor.ts:453`). That path can't
-  tell a load failure from a parser crash on hostile input.
-- The noise class with the most rows is zod's 86 `unparseable-file` MEDIUMs
-  from published TypeScript (`docs/m5-2026-10-12/labels.json:35-40`). D1
-  doesn't cover them.
-- In the D1 tuning baseline, http-server 13.1.0 -> 14.0.0 fails the default
-  gate with a `secret-exfiltration` shape. The shape comes from a TLS
-  passphrase environment variable read in a file that requires `https`. It
-  is not labelled yet.
-- The IPv6 literal pattern matches characters in minified data (`c::9bb` in
-  markdown-it 15.0.3). ADR-024 does not cover IP literals.
-- The PR comment's baseline-failure section is not capped by `maxRows`. The
-  reviewed-exceptions section works the same way.
+- In the D1 tuning half, http-server 13.1.0 -> 14.0.0 fails the default gate
+  with a `secret-exfiltration` shape from a TLS passphrase environment
+  variable read in a file that requires `https`. It is not labelled yet.
+- `collectGuidance` ignores baseline failures, so they add no "What these
+  mean" row in the PR comment.
+- `renderActionComment` rebuilds the comment once per candidate guidance row.
+- `scripts/m5-measure.ts contexts` builds a full run report only to reuse
+  `isTransient`.
+- `contexts` copies the pipeline's five default adapters by hand. No test
+  checks that they still match `DEFAULT_ADAPTERS`.
+- The URL regex misses `"\x20https://..."` entirely (see Next 3), so #138's
+  test uses `"\x20 https://..."` for that escape.
 
 ## Decisions from 2026-10-17
 
@@ -125,8 +122,9 @@ tdd|bugs|none [--wait]`** creates the Orca worktree, runs
   a mutant here.
 - **Stacked PRs:** never `--delete-branch` a branch others are based on.
   Prefer independent PRs merged one at a time.
-- **Zero-change refactors:** `.scratch/dedupe/` (gitignored) has scripts that
-  replay 20 verify-capdelta drives and diff them byte for byte. Record a fresh
-  baseline before reusing them.
+- **Zero-change and before/after drives:** `.scratch/dedupe/record.sh <checkout> <label>`
+  replays 20 fixed verify-capdelta drives, and `compare.sh <base> <head>` diffs
+  them byte for byte and prints `gateSeverity`. Build the checkout first.
+  `dedupe-main-703901e` is the latest main baseline (before #138).
 - **Untracked:** `.claude/agents/comment-audit.md` in the main checkout is the
   comment-audit project agent.
