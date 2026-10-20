@@ -26,6 +26,8 @@ export default tseslint.config(
       "dist/",
       "coverage/",
       "node_modules/",
+      // Gitignored local scratch scripts; without this, lint fails in any checkout that has them.
+      ".scratch/",
       "test/fixtures/golden/*/source-*/",
       "test/fixtures/reconstructions/*/packages/",
     ],
