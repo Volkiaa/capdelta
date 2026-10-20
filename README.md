@@ -413,8 +413,6 @@ The authoritative architecture and roadmap remain in
 2. M5 publication of the measured results.
 3. Noise reduction for published TypeScript (zod's `unparseable-file`
    findings) and IPv6 literals in minified data.
-4. Analyzing the new side as a new package when the old side cannot be
-   analyzed.
 
 ## Contributing and security reports
 
