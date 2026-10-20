@@ -471,10 +471,6 @@ describe("capdelta CLI", () => {
 
   it("runs the inert golden package through the complete CLI pipeline", async () => {
     const { oldBytes, newBytes } = await goldenBytes();
-    const expectedText = await readFile(
-      join(GOLDEN_ROOT, "expected-run.txt"),
-      "utf8",
-    );
     await withBump(
       lockfileWithGolden("1.0.0", sri(oldBytes)),
       lockfileWithGolden("2.0.0", sri(newBytes)),
@@ -485,13 +481,16 @@ describe("capdelta CLI", () => {
           goldenFetch(oldBytes, newBytes),
         );
         // PLAN §4.5
-        expect(result).toEqual({
+        const { stdout, ...rest } = result;
+        expect(rest).toEqual({
           exitCode: 1,
-          stdout: expectedText,
           stderr:
             "capdelta: 1 finding(s) at or above CRITICAL (highest: CRITICAL)\n",
           order: ["stdout", "stderr"],
         });
+        await expect(stdout).toMatchFileSnapshot(
+          join(GOLDEN_ROOT, "expected-run.txt"),
+        );
       },
     );
   });

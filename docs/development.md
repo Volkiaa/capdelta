@@ -9,7 +9,10 @@ opening a pull request.
 Tests use inert handcrafted lockfiles and tarballs; package code is never run.
 Golden pairs cover each PLAN §4.4 severity row (`test/fixtures/golden/`), and
 attack reconstructions cover documented incidents
-(`test/fixtures/reconstructions/`).
+(`test/fixtures/reconstructions/`). After an intended report change, run
+`npx vitest run <golden test file> -u` to rewrite the `expected-*` files, then
+review the diff. Put `-u` after the test file path because vitest reads the next
+argument as the update type.
 CI executes the suite on Node.js 20, 22, and 24 and verifies that the committed
 Action bundle is reproducible.
 

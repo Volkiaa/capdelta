@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 import type { JsonRunReport } from "../core/reporter.js";
 import {
@@ -698,8 +699,10 @@ describe("renderActionComment", () => {
       import.meta.url,
     );
     const json = await readFile(new URL("expected-run.json", fixture), "utf8");
-    expect(renderActionComment(JSON.parse(json) as JsonRunReport)).toBe(
-      await readFile(new URL("expected-comment.md", fixture), "utf8"),
+    await expect(
+      renderActionComment(JSON.parse(json) as JsonRunReport),
+    ).toMatchFileSnapshot(
+      fileURLToPath(new URL("expected-comment.md", fixture)),
     );
   });
 

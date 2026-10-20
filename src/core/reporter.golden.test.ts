@@ -249,13 +249,13 @@ describe("golden pairs, one per PLAN §4.4 severity row", () => {
     "%s (%s)",
     async (_name, _row, goldenCase) => {
       const diff = await diffCase(goldenCase);
-      const [expectedJson, expectedText] = await Promise.all([
-        readFile(caseFile(goldenCase, "expected.json"), "utf8"),
-        readFile(caseFile(goldenCase, "expected.txt"), "utf8"),
-      ]);
       const json = renderJsonReport(diff);
-      expect(json).toBe(expectedJson);
-      expect(renderTextReport(diff)).toBe(expectedText);
+      await expect(json).toMatchFileSnapshot(
+        caseFile(goldenCase, "expected.json"),
+      );
+      await expect(renderTextReport(diff)).toMatchFileSnapshot(
+        caseFile(goldenCase, "expected.txt"),
+      );
       const report = JSON.parse(json) as JsonReport;
       expect(report.diagnostics).toEqual([]);
       expect(
@@ -299,11 +299,11 @@ describe("golden pairs, one per PLAN §4.4 severity row", () => {
       lockfileFindings: [],
       skipped: [],
     };
-    expect(renderJsonRunReport(run)).toBe(
-      await readFile(caseFile(goldenCase, "expected-run.json"), "utf8"),
+    await expect(renderJsonRunReport(run)).toMatchFileSnapshot(
+      caseFile(goldenCase, "expected-run.json"),
     );
-    expect(renderTextRunReport(run)).toBe(
-      await readFile(caseFile(goldenCase, "expected-run.txt"), "utf8"),
+    await expect(renderTextRunReport(run)).toMatchFileSnapshot(
+      caseFile(goldenCase, "expected-run.txt"),
     );
   });
 
@@ -338,11 +338,11 @@ describe("golden pairs, one per PLAN §4.4 severity row", () => {
         { fetcher: { fetchImpl } },
       );
       const json = renderJsonRunReport(run);
-      expect(json).toBe(
-        await readFile(caseFile(goldenCase, "expected-run.json"), "utf8"),
+      await expect(json).toMatchFileSnapshot(
+        caseFile(goldenCase, "expected-run.json"),
       );
-      expect(renderTextRunReport(run)).toBe(
-        await readFile(caseFile(goldenCase, "expected-run.txt"), "utf8"),
+      await expect(renderTextRunReport(run)).toMatchFileSnapshot(
+        caseFile(goldenCase, "expected-run.txt"),
       );
       const report = JSON.parse(json) as JsonRunReport;
       expect(report.lockfileFindings).toEqual([
