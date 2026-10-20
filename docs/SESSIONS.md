@@ -767,3 +767,33 @@ escapes; worth considering a CI grep for control characters in source files.
   Headless `codex exec -s read-only` worked for every review.
 - Running `check:action` deletes and rebuilds `dist/action/`. A reviewer that reads the worktree during that window
   reports deleted files that are not deleted.
+
+## 2026-10-17 to 2026-10-20, release workflow and lockfile findings in every output
+
+### 1. What landed
+
+- **Release and supply chain.** #116 adds the release workflow (ADR-022 and its Amendment A). Codex blocked the first
+  version on two findings, both fixed. The release attests `dist/action/index.js` and
+  `dist/action/javascript-parser-worker.js`. `@actions/artifact`, `@actions/core` and `@actions/github` moved to
+  `dependencies` with the user's approval, so the SBOM lists them.
+- **Dependency bumps.** #112 and #113 (undici 6.29.1, brace-expansion) rebuilt both bundles with
+  `scripts/package-action-sandboxed.sh`. #114, #115 and #118 bump checkout, setup-node and scorecard-action, each pinned
+  to the upstream tag commit.
+- **Lockfile findings.** An `integrity-changed-version-same` finding is HIGH and counts toward `gateSeverity`, but the PR
+  comment showed no row and SARIF had no result. #119 adds comment rows and `LOCKFILE_GUIDANCE`. #120 adds one SARIF rule
+  and result per finding, located at `lockfilePath`, and text-report guidance. No gate change. Codex approved both.
+- **Docs.** #117 rewrote HANDOFF.md.
+
+### 2. Half-done and exact resume point
+
+- Nothing is half-done. HANDOFF.md lists the next items. v0.1.0 waits for the maintainer.
+
+### 3. ADR status
+
+- ADR-022 and its Amendment A were accepted with #116.
+
+### 4. Lessons
+
+- The worker split a SARIF loop into a helper because `renderSarifReport` sits at ESLint's complexity limit. Check the
+  lint rules before asking a worker to inline code.
+- A copied script in a worktree's `.scratch/` fails `npm run lint`. Run such scripts after verification, then delete them.

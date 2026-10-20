@@ -1,91 +1,90 @@
 # HANDOFF
 
 Start here, then read CLAUDE.md. `docs/SESSIONS.md` has the history and
-docs/PLAN.md (rev. 3) is the spec. Last updated 2026-10-16.
+docs/PLAN.md (rev. 3) is the spec. Last updated 2026-10-20.
 
 ## Where main stands
 
-main is at 4d9bbdb. Three programs finished on 2026-10-16. Each is logged in
-`docs/SESSIONS.md`.
+main is at a0402ab, and CI is green on it. No PRs are open, and the only
+branch besides `main` is the one carrying this handoff.
 
-- **Comment audit (#78 to #92).** About 450 lines of redundant comments are
-  gone, and eight refactors replaced the ones that explained surprising code.
-- **Duplicate-code program (#93 to #107).** Eleven clusters of copied helpers
-  now have one definition each, in `src/core/guards.ts`, `compare.ts`,
-  `named-error.ts`, `line-index.ts` and `worker-pool.ts`. The CLI, the Action,
-  golden fixtures and reconstructions are byte-identical.
-- **CI/CD security (#105, #109 to #111).**
-  - Rulesets protect `main` (PR, Node 20/22/24 CI, linear history) and `v*`
-    tags (admins create, nobody moves or deletes).
-  - Secret scanning with push protection, Dependabot security updates, and
-    immutable releases are on.
-  - zizmor, CodeQL, dependency review and OpenSSF Scorecard run in CI. The
-    first Scorecard score was 6.7.
-  - An ESLint complexity gate (limit 20, with a per-file baseline in
-    `eslint.config.js` that may only shrink) is in place.
-  - ADR-022 (accepted) designs the release pipeline.
+Merged on 2026-10-20:
 
-The verify-capdelta skill was audited after the refactors (#108). Every recipe
-was driven live, and three feature-map claims were corrected.
+- **#119.** Lockfile findings become rows in the PR comment's findings table.
+  They share the row cap, the severity order and the `Showing N of M` count.
+  `finding-guidance.ts` has `LOCKFILE_GUIDANCE`, and the golden
+  `test/fixtures/golden/integrity-changed-version-same/expected-comment.md` is
+  asserted in `src/action/action-comment-reporter.test.ts` (core may not
+  import action, so the assertion cannot live in `reporter.golden.test.ts`).
+- **#120.** SARIF emits one `CAPDELTA-LOCKFILE-<KIND>` rule and one result
+  per lockfile finding, located at `lockfilePath`. The text report prints
+  guidance under HIGH lockfile findings.
+- **#118.** scorecard-action v2.5.0. The pin matches the upstream tag commit.
 
-## In flight
+Codex approved #119 and #120. The golden case rendered through the real
+pipeline now shows the HIGH row and its guidance in the comment, and a rule
+plus a located `error` result in SARIF. Before, the comment had no row and
+SARIF had zero results. The render script is
+`.scratch/lockfile-render/render.ts` (gitignored, main checkout). Copy it
+into a worktree's `.scratch/` to run it there, and delete the copy before
+`npm run lint`, which otherwise fails on it.
 
-- **#116, the release workflow (ADR-022).** It adds `release.yml`,
-  `docs/security-pipeline.md` and the Scorecard badge. CI was green. Its Codex
-  security review has not run: the interactive Codex session stopped at a
-  hook-trust prompt. The `release` environment (required reviewer, `v*` tags
-  only) already exists.
-- **Dependabot:** #112 (undici, security), #113 (brace-expansion, security),
-  #114 (actions/checkout 7.0.1), #115 (actions/setup-node 7.1.0).
-- **Worktrees:** `release-workflow` holds #116's branch.
-  `handoff-dedupe` holds an unpushed HANDOFF commit that this file supersedes,
-  so remove it.
+The 2026-10-17 merges (#112 to #117) are logged in `docs/SESSIONS.md`.
 
 ## Next, in order
 
-1. **Land #116 after a Codex review.** Run it headless, from a worktree at
-   main:
-   `codex exec -s read-only -C <worktree> "Security review of git diff origin/main...origin/Volkiaa/release-workflow: injection, PR code reaching the release job or its token, cache or artifact poisoning, releasing a tag not on main, attesting the wrong file, excess permissions. First line APPROVE or BLOCK, then blocking findings with file:line, at most 30 lines."`
-   Merge on APPROVE. On BLOCK, fix the findings and review again.
-2. **Cut v0.1.0. This is a deploy, so the maintainer starts it.** Push the tag
+1. **Cut v0.1.0. This is a deploy, so the maintainer starts it.** Push the tag
    from main, then approve the run in the `release` environment. Afterwards:
-   - check `gh attestation verify dist/action/index.js -R Volkiaa/capdelta`
-     on a checkout of the tag;
+   - check `gh attestation verify` for both `dist/action/index.js` and
+     `dist/action/javascript-parser-worker.js` on a checkout of the tag;
    - repin `.github/workflows/capdelta.yml` to the release commit with a
-     `# v0.1.0` comment, so Dependabot proposes later releases. This clears
-     zizmor's `stale-action-refs` note and Scorecard's Signed-Releases gap.
-3. **Dependabot PRs.** If a bump changes `dist/action/`, rebuild the bundle only
-   with `scripts/package-action-sandboxed.sh` (ADR-021, "Updating bundled
-   dependencies" in `docs/development.md`). Never run `npm ci` or the
-   verification on the host for such a branch. Check whether #112 (undici)
-   reaches the bundle before merging it. The action bumps (#114, #115) must
-   also move the pins in `release.yml`.
-4. **M5 publication.** M5's `gateFail` is severity-only and does not count
-   operational exit 1 (`scripts/m5-measure.ts:110`). Never edit
-   `docs/m5-2026-10-12/`.
-5. **Noise reduction on a new held-out corpus.** A known false positive is a
-   URL inside a string literal. vitest 5.0.4's `CACHEDIR.TAG` text produced a
-   HIGH `new-external-endpoint` for `bford.info` (#77).
-6. **Analyze the new side as a new package when the old side is
-   unanalyzable.**
+     `# v0.1.0` comment, so Dependabot proposes later releases.
+2. **M5 publication.** M5's `gateFail` is severity-only and does not count
+   operational exit 1 (`scripts/m5-measure.ts:110`). Fix its dead reference to
+   `docs/m5-measurement-2026-10-12.md` (the data lives in
+   `docs/m5-2026-10-12/`). Never edit `docs/m5-2026-10-12/`. Ask the
+   maintainer what "publication" covers before starting.
+3. **Noise reduction on a new held-out corpus.** Needs a design. A known false
+   positive is a URL inside a string literal. vitest 5.0.4's `CACHEDIR.TAG`
+   text produced a HIGH `new-external-endpoint` for `bford.info` (#77).
+4. **Analyze the new side as a new package when the old side is
+   unanalyzable.** Needs a design.
 
-## Open questions for the user
+Small follow-ups found on 2026-10-20, not started:
 
-- `scripts/m5-measure.ts` cites `docs/m5-measurement-2026-10-12.md`, which does
-  not exist. The measurement lives in `docs/m5-2026-10-12/`.
-- Should the PR comment's guidance follow only the rows shown after the row
-  cap? Today it covers every CRITICAL/HIGH class.
-- Should lockfile findings (`integrity-changed-version-same`, HIGH) get
-  guidance?
-- A non-regular `package.json` reports `manifest-not-regular` on the old side
-  but `manifest-missing` on the new side. Both are CRITICAL. Unify it only if
-  it confuses exception authors.
+- A targeted `npx vitest run` of the golden or reconstruction tests without a
+  prior `npm run build` degrades to unparseable-source diagnostics instead of
+  failing loudly.
+- `scripts/generate-golden-fixtures.mjs` writes only tarballs and lockfiles.
+  The `expected-*` files in golden cases are maintained by hand.
+
+## Decisions from 2026-10-17
+
+- PR-comment guidance keeps covering every CRITICAL/HIGH class, not only the
+  rows shown after the cap. It is per class and bounded, and the comment
+  already points to SARIF when guidance is dropped.
+- `manifest-not-regular` versus `manifest-missing` stays as is. Both are
+  CRITICAL, and unifying them means touching the extraction filter. One
+  sentence in the exception docs is enough if it ever confuses someone.
 
 ## Gotchas
 
+- **Dependabot bundle bumps:** rebuild only with
+  `scripts/package-action-sandboxed.sh`, never `npm ci` on the host for that
+  branch. Review minified bundle diffs with
+  `git diff --word-diff=porcelain --word-diff-regex='[A-Za-z0-9_$]+|[^[:space:]]'`;
+  Python `difflib` on the minified lines hangs.
+- **Moving a package from dev to runtime** makes dependency review treat its
+  whole tree as newly added, so pending advisories in that tree fail the PR.
+  Land the security bumps first.
+- **No `Co-Authored-By` trailer** on capdelta commits (CLAUDE.md), even when
+  the harness asks. For a branch commit that already has one, pass `--body`
+  to `gh pr merge --squash`.
+- **zsh does not split unquoted variables.** Pass lists to `git push --delete`
+  or `git branch -D` through `xargs`.
 - **Codex in Orca** can stop at a hook-trust prompt the orchestrator cannot
   answer. Run reviews headless with
-  `codex exec -s read-only -C <worktree> "<prompt>"`.
+  `codex exec -s read-only -C <worktree> -o <answer-file> "<prompt>"`.
 - **`check:action` rewrites `dist/action/`** while it runs. Run reviewers after
   verification.
 - **zizmor in CI scans the whole repo**, including `dependabot.yml` and
