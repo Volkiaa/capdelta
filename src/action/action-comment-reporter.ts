@@ -1,6 +1,7 @@
 import type {
   JsonReportAnalysisIssue,
   JsonReportFinding,
+  JsonReportLockfileFinding,
   JsonReportSignalFinding,
   JsonRunReport,
 } from "../core/reporter.js";
@@ -12,6 +13,7 @@ import {
   analysisIssueGuidance,
   capabilityGuidance,
   guidanceWarranted,
+  lockfileGuidance,
   signalGuidance,
   type AnalysisIssueClass,
   type Guidance,
@@ -50,6 +52,20 @@ interface GuidanceRow {
   severity: FindingSeverity;
   guidance: Guidance;
 }
+
+/**
+ * One row of the "Findings to review" table. Package capability/signal
+ * findings and lockfile findings share the table, the severity ordering, and
+ * the row cap. PLAN §3: lockfile strings are attacker-controlled and are
+ * escaped rather than linked.
+ */
+type FindingRow =
+  | {
+      source: "package";
+      packageName: string;
+      finding: JsonReportFinding | JsonReportSignalFinding;
+    }
+  | { source: "lockfile"; finding: JsonReportLockfileFinding };
 
 export interface ActionCommentOptions {
   artifactName?: string;
@@ -319,8 +335,8 @@ function buildComment(
       "| Package | Severity | Change | Evidence |",
       "| --- | --- | --- | --- |",
       ...findings.map(
-        ({ packageName, finding }) =>
-          `| ${escapeMarkdownText(packageName, MAX_IDENTITY_CHARS)} | ${finding.severity} | ${escapeMarkdownText(findingText(finding), MAX_DETAIL_CHARS)} | ${escapeMarkdownText(evidenceText(finding), MAX_DETAIL_CHARS)} |`,
+        (row) =>
+          `| ${escapeMarkdownText(rowPackageName(row), MAX_IDENTITY_CHARS)} | ${rowSeverity(row)} | ${escapeMarkdownText(rowChange(row), MAX_DETAIL_CHARS)} | ${escapeMarkdownText(rowEvidence(row), MAX_DETAIL_CHARS)} |`,
       ),
     );
   }
@@ -372,7 +388,9 @@ function buildComment(
 
   const shownFindings = findings.length;
   const totalFindings =
-    report.summary.capabilityFindings + (report.summary.signalFindings ?? 0);
+    report.summary.capabilityFindings +
+    (report.summary.signalFindings ?? 0) +
+    report.summary.lockfileFindings;
   const shownIssues = issues.length;
   const totalIssues = report.summary.analysisIssues;
   lines.push(
@@ -392,46 +410,58 @@ function buildComment(
   return `${lines.join("\n")}\n`;
 }
 
-function collectFindings(report: JsonRunReport): {
-  packageName: string;
-  finding: JsonReportFinding | JsonReportSignalFinding;
-}[] {
-  return report.packages
-    .flatMap((item) =>
-      item.status === "analyzed"
-        ? [
-            ...item.report.findings.map((finding) => ({
-              packageName: item.report.package.name,
-              finding,
-            })),
-            ...(item.report.signalFindings ?? []).map((finding) => ({
-              packageName: item.report.package.name,
-              finding,
-            })),
-          ]
-        : [],
-    )
-    .sort(compareFindingRows);
+function collectFindings(report: JsonRunReport): FindingRow[] {
+  const packageFindings: FindingRow[] = report.packages.flatMap((item) =>
+    item.status === "analyzed"
+      ? [
+          ...item.report.findings.map((finding): FindingRow => ({
+            source: "package",
+            packageName: item.report.package.name,
+            finding,
+          })),
+          ...(item.report.signalFindings ?? []).map((finding): FindingRow => ({
+            source: "package",
+            packageName: item.report.package.name,
+            finding,
+          })),
+        ]
+      : [],
+  );
+  const lockfileFindings: FindingRow[] = report.lockfileFindings.map(
+    (finding) => ({ source: "lockfile", finding }),
+  );
+  return [...packageFindings, ...lockfileFindings].sort(compareFindingRows);
 }
 
-function compareFindingRows(
-  left: {
-    packageName: string;
-    finding: JsonReportFinding | JsonReportSignalFinding;
-  },
-  right: {
-    packageName: string;
-    finding: JsonReportFinding | JsonReportSignalFinding;
-  },
-): number {
+function rowPackageName(row: FindingRow): string {
+  return row.source === "lockfile" ? row.finding.name : row.packageName;
+}
+
+function rowSeverity(row: FindingRow): FindingSeverity {
+  return row.finding.severity;
+}
+
+function rowChange(row: FindingRow): string {
+  return row.source === "lockfile"
+    ? row.finding.kind
+    : findingText(row.finding);
+}
+
+function rowEvidence(row: FindingRow): string {
+  return row.source === "lockfile"
+    ? `${row.finding.path}: ${row.finding.oldVersion ?? "none"} -> ${row.finding.newVersion}`
+    : evidenceText(row.finding);
+}
+
+function compareFindingRows(left: FindingRow, right: FindingRow): number {
   const severity =
-    FINDING_SEVERITY_ORDER[left.finding.severity] -
-    FINDING_SEVERITY_ORDER[right.finding.severity];
+    FINDING_SEVERITY_ORDER[rowSeverity(left)] -
+    FINDING_SEVERITY_ORDER[rowSeverity(right)];
   if (severity !== 0) return severity;
   return (
-    compareText(left.packageName, right.packageName) ||
-    compareText(findingText(left.finding), findingText(right.finding)) ||
-    compareText(evidenceText(left.finding), evidenceText(right.finding))
+    compareText(rowPackageName(left), rowPackageName(right)) ||
+    compareText(rowChange(left), rowChange(right)) ||
+    compareText(rowEvidence(left), rowEvidence(right))
   );
 }
 
@@ -487,21 +517,28 @@ function collectGuidance(report: JsonRunReport): GuidanceRow[] {
     }
   };
 
-  for (const { finding } of collectFindings(report)) {
-    if (!guidanceWarranted(finding.severity)) continue;
-    if ("kind" in finding && "detail" in finding) {
+  for (const row of collectFindings(report)) {
+    if (!guidanceWarranted(rowSeverity(row))) continue;
+    if (row.source === "lockfile") {
       add(
-        `signal:${finding.kind}`,
-        finding.kind,
-        finding.severity,
-        signalGuidance(finding.kind),
+        `lockfile:${row.finding.kind}`,
+        row.finding.kind,
+        row.finding.severity,
+        lockfileGuidance(row.finding.kind),
+      );
+    } else if ("kind" in row.finding && "detail" in row.finding) {
+      add(
+        `signal:${row.finding.kind}`,
+        row.finding.kind,
+        row.finding.severity,
+        signalGuidance(row.finding.kind),
       );
     } else {
-      const kind = finding.capability.kind;
+      const kind = row.finding.capability.kind;
       add(
         `capability:${kind}`,
         kind,
-        finding.severity,
+        row.finding.severity,
         capabilityGuidance(kind),
       );
     }

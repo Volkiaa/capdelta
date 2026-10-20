@@ -4,6 +4,8 @@ docs/PLAN.md
 LICENSE
 # Golden fixture sources are archived byte-for-byte (scripts/generate-golden-fixtures.mjs).
 test/fixtures/golden/*/source-*/
+# Rendered PR comment goldens must match renderActionComment byte-for-byte.
+test/fixtures/golden/*/expected-comment.md
 test/fixtures/reconstructions/*/packages/
 docs/m5-2026-10-12/results.json
 
