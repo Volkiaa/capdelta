@@ -795,6 +795,30 @@ describe("endpoint context", () => {
     ).toEqual([{ host: "8.8.4.4", context: "unknown" }]);
   });
 
+  it.each([
+    [
+      "a quoted string with a LF line continuation",
+      '"https://a.test/\\\ncollect"',
+    ],
+    [
+      "a quoted string with a CRLF line continuation",
+      '"https://a.test/\\\r\ncollect"',
+    ],
+    ["a template with a LF line continuation", "`https://a.test/\\\ncollect`"],
+    [
+      "a template with a CRLF line continuation",
+      "`https://a.test/\\\r\ncollect`",
+    ],
+    [
+      "a template with a newline the URL parser drops",
+      "`https://a.test/\ncollect`",
+    ],
+  ])("keeps a URL literal in %s", async (_label, literal) => {
+    expect(await endpointsOf({ "index.js": `fetch(${literal});` })).toEqual([
+      { host: "a.test", context: "literal" },
+    ]);
+  });
+
   it("classifies a template that ends at an expression as literal", async () => {
     expect(
       await endpointsOf({

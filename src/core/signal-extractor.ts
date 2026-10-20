@@ -375,6 +375,15 @@ function strongestContext(
  * "literal" otherwise. Escape sequences such as `\n` are not whitespace in
  * the raw text, so an escape can keep a URL literal but never demote it.
  */
+/**
+ * A backslash before a line terminator is a JavaScript line continuation, and
+ * the URL parser drops ASCII tab and newline anywhere in its input, so neither
+ * separates words. Deleting them can only keep a URL literal, never demote it.
+ */
+function wordsOf(raw: string): string {
+  return raw.replace(/\\(?:\r\n|[\n\r\u2028\u2029])|[\t\n\r]/gu, "").trim();
+}
+
 function contextLookup(
   file: string,
   ranges: readonly (readonly [number, number])[],
@@ -406,7 +415,7 @@ function contextLookup(
     }
     const range = ranges[low - 1];
     if (range === undefined || range[1] <= start) return "unknown";
-    return /\s/u.test(source.slice(range[0], range[1]).trim())
+    return /\s/u.test(wordsOf(source.slice(range[0], range[1])))
       ? "embedded-text"
       : "literal";
   };
