@@ -56,7 +56,7 @@ interface GuidanceRow {
 /**
  * One row of the "Findings to review" table. Package capability/signal
  * findings and lockfile findings share the table, the severity ordering, and
- * the row cap. ADR-004: lockfile strings are attacker-controlled and are
+ * the row cap. PLAN §3: lockfile strings are attacker-controlled and are
  * escaped rather than linked.
  */
 type FindingRow =
