@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "reviewer": "Claude (single-reviewer adjudication)",
+  "scope": "every HIGH and MEDIUM new-external-endpoint finding in baseline-tuning.json and baseline-heldout.json",
+  "categories": {
+    "real": "a host the new version can contact at run time",
+    "noise": "a reported host that is not a runtime endpoint"
+  },
+  "labels": [
+    {
+      "half": "tuning",
+      "bump": "markdown-it 15.0.2 -> 15.0.3",
+      "finding": "HIGH new external ipv6 c::9bb",
+      "label": "noise",
+      "reason": "the IPv6 pattern matched characters inside a minified data string (dist/browser/markdown-it.esm.min.mjs:316); not an address"
+    },
+    {
+      "half": "tuning",
+      "bump": "markdown-it 15.0.2 -> 15.0.3",
+      "finding": "HIGH new external ipv6 c::a",
+      "label": "noise",
+      "reason": "same minified data string as c::9bb; not an address"
+    }
+  ]
+}
