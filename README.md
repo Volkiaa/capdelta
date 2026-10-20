@@ -81,11 +81,10 @@ install-time location context.
 
 Lockfile-level facts are also surfaced: same-version integrity changes,
 downgrades, unanalyzable git/file/link sources, private registries, malformed
-entries, and first-run lockfile additions. Since #119 and #120, each appears as
-a row in the PR comment's findings table under the same row cap, order, and
-count. Each lockfile finding also gets one `CAPDELTA-LOCKFILE-<KIND>` SARIF
-rule and result located at the lockfile, and HIGH findings get `Why:` and
-`Check:` guidance in the text report.
+entries, and first-run lockfile additions. Each lockfile finding appears as a
+row in the PR comment's findings table under the same row cap, order, and
+count as package findings, and as one `CAPDELTA-LOCKFILE-<KIND>` SARIF result
+located at the lockfile.
 
 ### Measured results (2026-10-12)
 
@@ -153,10 +152,9 @@ paths, obfuscation, entropy) say what static analysis found or suggests, never
 what the package is. In the PR comment the size cap cuts guidance before it
 touches a finding row, and a footer says how many classes were omitted.
 
-Since #119 and #120, lockfile findings also get a row in the PR comment's
-findings table under the same row cap, order, and count. Each gets one
-`CAPDELTA-LOCKFILE-<KIND>` SARIF rule and result located at the lockfile, and
-HIGH findings get `Why:` and `Check:` in the text report.
+Lockfile findings get the same guidance. A CRITICAL or HIGH lockfile kind is
+explained in the comment, as `Why:` and `Check:` lines in the text report, and
+in its SARIF rule help.
 
 ## Quick start
 
@@ -320,6 +318,13 @@ SARIF. Since ADR-020, the Action writes whenever the workflow's token allows it,
 Dependabot PRs get the same review as any other PR.
 
 ![capdelta's comment on Dependabot PR #63: one LOW finding, @actions/artifact added the dependency @protobuf-ts/runtime-rpc](docs/images/dependabot-pr-63.png)
+
+A gate failure looks like this. A throwaway demo PR bumped `bcrypt` from 5.1.1 to
+6.0.0, one of the two M5 gate failures above. capdelta failed the check on the
+CRITICAL install-hook change and listed the new `node-gyp-build` dependency's
+capabilities. The PR was closed unmerged.
+
+![capdelta's comment on a demo PR bumping bcrypt from 5.1.1 to 6.0.0: one CRITICAL changed install hook, one HIGH process capability in node-gyp-build](docs/images/demo-bcrypt-6.png)
 
 capdelta currently has seven direct runtime dependencies: `@actions/artifact`,
 `@actions/core`, `@actions/github`, `acorn`, `acorn-walk`, `jsonc-parser`, and
