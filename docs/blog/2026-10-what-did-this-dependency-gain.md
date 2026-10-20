@@ -113,6 +113,7 @@ and run it against your own lockfile, and how to add the Action to a
 repository. capdelta runs on its own repository, so every dependency update to
 capdelta gets the same comment.
 
-The next steps are a signed v0.1.0 release, noise reduction measured on a new
-held-out corpus, and analyzing the new side of a bump as a new package when the
-old side cannot be analyzed.
+The next step is a signed v0.1.0 release. Since this draft was written,
+capdelta analyzes the new side of a bump as a newly added package when only the
+old side cannot be analyzed, and it reports a new host seen only inside prose
+at LOW.
