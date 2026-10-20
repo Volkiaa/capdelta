@@ -268,7 +268,13 @@ than `registry.npmjs.org` is skipped and flagged.
   runtime may be missed. Files that do not parse are still byte-scanned,
   comments included. Domains must look public (two or more letter-digit-hyphen
   labels with an alphabetic or punycode TLD); single-label hosts are not
-  reported.
+  reported. A new host that the new version mentions only inside text, meaning
+  a string or template part that also holds other words (for example a help
+  message `"See https://example.test/docs for details"`), is reported at LOW
+  with `(mentioned in text)` instead of HIGH. A string that holds only the
+  URL, or a file that does not parse, keeps HIGH. So code that builds a
+  request URL out of a prose string (for example by splitting it) gets LOW,
+  which ADR-024 accepts; concatenated URL pieces were already not detected.
 - **Script semantics:** install hooks are never executed. Only conservative
   literal `node path.js` entrypoints receive install-code attribution.
 - **Routine hooks:** no install command is ranked down. Benign-pattern
@@ -396,13 +402,17 @@ The authoritative architecture and roadmap remain in
   [above](#measured-results-2026-10-12).
 - **Dependabot demo.** Dependabot PRs get the sticky comment and SARIF (ADR-020);
   see [the dogfooding evidence](#dogfooding-evidence).
+- **URLs mentioned in text.** A new host seen only inside prose is LOW (ADR-024).
+  On the 2026-10-20 held-out corpus, all 82 such observations were prose; see
+  [the measurement](docs/heldout-2026-10-20/README.md#after-adr-024).
 
 ### Next
 
 1. Cut v0.1.0 and verify the signed provenance and SBOM for both Action
    bundles.
 2. M5 publication of the measured results.
-3. Noise reduction, measured on a new held-out corpus.
+3. Noise reduction for published TypeScript (zod's `unparseable-file`
+   findings) and IPv6 literals in minified data.
 4. Analyzing the new side as a new package when the old side cannot be
    analyzed.
 
