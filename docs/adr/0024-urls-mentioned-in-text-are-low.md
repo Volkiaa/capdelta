@@ -57,13 +57,29 @@ This amends the PLAN §4.4 row for new external domains.
 
 ## Consequences
 
-- A host that an attacker hides inside prose shows at LOW. Using it still
-  needs a network call, which shows as a NET or PROCESS capability (HIGH) and,
-  with secrets, as the CRITICAL exfiltration shape. Those findings don't
-  depend on the endpoint finding.
+- A host that an attacker hides inside prose shows at LOW, so `--fail-on high`
+  no longer fails on it. This matters most when the package already has a
+  network capability and the attacker only changes the destination: no new
+  capability or shape fires, and the endpoint finding is the only signal.
+- That signal is already easy to evade today. The URL regex
+  (`URL_LITERAL_RE`, `src/core/signal-extractor.ts:22`) needs the scheme and
+  host in one piece of text, so `"ht" + "tps://evil.test"`,
+  `["https:", "", "evil.test"].join("/")` or a base64 string produce no
+  endpoint finding at all. Moving the URL into prose gives an attacker
+  nothing those forms don't, and it still leaves a LOW finding in the report.
+  The endpoint finding is a hint for reviewers, not a gate guarantee. The
+  gate's guarantees come from capabilities and shapes.
+- When the package gains a network call, that call shows as a NET or PROCESS
+  capability (HIGH) and, with secrets, as the CRITICAL exfiltration shape.
+  Those findings don't depend on the endpoint finding.
 - A URL in a string with trailing text, such as `"https://evil.test/c? x"`,
-  is `embedded-text`. This is accepted for the reason above.
+  is `embedded-text`. This is accepted for the reasons above.
+- A test documents the destination-swap boundary: a package with an existing
+  network call that switches to a host split out of prose gets one LOW
+  endpoint finding and no HIGH.
 - URLs in comments of TypeScript files and of files that failed to parse still
   fire at HIGH.
 - Revisit if a reconstruction or a real attack relies on the endpoint finding
-  alone and puts its URL inside text.
+  alone and puts its URL inside text, or if the endpoint detector learns to
+  resolve assembled URLs, which would make the text-embedding route the
+  cheapest evasion left.
