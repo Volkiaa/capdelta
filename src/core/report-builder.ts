@@ -94,7 +94,11 @@ export function buildRunReport(run: CapabilityAnalysisRun): JsonRunReport {
       }
       const issues = item.issues.map(reportAnalysisIssue);
       countIssues(issues);
-      return { status: "analyzed", report, issues };
+      // A baseline failure is reported and counted as an analysis issue but
+      // never gates: the new version is analyzed, so this is context.
+      const baselineFailures = item.baselineFailures.map(reportAnalysisIssue);
+      analysisIssues += baselineFailures.length;
+      return { status: "analyzed", report, issues, baselineFailures };
     }
 
     const failures = reportAnalysisFailures(item.failures);
@@ -175,12 +179,20 @@ function validateRun(run: CapabilityAnalysisRun): void {
     validateChangedPackage(item.changedPackage);
     if (item.status === "unavailable") continue;
     const expected = item.changedPackage;
+    const baselineFailures = item.baselineFailures;
+    if (expected.oldVersion === null && baselineFailures.length > 0) {
+      throw new ReporterContractError(
+        `analyzed package ${JSON.stringify(expected.name)} has a baseline failure without an old version`,
+      );
+    }
+    const reportedAsNew =
+      expected.oldVersion === null || baselineFailures.length > 0;
     if (
       item.diff.subject.ecosystem !== "npm" ||
       item.diff.subject.name !== expected.name ||
       item.diff.subject.version !== expected.newVersion ||
-      item.diff.newPackage !== (expected.oldVersion === null) ||
-      (expected.oldVersion === null
+      item.diff.newPackage !== reportedAsNew ||
+      (reportedAsNew
         ? item.diff.baseline !== null
         : item.diff.baseline?.version !== expected.oldVersion)
     ) {

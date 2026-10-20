@@ -12,7 +12,12 @@ import {
   signalGuidance,
   type Guidance,
 } from "./finding-guidance.js";
-import { buildReport, buildRunReport } from "./report-builder.js";
+import {
+  MAX_IDENTITY_CHARS,
+  buildReport,
+  buildRunReport,
+  truncate,
+} from "./report-builder.js";
 import { isUnanalyzableIssue } from "./run-severity.js";
 import type {
   JsonReport,
@@ -190,6 +195,12 @@ export function formatTextRunReport(report: JsonRunReport): string {
           ...item.issues.flatMap(analysisIssueLines),
         );
       }
+      if (item.baselineFailures.length > 0) {
+        lines.push(
+          "Baseline failures:",
+          ...item.baselineFailures.map(baselineFailureLine),
+        );
+      }
       continue;
     }
 
@@ -263,6 +274,10 @@ function analysisIssueText(issue: JsonReportAnalysisIssue): string {
   // ADR-016
   const label = isUnanalyzableIssue(issue) ? "could not analyze: " : "";
   return `${severity}${label}[${issue.stage}/${issue.kind}] ${quote(issue.detail)}${context.length === 0 ? "" : `; ${context.join("; ")}`}`;
+}
+
+function baselineFailureLine(issue: JsonReportAnalysisIssue): string {
+  return `- Old version could not be analyzed (${truncate(issue.kind, MAX_IDENTITY_CHARS)}); every capability of the new version is reported as added.`;
 }
 
 function analysisIssueLines(issue: JsonReportAnalysisIssue): string[] {

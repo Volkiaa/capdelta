@@ -235,6 +235,7 @@ describe("capdelta config", () => {
               },
               diff,
               issues: [],
+              baselineFailures: [],
             },
           ],
           lockfileFindings: [],

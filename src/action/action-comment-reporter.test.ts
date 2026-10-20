@@ -88,6 +88,7 @@ function adversarialReport(firstRun = false): JsonRunReport {
             severity: null,
           },
         ],
+        baselineFailures: [],
       },
     ],
     lockfileFindings: [],
@@ -449,6 +450,30 @@ describe("renderActionComment", () => {
     expect(body).not.toContain("### What these mean");
   });
 
+  it("renders a baseline failure line for an analyzed package", () => {
+    const report = adversarialReport();
+    const item = report.packages[0];
+    if (item?.status !== "analyzed") {
+      throw new Error("inert fixture must be analyzed");
+    }
+    item.baselineFailures = [
+      {
+        stage: "old-extraction",
+        side: "old",
+        kind: "invalid-archive",
+        detail: PAYLOAD,
+        url: null,
+        evidence: null,
+        severity: "CRITICAL",
+      },
+    ];
+    report.summary = { ...report.summary, analysisIssues: 2 };
+    const body = renderActionComment(report);
+    expect(body).toContain(
+      "Old version could not be analyzed (invalid-archive); every capability of the new version is reported as added.",
+    );
+  });
+
   it("labels unanalyzable issues in the analysis gaps table", () => {
     const report = adversarialReport();
     report.summary = {
@@ -603,6 +628,7 @@ describe("renderActionComment", () => {
         diagnostics: [],
       },
       issues: [],
+      baselineFailures: [],
     };
     const body = renderActionComment(
       {

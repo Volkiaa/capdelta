@@ -57,7 +57,8 @@
         "shapes": [],
         "diagnostics": []
       },
-      "issues": []
+      "issues": [],
+      "baselineFailures": []
     }
   ],
   "lockfileFindings": [

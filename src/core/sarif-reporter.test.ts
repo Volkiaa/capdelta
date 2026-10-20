@@ -143,6 +143,7 @@ describe("renderSarifReport", () => {
             diagnostics: [],
           },
           issues: [],
+          baselineFailures: [],
         },
       ],
       lockfileFindings: [],
@@ -203,6 +204,7 @@ describe("renderSarifReport", () => {
             diagnostics: [],
           },
           issues: [],
+          baselineFailures: [],
         },
       ],
       lockfileFindings: [],
@@ -432,6 +434,7 @@ describe("renderSarifReport", () => {
         diagnostics: [],
       },
       issues: [],
+      baselineFailures: [],
     };
     const integrityPackage: CapabilityAnalysisRun["packages"][number] = {
       status: "unavailable",
@@ -737,6 +740,7 @@ describe("renderSarifReport", () => {
               },
             },
           ],
+          baselineFailures: [],
         },
       ],
       lockfileFindings: [],
@@ -747,6 +751,47 @@ describe("renderSarifReport", () => {
     expect(sarif.runs[0].results[0]).toMatchObject({
       ruleId: "CAPDELTA-INTEGRITY-MISMATCH",
       properties: { side: "old", version: "1.0.0" },
+    });
+  });
+
+  it("reports a baseline failure at note level only", () => {
+    const run: CapabilityAnalysisRun = {
+      firstRun: false,
+      summary: { changed: 1, analyzed: 1, unavailable: 0, skipped: 0 },
+      packages: [
+        {
+          status: "analyzed",
+          changedPackage: changed("fixture", "1.0.0"),
+          diff: {
+            baseline: null,
+            subject: { ecosystem: "npm", name: "fixture", version: "2.0.0" },
+            newPackage: true,
+            findings: [],
+            diagnostics: [],
+          },
+          issues: [],
+          baselineFailures: [
+            {
+              stage: "old-extraction",
+              failure: {
+                kind: "invalid-archive",
+                detail: "archive is not a gzip file",
+              },
+            },
+          ],
+        },
+      ],
+      lockfileFindings: [],
+      skipped: [],
+    };
+    const sarif = JSON.parse(renderSarifReport(run)) as ParsedSarif;
+    expect(sarif.runs[0].results).toHaveLength(1);
+    expect(sarif.runs[0].results[0]).toMatchObject({
+      level: "note",
+      message: {
+        text: "Old version could not be analyzed (invalid-archive); every capability of the new version is reported as added.",
+      },
+      properties: { kind: "baseline-failure", severity: "CRITICAL" },
     });
   });
 
@@ -940,6 +985,7 @@ describe("renderSarifReport", () => {
           },
           diff,
           issues: [],
+          baselineFailures: [],
         },
       ],
       lockfileFindings: [],
