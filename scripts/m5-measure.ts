@@ -121,6 +121,8 @@ export function recordingDiffAdapter(recorder: {
   };
 }
 
+// A call, so TypeScript does not narrow recorder.newSet to null across the
+// awaited analysis that writes it.
 function resetRecordedNewSet(recorder: { newSet: CapabilitySet | null }): void {
   recorder.newSet = null;
 }
