@@ -159,7 +159,7 @@ export type JsonRunPackage =
       status: "analyzed";
       report: JsonReport;
       issues: readonly JsonReportAnalysisIssue[];
-      baselineFailures: JsonReportAnalysisIssue[];
+      baselineFailures: readonly JsonReportAnalysisIssue[];
     }
   | {
       status: "unavailable";
