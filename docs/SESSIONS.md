@@ -854,3 +854,35 @@ escapes; worth considering a CI grep for control characters in source files.
   That made "URL embedded in text" a safe line to draw.
 - Orca puts a new request id on every `terminal read`, so hashing the whole response never detects a stall. Hash
   `.result.terminal.tail` only.
+
+## 2026-10-20 (night), D1 and D2 implementation run
+
+### 1. What landed
+
+- **#131.** ADR-023 (analyze the new version as newly added when only the old version is unanalyzable) and ADR-024
+  (a new host seen only inside prose is LOW). Codex blocked ADR-024 once. The ADR had said a NET finding always
+  covers a destination swap, which is false when the package already had NET. The ADR now records that boundary and
+  that the URL regex already misses assembled URLs.
+- **#132.** A frozen 30 x 3 corpus, split 15/15 by package, and its baseline (`docs/heldout-2026-10-20/`). There are
+  no URL endpoint findings in 90 pairs.
+- **#133, #134, #135.** ADR-023 end to end. #133 adds the `baselineFailures` report field, #134 adds the pipeline
+  change, and #135 adds the docs. A real drive on `@tabler/icons-react` 3.48.0 -> 3.49.0 moved from CRITICAL 2 to 1.
+
+### 2. Half-done and exact resume point
+
+- D1b stopped after two consecutive Codex BLOCKs. The branch `Volkiaa/d1b-endpoint-context` is unpushed, and its
+  worktree is kept. `.scratch/next/d1b-stopped.md` has the cause and a proposed fix. D1c and D1d wait on it.
+
+### 3. ADR status
+
+- ADR-023 and ADR-024 are accepted. ADR-023's scope was narrowed in #134: an operational old-side failure keeps the
+  package unavailable.
+
+### 4. Lessons
+
+- Read the runtime value, not the source text. Each D1b BLOCK was a new escape form where raw and cooked strings
+  disagree.
+- Check every exit path a new status touches. `operationalFailureCount` only counts unavailable packages, so moving a
+  package to analyzed would have silently dropped ADR-018's exit 1 (`src/core/run-severity.ts:406-413`).
+- A registry packument's `dist.fileCount` finds real packages that cross an extraction cap between versions. That gave
+  D2c a real CLI proof without a hand-made registry.
