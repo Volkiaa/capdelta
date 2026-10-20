@@ -12,7 +12,7 @@ import {
 } from "./signal-extractor.js";
 import { compareText } from "./compare.js";
 
-export type SignalFindingSeverity = "CRITICAL" | "HIGH" | "MEDIUM";
+export type SignalFindingSeverity = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
 export type SignalFindingChange = "added" | "changed";
 
 export type SignalFindingKind =
@@ -50,13 +50,7 @@ export function diffSignals(
 
   for (const endpoint of newSet.endpoints) {
     if (oldEndpoints.has(endpointKey(endpoint))) continue;
-    findings.push({
-      kind: "new-external-endpoint",
-      severity: "HIGH",
-      change: "added",
-      detail: `new external ${endpoint.endpointType} ${endpoint.normalizedValue}`,
-      evidence: endpoint.evidence,
-    });
+    findings.push(endpointFinding(endpoint));
   }
 
   for (const pattern of newSet.obfuscationPatterns) {
@@ -151,6 +145,22 @@ function unparseableBytes(set: SignalSet): number {
 
 function endpointKey(endpoint: SignalEndpointObservation): string {
   return JSON.stringify([endpoint.endpointType, endpoint.normalizedValue]);
+}
+
+/**
+ * ADR-024: a host seen only inside prose stays in the report, but at LOW. Any
+ * literal or unparsed occurrence keeps HIGH (strongest context wins during
+ * extraction), and only the new side's context decides.
+ */
+function endpointFinding(endpoint: SignalEndpointObservation): SignalFinding {
+  const mentionedInText = endpoint.context === "embedded-text";
+  return {
+    kind: "new-external-endpoint",
+    severity: mentionedInText ? "LOW" : "HIGH",
+    change: "added",
+    detail: `new external ${endpoint.endpointType} ${endpoint.normalizedValue}${mentionedInText ? " (mentioned in text)" : ""}`,
+    evidence: endpoint.evidence,
+  };
 }
 
 function patternKey(pattern: SignalObfuscationObservation): string {

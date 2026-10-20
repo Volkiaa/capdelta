@@ -63,6 +63,15 @@
     "newVersion": "2.0.0"
   },
   {
+    "name": "url-mentioned-in-text",
+    "row": "New host mentioned only in text",
+    "severity": "LOW",
+    "mode": "package",
+    "packageName": "golden-url-mentioned-in-text",
+    "oldVersion": "1.0.0",
+    "newVersion": "2.0.0"
+  },
+  {
     "name": "integrity-changed-version-same",
     "row": "Integrity changed, version identical",
     "severity": "HIGH",
