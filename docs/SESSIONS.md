@@ -797,3 +797,30 @@ escapes; worth considering a CI grep for control characters in source files.
 - The worker split a SARIF loop into a helper because `renderSarifReport` sits at ESLint's complexity limit. Check the
   lint rules before asking a worker to inline code.
 - A copied script in a worktree's `.scratch/` fails `npm run lint`. Run such scripts after verification, then delete them.
+
+## 2026-10-20, M5 publication-ready
+
+### 1. What landed
+
+- **README (#123).** An audit against the code, ADRs and the frozen M5 record found ten stale or wrong claims, now fixed.
+  Among them are the dependency count (7, not 4), the `yargs` HIGH labeled noise, and a Quick start that builds capdelta
+  first. #123 also adds a gate-failure screenshot from throwaway PR #122, which bumped `bcrypt` 5.1.1 to 6.0.0. #122 is
+  closed and its branches deleted.
+- **Blog draft (#124).** `docs/blog/2026-10-what-did-this-dependency-gain.md`, built only from measured numbers and the
+  reconstructions. Nothing is posted.
+- **No change to M5's `gateFail`.** ADR-019 decision 5 keeps it severity-only, and counting operational failures would
+  change 0 of 90 entries.
+
+### 2. Half-done and exact resume point
+
+- Nothing is half-done. The maintainer cuts v0.1.0 and posts the blog. HANDOFF.md lists the rest.
+
+### 3. ADR status
+
+- No ADR changed.
+
+### 4. Lessons
+
+- Check a unit's premise against the ADRs before briefing it. The `gateFail` fix contradicted ADR-019, and a read-only
+  DeepSeek pass found that before any code was written.
+- `ship-pr` and `verify-quiet` (in `~/.claude/bin`) each shipped #123 and #124 in one background command, in place of separate push, PR, CI-wait, merge and cleanup steps.

@@ -5,31 +5,28 @@ docs/PLAN.md (rev. 3) is the spec. Last updated 2026-10-20.
 
 ## Where main stands
 
-main is at a0402ab, and CI is green on it. No PRs are open, and the only
+main is at 08e0f72, and CI is green on it. No PRs are open, and the only
 branch besides `main` is the one carrying this handoff.
 
-Merged on 2026-10-20:
+M5 is publication-ready as of 2026-10-20. Nothing has been posted.
 
-- **#119.** Lockfile findings become rows in the PR comment's findings table.
-  They share the row cap, the severity order and the `Showing N of M` count.
-  `finding-guidance.ts` has `LOCKFILE_GUIDANCE`, and the golden
-  `test/fixtures/golden/integrity-changed-version-same/expected-comment.md` is
-  asserted in `src/action/action-comment-reporter.test.ts` (core may not
-  import action, so the assertion cannot live in `reporter.golden.test.ts`).
-- **#120.** SARIF emits one `CAPDELTA-LOCKFILE-<KIND>` rule and one result
-  per lockfile finding, located at `lockfilePath`. The text report prints
-  guidance under HIGH lockfile findings.
-- **#118.** scorecard-action v2.5.0. The pin matches the upstream tag commit.
+- **#123.** README corrections from an audit against the code, the ADRs and
+  the frozen M5 record. The dependency count is now 7, the `yargs` HIGH is
+  named as noise, and the Quick start says to build capdelta first. There
+  were ten fixes in all. It also adds a gate-failure demo screenshot,
+  `docs/images/demo-bcrypt-6.png`. That comes from throwaway PR #122, which
+  bumped `bcrypt` 5.1.1 to 6.0.0 against a throwaway base branch. #122 is
+  closed and both of its branches are deleted.
+- **#124.** Blog draft, `docs/blog/2026-10-what-did-this-dependency-gain.md`.
+  Every number comes from `docs/m5-2026-10-12/`.
+- **#119, #120.** Lockfile findings in the PR comment, SARIF and the text
+  report. Codex approved both.
+- M5's `gateFail` stays severity-only, as ADR-019 decision 5 says
+  (`docs/adr/0019-read-what-npm-installs.md:64-65`). Counting operational
+  failures would change 0 of the 90 entries, because all 90 were analyzed.
 
-Codex approved #119 and #120. The golden case rendered through the real
-pipeline now shows the HIGH row and its guidance in the comment, and a rule
-plus a located `error` result in SARIF. Before, the comment had no row and
-SARIF had zero results. The render script is
-`.scratch/lockfile-render/render.ts` (gitignored, main checkout). Copy it
-into a worktree's `.scratch/` to run it there, and delete the copy before
-`npm run lint`, which otherwise fails on it.
-
-The 2026-10-17 merges (#112 to #117) are logged in `docs/SESSIONS.md`.
+The run's plan and decision log are in `.scratch/m5/` (gitignored, main
+checkout).
 
 ## Next, in order
 
@@ -39,19 +36,20 @@ The 2026-10-17 merges (#112 to #117) are logged in `docs/SESSIONS.md`.
      `dist/action/javascript-parser-worker.js` on a checkout of the tag;
    - repin `.github/workflows/capdelta.yml` to the release commit with a
      `# v0.1.0` comment, so Dependabot proposes later releases.
-2. **M5 publication.** M5's `gateFail` is severity-only and does not count
-   operational exit 1 (`scripts/m5-measure.ts:110`). Fix its dead reference to
-   `docs/m5-measurement-2026-10-12.md` (the data lives in
-   `docs/m5-2026-10-12/`). Never edit `docs/m5-2026-10-12/`. Ask the
-   maintainer what "publication" covers before starting.
-3. **Noise reduction on a new held-out corpus.** Needs a design. A known false
-   positive is a URL inside a string literal. vitest 5.0.4's `CACHEDIR.TAG`
-   text produced a HIGH `new-external-endpoint` for `bford.info` (#77).
+2. **Publish M5. The maintainer edits and posts the blog draft.** PLAN §6
+   names tl;dr sec, Detection Engineering Weekly and r/netsec. Link the post
+   from the README's Roadmap once it is live.
+3. **Noise reduction on a new held-out corpus.** Needs a design. Known false
+   positives are URLs inside string literals: `yargs` 18.0.0's documentation
+   link (M5) and vitest 5.0.4's `CACHEDIR.TAG` text (#77).
 4. **Analyze the new side as a new package when the old side is
    unanalyzable.** Needs a design.
 
-Small follow-ups found on 2026-10-20, not started:
+Small follow-ups, not started:
 
+- The install-hook finding reads "changed install install hook" in the PR
+  comment (seen on #122). The finding text repeats the hook name and the word
+  "install".
 - A targeted `npx vitest run` of the golden or reconstruction tests without a
   prior `npm run build` degrades to unparseable-source diagnostics instead of
   failing loudly.
@@ -82,6 +80,11 @@ Small follow-ups found on 2026-10-20, not started:
   to `gh pr merge --squash`.
 - **zsh does not split unquoted variables.** Pass lists to `git push --delete`
   or `git branch -D` through `xargs`.
+- **The main checkout fails `npm run lint`** because ESLint picks up the
+  gitignored `.scratch/` scripts there. Verify in a clean worktree.
+- **`~/.claude/bin/ship-pr` and `~/.claude/bin/verify-quiet`** push, wait for
+  CI, merge and clean up a worktree, and run the full verification with a
+  one-line result. Both ran for real on #123 and #124.
 - **Codex in Orca** can stop at a hook-trust prompt the orchestrator cannot
   answer. Run reviews headless with
   `codex exec -s read-only -C <worktree> -o <answer-file> "<prompt>"`.
