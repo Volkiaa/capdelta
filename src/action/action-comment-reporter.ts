@@ -359,8 +359,9 @@ function buildComment(
     );
   }
 
-  const exceptions = collectExceptions(report);
-  const baselineFailures = collectBaselineFailures(report);
+  const allExceptions = collectExceptions(report);
+  const exceptions = allExceptions.slice(0, maxRows);
+  const baselineFailures = collectBaselineFailures(report).slice(0, maxRows);
   if (baselineFailures.length > 0) {
     lines.push(
       "",
@@ -383,6 +384,13 @@ function buildComment(
           `- ${escapeMarkdownText(packageName, MAX_IDENTITY_CHARS)}: reviewed exception: ${escapeMarkdownText(reason, MAX_DETAIL_CHARS)}`,
       ),
     );
+    const hiddenExceptions = allExceptions.length - exceptions.length;
+    if (hiddenExceptions > 0) {
+      // ADR-017: a suppressed finding must not disappear from the reviewer's view.
+      lines.push(
+        `- ${String(hiddenExceptions)} more reviewed ${hiddenExceptions === 1 ? "exception is" : "exceptions are"} in the workflow artifact.`,
+      );
+    }
   }
 
   if (guidance.length > 0) {
