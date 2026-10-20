@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import {
   cp,
+  lstat,
   mkdtemp,
   readdir,
   readFile,
@@ -178,11 +179,13 @@ async function packTree(sourceRoot, tarball, entryLinks = {}) {
   }
   // Stage the declared links in a scratch copy so the source tree stays
   // regular-file-only and no symlink is followed or kept.
+  validateEntryLinks(links);
   const work = await mkdtemp(join(tmpdir(), "capdelta-pack-"));
   try {
     const staging = join(work, "source");
     await cp(sourceRoot, staging, { recursive: true });
     for (const [path, target] of links) {
+      await assertRealDirectories(staging, path);
       await symlink(target, join(staging, path));
     }
     await tar.c(
@@ -197,6 +200,47 @@ async function packTree(sourceRoot, tarball, entryLinks = {}) {
     );
   } finally {
     await rm(work, { recursive: true, force: true });
+  }
+}
+
+const LINK_PATH_SEGMENT = /^[A-Za-z0-9_-][A-Za-z0-9._-]*$/u;
+
+/**
+ * Symlinks are created on disk to pack them, so a link path must stay inside
+ * the staging copy: plain relative segments, no `..`, and no link under
+ * another link, which symlink() would follow out of the staging directory.
+ */
+export function validateEntryLinks(links) {
+  const paths = links.map(([path]) => path);
+  for (const [path, target] of links) {
+    if (
+      typeof path !== "string" ||
+      typeof target !== "string" ||
+      !path.split("/").every((segment) => LINK_PATH_SEGMENT.test(segment))
+    ) {
+      throw new Error(`invalid fixture entry link ${JSON.stringify(path)}`);
+    }
+    const nested = paths.find(
+      (other) => other !== path && path.startsWith(`${other}/`),
+    );
+    if (nested !== undefined) {
+      throw new Error(
+        `fixture entry link ${JSON.stringify(path)} sits under link ${JSON.stringify(nested)}`,
+      );
+    }
+  }
+}
+
+async function assertRealDirectories(staging, path) {
+  const segments = path.split("/").slice(0, -1);
+  let current = staging;
+  for (const segment of segments) {
+    current = join(current, segment);
+    if (!(await lstat(current)).isDirectory()) {
+      throw new Error(
+        `fixture entry link parent ${JSON.stringify(current)} is not a real directory`,
+      );
+    }
   }
 }
 
