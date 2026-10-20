@@ -824,3 +824,33 @@ escapes; worth considering a CI grep for control characters in source files.
 - Check a unit's premise against the ADRs before briefing it. The `gateFail` fix contradicted ADR-019, and a read-only
   DeepSeek pass found that before any code was written.
 - `ship-pr` and `verify-quiet` (in `~/.claude/bin`) each shipped #123 and #124 in one background command, in place of separate push, PR, CI-wait, merge and cleanup steps.
+
+## 2026-10-20, post-M5 follow-ups and two designs
+
+### 1. What landed
+
+- **#127.** The PR comment now quotes the install hook name, so the `install` hook no longer reads "changed install
+  install hook".
+- **#128.** Tests that need the built parser worker fail with a clear message when `dist/` is missing.
+- **#129.** Golden `expected-*` files are vitest file snapshots. `npx vitest run <file> -u` rewrites them.
+- **Designs, not merged.** `.scratch/next/d1-noise-design.md` (URLs mentioned in text) and
+  `.scratch/next/d2-newside-design.md` (analyze the new side when the old side is unanalyzable) wait for approval.
+- **Tooling outside the repo.** `~/.claude/bin/codex-review` and `~/.claude/bin/spawn-worker` share a stall watchdog,
+  `~/.claude/bin/lib/stall-watch.sh`.
+
+### 2. Half-done and exact resume point
+
+- Nothing is half-done. D1 and D2 wait for the maintainer's approval, and the blog is parked.
+
+### 3. ADR status
+
+- No ADR changed. D2 would need ADR-023.
+
+### 4. Lessons
+
+- Check a design's premise against the ADR text, not the follow-up line alone. The first D2 draft assumed reviewed
+  exceptions could release old-side failures. ADR-017 C.2 says they never can, and that is the real gap.
+- Classify the attack fixtures before proposing a noise rule. R3 showed that every attack URL is a whole string literal.
+  That made "URL embedded in text" a safe line to draw.
+- Orca puts a new request id on every `terminal read`, so hashing the whole response never detects a stall. Hash
+  `.result.terminal.tail` only.
