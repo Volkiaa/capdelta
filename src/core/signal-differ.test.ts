@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { SignalSet } from "./contract/capability-set.js";
+import type {
+  SignalEndpointContext,
+  SignalSet,
+} from "./contract/capability-set.js";
 import {
   ENTROPY_JUMP_MILLIBITS,
   HIGH_ENTROPY_MILLIBITS,
@@ -15,6 +18,17 @@ function set(overrides: Partial<SignalSet> = {}): SignalSet {
     endpoints: [],
     obfuscationPatterns: [],
     ...overrides,
+  };
+}
+
+function endpointWith(context: SignalEndpointContext, value: string) {
+  return {
+    kind: "EXTERNAL_ENDPOINT" as const,
+    endpointType: "domain" as const,
+    normalizedValue: value,
+    confidence: "literal" as const,
+    context,
+    evidence,
   };
 }
 
@@ -55,6 +69,50 @@ describe("signal differ", () => {
         evidence,
       },
     ]);
+  });
+
+  it("reports a new host mentioned only in text at LOW", () => {
+    const result = diffSignals(
+      set(),
+      set({ endpoints: [endpointWith("embedded-text", "docs.example.test")] }),
+    );
+
+    expect(result).toEqual([
+      {
+        kind: "new-external-endpoint",
+        severity: "LOW",
+        change: "added",
+        detail: "new external domain docs.example.test (mentioned in text)",
+        evidence,
+      },
+    ]);
+  });
+
+  it.each(["literal", "unknown"] as const)(
+    "keeps a new host with %s context at HIGH",
+    (context) => {
+      const result = diffSignals(
+        set(),
+        set({ endpoints: [endpointWith(context, "api.example.test")] }),
+      );
+
+      expect(result).toEqual([
+        expect.objectContaining({
+          severity: "HIGH",
+          detail: "new external domain api.example.test",
+        }),
+      ]);
+    },
+  );
+
+  it("does not report a host that the old side already mentions in text", () => {
+    const endpoint = endpointWith("embedded-text", "docs.example.test");
+    expect(
+      diffSignals(
+        set({ endpoints: [endpoint] }),
+        set({ endpoints: [endpoint] }),
+      ),
+    ).toEqual([]);
   });
 
   it("reports entropy jumps and aggregate unparseable-byte growth", () => {

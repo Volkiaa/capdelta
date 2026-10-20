@@ -263,6 +263,14 @@ const ROW_ASSERTIONS: Record<string, (report: JsonReport) => void> = {
     expect(shapeIds(report)).toEqual([]);
     expect(signal(report, "new-external-endpoint").severity).toBe("HIGH");
   },
+  "url-mentioned-in-text": (report) => {
+    expect(shapeIds(report)).toEqual([]);
+    expect(signal(report, "new-external-endpoint")).toMatchObject({
+      severity: "LOW",
+      detail: "new external domain docs.example.test (mentioned in text)",
+    });
+    expect(report.summary.bySeverity).toMatchObject({ CRITICAL: 0, HIGH: 0 });
+  },
   "runtime-env": (report) => {
     expect(shapeIds(report)).toEqual([]);
     expect(codeFinding(report, "ENV").severity).toBe("MEDIUM");
@@ -290,11 +298,11 @@ const ROW_ASSERTIONS: Record<string, (report: JsonReport) => void> = {
 
 describe("golden pairs, one per PLAN §4.4 severity row", () => {
   it("keeps one distinct case per PLAN §4.4 row", () => {
-    expect(CASES).toHaveLength(13);
+    expect(CASES).toHaveLength(14);
     expect(new Set(PACKAGE_CASES.map((item) => item.row)).size).toBe(
       PACKAGE_CASES.length,
     );
-    expect(new Set(CASES.map((item) => item.name)).size).toBe(13);
+    expect(new Set(CASES.map((item) => item.name)).size).toBe(14);
   });
 
   it("covers every case in the shared inventory", () => {
@@ -397,6 +405,45 @@ describe("golden pairs, one per PLAN §4.4 severity row", () => {
     await expect(renderTextRunReport(run)).toMatchFileSnapshot(
       caseFile(goldenCase, "expected-run.txt"),
     );
+  });
+
+  it("url-mentioned-in-text passes the gate at CRITICAL and HIGH", async () => {
+    const goldenCase = PACKAGE_CASES.find(
+      (item) => item.name === "url-mentioned-in-text",
+    );
+    if (goldenCase === undefined) throw new Error("inventory drift");
+    const diff = await diffCase(goldenCase);
+    const run: CapabilityAnalysisRun = {
+      firstRun: false,
+      summary: { changed: 1, analyzed: 1, unavailable: 0, skipped: 0 },
+      packages: [
+        {
+          status: "analyzed",
+          changedPackage: {
+            name: "golden-url-mentioned-in-text",
+            oldVersion: "1.0.0",
+            newVersion: "2.0.0",
+            oldIntegrity: "sha512-inert-golden-v1",
+            newIntegrity: "sha512-inert-golden-v2",
+            oldResolvedUrl:
+              "https://registry.npmjs.org/golden-url-mentioned-in-text/-/golden-url-mentioned-in-text-1.0.0.tgz",
+            resolvedUrl:
+              "https://registry.npmjs.org/golden-url-mentioned-in-text/-/golden-url-mentioned-in-text-2.0.0.tgz",
+          },
+          diff,
+          issues: [],
+          baselineFailures: [],
+        },
+      ],
+      lockfileFindings: [],
+      skipped: [],
+    };
+    const report = JSON.parse(renderJsonRunReport(run)) as JsonRunReport;
+    expect(evaluateSeverityGate(report, "CRITICAL")).toMatchObject({
+      highest: "LOW",
+      fail: false,
+    });
+    expect(evaluateSeverityGate(report, "HIGH").fail).toBe(false);
   });
 
   it.each(LOCKFILE_CASES.map((item) => [item.name, item.row, item] as const))(
