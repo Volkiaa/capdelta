@@ -291,8 +291,9 @@ than `registry.npmjs.org` is skipped and flagged.
   extraction, an unreadable `package.json` (`manifest-unreadable`), or a
   package the deadline or cancellation left unanalyzed fails the run with exit
   1 even under `--fail-on none` (ADR-018, ADR-019). A package whose old version
-  alone fails at the extraction or manifest stage, while the new version reads
-  cleanly, is analyzed as newly added (ADR-023). Its report lists every
+  alone has a CRITICAL extraction or manifest failure, while the new version
+  reads cleanly, is analyzed as newly added (ADR-023). An operational old-side
+  failure still fails the run with exit 1. Its report lists every
   capability of the new version as added and gates them normally, and it shows
   the old failures as `baselineFailures`, which count as analysis issues but
   never add to `summary.gateSeverity`. `--strict` still returns exit 2, and a
