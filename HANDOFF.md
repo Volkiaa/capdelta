@@ -80,8 +80,6 @@ Small follow-ups, not started:
   to `gh pr merge --squash`.
 - **zsh does not split unquoted variables.** Pass lists to `git push --delete`
   or `git branch -D` through `xargs`.
-- **The main checkout fails `npm run lint`** because ESLint picks up the
-  gitignored `.scratch/` scripts there. Verify in a clean worktree.
 - **`~/.claude/bin/ship-pr` and `~/.claude/bin/verify-quiet`** push, wait for
   CI, merge and clean up a worktree, and run the full verification with a
   one-line result. Both ran for real on #123 and #124.

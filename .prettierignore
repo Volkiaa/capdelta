@@ -12,3 +12,5 @@ docs/m5-2026-10-12/results.json
 # Worker briefs and notes, never formatted or committed.
 .task.md
 NOTES.md
+# Gitignored local scratch scripts.
+.scratch/
