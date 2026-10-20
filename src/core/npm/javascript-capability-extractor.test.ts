@@ -819,6 +819,52 @@ describe("endpoint context", () => {
     ]);
   });
 
+  it.each([
+    ["an escaped newline before a space", 'fetch("\\n https://evil.test/x");'],
+    ["an escaped newline after a space", 'fetch("https://evil.test/x \\n");'],
+    ["an escaped leading space", 'fetch("\\ https://evil.test/x");'],
+    ["a hex escape for a leading space", 'fetch("\\x20 https://evil.test/x");'],
+    [
+      "a Unicode escape for a trailing space",
+      'fetch("https://evil.test/x\\u{20}");',
+    ],
+    ["tab escapes around the URL", 'fetch("\\t https://evil.test/x\\t");'],
+    [
+      "a Unicode escape for an internal space",
+      'fetch("https://evil.test/x\\u0020y");',
+    ],
+    [
+      "an escaped newline before a space in a template",
+      "fetch(`\\n https://evil.test/x`);",
+    ],
+    [
+      "an invalid escape in a tagged template",
+      "fetch(String.raw`\\u https://evil.test/x`);",
+    ],
+  ])(
+    "classifies a string whose value is the URL as literal for %s",
+    async (_label, source) => {
+      expect(await endpointsOf({ "index.js": source })).toEqual([
+        { host: "evil.test", context: "literal" },
+      ]);
+    },
+  );
+
+  it.each([
+    ["a query with a space", 'fetch("https://evil.test/c? x");'],
+    [
+      "a newline-separated sentence",
+      'fetch("line one\\nsee https://a.test/doc");',
+    ],
+  ])("keeps embedded-text for %s", async (_label, source) => {
+    expect(await endpointsOf({ "index.js": source })).toEqual([
+      {
+        host: source.includes("evil.test") ? "evil.test" : "a.test",
+        context: "embedded-text",
+      },
+    ]);
+  });
+
   it("classifies a template that ends at an expression as literal", async () => {
     expect(
       await endpointsOf({

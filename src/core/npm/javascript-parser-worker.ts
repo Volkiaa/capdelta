@@ -6,7 +6,9 @@ import type {
   ParserDetection,
   ParserRequest,
   ParserResponse,
+  StringRange,
 } from "./javascript-parser-protocol.js";
+import { valueHasWords } from "./url-value-words.js";
 
 type LocatedNode = Node & { start: number };
 
@@ -331,7 +333,7 @@ interface AliasTask {
 class BindingResolver {
   readonly scopes = new Map<Node, Scope>();
   readonly visits: NodeVisit[] = [];
-  readonly stringRanges: CommentRange[] = [];
+  readonly stringRanges: StringRange[] = [];
 
   constructor(ast: Node) {
     const aliases: AliasTask[] = [];
@@ -708,13 +710,21 @@ function isDynamicModuleLoad(node: Node): boolean {
 /**
  * A string Literal's start/end include its quotes, while acorn's
  * TemplateElement start/end already bound the raw content between the backtick
- * and the next `${` or backtick.
+ * and the next `${` or backtick. A tagged template with an invalid escape has
+ * no cooked value, so it cannot demote a URL.
  */
-function stringContentRange(node: Node): CommentRange | null {
-  if (node.type === "TemplateElement") return [node.start, node.end];
+function stringContentRange(node: Node): StringRange | null {
   const record = node as unknown as Record<string, unknown>;
+  if (node.type === "TemplateElement") {
+    const cooked = asRecord(record.value)?.cooked;
+    return [
+      node.start,
+      node.end,
+      typeof cooked === "string" && valueHasWords(cooked),
+    ];
+  }
   return node.type === "Literal" && typeof record.value === "string"
-    ? [node.start + 1, node.end - 1]
+    ? [node.start + 1, node.end - 1, valueHasWords(record.value)]
     : null;
 }
 

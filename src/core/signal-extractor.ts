@@ -12,6 +12,7 @@ import type {
 } from "./contract/capability-set.js";
 import { compareEvidence, compareText } from "./compare.js";
 import { lineIndexAt, lineStarts } from "./line-index.js";
+import type { StringRange } from "./npm/javascript-parser-protocol.js";
 
 /** Provisional thresholds; PLAN §4.4 leaves corpus tuning to validation. */
 export const MIN_ENTROPY_BYTES = 256 as const;
@@ -51,10 +52,11 @@ export interface SignalSourceInput {
   commentRanges?: readonly (readonly [number, number])[];
   /**
    * Content ranges of parsed string literals and template elements, as
-   * half-open UTF-16 offsets excluding quotes and backticks. Only applied when
-   * parseState is "parsed"; absent means every URL is "unknown".
+   * half-open UTF-16 offsets excluding quotes and backticks, plus whether the
+   * string's runtime value holds whitespace. Only applied when parseState is
+   * "parsed"; absent means every URL is "unknown".
    */
-  stringRanges?: readonly (readonly [number, number])[];
+  stringRanges?: readonly StringRange[];
 }
 
 export function emptySignalSet(): SignalSet {
@@ -369,16 +371,12 @@ function strongestContext(
 }
 
 /**
- * Binary-search lookup over validated, ordered string content ranges. A match
- * that starts inside a range is "embedded-text" when the range's trimmed raw
- * content holds whitespace, meaning other words sit next to the URL, and
- * "literal" otherwise. Escape sequences such as `\n` are not whitespace in
- * the raw text, so an escape can keep a URL literal but never demote it.
- */
-/**
- * A backslash before a line terminator is a JavaScript line continuation, and
- * the URL parser drops ASCII tab and newline anywhere in its input, so neither
- * separates words. Deleting them can only keep a URL literal, never demote it.
+ * A match that starts inside a range is "embedded-text" only when the raw
+ * content between the quotes and the string's runtime value both hold
+ * whitespace; neither check alone may demote a URL. A backslash before a line
+ * terminator is a JavaScript line continuation, and the URL parser drops ASCII
+ * tab and newline anywhere in its input, so neither separates words. Deleting
+ * them can only keep a URL literal, never demote it.
  */
 function wordsOf(raw: string): string {
   return raw.replace(/\\(?:\r\n|[\n\r\u2028\u2029])|[\t\n\r]/gu, "").trim();
@@ -386,14 +384,15 @@ function wordsOf(raw: string): string {
 
 function contextLookup(
   file: string,
-  ranges: readonly (readonly [number, number])[],
+  ranges: readonly StringRange[],
   source: string,
 ): (start: number) => SignalEndpointContext {
   let previousEnd = 0;
-  for (const [start, end] of ranges) {
+  for (const [start, end, valueWords] of ranges) {
     if (
       !Number.isSafeInteger(start) ||
       !Number.isSafeInteger(end) ||
+      typeof valueWords !== "boolean" ||
       start < previousEnd ||
       end < start ||
       end > source.length
@@ -415,7 +414,8 @@ function contextLookup(
     }
     const range = ranges[low - 1];
     if (range === undefined || range[1] <= start) return "unknown";
-    return /\s/u.test(wordsOf(source.slice(range[0], range[1])))
+    // Neither the raw form nor the value alone may demote a URL.
+    return /\s/u.test(wordsOf(source.slice(range[0], range[1]))) && range[2]
       ? "embedded-text"
       : "literal";
   };
