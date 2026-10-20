@@ -23,6 +23,10 @@ path and then drops the result.
 1. **Scope.** The old side has at least one failure from the extraction or
    manifest stage, the old side has no fetch-stage failure, and the new side
    extracts and reads its manifest with no failure.
+   Every old failure must be unanalyzable in the ADR-016 sense. If any old
+   failure is operational (ADR-018, ADR-019: `filesystem-error`,
+   `deadline-exceeded`, `analysis-aborted`, `manifest-unreadable`), the
+   package stays `unavailable`, so the run still fails with exit 1.
 2. **Analyze as newly added.** The package becomes `analyzed` with
    `diff = diffCapabilities(null, newSet)`, the same path a newly added
    package takes. Every capability of the new version is reported as added

@@ -58,6 +58,7 @@ import { applyUnanalyzableExceptions } from "./unanalyzable-exceptions.js";
 import { compareText } from "./compare.js";
 import { errorName } from "./guards.js";
 import { forEachInOrder } from "./worker-pool.js";
+import { isOperationalFailure, toStageKindPair } from "./run-severity.js";
 
 export type AnalysisSide = "old" | "new";
 
@@ -834,9 +835,17 @@ async function analyzeFetchedPackage(
         failures: prependFailures(oldFailures, newestAfterOldFailure.failures),
       };
     }
+    // ADR-023 covers unanalyzable old failures only. An operational one
+    // (ADR-018, ADR-019) keeps the package unavailable so the run still exits 1.
+    if (oldFailures.some(isOperationalPipelineFailure)) {
+      return { status: "unavailable", changedPackage, failures: oldFailures };
+    }
     issues.push(...newestAfterOldFailure.issues);
     if (isAborted(signal)) {
-      return policyUnavailable(changedPackage, signal, issues);
+      return policyUnavailable(changedPackage, signal, [
+        ...oldFailures,
+        ...issues,
+      ]);
     }
     return {
       status: "analyzed",
@@ -891,6 +900,14 @@ async function analyzeFetchedPackage(
     issues: uniqueIssues(issues),
     baselineFailures: [],
   };
+}
+
+function isOperationalPipelineFailure(
+  failure: PackageAnalysisFailure,
+): boolean {
+  return isOperationalFailure(
+    toStageKindPair({ stage: failure.stage, kind: failure.failure.kind }),
+  );
 }
 
 function policyUnavailable(

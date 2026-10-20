@@ -1044,6 +1044,64 @@ describe("analyzeChangedPackages", () => {
     expect(hasUnanalyzedContent(result)).toBe(true);
   });
 
+  it.each([
+    { stage: "extraction", kind: "filesystem-error" as const },
+    { stage: "extraction", kind: "deadline-exceeded" as const },
+  ])(
+    "keeps the package unavailable and operational when the old $stage failure is $kind (ADR-018, ADR-023)",
+    async ({ kind }) => {
+      const oldTarball: VerifiedTarball = {
+        integrity: "sha512-old",
+        bytes: new Uint8Array([1]),
+      };
+      const newTarball: VerifiedTarball = {
+        integrity: "sha512-new",
+        bytes: new Uint8Array([2]),
+      };
+      const run = createCapabilityAnalysisPipeline({
+        fetch: (packages) =>
+          Promise.resolve(
+            packages.map((changedPackage) => ({
+              status: "verified" as const,
+              changedPackage,
+              oldTarball,
+              newTarball,
+            })),
+          ),
+        extract: (tarball) =>
+          tarball.integrity === "sha512-old"
+            ? Promise.resolve({
+                status: "rejected" as const,
+                failure: { kind, detail: "old side stopped" },
+              })
+            : Promise.resolve({
+                status: "extracted" as const,
+                root: "C:\\inert-fixture",
+                fileCount: 1,
+                expandedBytes: 1,
+                cleanup: () => Promise.resolve(),
+              }),
+        extractManifest: (_extracted, expected) =>
+          Promise.resolve({
+            status: "analyzed" as const,
+            set: capabilitySet(expected),
+          }),
+        extractJavaScript: () =>
+          Promise.resolve({ capabilities: [], diagnostics: [] }),
+        diff: capabilityDiff,
+      });
+      const result = await run(
+        lockfileDiff([changedPackage("old-stops", "1.0.0")]),
+      );
+      const item = result.packages[0];
+      if (item?.status !== "unavailable") throw new Error("fixture drift");
+      expect(item.failures).toMatchObject([
+        { stage: "old-extraction", failure: { kind } },
+      ]);
+      expect(operationalFailureCount(result)).toBe(1);
+    },
+  );
+
   it("extracts the new side after an old-manifest failure and cleans both full extraction roots", async () => {
     const cleanups: string[] = [];
     const oldTarball: VerifiedTarball = {
