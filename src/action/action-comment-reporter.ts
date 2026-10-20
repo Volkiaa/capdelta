@@ -579,7 +579,7 @@ function findingText(
     const capability = finding.capability;
     switch (capability.kind) {
       case "INSTALL_HOOK":
-        description = `${finding.change.toLowerCase()} ${capability.hook} install hook`;
+        description = `${finding.change.toLowerCase()} "${capability.hook}" install hook`;
         break;
       case "COMMAND_ENTRYPOINT":
         description = `${finding.change.toLowerCase()} command ${capability.command}`;

@@ -315,13 +315,40 @@ describe("renderActionComment", () => {
     });
 
     expect(truncated).toContain("Showing 2 of 2 findings");
-    expect(truncated).toContain("postinstall install hook");
+    expect(truncated).toContain("&#34;postinstall&#34; install hook");
     expect(truncated).toContain("added NET capability");
     expect(truncated).toContain("### What these mean");
     expect(truncated).toContain("was omitted");
     expect(Array.from(truncated).length).toBeLessThanOrEqual(
       Array.from(full).length - 1,
     );
+  });
+
+  it("quotes an install hook named install so the row does not repeat the word", () => {
+    const report = adversarialReport();
+    const analyzed = report.packages[0];
+    if (analyzed?.status !== "analyzed") {
+      throw new Error("fixture must contain an analyzed package");
+    }
+    const installHook = analyzed.report.findings[0];
+    if (
+      installHook === undefined ||
+      !("capability" in installHook) ||
+      installHook.capability.kind !== "INSTALL_HOOK"
+    ) {
+      throw new Error("fixture must contain an install-hook finding");
+    }
+    analyzed.report.findings = [
+      {
+        ...installHook,
+        capability: { ...installHook.capability, hook: "install" },
+      },
+    ];
+
+    const body = renderActionComment(report);
+
+    expect(body).toContain("&#34;install&#34; install hook");
+    expect(body).not.toContain("install install hook");
   });
 
   it("keeps every row and omits all guidance at the exact no-guidance cap", () => {
