@@ -1,98 +1,62 @@
 # HANDOFF
 
 Start here, then read CLAUDE.md. `docs/SESSIONS.md` has the history and
-docs/PLAN.md (rev. 3) is the spec. Last updated 2026-10-17.
+docs/PLAN.md (rev. 3) is the spec. Last updated 2026-10-20.
 
 ## Where main stands
 
-main is at 63be2f8, and CI, CodeQL, zizmor and Scorecard are green on it. No
-PRs are open. The only branches besides `main` are `Volkiaa/lockfile-comment`
-(local, see In flight).
+main is at a0402ab, and CI is green on it. No PRs are open, and the only
+branch besides `main` is the one carrying this handoff.
 
-Merged on 2026-10-17:
+Merged on 2026-10-20:
 
-- **#117.** HANDOFF rewrite.
-- **#112, #113.** Security bumps of undici (6.29.1) and brace-expansion. Both
-  bundles were rebuilt with `scripts/package-action-sandboxed.sh`, and the
-  token-level bundle diffs held only the libraries' own fixes.
-- **#116.** The release workflow (ADR-022 and its Amendment A). Codex blocked
-  the first version on two findings, and both are fixed. The release attests
-  `dist/action/index.js` and `dist/action/javascript-parser-worker.js`.
-  `@actions/artifact`, `@actions/core` and `@actions/github` moved to
-  `dependencies` (user-approved), so the SBOM lists them. Direct runtime
-  dependencies are now 7 of fewer than 10. The transitive runtime count that
-  `check:deps` reports went from 9 to 160.
-- **#114, #115.** checkout v7.0.1 and setup-node v7.1.0. All pins, including
-  `release.yml`, match the upstream tag SHAs.
-- 28 merged or superseded branches were deleted, locally and on GitHub. Each
-  tip matched its merged PR head, or had no commits outside main.
+- **#119.** Lockfile findings become rows in the PR comment's findings table.
+  They share the row cap, the severity order and the `Showing N of M` count.
+  `finding-guidance.ts` has `LOCKFILE_GUIDANCE`, and the golden
+  `test/fixtures/golden/integrity-changed-version-same/expected-comment.md` is
+  asserted in `src/action/action-comment-reporter.test.ts` (core may not
+  import action, so the assertion cannot live in `reporter.golden.test.ts`).
+- **#120.** SARIF emits one `CAPDELTA-LOCKFILE-<KIND>` rule and one result
+  per lockfile finding, located at `lockfilePath`. The text report prints
+  guidance under HIGH lockfile findings.
+- **#118.** scorecard-action v2.5.0. The pin matches the upstream tag commit.
 
-Programs finished on 2026-10-16 (logged in `docs/SESSIONS.md`): the comment
-audit (#78 to #92), the duplicate-code program (#93 to #107), and CI/CD
-security (#105, #109 to #111).
+Codex approved #119 and #120. The golden case rendered through the real
+pipeline now shows the HIGH row and its guidance in the comment, and a rule
+plus a located `error` result in SARIF. Before, the comment had no row and
+SARIF had zero results. The render script is
+`.scratch/lockfile-render/render.ts` (gitignored, main checkout). Copy it
+into a worktree's `.scratch/` to run it there, and delete the copy before
+`npm run lint`, which otherwise fails on it.
 
-## In flight
-
-**Lockfile findings are invisible in the PR comment and SARIF.** An
-`integrity-changed-version-same` finding (HIGH) counts toward `gateSeverity`
-(`src/core/report-builder.ts:126-128`) and fails the check. But the comment
-shows `High: 1` and then `Showing 0 of 0 findings`, with no row and no
-guidance, and SARIF has zero rules and results. Proof: `npx --no-install tsx
-.scratch/lockfile-render/render.ts` (gitignored, main checkout) renders the
-golden case `test/fixtures/golden/integrity-changed-version-same` through the
-real pipeline into `.scratch/lockfile-render/comment.md` and `sarif.json`.
-
-The user approved this design on 2026-10-17:
-
-- Lockfile findings become rows in the comment's findings table. They share
-  the 10-row cap and the `Showing N of M` count, sorted by severity with the
-  other findings. Every lockfile string is escaped and truncated.
-- `finding-guidance.ts` gets `Record<LockfileFindingKind, Guidance>`, used by
-  the comment, the text report and SARIF rule help.
-- SARIF gets one rule per lockfile kind, with results located at
-  `lockfilePath`.
-- No gate change. Codex reviews both PRs, because the comment renders
-  attacker-controlled lockfile strings.
-
-It is split into two tickets so each stays under 350 lines:
-
-1. **Part 1, comment rows and guidance.** Worktree
-   `b3021892-328f-4c45-8995-d16a6b7ab73c::/home/amsn/orca/workspaces/capdelta/lockfile-comment`,
-   branch `Volkiaa/lockfile-comment`, one commit `c3e9250`, not pushed, tree
-   clean. The DeepSeek worker finished and wrote `NOTES.md` (722 tests pass,
-   per the worker). **Not reviewed yet.** Known gap: the ticket asked
-   `src/core/reporter.golden.test.ts` to compare `renderActionComment` with
-   `expected-comment.md`, but the commit leaves that test unchanged, so
-   nothing asserts the new golden file. Also check why `.prettierignore`
-   changed, and the dist/action diff. The ticket is in the worktree's
-   `.task.md`.
-2. **Part 2, SARIF and text report.** Not started. Note that
-   `sarif-reporter.ts` throws when a rule has no guidance (`ruleHelp`), so
-   SARIF results need part 1's guidance first.
+The 2026-10-17 merges (#112 to #117) are logged in `docs/SESSIONS.md`.
 
 ## Next, in order
 
-1. **Finish part 1.** Branch is based on fd008e3, so merge main first. Review
-   the diff, wire the golden comment assertion, run the full verification
-   yourself, rerun `.scratch/lockfile-render/render.ts` to see the row, get a
-   headless Codex review, then open the PR and merge on APPROVE.
-2. **Part 2** as above, then rerun the render script and confirm SARIF has
-   the rule and result.
-3. **Cut v0.1.0. This is a deploy, so the maintainer starts it.** Push the tag
+1. **Cut v0.1.0. This is a deploy, so the maintainer starts it.** Push the tag
    from main, then approve the run in the `release` environment. Afterwards:
    - check `gh attestation verify` for both `dist/action/index.js` and
      `dist/action/javascript-parser-worker.js` on a checkout of the tag;
    - repin `.github/workflows/capdelta.yml` to the release commit with a
      `# v0.1.0` comment, so Dependabot proposes later releases.
-4. **M5 publication.** M5's `gateFail` is severity-only and does not count
+2. **M5 publication.** M5's `gateFail` is severity-only and does not count
    operational exit 1 (`scripts/m5-measure.ts:110`). Fix its dead reference to
    `docs/m5-measurement-2026-10-12.md` (the data lives in
-   `docs/m5-2026-10-12/`). Never edit `docs/m5-2026-10-12/`.
-5. **Noise reduction on a new held-out corpus.** A known false positive is a
-   URL inside a string literal. vitest 5.0.4's `CACHEDIR.TAG` text produced a
-   HIGH `new-external-endpoint` for `bford.info` (#77).
-6. **Analyze the new side as a new package when the old side is
-   unanalyzable.**
+   `docs/m5-2026-10-12/`). Never edit `docs/m5-2026-10-12/`. Ask the
+   maintainer what "publication" covers before starting.
+3. **Noise reduction on a new held-out corpus.** Needs a design. A known false
+   positive is a URL inside a string literal. vitest 5.0.4's `CACHEDIR.TAG`
+   text produced a HIGH `new-external-endpoint` for `bford.info` (#77).
+4. **Analyze the new side as a new package when the old side is
+   unanalyzable.** Needs a design.
+
+Small follow-ups found on 2026-10-20, not started:
+
+- A targeted `npx vitest run` of the golden or reconstruction tests without a
+  prior `npm run build` degrades to unparseable-source diagnostics instead of
+  failing loudly.
+- `scripts/generate-golden-fixtures.mjs` writes only tarballs and lockfiles.
+  The `expected-*` files in golden cases are maintained by hand.
 
 ## Decisions from 2026-10-17
 
