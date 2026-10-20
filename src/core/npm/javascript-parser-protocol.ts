@@ -18,6 +18,8 @@ export interface ParserSuccess {
   ok: true;
   detections: readonly ParserDetection[];
   comments: readonly CommentRange[];
+  /** String content offsets, excluding quotes and backticks. */
+  stringRanges: readonly CommentRange[];
 }
 
 export interface ParserFailure {

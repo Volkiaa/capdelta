@@ -18,6 +18,7 @@ function analyze(request: ParserRequest): ParserResponse {
       ok: true,
       detections: detectCapabilities(resolver, request.source),
       comments,
+      stringRanges: resolver.stringRanges,
     };
   } catch (error: unknown) {
     const located = error as { loc?: { line?: unknown }; pos?: unknown };
@@ -330,6 +331,7 @@ interface AliasTask {
 class BindingResolver {
   readonly scopes = new Map<Node, Scope>();
   readonly visits: NodeVisit[] = [];
+  readonly stringRanges: CommentRange[] = [];
 
   constructor(ast: Node) {
     const aliases: AliasTask[] = [];
@@ -337,9 +339,12 @@ class BindingResolver {
       const scope = this.ensureScopes(ancestors);
       this.collectDeclaration(node, ancestors, scope);
       this.visits.push({ node, scope });
+      const range = stringContentRange(node);
+      if (range !== null) this.stringRanges.push(range);
       if (isAliasCandidate(node, ancestors)) aliases.push({ node, scope });
     });
 
+    this.stringRanges.sort((left, right) => left[0] - right[0]);
     for (const alias of aliases) this.collectAlias(alias.node, alias.scope);
   }
 
@@ -698,6 +703,19 @@ function isDynamicModuleLoad(node: Node): boolean {
     Array.isArray(args) &&
     !isStringLiteral(args[0])
   );
+}
+
+/**
+ * A string Literal's start/end include its quotes, while acorn's
+ * TemplateElement start/end already bound the raw content between the backtick
+ * and the next `${` or backtick.
+ */
+function stringContentRange(node: Node): CommentRange | null {
+  if (node.type === "TemplateElement") return [node.start, node.end];
+  const record = node as unknown as Record<string, unknown>;
+  return node.type === "Literal" && typeof record.value === "string"
+    ? [node.start + 1, node.end - 1]
+    : null;
 }
 
 function isStringLiteral(value: unknown): boolean {

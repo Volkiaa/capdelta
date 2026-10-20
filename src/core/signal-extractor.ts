@@ -3,6 +3,7 @@ import type {
   Evidence,
   EvidenceList,
   ObfuscationPattern,
+  SignalEndpointContext,
   SignalEndpointObservation,
   SignalFileObservation,
   SignalObfuscationObservation,
@@ -48,6 +49,12 @@ export interface SignalSourceInput {
    * exclusion, never "comment-free".
    */
   commentRanges?: readonly (readonly [number, number])[];
+  /**
+   * Content ranges of parsed string literals and template elements, as
+   * half-open UTF-16 offsets excluding quotes and backticks. Only applied when
+   * parseState is "parsed"; absent means every URL is "unknown".
+   */
+  stringRanges?: readonly (readonly [number, number])[];
 }
 
 export function emptySignalSet(): SignalSet {
@@ -71,12 +78,19 @@ export function observeSignalSource(input: SignalSourceInput): {
     input.parseState === "parsed" && input.commentRanges !== undefined
       ? commentLookup(input.file, input.commentRanges, source.length)
       : (): boolean => false;
+  // Unknown is a security rule: a file the parser cannot read must never get a
+  // URL demoted, so an attacker cannot gain by breaking the parse.
+  const contextAt =
+    input.parseState === "parsed" && input.stringRanges !== undefined
+      ? contextLookup(input.file, input.stringRanges, source)
+      : (): SignalEndpointContext => "unknown";
   const endpoints = detectEndpoints(
     input.file,
     source,
     starts,
     confidence,
     inComment,
+    contextAt,
   );
   const obfuscationPatterns = detectObfuscationPatterns(
     input.file,
@@ -111,6 +125,7 @@ export function buildSignalSet(
         current.confidence === "literal" || next.confidence === "literal"
           ? "literal"
           : "byte-scan-candidate",
+      context: strongestContext(current.context, next.context),
       evidence: mergeEvidence(current.evidence, next.evidence),
     }),
   );
@@ -132,6 +147,7 @@ function detectEndpoints(
   starts: readonly number[],
   confidence: SignalEndpointObservation["confidence"],
   inComment: (start: number, end: number) => boolean,
+  contextAt: (start: number, end: number) => SignalEndpointContext,
 ): SignalEndpointObservation[] {
   const found: SignalEndpointObservation[] = [];
   for (const match of source.matchAll(URL_LITERAL_RE)) {
@@ -139,7 +155,7 @@ function detectEndpoints(
     const index = match.index;
     // Documentation links in comments are not runtime endpoints; a match that
     // runs into a comment ("https://x\n" after a label) is not one either.
-    if (inComment(index, index + match[0].length)) continue;
+    if (inComment(index, index + value.length)) continue;
     let parsed: URL;
     try {
       parsed = new URL(value);
@@ -156,7 +172,17 @@ function detectEndpoints(
     if (host === null) continue;
     if (endpointType === null || !isExternalHost(host, endpointType)) continue;
     found.push(
-      endpoint(file, host, endpointType, source, starts, index, confidence),
+      endpoint(
+        file,
+        host,
+        endpointType,
+        source,
+        starts,
+        index,
+        index + value.length,
+        confidence,
+        contextAt,
+      ),
     );
   }
 
@@ -175,7 +201,9 @@ function detectEndpoints(
           source,
           starts,
           index,
+          index + value.length,
           confidence,
+          contextAt,
         ),
       );
     }
@@ -189,15 +217,18 @@ function endpoint(
   endpointType: SignalEndpointObservation["endpointType"],
   source: string,
   starts: readonly number[],
-  index: number,
+  start: number,
+  end: number,
   confidence: SignalEndpointObservation["confidence"],
+  contextAt: (start: number, end: number) => SignalEndpointContext,
 ): SignalEndpointObservation {
   return {
     kind: "EXTERNAL_ENDPOINT",
     endpointType,
     normalizedValue: value,
     confidence,
-    evidence: [{ ...evidenceAt(source, starts, index), file }],
+    context: contextAt(start, end),
+    evidence: [{ ...evidenceAt(source, starts, start), file }],
   };
 }
 
@@ -318,6 +349,68 @@ function isPublicStyleDomain(host: string): boolean {
   if (labels.length < 2 || tld === undefined) return false;
   if (!labels.every((label) => DOMAIN_LABEL_RE.test(label))) return false;
   return /^[a-z]+$/u.test(tld) || /^xn--[a-z0-9-]+$/u.test(tld);
+}
+
+/**
+ * Strength order for merging one host seen in several places: literal beats
+ * unknown, and unknown beats embedded-text.
+ */
+const ENDPOINT_CONTEXT_RANK: Record<SignalEndpointContext, number> = {
+  literal: 3,
+  unknown: 2,
+  "embedded-text": 1,
+};
+
+function strongestContext(
+  left: SignalEndpointContext,
+  right: SignalEndpointContext,
+): SignalEndpointContext {
+  return ENDPOINT_CONTEXT_RANK[right] > ENDPOINT_CONTEXT_RANK[left]
+    ? right
+    : left;
+}
+
+/**
+ * Binary-search lookup over validated, ordered string content ranges. A match
+ * that starts inside a range is "literal" when the range's trimmed content
+ * equals the matched part, including when a template expression ends the
+ * range. Otherwise it is "embedded-text".
+ */
+function contextLookup(
+  file: string,
+  ranges: readonly (readonly [number, number])[],
+  source: string,
+): (start: number, end: number) => SignalEndpointContext {
+  let previousEnd = 0;
+  for (const [start, end] of ranges) {
+    if (
+      !Number.isSafeInteger(start) ||
+      !Number.isSafeInteger(end) ||
+      start < previousEnd ||
+      end < start ||
+      end > source.length
+    ) {
+      throw new RangeError(
+        `invalid parser string ranges for ${JSON.stringify(file)}`,
+      );
+    }
+    previousEnd = end;
+  }
+  return (start, end) => {
+    let low = 0;
+    let high = ranges.length;
+    while (low < high) {
+      const middle = (low + high) >> 1;
+      const range = ranges[middle];
+      if (range !== undefined && range[0] <= start) low = middle + 1;
+      else high = middle;
+    }
+    const range = ranges[low - 1];
+    if (range === undefined || range[1] <= start) return "unknown";
+    const content = source.slice(range[0], range[1]).trim();
+    const matched = source.slice(start, Math.min(end, range[1])).trim();
+    return content === matched ? "literal" : "embedded-text";
+  };
 }
 
 /**

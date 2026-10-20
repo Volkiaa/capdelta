@@ -720,3 +720,102 @@ describe("endpoint signals and parser comments", () => {
     ]);
   });
 });
+
+describe("endpoint context", () => {
+  async function endpointsOf(
+    files: Record<string, string>,
+  ): Promise<{ host: string; context: string }[]> {
+    let endpoints: { host: string; context: string }[] = [];
+    await withPackage(files, async (root) => {
+      const result = await extractNpmJavaScriptCapabilities(
+        { root },
+        manifestSet,
+      );
+      endpoints = (result.signals?.endpoints ?? []).map((item) => ({
+        host: item.normalizedValue,
+        context: item.context,
+      }));
+    });
+    return endpoints;
+  }
+
+  it("classifies a URL that is the whole string literal as literal", async () => {
+    expect(
+      await endpointsOf({ "index.js": 'fetch("https://a.test/x");' }),
+    ).toEqual([{ host: "a.test", context: "literal" }]);
+  });
+
+  it("trims surrounding whitespace before comparing string content", async () => {
+    expect(
+      await endpointsOf({ "index.js": 'const u = "  https://a.test/x  ";' }),
+    ).toEqual([{ host: "a.test", context: "literal" }]);
+  });
+
+  it("classifies a shell comment inside a template as embedded-text", async () => {
+    expect(
+      await endpointsOf({
+        "index.js": [
+          "const script = `#!/bin/sh",
+          "# see https://a.test/doc",
+          "echo hi`;",
+        ].join("\n"),
+      }),
+    ).toEqual([{ host: "a.test", context: "embedded-text" }]);
+  });
+
+  it("classifies a URL inside a sentence as embedded-text", async () => {
+    expect(
+      await endpointsOf({
+        "index.js": 'const u = "see https://a.test/doc for details";',
+      }),
+    ).toEqual([{ host: "a.test", context: "embedded-text" }]);
+  });
+
+  it("classifies a template that ends at an expression as literal", async () => {
+    expect(
+      await endpointsOf({
+        "index.js":
+          'const path = "segment";\nconst u = `https://a.test/${path}`;',
+      }),
+    ).toEqual([{ host: "a.test", context: "literal" }]);
+  });
+
+  it("classifies a URL in a file the parser rejects as unknown", async () => {
+    expect(
+      await endpointsOf({
+        "index.js": "// https://a.test/doc\nconst = ;\n",
+      }),
+    ).toEqual([{ host: "a.test", context: "unknown" }]);
+  });
+
+  it("keeps the strongest context when the same host appears in two files", async () => {
+    expect(
+      await endpointsOf({
+        "index.js": 'const u = "see https://a.test/doc";',
+        "other.js": 'fetch("https://a.test/x");',
+      }),
+    ).toEqual([{ host: "a.test", context: "literal" }]);
+  });
+
+  it("keeps embedded-text when every occurrence is embedded-text", async () => {
+    expect(
+      await endpointsOf({
+        "index.js": [
+          'const a = "see https://a.test/doc";',
+          'const b = "docs https://a.test/doc";',
+        ].join("\n"),
+      }),
+    ).toEqual([{ host: "a.test", context: "embedded-text" }]);
+  });
+
+  it("still excludes a URL written in a JavaScript comment", async () => {
+    expect(
+      await endpointsOf({
+        "index.js": [
+          "// https://comments.test/doc",
+          "module.exports = 1;",
+        ].join("\n"),
+      }),
+    ).toEqual([]);
+  });
+});
