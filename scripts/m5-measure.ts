@@ -121,6 +121,10 @@ export function recordingDiffAdapter(recorder: {
   };
 }
 
+function resetRecordedNewSet(recorder: { newSet: CapabilitySet | null }): void {
+  recorder.newSet = null;
+}
+
 async function select(out: string, packages: readonly string[]): Promise<void> {
   const pairs: ChangedPackage[] = [];
   const selectionFailures: { package: string; error: string }[] = [];
@@ -241,7 +245,7 @@ async function contexts(corpusPath: string, out: string): Promise<void> {
     let status: "analyzed" | "unavailable" = "unavailable";
     let newSet: CapabilitySet | null = null;
     for (let index = 0; index < MAX_ATTEMPTS; index += 1) {
-      recorder.newSet = null;
+      resetRecordedNewSet(recorder);
       const run = await analyze({
         changed: [pair],
         findings: [],
