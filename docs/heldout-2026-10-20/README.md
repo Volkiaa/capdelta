@@ -47,3 +47,66 @@ reads `process.env.NODE_HTTP_SERVER_SSL_PASSPHRASE` in a file that requires
 
 The two IPv6 findings come from the IP-literal pattern matching characters in
 minified data. ADR-024 does not cover IP literals.
+
+## After ADR-024
+
+ADR-024 landed in two steps. #138 records each URL's context (`literal`,
+`embedded-text` or `unknown`), and #139 reports a new host seen only as
+`embedded-text` at LOW. Both runs below used Node v24.21.0 on linux-x64.
+
+### Finding counts
+
+`after-tuning.json` and `after-heldout.json` come from
+`scripts/m5-measure.ts run` with the detector and policy identical to main at
+`57b24a8` (#139). The recorded commit `ffd6b27` is the measurement branch,
+which adds only the script.
+
+| Measure                                           | Tuning, before | Tuning, after | Held out, before | Held out, after |
+| ------------------------------------------------- | -------------: | ------------: | ---------------: | --------------: |
+| Pairs analyzed                                    |        45 / 45 |       45 / 45 |          45 / 45 |         45 / 45 |
+| Default gate failures                             |              1 |             1 |                0 |               0 |
+| `new-external-endpoint` findings from URLs        |              0 |             0 |                0 |               0 |
+| `new-external-endpoint` findings from IP literals |       2 (HIGH) |      2 (HIGH) |                0 |               0 |
+
+The summed `gateSeverity` of every pair is also identical before and after
+(tuning CRITICAL 2, HIGH 2, MEDIUM 23, LOW 6, INFO 5; held out MEDIUM 12,
+LOW 2, INFO 1). As predicted above, this corpus cannot show a change in
+finding counts.
+
+### Classifier
+
+`contexts-tuning.json` and `contexts-heldout.json` come from
+`scripts/m5-measure.ts contexts`. It runs the same analysis, records the new
+side's capability set, and lists every domain observation with its context.
+The detector was identical to main at `3f42d80` (#138). The recorded commit
+`41f754b` is the measurement branch. #139 changes severity only, not context.
+
+| Context         | Tuning | Held out |
+| --------------- | -----: | -------: |
+| `literal`       |     94 |       48 |
+| `embedded-text` |     47 |       35 |
+| `unknown`       |     78 |        3 |
+
+The question that matters for security is whether any `embedded-text`
+observation is really a request target, which ADR-024 would then hide at LOW.
+`classifier-labels.json` labels each distinct package, host and evidence file
+(26 tuning rows, 14 held-out rows). Every row is prose: log and error
+messages, CLI help text, markdown, test expectations of npm error output, and
+a cache-directory tag file. No single-URL value was demoted.
+
+Limits of this measurement:
+
+- Each label is judged from the observation's first evidence snippet.
+  `embedded-text` is the weakest context, so every other occurrence of that
+  host on that side is also inside text.
+- The first snippet does not always show the occurrence that decided the
+  context. One observation merges every file on a side, and `unknown`
+  outranks `embedded-text`. pino's `bin.js` holds github.com inside prose, but
+  `pino.d.ts` also names it. capdelta does not parse `.d.ts` files, so the
+  host is `unknown`. Most tuning `unknown` rows (66 of 78) are openai's
+  published TypeScript sources.
+- `literal` still covers documentation links printed alone, such as
+  `console.warn("https://github.com/highlightjs/highlight.js/wiki/security")`
+  in highlight.js and the ejs and browserslist error links. ADR-024 keeps
+  those HIGH on purpose, because a string holding only a URL looks the same
+  as a request target.

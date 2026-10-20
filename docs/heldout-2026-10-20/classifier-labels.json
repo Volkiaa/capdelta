@@ -1,0 +1,331 @@
+{
+  "schemaVersion": 1,
+  "reviewer": "Claude (single-reviewer adjudication)",
+  "scope": "every embedded-text domain observation in contexts-heldout.json and contexts-tuning.json, one row per package, host and first-evidence file, judged from the first evidence snippet",
+  "categories": {
+    "prose": "the URL is mentioned inside text (a message, help text, markdown or documentation), not used as a request target",
+    "endpoint": "the string value is a request target, so demoting it would hide a real endpoint"
+  },
+  "labels": [
+    {
+      "half": "heldout",
+      "package": "pino",
+      "host": "npm.im",
+      "file": "benchmarks/utils/generate-benchmark-doc.js",
+      "newVersions": ["10.3.0", "10.3.1", "10.4.0"],
+      "label": "prose"
+    },
+    {
+      "half": "heldout",
+      "package": "nodemon",
+      "host": "git.io",
+      "file": "lib/monitor/run.js",
+      "newVersions": ["3.1.12", "3.1.13", "3.1.14"],
+      "label": "prose"
+    },
+    {
+      "half": "heldout",
+      "package": "nodemon",
+      "host": "github.com",
+      "file": "lib/monitor/watch.js",
+      "newVersions": ["3.1.12", "3.1.13", "3.1.14"],
+      "label": "prose"
+    },
+    {
+      "half": "heldout",
+      "package": "jsdoc",
+      "host": "jsdoc.app",
+      "file": "cli.js",
+      "newVersions": ["4.0.3", "4.0.4", "4.0.5"],
+      "label": "prose"
+    },
+    {
+      "half": "heldout",
+      "package": "jsdoc",
+      "host": "nowhere.com",
+      "file": "plugins/test/specs/markdown.js",
+      "newVersions": ["4.0.3", "4.0.4"],
+      "label": "prose"
+    },
+    {
+      "half": "heldout",
+      "package": "ava",
+      "host": "avajs.dev",
+      "file": "lib/snapshot-manager.js",
+      "newVersions": ["8.0.1", "8.0.2", "8.1.0"],
+      "label": "prose"
+    },
+    {
+      "half": "heldout",
+      "package": "npm-check-updates",
+      "host": "api.mydomain",
+      "file": "build/index.js",
+      "newVersions": ["23.0.2", "23.1.0", "23.1.1"],
+      "label": "prose"
+    },
+    {
+      "half": "heldout",
+      "package": "npm-check-updates",
+      "host": "bford.info",
+      "file": "build/chunks/lib-CTQJDrKz.js",
+      "newVersions": ["23.0.2"],
+      "label": "prose"
+    },
+    {
+      "half": "heldout",
+      "package": "npm-check-updates",
+      "host": "git.coolaj86.com",
+      "file": "build/index.js",
+      "newVersions": ["23.0.2", "23.1.0", "23.1.1"],
+      "label": "prose"
+    },
+    {
+      "half": "heldout",
+      "package": "npm-check-updates",
+      "host": "bford.info",
+      "file": "build/chunks/lib-ClO25DK1.js",
+      "newVersions": ["23.1.0"],
+      "label": "prose"
+    },
+    {
+      "half": "heldout",
+      "package": "npm-check-updates",
+      "host": "bford.info",
+      "file": "build/chunks/lib-DQyQ2Yp2.js",
+      "newVersions": ["23.1.1"],
+      "label": "prose"
+    },
+    {
+      "half": "heldout",
+      "package": "marked",
+      "host": "github.com",
+      "file": "lib/marked.esm.js",
+      "newVersions": ["18.0.14", "18.1.0", "18.1.1"],
+      "label": "prose"
+    },
+    {
+      "half": "heldout",
+      "package": "concurrently",
+      "host": "www.npmjs.com",
+      "file": "dist/bin/index.js",
+      "newVersions": ["10.0.4", "10.0.5", "10.0.6"],
+      "label": "prose"
+    },
+    {
+      "half": "heldout",
+      "package": "winston",
+      "host": "github.com",
+      "file": "dist/winston/logger.js",
+      "newVersions": ["3.18.2", "3.18.3", "3.19.0"],
+      "label": "prose"
+    },
+    {
+      "half": "tuning",
+      "package": "nunjucks",
+      "host": "mozilla.github.io",
+      "file": "src/node-loaders.js",
+      "newVersions": ["3.2.2", "3.2.3", "3.2.4"],
+      "label": "prose"
+    },
+    {
+      "half": "tuning",
+      "package": "ora",
+      "host": "github.com",
+      "file": "index.js",
+      "newVersions": ["9.3.0", "9.4.0", "9.4.1"],
+      "label": "prose"
+    },
+    {
+      "half": "tuning",
+      "package": "mongoose",
+      "host": "www.mongodb.com",
+      "file": "lib/error/serverSelection.js",
+      "newVersions": ["9.11.0", "9.11.1", "9.11.2"],
+      "label": "prose"
+    },
+    {
+      "half": "tuning",
+      "package": "@nestjs/cli",
+      "host": "docs.nestjs.com",
+      "file": "lib/compiler/webpack-compiler.js",
+      "newVersions": ["12.0.8", "12.0.9", "12.0.10"],
+      "label": "prose"
+    },
+    {
+      "half": "tuning",
+      "package": "@nestjs/cli",
+      "host": "nodejs.org",
+      "file": "lib/configuration/defaults.js",
+      "newVersions": ["12.0.8", "12.0.9", "12.0.10"],
+      "label": "prose"
+    },
+    {
+      "half": "tuning",
+      "package": "@nestjs/cli",
+      "host": "observe.nestjs.com",
+      "file": "lib/ui/messages.js",
+      "newVersions": ["12.0.9", "12.0.10"],
+      "label": "prose"
+    },
+    {
+      "half": "tuning",
+      "package": "karma",
+      "host": "karma-runner.github.io",
+      "file": "lib/middleware/karma.js",
+      "newVersions": ["6.4.2", "6.4.3", "6.4.4"],
+      "label": "prose"
+    },
+    {
+      "half": "tuning",
+      "package": "http-server",
+      "host": "github.com",
+      "file": "lib/core/show-dir/index.js",
+      "newVersions": ["14.0.0", "14.1.0", "14.1.1"],
+      "label": "prose"
+    },
+    {
+      "half": "tuning",
+      "package": "handlebars",
+      "host": "handlebarsjs.com",
+      "file": "dist/amd/handlebars/internal/proto-access.js",
+      "newVersions": ["4.7.8", "4.7.9", "4.7.10"],
+      "label": "prose"
+    },
+    {
+      "half": "tuning",
+      "package": "release-it",
+      "host": "npm.example.org",
+      "file": "test/npm.js",
+      "newVersions": ["21.0.3", "21.1.0", "21.1.1"],
+      "label": "prose"
+    },
+    {
+      "half": "tuning",
+      "package": "release-it",
+      "host": "registry.npmjs.org",
+      "file": "test/npm.js",
+      "newVersions": ["21.0.3", "21.1.0", "21.1.1"],
+      "label": "prose"
+    },
+    {
+      "half": "tuning",
+      "package": "lerna",
+      "host": "choosealicense.com",
+      "file": "dist/chunk-EB6RZPL6.js",
+      "newVersions": ["10.0.1"],
+      "label": "prose"
+    },
+    {
+      "half": "tuning",
+      "package": "lerna",
+      "host": "conventionalcommits.org",
+      "file": "dist/chunk-WC2B4V4E.js",
+      "newVersions": ["10.0.1"],
+      "label": "prose"
+    },
+    {
+      "half": "tuning",
+      "package": "lerna",
+      "host": "docs.npmjs.com",
+      "file": "dist/chunk-V6PZZIJX.js",
+      "newVersions": ["10.0.1"],
+      "label": "prose"
+    },
+    {
+      "half": "tuning",
+      "package": "lerna",
+      "host": "lerna.js.org",
+      "file": "dist/chunk-BE2FWPTC.js",
+      "newVersions": ["10.0.1"],
+      "label": "prose"
+    },
+    {
+      "half": "tuning",
+      "package": "lerna",
+      "host": "pnpm.io",
+      "file": "dist/chunk-WC2B4V4E.js",
+      "newVersions": ["10.0.1"],
+      "label": "prose"
+    },
+    {
+      "half": "tuning",
+      "package": "lerna",
+      "host": "choosealicense.com",
+      "file": "dist/chunk-63VT4ZHP.js",
+      "newVersions": ["10.1.0"],
+      "label": "prose"
+    },
+    {
+      "half": "tuning",
+      "package": "lerna",
+      "host": "conventionalcommits.org",
+      "file": "dist/chunk-7I6QLWQW.js",
+      "newVersions": ["10.1.0"],
+      "label": "prose"
+    },
+    {
+      "half": "tuning",
+      "package": "lerna",
+      "host": "docs.npmjs.com",
+      "file": "dist/chunk-7I6QLWQW.js",
+      "newVersions": ["10.1.0"],
+      "label": "prose"
+    },
+    {
+      "half": "tuning",
+      "package": "lerna",
+      "host": "lerna.js.org",
+      "file": "dist/chunk-7I6QLWQW.js",
+      "newVersions": ["10.1.0"],
+      "label": "prose"
+    },
+    {
+      "half": "tuning",
+      "package": "lerna",
+      "host": "pnpm.io",
+      "file": "dist/chunk-7I6QLWQW.js",
+      "newVersions": ["10.1.0"],
+      "label": "prose"
+    },
+    {
+      "half": "tuning",
+      "package": "lerna",
+      "host": "choosealicense.com",
+      "file": "dist/chunk-OYEC4N53.js",
+      "newVersions": ["10.1.1"],
+      "label": "prose"
+    },
+    {
+      "half": "tuning",
+      "package": "lerna",
+      "host": "conventionalcommits.org",
+      "file": "dist/chunk-X5YAJACA.js",
+      "newVersions": ["10.1.1"],
+      "label": "prose"
+    },
+    {
+      "half": "tuning",
+      "package": "lerna",
+      "host": "docs.npmjs.com",
+      "file": "dist/chunk-HK7KXXW6.js",
+      "newVersions": ["10.1.1"],
+      "label": "prose"
+    },
+    {
+      "half": "tuning",
+      "package": "lerna",
+      "host": "lerna.js.org",
+      "file": "dist/chunk-3SMWGCER.js",
+      "newVersions": ["10.1.1"],
+      "label": "prose"
+    },
+    {
+      "half": "tuning",
+      "package": "lerna",
+      "host": "pnpm.io",
+      "file": "dist/chunk-X5YAJACA.js",
+      "newVersions": ["10.1.1"],
+      "label": "prose"
+    }
+  ]
+}
