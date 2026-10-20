@@ -50,6 +50,9 @@ Deviations require my approval and an ADR in docs/adr/.
   commit `dist/action/`; `check:action` fails if it is stale.
 - Golden fixtures: `node scripts/generate-golden-fixtures.mjs`. Regenerate only
   when a case is meant to change, and explain the change in the commit message.
+- After an intended report change, run `npx vitest run <golden test file> -u` to
+  rewrite the `expected-*` files, then review the diff. Put `-u` after the test
+  file path because vitest reads the next argument as the update type.
 - A change to detection, severity, the gate, report output, or a report
   field's meaning can move the gate. It must keep the attack reconstructions
   and golden fixtures passing. Check `gateSeverity` in
