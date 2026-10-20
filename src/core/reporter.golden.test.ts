@@ -1,6 +1,8 @@
-import { readdir, readFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
+import * as tar from "tar";
 import { describe, expect, it } from "vitest";
 import {
   analyzeChangedPackages,
@@ -28,6 +30,7 @@ import {
   type JsonReport,
   type JsonRunReport,
 } from "./reporter.js";
+import { evaluateSeverityGate } from "./run-severity.js";
 
 const GOLDEN_ROOT = fileURLToPath(
   new URL("../../test/fixtures/golden/", import.meta.url),
@@ -37,13 +40,14 @@ const GOLDEN_ROOT = fileURLToPath(
 interface GoldenCase {
   name: string;
   row: string;
-  severity: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
-  mode: "package" | "lockfile";
+  severity?: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
+  mode: "package" | "lockfile" | "pipeline";
   packageName: string;
   oldVersion: string;
   newVersion: string;
   oldResolvedUrl?: string;
   newResolvedUrl?: string;
+  entryLinks?: { v1?: Record<string, string>; v2?: Record<string, string> };
 }
 
 const CASES = JSON.parse(
@@ -51,6 +55,7 @@ const CASES = JSON.parse(
 ) as GoldenCase[];
 const PACKAGE_CASES = CASES.filter((item) => item.mode === "package");
 const LOCKFILE_CASES = CASES.filter((item) => item.mode === "lockfile");
+const PIPELINE_CASES = CASES.filter((item) => item.mode === "pipeline");
 
 function caseFile(goldenCase: GoldenCase, file: string): string {
   return join(GOLDEN_ROOT, goldenCase.name, file);
@@ -120,6 +125,81 @@ async function listFiles(root: string, directory = root): Promise<string[]> {
     else files.push(relative(root, path));
   }
   return files.sort();
+}
+
+async function expectArchivedLinks(
+  tarball: string,
+  sourceRoot: string,
+  links: Record<string, string>,
+): Promise<void> {
+  const found = new Map<string, string>();
+  await tar.t({
+    file: tarball,
+    onReadEntry: (entry) => {
+      if (entry.type === "SymbolicLink" || entry.type === "Link") {
+        found.set(entry.path, entry.linkpath ?? "");
+      }
+    },
+  });
+  expect([...found.entries()].sort()).toEqual(Object.entries(links).sort());
+  const work = await mkdtemp(join(tmpdir(), "capdelta-golden-"));
+  try {
+    // Extraction rejects this archive on purpose, so unpack its regular files
+    // only and compare them to the reviewed source.
+    await tar.x({
+      file: tarball,
+      cwd: work,
+      strip: 1,
+      filter: (_path, entry) =>
+        !("type" in entry) ||
+        (entry.type !== "SymbolicLink" && entry.type !== "Link"),
+    });
+    const files = await listFiles(sourceRoot);
+    expect(await listFiles(work)).toEqual(files);
+    for (const file of files) {
+      expect(await readFile(join(work, file))).toEqual(
+        await readFile(join(sourceRoot, file)),
+      );
+    }
+  } finally {
+    await rm(work, { recursive: true, force: true });
+  }
+}
+
+async function runGoldenPipeline(goldenCase: GoldenCase) {
+  const [oldLockfile, newLockfile, oldBytes, newBytes] = await Promise.all([
+    readFile(caseFile(goldenCase, "old-lockfile.json"), "utf8"),
+    readFile(caseFile(goldenCase, "new-lockfile.json"), "utf8"),
+    readFile(caseFile(goldenCase, "v1.tgz")),
+    readFile(caseFile(goldenCase, "v2.tgz")),
+  ]);
+  const responses = new Map<string | undefined, Uint8Array>([
+    [goldenCase.oldResolvedUrl, oldBytes],
+    [goldenCase.newResolvedUrl, newBytes],
+  ]);
+  const fetchImpl: typeof fetch = (input) => {
+    const url = input instanceof Request ? input.url : input.toString();
+    const bytes = responses.get(url);
+    if (bytes === undefined) {
+      throw new Error(`unexpected golden fetch ${url}`);
+    }
+    return Promise.resolve(
+      new Response(bytes, {
+        status: 200,
+        headers: { "content-length": String(bytes.length) },
+      }),
+    );
+  };
+  const run = await analyzeChangedPackages(
+    diffNpmLockfiles(JSON.parse(oldLockfile), JSON.parse(newLockfile)),
+    { fetcher: { fetchImpl } },
+  );
+  const json = renderJsonRunReport(run);
+  return {
+    json,
+    text: renderTextRunReport(run),
+    report: JSON.parse(json) as JsonRunReport,
+  };
 }
 
 type Finding = JsonReport["findings"][number];
@@ -210,9 +290,11 @@ const ROW_ASSERTIONS: Record<string, (report: JsonReport) => void> = {
 
 describe("golden pairs, one per PLAN §4.4 severity row", () => {
   it("keeps one distinct case per PLAN §4.4 row", () => {
-    expect(CASES).toHaveLength(12);
-    expect(new Set(CASES.map((item) => item.row)).size).toBe(12);
-    expect(new Set(CASES.map((item) => item.name)).size).toBe(12);
+    expect(CASES).toHaveLength(13);
+    expect(new Set(PACKAGE_CASES.map((item) => item.row)).size).toBe(
+      PACKAGE_CASES.length,
+    );
+    expect(new Set(CASES.map((item) => item.name)).size).toBe(13);
   });
 
   it("covers every case in the shared inventory", () => {
@@ -228,6 +310,15 @@ describe("golden pairs, one per PLAN §4.4 severity row", () => {
     "%s: committed archives match their reviewed sources",
     async (_name, goldenCase) => {
       for (const side of ["v1", "v2"] as const) {
+        const links = goldenCase.entryLinks?.[side];
+        if (links !== undefined) {
+          await expectArchivedLinks(
+            caseFile(goldenCase, `${side}.tgz`),
+            caseFile(goldenCase, `source-${side}/package`),
+            links,
+          );
+          continue;
+        }
         const extraction = await extract(goldenCase, side);
         try {
           const sourceRoot = caseFile(goldenCase, `source-${side}/package`);
@@ -311,41 +402,13 @@ describe("golden pairs, one per PLAN §4.4 severity row", () => {
   it.each(LOCKFILE_CASES.map((item) => [item.name, item.row, item] as const))(
     "%s (%s) through the lockfile differ and pipeline",
     async (_name, _row, goldenCase) => {
-      const [oldLockfile, newLockfile, oldBytes, newBytes] = await Promise.all([
-        readFile(caseFile(goldenCase, "old-lockfile.json"), "utf8"),
-        readFile(caseFile(goldenCase, "new-lockfile.json"), "utf8"),
-        readFile(caseFile(goldenCase, "v1.tgz")),
-        readFile(caseFile(goldenCase, "v2.tgz")),
-      ]);
-      const responses = new Map<string | undefined, Uint8Array>([
-        [goldenCase.oldResolvedUrl, oldBytes],
-        [goldenCase.newResolvedUrl, newBytes],
-      ]);
-      const fetchImpl: typeof fetch = (input) => {
-        const url = input instanceof Request ? input.url : input.toString();
-        const bytes = responses.get(url);
-        if (bytes === undefined) {
-          throw new Error(`unexpected golden fetch ${url}`);
-        }
-        return Promise.resolve(
-          new Response(bytes, {
-            status: 200,
-            headers: { "content-length": String(bytes.length) },
-          }),
-        );
-      };
-      const run = await analyzeChangedPackages(
-        diffNpmLockfiles(JSON.parse(oldLockfile), JSON.parse(newLockfile)),
-        { fetcher: { fetchImpl } },
-      );
-      const json = renderJsonRunReport(run);
+      const { json, text, report } = await runGoldenPipeline(goldenCase);
       await expect(json).toMatchFileSnapshot(
         caseFile(goldenCase, "expected-run.json"),
       );
-      await expect(renderTextRunReport(run)).toMatchFileSnapshot(
+      await expect(text).toMatchFileSnapshot(
         caseFile(goldenCase, "expected-run.txt"),
       );
-      const report = JSON.parse(json) as JsonRunReport;
       expect(report.lockfileFindings).toEqual([
         expect.objectContaining({
           kind: "integrity-changed-version-same",
@@ -356,6 +419,35 @@ describe("golden pairs, one per PLAN §4.4 severity row", () => {
       expect(report.packages).toEqual([
         expect.objectContaining({ status: "analyzed", issues: [] }),
       ]);
+    },
+  );
+
+  it.each(PIPELINE_CASES.map((item) => [item.name, item.row, item] as const))(
+    "%s (%s) through the lockfile differ and pipeline",
+    async (_name, _row, goldenCase) => {
+      const { json, text, report } = await runGoldenPipeline(goldenCase);
+      await expect(json).toMatchFileSnapshot(
+        caseFile(goldenCase, "expected-run.json"),
+      );
+      await expect(text).toMatchFileSnapshot(
+        caseFile(goldenCase, "expected-run.txt"),
+      );
+      expect(report.summary).toMatchObject({
+        analyzedPackages: 1,
+        unavailablePackages: 0,
+      });
+      expect(report.summary.gateSeverity.CRITICAL).toBe(0);
+      expect(evaluateSeverityGate(report, "CRITICAL").fail).toBe(false);
+      const item = report.packages[0];
+      if (item?.status !== "analyzed") {
+        throw new Error("pipeline golden case must be analyzed");
+      }
+      expect(item.baselineFailures[0]).toMatchObject({
+        stage: "old-extraction",
+        kind: "link-entry",
+        severity: "CRITICAL",
+      });
+      expect(text).toContain("Old version could not be analyzed (link-entry)");
     },
   );
 });

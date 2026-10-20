@@ -1,0 +1,17 @@
+{
+  "name": "golden-lockfile-project",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "name": "golden-lockfile-project",
+      "version": "1.0.0"
+    },
+    "node_modules/golden-old-side-unanalyzable": {
+      "version": "2.0.0",
+      "resolved": "https://registry.npmjs.org/golden-old-side-unanalyzable/-/golden-old-side-unanalyzable-2.0.0.tgz",
+      "integrity": "sha512-kZu661zQrYtOSRD3i2tDXG1NyyGj1dZb/Od29ZyDa/kbW+6byV9R3agXjYFeleYrHbD1M+U9NRv1BDqPyZfoTw=="
+    }
+  }
+}

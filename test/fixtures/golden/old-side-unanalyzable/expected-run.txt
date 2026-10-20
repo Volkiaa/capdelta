@@ -1,0 +1,10 @@
+capdelta capability analysis report
+Mode: comparison
+Packages: 1 changed; 1 analyzed; 0 unavailable; 0 lockfile skips.
+Signals: 0 findings; 0 lockfile findings; 1 analysis issue; 0 analysis diagnostics.
+
+capdelta manifest capability report
+Package: "golden-old-side-unanalyzable" ("npm") <new package> -> "2.0.0"
+Review this change: no capability or signal additions; 0 diagnostics.
+Baseline failures:
+- Old version could not be analyzed (link-entry); every capability of the new version is reported as added.

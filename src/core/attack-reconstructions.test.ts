@@ -38,6 +38,7 @@ const ROOT = fileURLToPath(
 interface Incident {
   name: string;
   scenarios: Record<string, { base: string[]; head: string[] }>;
+  entryLinks?: Record<string, Record<string, string>>;
 }
 
 const INVENTORY = JSON.parse(
@@ -154,6 +155,45 @@ async function listFiles(root: string, directory = root): Promise<string[]> {
   return files.sort();
 }
 
+async function expectArchivedLinks(
+  tarball: string,
+  sourceRoot: string,
+  links: Record<string, string>,
+): Promise<void> {
+  const found = new Map<string, string>();
+  await tar.t({
+    file: tarball,
+    onReadEntry: (entry) => {
+      if (entry.type === "SymbolicLink" || entry.type === "Link") {
+        found.set(entry.path, entry.linkpath ?? "");
+      }
+    },
+  });
+  expect([...found.entries()].sort()).toEqual(Object.entries(links).sort());
+  const work = await mkdtemp(join(tmpdir(), "capdelta-archive-"));
+  try {
+    // Extraction rejects this archive on purpose, so unpack its regular files
+    // only and compare them to the reviewed source.
+    await tar.x({
+      file: tarball,
+      cwd: work,
+      strip: 1,
+      filter: (_path, entry) =>
+        !("type" in entry) ||
+        (entry.type !== "SymbolicLink" && entry.type !== "Link"),
+    });
+    const files = await listFiles(sourceRoot);
+    expect(await listFiles(work)).toEqual(files);
+    for (const file of files) {
+      expect(await readFile(join(work, file))).toEqual(
+        await readFile(join(sourceRoot, file)),
+      );
+    }
+  } finally {
+    await rm(work, { recursive: true, force: true });
+  }
+}
+
 describe("reconstruction fixtures", () => {
   it.each(
     INVENTORY.incidents.flatMap((incident) =>
@@ -170,6 +210,22 @@ describe("reconstruction fixtures", () => {
     "%s/%s: committed archive matches its reviewed source",
     async (name, id) => {
       const packageRoot = join(ROOT, name, "packages", id);
+      const roots = await readdir(packageRoot);
+      expect(roots).toHaveLength(1);
+      const [root] = roots;
+      if (root === undefined) throw new Error(`${id} has no root directory`);
+      const sourceRoot = join(packageRoot, root);
+      const entryLinks = INVENTORY.incidents.find(
+        (incident) => incident.name === name,
+      )?.entryLinks?.[id];
+      if (entryLinks !== undefined) {
+        await expectArchivedLinks(
+          join(ROOT, name, "packages", `${id}.tgz`),
+          sourceRoot,
+          entryLinks,
+        );
+        return;
+      }
       const extraction = await extractVerifiedTarball({
         integrity: "sha512-inert-reconstruction",
         bytes: await readFile(`${packageRoot}.tgz`),
@@ -178,11 +234,6 @@ describe("reconstruction fixtures", () => {
         throw new Error(`${id} rejected: ${extraction.failure.detail}`);
       }
       try {
-        const roots = await readdir(packageRoot);
-        expect(roots).toHaveLength(1);
-        const [root] = roots;
-        if (root === undefined) throw new Error(`${id} has no root directory`);
-        const sourceRoot = join(packageRoot, root);
         const files = await listFiles(sourceRoot);
         expect(await listFiles(extraction.root)).toEqual(files);
         for (const file of files) {
@@ -614,38 +665,104 @@ describe("synthetic mode evasion (ADR-019)", () => {
   });
 });
 
+describe("synthetic unanalyzable baseline (ADR-023)", () => {
+  it("analyzes the new version as newly added when only the old tarball has a link entry", async () => {
+    const result = await runScenario("old-side-unanalyzable", "attack");
+    expect(result.report.summary).toMatchObject({
+      changedPackages: 1,
+      analyzedPackages: 1,
+      unavailablePackages: 0,
+      skippedLockfileEntries: 0,
+    });
+    const item = result.report.packages[0];
+    if (item?.status !== "analyzed") {
+      throw new Error("old-side-unanalyzable fixture must be analyzed");
+    }
+    expect(item.baselineFailures).toEqual([
+      expect.objectContaining({
+        stage: "old-extraction",
+        side: "old",
+        kind: "link-entry",
+        severity: "CRITICAL",
+      }),
+    ]);
+    const report = packageReport(
+      result.report,
+      "capdelta-fixture-old-side-unanalyzable",
+    );
+    expect(report.package.newPackage).toBe(true);
+    expect(findingsOf(report, "INSTALL_HOOK")).toEqual([
+      expect.objectContaining({
+        severity: "CRITICAL",
+        capability: expect.objectContaining({
+          hook: "postinstall",
+          applicability: "registry-install",
+        }) as unknown,
+      }),
+    ]);
+    expect(result.report.summary.gateSeverity.CRITICAL).toBeGreaterThanOrEqual(
+      1,
+    );
+    expect(evaluateSeverityGate(result.report, "CRITICAL")).toMatchObject({
+      fail: true,
+      exitCode: 1,
+    });
+    expect(hasUnanalyzedContent(result.run)).toBe(true);
+  });
+
+  it("passes the default gate on a clean new version and keeps the baseline failure", async () => {
+    const result = await runScenario("old-side-unanalyzable", "control");
+    expect(result.report.summary).toMatchObject({
+      changedPackages: 1,
+      analyzedPackages: 1,
+      unavailablePackages: 0,
+    });
+    expect(result.report.summary.gateSeverity.CRITICAL).toBe(0);
+    expect(evaluateSeverityGate(result.report, "CRITICAL").fail).toBe(false);
+    const item = result.report.packages[0];
+    if (item?.status !== "analyzed") {
+      throw new Error("old-side-unanalyzable control must be analyzed");
+    }
+    expect(item.baselineFailures).not.toHaveLength(0);
+    expect(item.baselineFailures[0]).toMatchObject({
+      stage: "old-extraction",
+      kind: "link-entry",
+    });
+    expect(hasUnanalyzedContent(result.run)).toBe(true);
+  });
+});
+
 describe("synthetic non-regular manifest evasion (ADR-019)", () => {
-  it("fails the default gate when package.json is a directory", async () => {
+  it("analyzes the new version as newly added when package.json is a directory (ADR-023)", async () => {
     const result = await runScenario("manifest-directory", "attack");
     expect(result.report.summary).toMatchObject({
       changedPackages: 1,
-      analyzedPackages: 0,
-      unavailablePackages: 1,
+      analyzedPackages: 1,
+      unavailablePackages: 0,
       skippedLockfileEntries: 0,
     });
     const item = result.report.packages.find(
-      (candidate) => candidate.status === "unavailable",
+      (candidate) => candidate.status === "analyzed",
     );
-    if (item?.status !== "unavailable") {
-      throw new Error("manifest-directory fixture must be unavailable");
+    if (item?.status !== "analyzed") {
+      throw new Error("manifest-directory fixture must be analyzed");
     }
-    expect(item.failures[0]).toMatchObject({
+    expect(item.report.package.newPackage).toBe(true);
+    expect(item.baselineFailures[0]).toMatchObject({
       stage: "old-manifest",
       side: "old",
       kind: "manifest-not-regular",
       severity: "CRITICAL",
     });
-    expect(item.exception).toBeUndefined();
-    expect(result.report.summary.gateSeverity.CRITICAL).toBe(1);
+    expect(result.report.summary.gateSeverity.CRITICAL).toBe(0);
     expect(evaluateSeverityGate(result.report, "CRITICAL")).toMatchObject({
-      fail: true,
-      exitCode: 1,
-      highest: "CRITICAL",
+      fail: false,
+      exitCode: 0,
     });
     expect(hasUnanalyzedContent(result.run)).toBe(true);
   });
 
-  it("keeps gating on an old-side-only exception bound to the exact bytes (rule C.2)", async () => {
+  it("analyzes the package despite an old-side-only exception because the new side is clean (ADR-023)", async () => {
     const reviewed = parseCapdeltaConfig(
       "unanalyzable:\n" +
         "  - package: capdelta-fixture-manifest-directory\n" +
@@ -658,16 +775,15 @@ describe("synthetic non-regular manifest evasion (ADR-019)", () => {
       config: reviewed,
     });
     const item = result.report.packages.find(
-      (candidate) => candidate.status === "unavailable",
+      (candidate) => candidate.status === "analyzed",
     );
-    if (item?.status !== "unavailable") {
-      throw new Error("manifest-directory fixture must be unavailable");
+    if (item?.status !== "analyzed") {
+      throw new Error("manifest-directory fixture must be analyzed");
     }
-    expect(item.failures[0]).toMatchObject({
+    expect(item.baselineFailures[0]).toMatchObject({
       kind: "manifest-not-regular",
       severity: "CRITICAL",
     });
-    expect(item.exception).toBeUndefined();
-    expect(evaluateSeverityGate(result.report, "CRITICAL").fail).toBe(true);
+    expect(evaluateSeverityGate(result.report, "CRITICAL").fail).toBe(false);
   });
 });

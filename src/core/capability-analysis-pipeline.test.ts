@@ -964,7 +964,7 @@ describe("analyzeChangedPackages", () => {
     });
   });
 
-  it("keeps an excepted old-side extraction failure gating when no new-side failure was inspected and bound (amendment C.2)", async () => {
+  it("analyzes the new side as newly added and still fails --strict when only the old extraction failed (ADR-023)", async () => {
     const oldTarball: VerifiedTarball = {
       integrity: "sha512-old",
       bytes: new Uint8Array([1]),
@@ -1027,15 +1027,80 @@ describe("analyzeChangedPackages", () => {
       },
     );
     const item = result.packages[0];
-    if (item?.status !== "unavailable") throw new Error("fixture drift");
-    expect(item.failures).toMatchObject([
+    if (item?.status !== "analyzed") throw new Error("fixture drift");
+    // The old-side-only exception no longer matters: the package is analyzed.
+    expect(item.diff.newPackage).toBe(true);
+    expect(item.issues).toEqual([]);
+    expect(item.baselineFailures).toMatchObject([
       { stage: "old-extraction", failure: { kind: "invalid-archive" } },
     ]);
-    expect(item.exception).toBeUndefined();
-    expect(evaluateSeverityGate(buildRunReport(result), "CRITICAL").fail).toBe(
-      true,
-    );
+    const report = buildRunReport(result);
+    expect(report.summary).toMatchObject({
+      analyzedPackages: 1,
+      unavailablePackages: 0,
+      gateSeverity: { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0 },
+    });
+    expect(evaluateSeverityGate(report, "CRITICAL").fail).toBe(false);
+    expect(hasUnanalyzedContent(result)).toBe(true);
   });
+
+  it.each([
+    { stage: "extraction", kind: "filesystem-error" as const },
+    { stage: "extraction", kind: "deadline-exceeded" as const },
+  ])(
+    "keeps the package unavailable and operational when the old $stage failure is $kind (ADR-018, ADR-023)",
+    async ({ kind }) => {
+      const oldTarball: VerifiedTarball = {
+        integrity: "sha512-old",
+        bytes: new Uint8Array([1]),
+      };
+      const newTarball: VerifiedTarball = {
+        integrity: "sha512-new",
+        bytes: new Uint8Array([2]),
+      };
+      const run = createCapabilityAnalysisPipeline({
+        fetch: (packages) =>
+          Promise.resolve(
+            packages.map((changedPackage) => ({
+              status: "verified" as const,
+              changedPackage,
+              oldTarball,
+              newTarball,
+            })),
+          ),
+        extract: (tarball) =>
+          tarball.integrity === "sha512-old"
+            ? Promise.resolve({
+                status: "rejected" as const,
+                failure: { kind, detail: "old side stopped" },
+              })
+            : Promise.resolve({
+                status: "extracted" as const,
+                root: "C:\\inert-fixture",
+                fileCount: 1,
+                expandedBytes: 1,
+                cleanup: () => Promise.resolve(),
+              }),
+        extractManifest: (_extracted, expected) =>
+          Promise.resolve({
+            status: "analyzed" as const,
+            set: capabilitySet(expected),
+          }),
+        extractJavaScript: () =>
+          Promise.resolve({ capabilities: [], diagnostics: [] }),
+        diff: capabilityDiff,
+      });
+      const result = await run(
+        lockfileDiff([changedPackage("old-stops", "1.0.0")]),
+      );
+      const item = result.packages[0];
+      if (item?.status !== "unavailable") throw new Error("fixture drift");
+      expect(item.failures).toMatchObject([
+        { stage: "old-extraction", failure: { kind } },
+      ]);
+      expect(operationalFailureCount(result)).toBe(1);
+    },
+  );
 
   it("extracts the new side after an old-manifest failure and cleans both full extraction roots", async () => {
     const cleanups: string[] = [];
@@ -1100,13 +1165,70 @@ describe("analyzeChangedPackages", () => {
     const result = await run(
       lockfileDiff([changedPackage("old-manifest-fails", "1.0.0")]),
     );
-    expect(result.packages[0]).toMatchObject({
-      status: "unavailable",
-      failures: [{ stage: "old-manifest" }],
-    });
+    const item = result.packages[0];
+    if (item?.status !== "analyzed") throw new Error("fixture drift");
+    expect(item.diff.newPackage).toBe(true);
+    expect(item.issues).toEqual([]);
+    expect(item.baselineFailures).toMatchObject([{ stage: "old-manifest" }]);
     expect(cleanups).toEqual(
       expect.arrayContaining(["full:sha512-old", "full:sha512-new"]),
     );
+  });
+
+  it("stays unavailable with the old failure first when the new side also fails", async () => {
+    const run = createCapabilityAnalysisPipeline({
+      fetch: (packages) =>
+        Promise.resolve(
+          packages.map((changedPackage) => ({
+            status: "verified" as const,
+            changedPackage,
+            oldTarball: {
+              integrity: "sha512-old",
+              bytes: new Uint8Array([1]),
+            },
+            newTarball: {
+              integrity: "sha512-new",
+              bytes: new Uint8Array([2]),
+            },
+          })),
+        ),
+      extractManifestOnly: () =>
+        Promise.resolve({
+          status: "extracted" as const,
+          root: "C:\\inert-fixture",
+          fileCount: 1,
+          expandedBytes: 1,
+          cleanup: () => Promise.resolve(),
+        }),
+      extract: (tarball) =>
+        tarball.integrity === "sha512-old"
+          ? Promise.resolve({
+              status: "rejected" as const,
+              failure: { kind: "invalid-archive" as const, detail: "old bad" },
+            })
+          : Promise.resolve({
+              status: "rejected" as const,
+              failure: { kind: "unsafe-path" as const, detail: "new bad" },
+            }),
+      extractManifest: (_extracted, expected) =>
+        Promise.resolve({
+          status: "analyzed" as const,
+          set: capabilitySet(expected),
+        }),
+      extractJavaScript: () =>
+        Promise.resolve({ capabilities: [], diagnostics: [] }),
+      diff: capabilityDiff,
+    });
+    const result = await run(
+      lockfileDiff([changedPackage("both-fail", "1.0.0")]),
+    );
+    expect(result.packages[0]).toMatchObject({
+      status: "unavailable",
+      failures: [
+        { stage: "old-extraction", failure: { kind: "invalid-archive" } },
+        { stage: "new-extraction", failure: { kind: "unsafe-path" } },
+      ],
+    });
   });
 
   it("propagates lockfile facts and validates configuration and adapter contracts", async () => {
@@ -1246,7 +1368,7 @@ describe("full extraction reads the nested package.json as manifest-not-regular 
     "package/package.json/child.js": "module.exports = 1;\n",
   };
 
-  it("fails closed when the old artifact makes package.json a directory", async () => {
+  it("analyzes the new version as newly added when the old artifact makes package.json a directory (ADR-023)", async () => {
     const name = "manifest-dir-fixture";
     const report = await runLayout({
       name,
@@ -1259,24 +1381,24 @@ describe("full extraction reads the nested package.json as manifest-not-regular 
     });
     expect(report.summary).toMatchObject({
       changedPackages: 1,
-      analyzedPackages: 0,
-      unavailablePackages: 1,
+      analyzedPackages: 1,
+      unavailablePackages: 0,
     });
     const item = report.packages[0];
-    if (item?.status !== "unavailable") {
-      throw new Error("directory old manifest must be unavailable");
+    if (item?.status !== "analyzed") {
+      throw new Error("clean new manifest must be analyzed");
     }
-    expect(item.failures[0]).toMatchObject({
+    expect(item.report.package.newPackage).toBe(true);
+    expect(item.baselineFailures[0]).toMatchObject({
       stage: "old-manifest",
       side: "old",
       kind: "manifest-not-regular",
       severity: "CRITICAL",
     });
-    expect(report.summary.gateSeverity.CRITICAL).toBe(1);
+    expect(report.summary.gateSeverity.CRITICAL).toBe(0);
     expect(evaluateSeverityGate(report, "CRITICAL")).toMatchObject({
-      fail: true,
-      exitCode: 1,
-      highest: "CRITICAL",
+      fail: false,
+      exitCode: 0,
     });
   });
 
