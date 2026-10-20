@@ -294,6 +294,7 @@ describe("golden pairs, one per PLAN §4.4 severity row", () => {
           },
           diff,
           issues: [],
+          baselineFailures: [],
         },
       ],
       lockfileFindings: [],

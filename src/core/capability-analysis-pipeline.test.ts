@@ -36,6 +36,8 @@ import {
   CapabilityAnalysisPipelineContractError,
   analyzeChangedPackages,
   createCapabilityAnalysisPipeline,
+  hasUnanalyzedContent,
+  type CapabilityAnalysisRun,
 } from "./capability-analysis-pipeline.js";
 import {
   ManifestAnalysisPipelineConfigurationError,
@@ -1301,5 +1303,40 @@ describe("full extraction reads the nested package.json as manifest-not-regular 
     });
     expect(report.summary.gateSeverity.CRITICAL).toBe(1);
     expect(evaluateSeverityGate(report, "CRITICAL").fail).toBe(true);
+  });
+});
+
+describe("hasUnanalyzedContent", () => {
+  it("is true when an analyzed package has a baseline failure", () => {
+    const run: CapabilityAnalysisRun = {
+      firstRun: false,
+      summary: { changed: 1, analyzed: 1, unavailable: 0, skipped: 0 },
+      packages: [
+        {
+          status: "analyzed",
+          changedPackage: changedPackage("fixture", "1.0.0"),
+          diff: {
+            baseline: null,
+            subject: { ecosystem: "npm", name: "fixture", version: "2.0.0" },
+            newPackage: true,
+            findings: [],
+            diagnostics: [],
+          },
+          issues: [],
+          baselineFailures: [
+            {
+              stage: "old-extraction",
+              failure: {
+                kind: "invalid-archive",
+                detail: "archive is not a gzip file",
+              },
+            },
+          ],
+        },
+      ],
+      lockfileFindings: [],
+      skipped: [],
+    };
+    expect(hasUnanalyzedContent(run)).toBe(true);
   });
 });

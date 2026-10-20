@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { CapabilityDiffResult } from "./capability-differ.js";
-import type { CapabilityAnalysisRun } from "./capability-analysis-pipeline.js";
+import type {
+  CapabilityAnalysisRun,
+  PackageAnalysisFailure,
+} from "./capability-analysis-pipeline.js";
 import type { Capability } from "./contract/capability-set.js";
 import type { ChangedPackage } from "./contract/lockfile-diff.js";
 import {
@@ -52,6 +55,7 @@ function analyzedRun(): CapabilityAnalysisRun {
         changedPackage: changedPackage(),
         diff: emptyResult(),
         issues: [],
+        baselineFailures: [],
       },
     ],
     lockfileFindings: [],
@@ -486,12 +490,14 @@ describe("manifest Reporter", () => {
           changedPackage: changedPackage(),
           diff: parent,
           issues: [],
+          baselineFailures: [],
         },
         {
           status: "analyzed",
           changedPackage: changedPackage("target", null),
           diff: target,
           issues: [],
+          baselineFailures: [],
         },
       ],
       lockfileFindings: [],
@@ -664,6 +670,7 @@ describe("run severity classification", () => {
               failure: { kind: "cleanup-failed", detail: "cleanup failed" },
             },
           ],
+          baselineFailures: [],
         },
         {
           status: "unavailable",
@@ -1031,5 +1038,95 @@ describe("run severity classification", () => {
     expect(
       Array.from(report.packages[0]?.exception?.reason ?? ""),
     ).toHaveLength(240);
+  });
+});
+
+describe("baseline failures", () => {
+  const failure: PackageAnalysisFailure = {
+    stage: "old-extraction",
+    failure: { kind: "invalid-archive", detail: "archive is not a gzip file" },
+  };
+
+  function baselineRun(
+    baselineFailures: readonly PackageAnalysisFailure[],
+    oldVersion: string | null = "1.0.0",
+  ): CapabilityAnalysisRun {
+    const analyzed = oldVersion === null;
+    return {
+      firstRun: false,
+      summary: { changed: 1, analyzed: 1, unavailable: 0, skipped: 0 },
+      packages: [
+        {
+          status: "analyzed",
+          changedPackage: changedPackage("fixture", oldVersion),
+          diff: {
+            baseline: null,
+            subject: { ecosystem: "npm", name: "fixture", version: "2.0.0" },
+            newPackage: analyzed || baselineFailures.length > 0,
+            findings: [],
+            diagnostics: [],
+          },
+          issues: [],
+          baselineFailures: [...baselineFailures],
+        },
+      ],
+      lockfileFindings: [],
+      skipped: [],
+    };
+  }
+
+  it("accepts an analyzed package that reports an old-side failure", () => {
+    const report = JSON.parse(renderJsonRunReport(baselineRun([failure]))) as {
+      summary: {
+        analysisIssues: number;
+        gateSeverity: Record<string, number>;
+      };
+      packages: {
+        status: string;
+        baselineFailures: {
+          stage: string;
+          kind: string;
+          severity: string | null;
+        }[];
+      }[];
+    };
+
+    expect(report.packages[0]?.status).toBe("analyzed");
+    expect(report.packages[0]?.baselineFailures).toEqual([
+      expect.objectContaining({
+        stage: "old-extraction",
+        kind: "invalid-archive",
+        severity: "CRITICAL",
+      }),
+    ]);
+    expect(report.summary.analysisIssues).toBe(1);
+    expect(report.summary.gateSeverity.CRITICAL).toBe(0);
+  });
+
+  it("renders one line per baseline failure under the package", () => {
+    const text = renderTextRunReport(baselineRun([failure]));
+    expect(text).toContain(
+      "Old version could not be analyzed (invalid-archive); every capability of the new version is reported as added.",
+    );
+    const lines = text
+      .split("\n")
+      .filter((line) => line.includes("Old version could not be analyzed"));
+    expect(lines).toHaveLength(1);
+  });
+
+  it("rejects an analyzed new package with a baseline failure", () => {
+    expect(() => renderJsonRunReport(baselineRun([failure], null))).toThrow(
+      /fixture/,
+    );
+  });
+
+  it("rejects a new-package diff without a baseline failure", () => {
+    const run = baselineRun([]);
+    const item = run.packages[0];
+    if (item?.status !== "analyzed") {
+      throw new Error("inert fixture must be analyzed");
+    }
+    item.diff.newPackage = true;
+    expect(() => renderJsonRunReport(run)).toThrow(ReporterContractError);
   });
 });

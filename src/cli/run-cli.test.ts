@@ -292,6 +292,7 @@ function analyzedRun(
         },
         diff: EMPTY_DIFF,
         issues,
+        baselineFailures: [],
       },
     ],
     lockfileFindings: [],

@@ -360,6 +360,18 @@ function buildComment(
   }
 
   const exceptions = collectExceptions(report);
+  const baselineFailures = collectBaselineFailures(report);
+  if (baselineFailures.length > 0) {
+    lines.push(
+      "",
+      "### Baseline failures",
+      "",
+      ...baselineFailures.map(
+        ({ packageName, issue }) =>
+          `- ${escapeMarkdownText(packageName, MAX_IDENTITY_CHARS)}: Old version could not be analyzed (${truncate(issue.kind, MAX_IDENTITY_CHARS)}); every capability of the new version is reported as added.`,
+      ),
+    );
+  }
   if (exceptions.length > 0) {
     // ADR-017
     lines.push(
@@ -391,7 +403,7 @@ function buildComment(
     report.summary.capabilityFindings +
     (report.summary.signalFindings ?? 0) +
     report.summary.lockfileFindings;
-  const shownIssues = issues.length;
+  const shownIssues = issues.length + baselineFailures.length;
   const totalIssues = report.summary.analysisIssues;
   lines.push(
     "",
@@ -487,6 +499,19 @@ function collectIssues(
       issue,
     }));
   });
+}
+
+function collectBaselineFailures(
+  report: JsonRunReport,
+): { packageName: string; issue: JsonReportAnalysisIssue }[] {
+  return report.packages.flatMap((item) =>
+    item.status === "analyzed"
+      ? item.baselineFailures.map((issue) => ({
+          packageName: item.report.package.name,
+          issue,
+        }))
+      : [],
+  );
 }
 
 function collectExceptions(

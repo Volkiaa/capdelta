@@ -377,6 +377,7 @@ describe("applyUnanalyzableExceptions", () => {
         diagnostics: [],
       },
       issues: [],
+      baselineFailures: [],
     };
     const applied = applyUnanalyzableExceptions(
       runWith([analyzed, unavailable([NEW_FILE_COUNT])]),

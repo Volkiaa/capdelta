@@ -86,6 +86,12 @@ export interface AnalyzedPackage {
   diff: CapabilityDiffResult;
   /** Non-fatal but loud issues, currently cleanup failures after analysis. */
   issues: readonly PackageAnalysisFailure[];
+  /**
+   * Failures from the old side that did not stop analysis of the new side.
+   * The diff is reported as a newly added package; these failures stay visible
+   * and never gate.
+   */
+  baselineFailures: readonly PackageAnalysisFailure[];
 }
 
 export interface UnavailablePackage {
@@ -146,7 +152,9 @@ export function hasUnanalyzedContent(run: CapabilityAnalysisRun): boolean {
     run.summary.skipped > 0 ||
     run.packages.some((item) =>
       item.status === "analyzed"
-        ? item.issues.length > 0 || item.diff.diagnostics.length > 0
+        ? item.issues.length > 0 ||
+          item.baselineFailures.length > 0 ||
+          item.diff.diagnostics.length > 0
         : true,
     ) ||
     run.budget?.partial === true
@@ -863,6 +871,7 @@ async function analyzeFetchedPackage(
       options.config,
     ),
     issues: uniqueIssues(issues),
+    baselineFailures: [],
   };
 }
 

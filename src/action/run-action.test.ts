@@ -373,6 +373,7 @@ describe("runAction", () => {
           diagnostics: [],
         },
         issues: [],
+        baselineFailures: [],
       },
     ];
     const runtime = adapters(critical);
@@ -713,6 +714,7 @@ describe("runAction", () => {
               config,
             ),
             issues: [],
+            baselineFailures: [],
           },
         ],
         lockfileFindings: [],
