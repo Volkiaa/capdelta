@@ -913,3 +913,66 @@ describe("endpoint context", () => {
     ).toEqual([]);
   });
 });
+
+// ADR-024 Consequences: these two cases document the destination-swap boundary
+// for a package that already has a network call. The endpoint finding is a hint
+// for reviewers, not a gate guarantee; capabilities and shapes carry the gate.
+describe("destination swap inside text (ADR-024 boundary)", () => {
+  async function analyze(
+    files: Record<string, string>,
+    version: string,
+  ): Promise<CapabilitySet> {
+    let result: CapabilitySet | undefined;
+    await withPackage(files, async (root) => {
+      const manifest = await extractNpmManifestCapabilities(
+        { root },
+        { ecosystem: "npm", name: "fixture", version },
+      );
+      if (manifest.status !== "analyzed")
+        throw new Error("manifest unavailable");
+      result = mergeJavaScriptCapabilityLayer(
+        manifest.set,
+        await extractNpmJavaScriptCapabilities({ root }, manifest.set),
+      );
+    });
+    if (result === undefined) throw new Error("analysis did not run");
+    return result;
+  }
+
+  it("keeps an existing network call and reports the prose host at LOW only", async () => {
+    const base = await analyze(
+      { "index.js": 'fetch("https://api.good.test/x");\n' },
+      "2.0.0",
+    );
+    const head = await analyze(
+      { "index.js": 'fetch("see https://evil.test/c now".split(" ")[1]);\n' },
+      "2.0.0",
+    );
+    const diff = diffManifestCapabilities(base, head);
+
+    expect(diff.findings).toEqual([]);
+    expect(diff.shapes).toEqual([]);
+    expect(diff.signalFindings).toEqual([
+      expect.objectContaining({
+        kind: "new-external-endpoint",
+        severity: "LOW",
+        detail: "new external domain evil.test (mentioned in text)",
+      }),
+    ]);
+  });
+
+  it("reports no endpoint when the new version assembles the URL from pieces", async () => {
+    const base = await analyze(
+      { "index.js": 'fetch("https://api.good.test/x");\n' },
+      "2.0.0",
+    );
+    const head = await analyze(
+      { "index.js": 'fetch("ht" + "tps://evil.test/c");\n' },
+      "2.0.0",
+    );
+    const diff = diffManifestCapabilities(base, head);
+
+    expect(diff.findings).toEqual([]);
+    expect(diff.signalFindings).toEqual([]);
+  });
+});

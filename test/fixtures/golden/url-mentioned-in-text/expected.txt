@@ -1,0 +1,7 @@
+capdelta manifest capability report
+Package: "golden-url-mentioned-in-text" ("npm") "1.0.0" -> "2.0.0"
+Review this change: 1 finding (LOW: 1); 0 diagnostics.
+
+Signals:
+- [LOW] "new external domain docs.example.test (mentioned in text)"
+  Evidence: "help.js":4 — "# see https://docs.example.test/help"

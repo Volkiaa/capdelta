@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 5,
+  "package": {
+    "ecosystem": "npm",
+    "name": "golden-url-mentioned-in-text",
+    "oldVersion": "1.0.0",
+    "newVersion": "2.0.0",
+    "newPackage": false
+  },
+  "reportId": "capdelta-57afb262c347e0e452c2",
+  "summary": {
+    "findings": 1,
+    "capabilityFindings": 0,
+    "signalFindings": 1,
+    "diagnostics": 0,
+    "bySeverity": {
+      "CRITICAL": 0,
+      "HIGH": 0,
+      "MEDIUM": 0,
+      "LOW": 1,
+      "INFO": 0
+    }
+  },
+  "findings": [],
+  "signalFindings": [
+    {
+      "kind": "new-external-endpoint",
+      "severity": "LOW",
+      "change": "added",
+      "detail": "new external domain docs.example.test (mentioned in text)",
+      "evidence": [
+        {
+          "file": "help.js",
+          "line": 4,
+          "snippet": "# see https://docs.example.test/help"
+        }
+      ]
+    }
+  ],
+  "shapes": [],
+  "diagnostics": []
+}
