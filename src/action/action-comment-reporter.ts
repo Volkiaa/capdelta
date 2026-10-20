@@ -373,7 +373,7 @@ function buildComment(
       ),
     );
   }
-  if (exceptions.length > 0) {
+  if (allExceptions.length > 0) {
     // ADR-017
     lines.push(
       "",

@@ -562,6 +562,12 @@ describe("renderActionComment", () => {
     expect(
       renderActionComment(withExceptions(MAX_ROWS + 1), { maxRows: MAX_ROWS }),
     ).toContain("- 1 more reviewed exception is in the workflow artifact.");
+
+    const none = renderActionComment(withExceptions(2), { maxRows: 0 });
+    expect(none).toContain("### Reviewed exceptions");
+    expect(none).toContain(
+      "- 2 more reviewed exceptions are in the workflow artifact.",
+    );
   });
 
   it("fits when uncapped baseline failures would exceed maxCharacters", () => {
