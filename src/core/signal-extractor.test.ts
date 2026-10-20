@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   MIN_OBFUSCATION_ARRAY_ELEMENTS,
+  type SignalSourceInput,
   buildSignalSet,
   observeSignalSource,
 } from "./signal-extractor.js";
@@ -225,5 +226,33 @@ describe("signal extractor", () => {
         }),
       ).toThrow(RangeError);
     });
+    const invalidStringRanges: [string, unknown][] = [
+      ["a non-boolean flag", [[4, 9, "yes"]]],
+      ["a missing flag", [[4, 9]]],
+      [
+        "an overlapping range",
+        [
+          [0, 5, false],
+          [3, 8, false],
+        ],
+      ],
+    ];
+    it.each(invalidStringRanges)(
+      "rejects %s in string ranges loudly",
+      (_label, ranges) => {
+        expect(() =>
+          observeSignalSource({
+            file: "index.js",
+            bytes: new TextEncoder().encode(
+              "fetch('https://api.example.net');\n",
+            ),
+            parseState: "parsed",
+            stringRanges: ranges as NonNullable<
+              SignalSourceInput["stringRanges"]
+            >,
+          }),
+        ).toThrow(RangeError);
+      },
+    );
   });
 });

@@ -3,6 +3,7 @@ import type {
   Evidence,
   EvidenceList,
   ObfuscationPattern,
+  SignalEndpointContext,
   SignalEndpointObservation,
   SignalFileObservation,
   SignalObfuscationObservation,
@@ -11,6 +12,7 @@ import type {
 } from "./contract/capability-set.js";
 import { compareEvidence, compareText } from "./compare.js";
 import { lineIndexAt, lineStarts } from "./line-index.js";
+import type { StringRange } from "./npm/javascript-parser-protocol.js";
 
 /** Provisional thresholds; PLAN §4.4 leaves corpus tuning to validation. */
 export const MIN_ENTROPY_BYTES = 256 as const;
@@ -48,6 +50,13 @@ export interface SignalSourceInput {
    * exclusion, never "comment-free".
    */
   commentRanges?: readonly (readonly [number, number])[];
+  /**
+   * Content ranges of parsed string literals and template elements, as
+   * half-open UTF-16 offsets excluding quotes and backticks, plus whether the
+   * string's runtime value holds whitespace. Only applied when parseState is
+   * "parsed"; absent means every URL is "unknown".
+   */
+  stringRanges?: readonly StringRange[];
 }
 
 export function emptySignalSet(): SignalSet {
@@ -71,12 +80,19 @@ export function observeSignalSource(input: SignalSourceInput): {
     input.parseState === "parsed" && input.commentRanges !== undefined
       ? commentLookup(input.file, input.commentRanges, source.length)
       : (): boolean => false;
+  // Unknown is a security rule: a file the parser cannot read must never get a
+  // URL demoted, so an attacker cannot gain by breaking the parse.
+  const contextAt =
+    input.parseState === "parsed" && input.stringRanges !== undefined
+      ? contextLookup(input.file, input.stringRanges, source)
+      : (): SignalEndpointContext => "unknown";
   const endpoints = detectEndpoints(
     input.file,
     source,
     starts,
     confidence,
     inComment,
+    contextAt,
   );
   const obfuscationPatterns = detectObfuscationPatterns(
     input.file,
@@ -111,6 +127,7 @@ export function buildSignalSet(
         current.confidence === "literal" || next.confidence === "literal"
           ? "literal"
           : "byte-scan-candidate",
+      context: strongestContext(current.context, next.context),
       evidence: mergeEvidence(current.evidence, next.evidence),
     }),
   );
@@ -132,6 +149,7 @@ function detectEndpoints(
   starts: readonly number[],
   confidence: SignalEndpointObservation["confidence"],
   inComment: (start: number, end: number) => boolean,
+  contextAt: (start: number) => SignalEndpointContext,
 ): SignalEndpointObservation[] {
   const found: SignalEndpointObservation[] = [];
   for (const match of source.matchAll(URL_LITERAL_RE)) {
@@ -156,7 +174,16 @@ function detectEndpoints(
     if (host === null) continue;
     if (endpointType === null || !isExternalHost(host, endpointType)) continue;
     found.push(
-      endpoint(file, host, endpointType, source, starts, index, confidence),
+      endpoint(
+        file,
+        host,
+        endpointType,
+        source,
+        starts,
+        index,
+        confidence,
+        contextAt(index),
+      ),
     );
   }
 
@@ -176,6 +203,8 @@ function detectEndpoints(
           starts,
           index,
           confidence,
+          // ADR-024 covers URLs only; a bare IP literal keeps today's severity.
+          "unknown",
         ),
       );
     }
@@ -191,12 +220,14 @@ function endpoint(
   starts: readonly number[],
   index: number,
   confidence: SignalEndpointObservation["confidence"],
+  context: SignalEndpointContext,
 ): SignalEndpointObservation {
   return {
     kind: "EXTERNAL_ENDPOINT",
     endpointType,
     normalizedValue: value,
     confidence,
+    context,
     evidence: [{ ...evidenceAt(source, starts, index), file }],
   };
 }
@@ -318,6 +349,76 @@ function isPublicStyleDomain(host: string): boolean {
   if (labels.length < 2 || tld === undefined) return false;
   if (!labels.every((label) => DOMAIN_LABEL_RE.test(label))) return false;
   return /^[a-z]+$/u.test(tld) || /^xn--[a-z0-9-]+$/u.test(tld);
+}
+
+/**
+ * Strength order for merging one host seen in several places: literal beats
+ * unknown, and unknown beats embedded-text.
+ */
+const ENDPOINT_CONTEXT_RANK: Record<SignalEndpointContext, number> = {
+  literal: 3,
+  unknown: 2,
+  "embedded-text": 1,
+};
+
+function strongestContext(
+  left: SignalEndpointContext,
+  right: SignalEndpointContext,
+): SignalEndpointContext {
+  return ENDPOINT_CONTEXT_RANK[right] > ENDPOINT_CONTEXT_RANK[left]
+    ? right
+    : left;
+}
+
+/**
+ * A match that starts inside a range is "embedded-text" only when the raw
+ * content between the quotes and the string's runtime value both hold
+ * whitespace; neither check alone may demote a URL. A backslash before a line
+ * terminator is a JavaScript line continuation, and the URL parser drops ASCII
+ * tab and newline anywhere in its input, so neither separates words. Deleting
+ * them can only keep a URL literal, never demote it.
+ */
+function wordsOf(raw: string): string {
+  return raw.replace(/\\(?:\r\n|[\n\r\u2028\u2029])|[\t\n\r]/gu, "").trim();
+}
+
+function contextLookup(
+  file: string,
+  ranges: readonly StringRange[],
+  source: string,
+): (start: number) => SignalEndpointContext {
+  let previousEnd = 0;
+  for (const [start, end, valueWords] of ranges) {
+    if (
+      !Number.isSafeInteger(start) ||
+      !Number.isSafeInteger(end) ||
+      typeof valueWords !== "boolean" ||
+      start < previousEnd ||
+      end < start ||
+      end > source.length
+    ) {
+      throw new RangeError(
+        `invalid parser string ranges for ${JSON.stringify(file)}`,
+      );
+    }
+    previousEnd = end;
+  }
+  return (start) => {
+    let low = 0;
+    let high = ranges.length;
+    while (low < high) {
+      const middle = (low + high) >> 1;
+      const range = ranges[middle];
+      if (range !== undefined && range[0] <= start) low = middle + 1;
+      else high = middle;
+    }
+    const range = ranges[low - 1];
+    if (range === undefined || range[1] <= start) return "unknown";
+    // Neither the raw form nor the value alone may demote a URL.
+    return /\s/u.test(wordsOf(source.slice(range[0], range[1]))) && range[2]
+      ? "embedded-text"
+      : "literal";
+  };
 }
 
 /**

@@ -109,11 +109,15 @@ export interface SignalFileObservation {
 
 export type SignalEndpointType = "domain" | "ipv4" | "ipv6";
 
+/** Where the matched URL text sat in the source. */
+export type SignalEndpointContext = "literal" | "embedded-text" | "unknown";
+
 export interface SignalEndpointObservation {
   kind: "EXTERNAL_ENDPOINT";
   endpointType: SignalEndpointType;
   normalizedValue: string;
   confidence: "literal" | "byte-scan-candidate";
+  context: SignalEndpointContext;
   evidence: EvidenceList;
 }
 

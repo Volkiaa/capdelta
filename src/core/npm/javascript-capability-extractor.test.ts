@@ -720,3 +720,196 @@ describe("endpoint signals and parser comments", () => {
     ]);
   });
 });
+
+describe("endpoint context", () => {
+  async function endpointsOf(
+    files: Record<string, string>,
+  ): Promise<{ host: string; context: string }[]> {
+    let endpoints: { host: string; context: string }[] = [];
+    await withPackage(files, async (root) => {
+      const result = await extractNpmJavaScriptCapabilities(
+        { root },
+        manifestSet,
+      );
+      endpoints = (result.signals?.endpoints ?? []).map((item) => ({
+        host: item.normalizedValue,
+        context: item.context,
+      }));
+    });
+    return endpoints;
+  }
+
+  it("classifies a URL that is the whole string literal as literal", async () => {
+    expect(
+      await endpointsOf({ "index.js": 'fetch("https://a.test/x");' }),
+    ).toEqual([{ host: "a.test", context: "literal" }]);
+  });
+
+  it("trims surrounding whitespace before comparing string content", async () => {
+    expect(
+      await endpointsOf({ "index.js": 'const u = "  https://a.test/x  ";' }),
+    ).toEqual([{ host: "a.test", context: "literal" }]);
+  });
+
+  it("classifies a shell comment inside a template as embedded-text", async () => {
+    expect(
+      await endpointsOf({
+        "index.js": [
+          "const script = `#!/bin/sh",
+          "# see https://a.test/doc",
+          "echo hi`;",
+        ].join("\n"),
+      }),
+    ).toEqual([{ host: "a.test", context: "embedded-text" }]);
+  });
+
+  it("classifies a URL inside a sentence as embedded-text", async () => {
+    expect(
+      await endpointsOf({
+        "index.js": 'const u = "see https://a.test/doc for details";',
+      }),
+    ).toEqual([{ host: "a.test", context: "embedded-text" }]);
+  });
+
+  it("keeps a whole-string URL literal when an escape sequence follows it", async () => {
+    expect(
+      await endpointsOf({ "index.js": 'fetch("https://a.test/x\\n");' }),
+    ).toEqual([{ host: "a.test", context: "literal" }]);
+  });
+
+  it("keeps a URL literal when an escape sequence sits in its path", async () => {
+    expect(
+      await endpointsOf({ "index.js": 'fetch("https://a.test/\\x61b");' }),
+    ).toEqual([{ host: "a.test", context: "literal" }]);
+  });
+
+  it("classifies a URL followed by a word in the same string as embedded-text", async () => {
+    expect(
+      await endpointsOf({ "index.js": 'fetch("https://a.test/c? x");' }),
+    ).toEqual([{ host: "a.test", context: "embedded-text" }]);
+  });
+
+  it("does not classify a bare IP literal by its string", async () => {
+    expect(
+      await endpointsOf({ "index.js": 'const u = "connect to 8.8.4.4 now";' }),
+    ).toEqual([{ host: "8.8.4.4", context: "unknown" }]);
+  });
+
+  it.each([
+    [
+      "a quoted string with a LF line continuation",
+      '"https://a.test/\\\ncollect"',
+    ],
+    [
+      "a quoted string with a CRLF line continuation",
+      '"https://a.test/\\\r\ncollect"',
+    ],
+    ["a template with a LF line continuation", "`https://a.test/\\\ncollect`"],
+    [
+      "a template with a CRLF line continuation",
+      "`https://a.test/\\\r\ncollect`",
+    ],
+    [
+      "a template with a newline the URL parser drops",
+      "`https://a.test/\ncollect`",
+    ],
+  ])("keeps a URL literal in %s", async (_label, literal) => {
+    expect(await endpointsOf({ "index.js": `fetch(${literal});` })).toEqual([
+      { host: "a.test", context: "literal" },
+    ]);
+  });
+
+  it.each([
+    ["an escaped newline before a space", 'fetch("\\n https://evil.test/x");'],
+    ["an escaped newline after a space", 'fetch("https://evil.test/x \\n");'],
+    ["an escaped leading space", 'fetch("\\ https://evil.test/x");'],
+    ["a hex escape for a leading space", 'fetch("\\x20 https://evil.test/x");'],
+    [
+      "a Unicode escape for a trailing space",
+      'fetch("https://evil.test/x\\u{20}");',
+    ],
+    ["tab escapes around the URL", 'fetch("\\t https://evil.test/x\\t");'],
+    [
+      "a Unicode escape for an internal space",
+      'fetch("https://evil.test/x\\u0020y");',
+    ],
+    [
+      "an escaped newline before a space in a template",
+      "fetch(`\\n https://evil.test/x`);",
+    ],
+    [
+      "an invalid escape in a tagged template",
+      "fetch(String.raw`\\u https://evil.test/x`);",
+    ],
+  ])(
+    "classifies a string whose value is the URL as literal for %s",
+    async (_label, source) => {
+      expect(await endpointsOf({ "index.js": source })).toEqual([
+        { host: "evil.test", context: "literal" },
+      ]);
+    },
+  );
+
+  it.each([
+    ["a query with a space", 'fetch("https://evil.test/c? x");'],
+    [
+      "a newline-separated sentence",
+      'fetch("line one\\nsee https://a.test/doc");',
+    ],
+  ])("keeps embedded-text for %s", async (_label, source) => {
+    expect(await endpointsOf({ "index.js": source })).toEqual([
+      {
+        host: source.includes("evil.test") ? "evil.test" : "a.test",
+        context: "embedded-text",
+      },
+    ]);
+  });
+
+  it("classifies a template that ends at an expression as literal", async () => {
+    expect(
+      await endpointsOf({
+        "index.js":
+          'const path = "segment";\nconst u = `https://a.test/${path}`;',
+      }),
+    ).toEqual([{ host: "a.test", context: "literal" }]);
+  });
+
+  it("classifies a URL in a file the parser rejects as unknown", async () => {
+    expect(
+      await endpointsOf({
+        "index.js": "// https://a.test/doc\nconst = ;\n",
+      }),
+    ).toEqual([{ host: "a.test", context: "unknown" }]);
+  });
+
+  it("keeps the strongest context when the same host appears in two files", async () => {
+    expect(
+      await endpointsOf({
+        "index.js": 'const u = "see https://a.test/doc";',
+        "other.js": 'fetch("https://a.test/x");',
+      }),
+    ).toEqual([{ host: "a.test", context: "literal" }]);
+  });
+
+  it("keeps embedded-text when every occurrence is embedded-text", async () => {
+    expect(
+      await endpointsOf({
+        "index.js": [
+          'const a = "see https://a.test/doc";',
+          'const b = "docs https://a.test/doc";',
+        ].join("\n"),
+      }),
+    ).toEqual([{ host: "a.test", context: "embedded-text" }]);
+  });
+
+  it("still excludes a URL written in a JavaScript comment", async () => {
+    expect(
+      await endpointsOf({
+        "index.js": [
+          "// https://comments.test/doc",
+          "module.exports = 1;",
+        ].join("\n"),
+      }),
+    ).toEqual([]);
+  });
+});

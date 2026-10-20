@@ -6,7 +6,9 @@ import type {
   ParserDetection,
   ParserRequest,
   ParserResponse,
+  StringRange,
 } from "./javascript-parser-protocol.js";
+import { valueHasWords } from "./url-value-words.js";
 
 type LocatedNode = Node & { start: number };
 
@@ -18,6 +20,7 @@ function analyze(request: ParserRequest): ParserResponse {
       ok: true,
       detections: detectCapabilities(resolver, request.source),
       comments,
+      stringRanges: resolver.stringRanges,
     };
   } catch (error: unknown) {
     const located = error as { loc?: { line?: unknown }; pos?: unknown };
@@ -330,6 +333,7 @@ interface AliasTask {
 class BindingResolver {
   readonly scopes = new Map<Node, Scope>();
   readonly visits: NodeVisit[] = [];
+  readonly stringRanges: StringRange[] = [];
 
   constructor(ast: Node) {
     const aliases: AliasTask[] = [];
@@ -337,9 +341,12 @@ class BindingResolver {
       const scope = this.ensureScopes(ancestors);
       this.collectDeclaration(node, ancestors, scope);
       this.visits.push({ node, scope });
+      const range = stringContentRange(node);
+      if (range !== null) this.stringRanges.push(range);
       if (isAliasCandidate(node, ancestors)) aliases.push({ node, scope });
     });
 
+    this.stringRanges.sort((left, right) => left[0] - right[0]);
     for (const alias of aliases) this.collectAlias(alias.node, alias.scope);
   }
 
@@ -698,6 +705,27 @@ function isDynamicModuleLoad(node: Node): boolean {
     Array.isArray(args) &&
     !isStringLiteral(args[0])
   );
+}
+
+/**
+ * A string Literal's start/end include its quotes, while acorn's
+ * TemplateElement start/end already bound the raw content between the backtick
+ * and the next `${` or backtick. A tagged template with an invalid escape has
+ * no cooked value, so it cannot demote a URL.
+ */
+function stringContentRange(node: Node): StringRange | null {
+  const record = node as unknown as Record<string, unknown>;
+  if (node.type === "TemplateElement") {
+    const cooked = asRecord(record.value)?.cooked;
+    return [
+      node.start,
+      node.end,
+      typeof cooked === "string" && valueHasWords(cooked),
+    ];
+  }
+  return node.type === "Literal" && typeof record.value === "string"
+    ? [node.start + 1, node.end - 1, valueHasWords(record.value)]
+    : null;
 }
 
 function isStringLiteral(value: unknown): boolean {

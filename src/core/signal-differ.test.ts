@@ -25,6 +25,7 @@ describe("signal differ", () => {
       endpointType: "domain" as const,
       normalizedValue: "new.example.com",
       confidence: "literal" as const,
+      context: "literal" as const,
       evidence,
     };
     const pattern = {
