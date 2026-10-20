@@ -1,0 +1,1248 @@
+{
+  "schemaVersion": 1,
+  "identity": {
+    "commit": "41f754b5a773c0ce4ff335bfaeb93f70341d02ed",
+    "dirty": false,
+    "node": "v24.21.0",
+    "platform": "linux-x64",
+    "command": "/home/amsn/orca/workspaces/capdelta/d1d-contexts-tool/scripts/m5-measure.ts contexts docs/heldout-2026-10-20/corpus-heldout.json /tmp/claude-1000/-home-amsn-orca-capdelta/af888675-5c8e-45e7-aadc-1ef4dc51e4c6/scratchpad/contexts-heldout.json",
+    "startedAt": "2026-10-20T21:41:03.645Z",
+    "finishedAt": "2026-10-20T21:41:48.002Z",
+    "policy": {
+      "threshold": "CRITICAL",
+      "strict": false,
+      "allowlist": "none"
+    }
+  },
+  "corpus": "docs/heldout-2026-10-20/corpus-heldout.json",
+  "pairs": [
+    {
+      "pair": {
+        "name": "ejs",
+        "oldVersion": "5.0.2",
+        "newVersion": "6.0.1",
+        "oldIntegrity": "sha512-IpbUaI/CAW86l3f+T8zN0iggSc0LmMZLcIW5eRVStLVNCoTXkE0YlncbbH50fp8Cl6zHIky0sW2uUbhBqGw0Jw==",
+        "newIntegrity": "sha512-UaaM14yby8U3k02ihS1Bmj5Kz2d7CCQM1scxpgs4Mhkq8F1wR2gl3+Ts4h5Ne4Mnt7M9m4Dw7jsuMr3+xO4vZA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/ejs/-/ejs-5.0.2.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/ejs/-/ejs-6.0.1.tgz"
+      },
+      "status": "analyzed",
+      "observations": [
+        {
+          "host": "github.com",
+          "context": "literal",
+          "file": "ejs.js",
+          "line": 618,
+          "snippet": "e.message += 'https://github.com/RyanZim/EJS-Lint';"
+        }
+      ]
+    },
+    {
+      "pair": {
+        "name": "ejs",
+        "oldVersion": "6.0.1",
+        "newVersion": "7.0.1",
+        "oldIntegrity": "sha512-UaaM14yby8U3k02ihS1Bmj5Kz2d7CCQM1scxpgs4Mhkq8F1wR2gl3+Ts4h5Ne4Mnt7M9m4Dw7jsuMr3+xO4vZA==",
+        "newIntegrity": "sha512-TrAb1fY4jNY6aQrNjMJsoWQxGUK47A38JxuUvnt75vDcAA9Ln7ur6FHo+irVa5Bwd3w9rdUT3xLSl5MRgHIugg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/ejs/-/ejs-6.0.1.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/ejs/-/ejs-7.0.1.tgz"
+      },
+      "status": "analyzed",
+      "observations": [
+        {
+          "host": "github.com",
+          "context": "literal",
+          "file": "ejs.js",
+          "line": 592,
+          "snippet": "e.message += 'https://github.com/RyanZim/EJS-Lint';"
+        }
+      ]
+    },
+    {
+      "pair": {
+        "name": "ejs",
+        "oldVersion": "7.0.1",
+        "newVersion": "7.0.2",
+        "oldIntegrity": "sha512-TrAb1fY4jNY6aQrNjMJsoWQxGUK47A38JxuUvnt75vDcAA9Ln7ur6FHo+irVa5Bwd3w9rdUT3xLSl5MRgHIugg==",
+        "newIntegrity": "sha512-LcDSEP6Oclb9sTiSyG0MpG0RuKvLDRxCOOt+2sIk+kdk1rMkFU8SRnT0qaNt5zvU0LOV1YXXOvIoZL/sKwabvw==",
+        "oldResolvedUrl": "https://registry.npmjs.org/ejs/-/ejs-7.0.1.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/ejs/-/ejs-7.0.2.tgz"
+      },
+      "status": "analyzed",
+      "observations": [
+        {
+          "host": "github.com",
+          "context": "literal",
+          "file": "ejs.js",
+          "line": 624,
+          "snippet": "e.message += 'https://github.com/RyanZim/EJS-Lint';"
+        }
+      ]
+    },
+    {
+      "pair": {
+        "name": "typedoc",
+        "oldVersion": "0.28.17",
+        "newVersion": "0.28.18",
+        "oldIntegrity": "sha512-ZkJ2G7mZrbxrKxinTQMjFqsCoYY6a5Luwv2GKbTnBCEgV2ihYm5CflA9JnJAwH0pZWavqfYxmDkFHPt4yx2oDQ==",
+        "newIntegrity": "sha512-NTWTUOFRQ9+SGKKTuWKUioUkjxNwtS3JDRPVKZAXGHZy2wCA8bdv2iJiyeePn0xkmK+TCCqZFT0X7+2+FLjngA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/typedoc/-/typedoc-0.28.17.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/typedoc/-/typedoc-0.28.18.tgz"
+      },
+      "status": "analyzed",
+      "observations": [
+        {
+          "host": "schema.org",
+          "context": "literal",
+          "file": "dist/lib/output/themes/default/layouts/default.js",
+          "line": 33,
+          "snippet": "\"@context\": \"https://schema.org\","
+        },
+        {
+          "host": "typedoc.org",
+          "context": "literal",
+          "file": "dist/lib/output/themes/default/partials/footer.js",
+          "line": 17,
+          "snippet": "JSX.createElement(\"a\", { href: \"https://typedoc.org/\", target: \"_blank\" }, \"TypeDoc\"),"
+        },
+        {
+          "host": "www.sitemaps.org",
+          "context": "literal",
+          "file": "dist/lib/output/plugins/SitemapPlugin.js",
+          "line": 57,
+          "snippet": "attr: { xmlns: \"http://www.sitemaps.org/schemas/sitemap/0.9\" },"
+        },
+        {
+          "host": "www.w3.org",
+          "context": "literal",
+          "file": "dist/lib/output/plugins/IconsPlugin.js",
+          "line": 12,
+          "snippet": "const svg = document.body.appendChild(document.createElementNS(\"http://www.w3.org/2000/svg\", \"svg\"));"
+        }
+      ]
+    },
+    {
+      "pair": {
+        "name": "typedoc",
+        "oldVersion": "0.28.18",
+        "newVersion": "0.28.19",
+        "oldIntegrity": "sha512-NTWTUOFRQ9+SGKKTuWKUioUkjxNwtS3JDRPVKZAXGHZy2wCA8bdv2iJiyeePn0xkmK+TCCqZFT0X7+2+FLjngA==",
+        "newIntegrity": "sha512-wKh+lhdmMFivMlc6vRRcMGXeGEHGU2g8a2CkPTJjJlwRf1iXbimWIPcFolCqe4E0d/FRtGszpIrsp3WLpDB8Pw==",
+        "oldResolvedUrl": "https://registry.npmjs.org/typedoc/-/typedoc-0.28.18.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/typedoc/-/typedoc-0.28.19.tgz"
+      },
+      "status": "analyzed",
+      "observations": [
+        {
+          "host": "schema.org",
+          "context": "literal",
+          "file": "dist/lib/output/themes/default/layouts/default.js",
+          "line": 33,
+          "snippet": "\"@context\": \"https://schema.org\","
+        },
+        {
+          "host": "typedoc.org",
+          "context": "literal",
+          "file": "dist/lib/output/themes/default/partials/footer.js",
+          "line": 17,
+          "snippet": "JSX.createElement(\"a\", { href: \"https://typedoc.org/\", target: \"_blank\" }, \"TypeDoc\"),"
+        },
+        {
+          "host": "www.sitemaps.org",
+          "context": "literal",
+          "file": "dist/lib/output/plugins/SitemapPlugin.js",
+          "line": 57,
+          "snippet": "attr: { xmlns: \"http://www.sitemaps.org/schemas/sitemap/0.9\" },"
+        },
+        {
+          "host": "www.w3.org",
+          "context": "literal",
+          "file": "dist/lib/output/plugins/IconsPlugin.js",
+          "line": 12,
+          "snippet": "const svg = document.body.appendChild(document.createElementNS(\"http://www.w3.org/2000/svg\", \"svg\"));"
+        }
+      ]
+    },
+    {
+      "pair": {
+        "name": "typedoc",
+        "oldVersion": "0.28.19",
+        "newVersion": "0.28.20",
+        "oldIntegrity": "sha512-wKh+lhdmMFivMlc6vRRcMGXeGEHGU2g8a2CkPTJjJlwRf1iXbimWIPcFolCqe4E0d/FRtGszpIrsp3WLpDB8Pw==",
+        "newIntegrity": "sha512-uSKqkh8Cr48vllnEy+jdaAgOeR6Y+QCBW7usgUsKj7gJEfR7stw9U/fE49LBnj2tPRKPY0c0EBJSWe9Appmplg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/typedoc/-/typedoc-0.28.19.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/typedoc/-/typedoc-0.28.20.tgz"
+      },
+      "status": "analyzed",
+      "observations": [
+        {
+          "host": "schema.org",
+          "context": "literal",
+          "file": "dist/index.js",
+          "line": 10554,
+          "snippet": "\"@context\": \"https://schema.org\","
+        },
+        {
+          "host": "typedoc.org",
+          "context": "literal",
+          "file": "dist/index.js",
+          "line": 10688,
+          "snippet": "generatorDisplay = /* @__PURE__ */ JSX8.createElement(\"p\", { class: \"tsd-generator\" }, pre, /* @__PURE__ */ JSX8.createElement(\"a\", { href: \"https://typedoc.org/\", target: \"_blank\" }, \"TypeDoc\"), pos…"
+        },
+        {
+          "host": "www.sitemaps.org",
+          "context": "literal",
+          "file": "dist/index.js",
+          "line": 14046,
+          "snippet": "attr: { xmlns: \"http://www.sitemaps.org/schemas/sitemap/0.9\" },"
+        },
+        {
+          "host": "www.w3.org",
+          "context": "literal",
+          "file": "dist/index.js",
+          "line": 10033,
+          "snippet": "alertNote: () => /* @__PURE__ */ JSX.createElement(\"svg\", { xmlns: \"http://www.w3.org/2000/svg\", width: \"16\", height: \"16\", viewBox: \"0 0 16 16\", \"aria-hidden\": \"true\" }, /* @__PURE__ */ JSX.createEl…"
+        }
+      ]
+    },
+    {
+      "pair": {
+        "name": "highlight.js",
+        "oldVersion": "11.11.0",
+        "newVersion": "11.11.1",
+        "oldIntegrity": "sha512-6ErL7JlGu2CNFHyRQEuDogOyGPNiqcuWdt4iSSFUPyferNTGlNTPFqeV36Y/XwA4V/TJ8l0sxp6FTnxud/mf8g==",
+        "newIntegrity": "sha512-Xwwo44whKBVCYoliBQwaPvtd/2tYFkRQtXDWj1nackaV2JPXx3L0+Jvd8/qCJ2p+ML0/XVkJ2q+Mr+UVdpJK5w==",
+        "oldResolvedUrl": "https://registry.npmjs.org/highlight.js/-/highlight.js-11.11.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/highlight.js/-/highlight.js-11.11.1.tgz"
+      },
+      "status": "analyzed",
+      "observations": [
+        {
+          "host": "github.com",
+          "context": "literal",
+          "file": "lib/core.js",
+          "line": 2311,
+          "snippet": "console.warn(\"https://github.com/highlightjs/highlight.js/wiki/security\");"
+        }
+      ]
+    },
+    {
+      "pair": {
+        "name": "highlight.js",
+        "oldVersion": "11.11.1",
+        "newVersion": "11.11.2",
+        "oldIntegrity": "sha512-Xwwo44whKBVCYoliBQwaPvtd/2tYFkRQtXDWj1nackaV2JPXx3L0+Jvd8/qCJ2p+ML0/XVkJ2q+Mr+UVdpJK5w==",
+        "newIntegrity": "sha512-oaXMACAU0kzOMXBjWpNcX+vlwSBCIAiZ9BHa7gA15NOTtT2L/l8OSZDuqS2XppOhZBPJ7hm4o8ep2kyuip2uEQ==",
+        "oldResolvedUrl": "https://registry.npmjs.org/highlight.js/-/highlight.js-11.11.1.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/highlight.js/-/highlight.js-11.11.2.tgz"
+      },
+      "status": "analyzed",
+      "observations": [
+        {
+          "host": "github.com",
+          "context": "literal",
+          "file": "lib/core.js",
+          "line": 2314,
+          "snippet": "console.warn(\"https://github.com/highlightjs/highlight.js/wiki/security\");"
+        }
+      ]
+    },
+    {
+      "pair": {
+        "name": "highlight.js",
+        "oldVersion": "11.11.2",
+        "newVersion": "11.12.0",
+        "oldIntegrity": "sha512-oaXMACAU0kzOMXBjWpNcX+vlwSBCIAiZ9BHa7gA15NOTtT2L/l8OSZDuqS2XppOhZBPJ7hm4o8ep2kyuip2uEQ==",
+        "newIntegrity": "sha512-nbfWpyRMcMrPMmDwJB+dhX/eiaPKtc2RB+0QZskqJ3WjRA/FDS0e9hZrx8EC/lbEv8gXy98FcDbNa/dspAaJMg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/highlight.js/-/highlight.js-11.11.2.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/highlight.js/-/highlight.js-11.12.0.tgz"
+      },
+      "status": "analyzed",
+      "observations": [
+        {
+          "host": "github.com",
+          "context": "literal",
+          "file": "lib/core.js",
+          "line": 2317,
+          "snippet": "console.warn(\"https://github.com/highlightjs/highlight.js/wiki/security\");"
+        }
+      ]
+    },
+    {
+      "pair": {
+        "name": "pino",
+        "oldVersion": "10.2.1",
+        "newVersion": "10.3.0",
+        "oldIntegrity": "sha512-Tjyv76gdUe2460dEhtcnA4fU/+HhGq2Kr7OWlo2R/Xxbmn/ZNKWavNWTD2k97IE+s755iVU7WcaOEIl+H3cq8w==",
+        "newIntegrity": "sha512-0GNPNzHXBKw6U/InGe79A3Crzyk9bcSyObF9/Gfo9DLEf5qj5RF50RSjsu0W1rZ6ZqRGdzDFCRBQvi9/rSGPtA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/pino/-/pino-10.2.1.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/pino/-/pino-10.3.0.tgz"
+      },
+      "status": "analyzed",
+      "observations": [
+        {
+          "host": "github.com",
+          "context": "unknown",
+          "file": "bin.js",
+          "line": 4,
+          "snippet": "'\\nSee: https://github.com/pinojs/pino-pretty'"
+        },
+        {
+          "host": "npm.im",
+          "context": "embedded-text",
+          "file": "benchmarks/utils/generate-benchmark-doc.js",
+          "line": 33,
+          "snippet": "For a fair comparison, [LogLevel](http://npm.im/loglevel) was extended"
+        }
+      ]
+    },
+    {
+      "pair": {
+        "name": "pino",
+        "oldVersion": "10.3.0",
+        "newVersion": "10.3.1",
+        "oldIntegrity": "sha512-0GNPNzHXBKw6U/InGe79A3Crzyk9bcSyObF9/Gfo9DLEf5qj5RF50RSjsu0W1rZ6ZqRGdzDFCRBQvi9/rSGPtA==",
+        "newIntegrity": "sha512-r34yH/GlQpKZbU1BvFFqOjhISRo1MNx1tWYsYvmj6KIRHSPMT2+yHOEb1SG6NMvRoHRF0a07kCOox/9yakl1vg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/pino/-/pino-10.3.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/pino/-/pino-10.3.1.tgz"
+      },
+      "status": "analyzed",
+      "observations": [
+        {
+          "host": "github.com",
+          "context": "unknown",
+          "file": "bin.js",
+          "line": 4,
+          "snippet": "'\\nSee: https://github.com/pinojs/pino-pretty'"
+        },
+        {
+          "host": "npm.im",
+          "context": "embedded-text",
+          "file": "benchmarks/utils/generate-benchmark-doc.js",
+          "line": 33,
+          "snippet": "For a fair comparison, [LogLevel](http://npm.im/loglevel) was extended"
+        }
+      ]
+    },
+    {
+      "pair": {
+        "name": "pino",
+        "oldVersion": "10.3.1",
+        "newVersion": "10.4.0",
+        "oldIntegrity": "sha512-r34yH/GlQpKZbU1BvFFqOjhISRo1MNx1tWYsYvmj6KIRHSPMT2+yHOEb1SG6NMvRoHRF0a07kCOox/9yakl1vg==",
+        "newIntegrity": "sha512-bk1ZMTwG/Vymx+zPoa28MhNzucFvXJWp3csrSuxuHPSMeUettaCoQ5Jvg07mtC4JGNpcfTwz41oVCnNgBK9+vA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/pino/-/pino-10.3.1.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/pino/-/pino-10.4.0.tgz"
+      },
+      "status": "analyzed",
+      "observations": [
+        {
+          "host": "github.com",
+          "context": "unknown",
+          "file": "bin.js",
+          "line": 4,
+          "snippet": "'\\nSee: https://github.com/pinojs/pino-pretty'"
+        },
+        {
+          "host": "npm.im",
+          "context": "embedded-text",
+          "file": "benchmarks/utils/generate-benchmark-doc.js",
+          "line": 33,
+          "snippet": "For a fair comparison, [LogLevel](http://npm.im/loglevel) was extended"
+        }
+      ]
+    },
+    {
+      "pair": {
+        "name": "nodemon",
+        "oldVersion": "3.1.11",
+        "newVersion": "3.1.12",
+        "oldIntegrity": "sha512-is96t8F/1//UHAjNPHpbsNY46ELPpftGUoSVNXwUfMk/qdjSylYrWSu1XavVTBOn526kFiOR733ATgNBCQyH0g==",
+        "newIntegrity": "sha512-ubbKNjz0Xvv49+5VWiqK2N+1VkoWdWi4xfpyuVbdT4QcdpGlN6Nx/OtxBCDHW8aUelaV6QHDbOjGca9HGnCiCw==",
+        "oldResolvedUrl": "https://registry.npmjs.org/nodemon/-/nodemon-3.1.11.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/nodemon/-/nodemon-3.1.12.tgz"
+      },
+      "status": "analyzed",
+      "observations": [
+        {
+          "host": "git.io",
+          "context": "embedded-text",
+          "file": "lib/monitor/run.js",
+          "line": 215,
+          "snippet": "utils.log.error('Read more here: https://git.io/fNOAG');"
+        },
+        {
+          "host": "github.com",
+          "context": "embedded-text",
+          "file": "lib/monitor/watch.js",
+          "line": 113,
+          "snippet": "'See https://github.com/paulmillr/chokidar/issues/229 for details'"
+        }
+      ]
+    },
+    {
+      "pair": {
+        "name": "nodemon",
+        "oldVersion": "3.1.12",
+        "newVersion": "3.1.13",
+        "oldIntegrity": "sha512-ubbKNjz0Xvv49+5VWiqK2N+1VkoWdWi4xfpyuVbdT4QcdpGlN6Nx/OtxBCDHW8aUelaV6QHDbOjGca9HGnCiCw==",
+        "newIntegrity": "sha512-nPN6L7A9cTA3BnJ3zZIibH5FiDh3GbmibeS17bl5YEU1IRO2mcfvR0ZJXH3ndoeKItjUcaX81FSKc/Kq/IiG6g==",
+        "oldResolvedUrl": "https://registry.npmjs.org/nodemon/-/nodemon-3.1.12.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/nodemon/-/nodemon-3.1.13.tgz"
+      },
+      "status": "analyzed",
+      "observations": [
+        {
+          "host": "git.io",
+          "context": "embedded-text",
+          "file": "lib/monitor/run.js",
+          "line": 215,
+          "snippet": "utils.log.error('Read more here: https://git.io/fNOAG');"
+        },
+        {
+          "host": "github.com",
+          "context": "embedded-text",
+          "file": "lib/monitor/watch.js",
+          "line": 113,
+          "snippet": "'See https://github.com/paulmillr/chokidar/issues/229 for details'"
+        }
+      ]
+    },
+    {
+      "pair": {
+        "name": "nodemon",
+        "oldVersion": "3.1.13",
+        "newVersion": "3.1.14",
+        "oldIntegrity": "sha512-nPN6L7A9cTA3BnJ3zZIibH5FiDh3GbmibeS17bl5YEU1IRO2mcfvR0ZJXH3ndoeKItjUcaX81FSKc/Kq/IiG6g==",
+        "newIntegrity": "sha512-jakjZi93UtB3jHMWsXL68FXSAosbLfY0In5gtKq3niLSkrWznrVBzXFNOEMJUfc9+Ke7SHWoAZsiMkNP3vq6Jw==",
+        "oldResolvedUrl": "https://registry.npmjs.org/nodemon/-/nodemon-3.1.13.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/nodemon/-/nodemon-3.1.14.tgz"
+      },
+      "status": "analyzed",
+      "observations": [
+        {
+          "host": "git.io",
+          "context": "embedded-text",
+          "file": "lib/monitor/run.js",
+          "line": 215,
+          "snippet": "utils.log.error('Read more here: https://git.io/fNOAG');"
+        },
+        {
+          "host": "github.com",
+          "context": "embedded-text",
+          "file": "lib/monitor/watch.js",
+          "line": 113,
+          "snippet": "'See https://github.com/paulmillr/chokidar/issues/229 for details'"
+        }
+      ]
+    },
+    {
+      "pair": {
+        "name": "jsdoc",
+        "oldVersion": "4.0.2",
+        "newVersion": "4.0.3",
+        "oldIntegrity": "sha512-e8cIg2z62InH7azBBi3EsSEqrKx+nUtAS5bBcYTSpZFA+vhNPyhv8PTFZ0WsjOPDj04/dOLlm08EDcQJDqaGQg==",
+        "newIntegrity": "sha512-Nu7Sf35kXJ1MWDZIMAuATRQTg1iIPdzh7tqJ6jjvaU/GfDf+qi5UV8zJR3Mo+/pYFvm8mzay4+6O5EWigaQBQw==",
+        "oldResolvedUrl": "https://registry.npmjs.org/jsdoc/-/jsdoc-4.0.2.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/jsdoc/-/jsdoc-4.0.3.tgz"
+      },
+      "status": "analyzed",
+      "observations": [
+        {
+          "host": "jsdoc.app",
+          "context": "embedded-text",
+          "file": "cli.js",
+          "line": 198,
+          "snippet": "console.log('Visit https://jsdoc.app/ for more information.');"
+        },
+        {
+          "host": "nowhere.com",
+          "context": "embedded-text",
+          "file": "plugins/test/specs/markdown.js",
+          "line": 51,
+          "snippet": "expect(foo.see[0]).toEqual('<p><a href=\"http://nowhere.com\">Nowhere</a></p>');"
+        }
+      ]
+    },
+    {
+      "pair": {
+        "name": "jsdoc",
+        "oldVersion": "4.0.3",
+        "newVersion": "4.0.4",
+        "oldIntegrity": "sha512-Nu7Sf35kXJ1MWDZIMAuATRQTg1iIPdzh7tqJ6jjvaU/GfDf+qi5UV8zJR3Mo+/pYFvm8mzay4+6O5EWigaQBQw==",
+        "newIntegrity": "sha512-zeFezwyXeG4syyYHbvh1A967IAqq/67yXtXvuL5wnqCkFZe8I0vKfm+EO+YEvLguo6w9CDUbrAXVtJSHh2E8rw==",
+        "oldResolvedUrl": "https://registry.npmjs.org/jsdoc/-/jsdoc-4.0.3.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/jsdoc/-/jsdoc-4.0.4.tgz"
+      },
+      "status": "analyzed",
+      "observations": [
+        {
+          "host": "jsdoc.app",
+          "context": "embedded-text",
+          "file": "cli.js",
+          "line": 198,
+          "snippet": "console.log('Visit https://jsdoc.app/ for more information.');"
+        },
+        {
+          "host": "nowhere.com",
+          "context": "embedded-text",
+          "file": "plugins/test/specs/markdown.js",
+          "line": 51,
+          "snippet": "expect(foo.see[0]).toEqual('<p><a href=\"http://nowhere.com\">Nowhere</a></p>');"
+        }
+      ]
+    },
+    {
+      "pair": {
+        "name": "jsdoc",
+        "oldVersion": "4.0.4",
+        "newVersion": "4.0.5",
+        "oldIntegrity": "sha512-zeFezwyXeG4syyYHbvh1A967IAqq/67yXtXvuL5wnqCkFZe8I0vKfm+EO+YEvLguo6w9CDUbrAXVtJSHh2E8rw==",
+        "newIntegrity": "sha512-P4C6MWP9yIlMiK8nwoZvxN84vb6MsnXcHuy7XzVOvQoCizWX5JFCBsWIIWKXBltpoRZXddUOVQmCTOZt9yDj9g==",
+        "oldResolvedUrl": "https://registry.npmjs.org/jsdoc/-/jsdoc-4.0.4.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/jsdoc/-/jsdoc-4.0.5.tgz"
+      },
+      "status": "analyzed",
+      "observations": [
+        {
+          "host": "jsdoc.app",
+          "context": "embedded-text",
+          "file": "cli.js",
+          "line": 198,
+          "snippet": "console.log('Visit https://jsdoc.app/ for more information.');"
+        }
+      ]
+    },
+    {
+      "pair": {
+        "name": "browserslist",
+        "oldVersion": "4.29.1",
+        "newVersion": "4.29.2",
+        "oldIntegrity": "sha512-AUdjuRyCNGUYtqpqfTmWyM4fXay8yIQhmLnvYe/THMGfT9B/34X7xQd3ifKxwyNPPpowVBjLb+64BN9Rn1mizw==",
+        "newIntegrity": "sha512-/u9r8k8ue4ZhHCw9ovDtltpWdXeXzjhdxCGj6vm1RGLPXb8lu33EMdoCHF5Sx8oYBS+Q/FYYNmAqlHncxR3RmA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/browserslist/-/browserslist-4.29.1.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/browserslist/-/browserslist-4.29.2.tgz"
+      },
+      "status": "analyzed",
+      "observations": [
+        {
+          "host": "github.com",
+          "context": "literal",
+          "file": "node.js",
+          "line": 499,
+          "snippet": "'https://github.com/browserslist/update-db#readme'"
+        }
+      ]
+    },
+    {
+      "pair": {
+        "name": "browserslist",
+        "oldVersion": "4.29.2",
+        "newVersion": "4.29.3",
+        "oldIntegrity": "sha512-/u9r8k8ue4ZhHCw9ovDtltpWdXeXzjhdxCGj6vm1RGLPXb8lu33EMdoCHF5Sx8oYBS+Q/FYYNmAqlHncxR3RmA==",
+        "newIntegrity": "sha512-1R4kiYKXGViqEN0CnoDrXc1StD9niAwu+j2dukWzrD4bJgsD4lDmEp0CRbc6E/vYJIfTHwPmwyaKtVSudICdPA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/browserslist/-/browserslist-4.29.2.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/browserslist/-/browserslist-4.29.3.tgz"
+      },
+      "status": "analyzed",
+      "observations": [
+        {
+          "host": "github.com",
+          "context": "literal",
+          "file": "node.js",
+          "line": 499,
+          "snippet": "'https://github.com/browserslist/update-db#readme'"
+        }
+      ]
+    },
+    {
+      "pair": {
+        "name": "browserslist",
+        "oldVersion": "4.29.3",
+        "newVersion": "4.29.4",
+        "oldIntegrity": "sha512-1R4kiYKXGViqEN0CnoDrXc1StD9niAwu+j2dukWzrD4bJgsD4lDmEp0CRbc6E/vYJIfTHwPmwyaKtVSudICdPA==",
+        "newIntegrity": "sha512-2TcbbiwXEq+N0kD36tykpCfyyQigUXmuwNQbnPp4Xk4PX9JOqVIKjJlIDjpH7uY6tmRGoAd+apeT1p60T8wsdA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/browserslist/-/browserslist-4.29.3.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/browserslist/-/browserslist-4.29.4.tgz"
+      },
+      "status": "analyzed",
+      "observations": [
+        {
+          "host": "github.com",
+          "context": "literal",
+          "file": "node.js",
+          "line": 499,
+          "snippet": "'https://github.com/browserslist/update-db#readme'"
+        }
+      ]
+    },
+    {
+      "pair": {
+        "name": "inquirer",
+        "oldVersion": "14.2.1",
+        "newVersion": "14.2.2",
+        "oldIntegrity": "sha512-jLO8986l0/jW+K2Y5BHAhrD6ztnm8MHQgnTI5BwKV6can/LN6xYBcLbtUSvDt1jXNTASwCZszZk0ZBUT5YmH6Q==",
+        "newIntegrity": "sha512-WGerZIIb7mTtaFFskkD/P0europ8xBWf1OXACMiugzKPSmVzoqhcPSuSUzbzMch/t3rf1ncBT3v/0WU73cLqJQ==",
+        "oldResolvedUrl": "https://registry.npmjs.org/inquirer/-/inquirer-14.2.1.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/inquirer/-/inquirer-14.2.2.tgz"
+      },
+      "status": "analyzed",
+      "observations": []
+    },
+    {
+      "pair": {
+        "name": "inquirer",
+        "oldVersion": "14.2.2",
+        "newVersion": "14.2.3",
+        "oldIntegrity": "sha512-WGerZIIb7mTtaFFskkD/P0europ8xBWf1OXACMiugzKPSmVzoqhcPSuSUzbzMch/t3rf1ncBT3v/0WU73cLqJQ==",
+        "newIntegrity": "sha512-eKUcE0H/iewXjEPNvIDXYp6xcgFPyUdk3My/HWQgL8WF7jLCJEdQUsQ+5WvXQs8Fj4iH3mJCzLX1JbsoJSliUw==",
+        "oldResolvedUrl": "https://registry.npmjs.org/inquirer/-/inquirer-14.2.2.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/inquirer/-/inquirer-14.2.3.tgz"
+      },
+      "status": "analyzed",
+      "observations": []
+    },
+    {
+      "pair": {
+        "name": "inquirer",
+        "oldVersion": "14.2.3",
+        "newVersion": "14.2.4",
+        "oldIntegrity": "sha512-eKUcE0H/iewXjEPNvIDXYp6xcgFPyUdk3My/HWQgL8WF7jLCJEdQUsQ+5WvXQs8Fj4iH3mJCzLX1JbsoJSliUw==",
+        "newIntegrity": "sha512-xPVejWqfkjG9OxSirMqu3pdzGIGsma68j2S+nEOuuwMbU3pRTHnYs9d8my+1M6OMlqr8XZPwCPonZ2DKMwQDLg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/inquirer/-/inquirer-14.2.3.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/inquirer/-/inquirer-14.2.4.tgz"
+      },
+      "status": "analyzed",
+      "observations": []
+    },
+    {
+      "pair": {
+        "name": "ava",
+        "oldVersion": "8.0.0",
+        "newVersion": "8.0.1",
+        "oldIntegrity": "sha512-KMUyT3LcnZ/5ipDAqnTGn6PQUvr1Jk4dex3v7ieQrGaMlAblfIpMLwK56HfPcObvJEzyhCWXfZjbM98FeAy0oQ==",
+        "newIntegrity": "sha512-YlwwL5HX2EJRE75e2LR8nio8lKAJ702sFbv0QYnhzngAjyo9wB+Xg4JZh5f432khlWfVD5OQ93rrRopEXJptpg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/ava/-/ava-8.0.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/ava/-/ava-8.0.1.tgz"
+      },
+      "status": "analyzed",
+      "observations": [
+        {
+          "host": "avajs.dev",
+          "context": "embedded-text",
+          "file": "lib/snapshot-manager.js",
+          "line": 130,
+          "snippet": "Generated by [AVA](https://avajs.dev).`)"
+        },
+        {
+          "host": "github.com",
+          "context": "literal",
+          "file": "lib/reporters/improper-usage-messages.js",
+          "line": 17,
+          "snippet": "${chalk.blue.underline(`https://github.com/avajs/ava/blob/v${pkg.version}/docs/03-assertions.md#throwsfn-expected-message`)}`;"
+        }
+      ]
+    },
+    {
+      "pair": {
+        "name": "ava",
+        "oldVersion": "8.0.1",
+        "newVersion": "8.0.2",
+        "oldIntegrity": "sha512-YlwwL5HX2EJRE75e2LR8nio8lKAJ702sFbv0QYnhzngAjyo9wB+Xg4JZh5f432khlWfVD5OQ93rrRopEXJptpg==",
+        "newIntegrity": "sha512-mTqZqikubkGBorVk2HKiw63ruEhpgYLnj/OcTlopFinYRPKlBQc1rBnOGSOZtBzgCuHpF2zqiKw2MGI0/klW9Q==",
+        "oldResolvedUrl": "https://registry.npmjs.org/ava/-/ava-8.0.1.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/ava/-/ava-8.0.2.tgz"
+      },
+      "status": "analyzed",
+      "observations": [
+        {
+          "host": "avajs.dev",
+          "context": "embedded-text",
+          "file": "lib/snapshot-manager.js",
+          "line": 130,
+          "snippet": "Generated by [AVA](https://avajs.dev).`)"
+        },
+        {
+          "host": "github.com",
+          "context": "literal",
+          "file": "lib/reporters/improper-usage-messages.js",
+          "line": 17,
+          "snippet": "${chalk.blue.underline(`https://github.com/avajs/ava/blob/v${pkg.version}/docs/03-assertions.md#throwsfn-expected-message`)}`;"
+        }
+      ]
+    },
+    {
+      "pair": {
+        "name": "ava",
+        "oldVersion": "8.0.2",
+        "newVersion": "8.1.0",
+        "oldIntegrity": "sha512-mTqZqikubkGBorVk2HKiw63ruEhpgYLnj/OcTlopFinYRPKlBQc1rBnOGSOZtBzgCuHpF2zqiKw2MGI0/klW9Q==",
+        "newIntegrity": "sha512-qGT7MZBJK4PSgrfg0yYIWRl9+LoXTIgNuGgrQ4PrIlQN2OpUae1gLmyEqZbUyTjR2J113sRreoqXTE0NqudwIw==",
+        "oldResolvedUrl": "https://registry.npmjs.org/ava/-/ava-8.0.2.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/ava/-/ava-8.1.0.tgz"
+      },
+      "status": "analyzed",
+      "observations": [
+        {
+          "host": "avajs.dev",
+          "context": "embedded-text",
+          "file": "lib/snapshot-manager.js",
+          "line": 154,
+          "snippet": "Generated by [AVA](https://avajs.dev).`)"
+        },
+        {
+          "host": "github.com",
+          "context": "literal",
+          "file": "lib/reporters/improper-usage-messages.js",
+          "line": 17,
+          "snippet": "${chalk.blue.underline(`https://github.com/avajs/ava/blob/v${pkg.version}/docs/03-assertions.md#throwsfn-expected-message`)}`;"
+        }
+      ]
+    },
+    {
+      "pair": {
+        "name": "npm-check-updates",
+        "oldVersion": "23.0.1",
+        "newVersion": "23.0.2",
+        "oldIntegrity": "sha512-e4hu3Rq4waj7SnhzvqAc5UG557mfP5e3JIFFQd7Fg3RiRkJl8yR90NFoZ1GSWUT3S/QacJndJb+7dLQBPeH+iA==",
+        "newIntegrity": "sha512-t5tv+d4sP+WbSwcDAFBwDxSUJRomc+TJoURPu7q5B/19toUsR/7eshRxBdWdE7iYw80iE4O4D/7OvCvIcaG8ug==",
+        "oldResolvedUrl": "https://registry.npmjs.org/npm-check-updates/-/npm-check-updates-23.0.1.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/npm-check-updates/-/npm-check-updates-23.0.2.tgz"
+      },
+      "status": "analyzed",
+      "observations": [
+        {
+          "host": "api.mydomain",
+          "context": "embedded-text",
+          "file": "build/index.js",
+          "line": 5579,
+          "snippet": "ncu --registryType json --registry https://api.mydomain/registry.json"
+        },
+        {
+          "host": "bford.info",
+          "context": "embedded-text",
+          "file": "build/chunks/lib-CTQJDrKz.js",
+          "line": 4121,
+          "snippet": "var r = t(\"fs/promises\"), i = t(\"path\"), a = \"Signature: 8a477f597d28d172789f06886806bc55\\n# This file is a cache directory tag created by cacache.\\n# For information about cache directory tags, see …"
+        },
+        {
+          "host": "codeload.github.com",
+          "context": "literal",
+          "file": "build/index.js",
+          "line": 4504,
+          "snippet": "tarballtemplate: ({ project: e, committish: t }) => `https://codeload.github.com/gist/${e}/tar.gz/${r(t || \"HEAD\")}`,"
+        },
+        {
+          "host": "empty.invalid",
+          "context": "literal",
+          "file": "build/cli.js",
+          "line": 2348,
+          "snippet": "t = new globalThis.Request(\"https://empty.invalid\", {"
+        },
+        {
+          "host": "gist.githubusercontent.com",
+          "context": "literal",
+          "file": "build/index.js",
+          "line": 4499,
+          "snippet": "filetemplate: ({ user: e, project: t, committish: i, path: a }) => `https://gist.githubusercontent.com/${e}/${t}/raw${n(\"/\", r(i))}/${a}`,"
+        },
+        {
+          "host": "git.coolaj86.com",
+          "context": "embedded-text",
+          "file": "build/index.js",
+          "line": 5447,
+          "snippet": "For the SemVer type definition, see: https://git.coolaj86.com/coolaj86/semver-utils.js#semverutils-parse-semverstring"
+        },
+        {
+          "host": "github.com",
+          "context": "literal",
+          "file": "build/chunks/lib-CTQJDrKz.js",
+          "line": 11377,
+          "snippet": "url: \"git+https://github.com/npm/make-fetch-happen.git\""
+        },
+        {
+          "host": "npm.im",
+          "context": "literal",
+          "file": "build/chunks/lib-CTQJDrKz.js",
+          "line": 11434,
+          "snippet": "var { Minipass: r } = y(), i = Y(), { promiseRetry: a } = Ft(), o = Z(), { log: s } = ve(), { redact: c } = xe(), l = Mt(), { getAgent: u } = qn(), d = (ur(), e(Jn).default), f = `${d.name}/${d.versi…"
+        },
+        {
+          "host": "npmdiff.dev",
+          "context": "literal",
+          "file": "build/index.js",
+          "line": 5154,
+          "snippet": "let u = r?.includes(\"installedVersion\") || r?.includes(\"homepage\") || r?.includes(\"repo\") ? await kn(s, { pkgFile: a }) : null, d = (r?.includes(\"installedVersion\") ? u?.version : e[s]) || \"\", f = s …"
+        },
+        {
+          "host": "registry.npmjs.org",
+          "context": "literal",
+          "file": "build/chunks/lib-CTQJDrKz.js",
+          "line": 1582,
+          "snippet": "registry: \"https://registry.npmjs.org/\","
+        }
+      ]
+    },
+    {
+      "pair": {
+        "name": "npm-check-updates",
+        "oldVersion": "23.0.2",
+        "newVersion": "23.1.0",
+        "oldIntegrity": "sha512-t5tv+d4sP+WbSwcDAFBwDxSUJRomc+TJoURPu7q5B/19toUsR/7eshRxBdWdE7iYw80iE4O4D/7OvCvIcaG8ug==",
+        "newIntegrity": "sha512-u6Odx/JDpDXNqXp5pPsVN0RhuWkNrBe4Sz26J7yWJcEadopKhQgcB+bFq2PK35iJY6vc6h1PbnXmnwfiOFQl/w==",
+        "oldResolvedUrl": "https://registry.npmjs.org/npm-check-updates/-/npm-check-updates-23.0.2.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/npm-check-updates/-/npm-check-updates-23.1.0.tgz"
+      },
+      "status": "analyzed",
+      "observations": [
+        {
+          "host": "api.mydomain",
+          "context": "embedded-text",
+          "file": "build/index.js",
+          "line": 5602,
+          "snippet": "ncu --registryType json --registry https://api.mydomain/registry.json"
+        },
+        {
+          "host": "bford.info",
+          "context": "embedded-text",
+          "file": "build/chunks/lib-ClO25DK1.js",
+          "line": 4129,
+          "snippet": "var r = t(\"fs/promises\"), i = t(\"path\"), a = \"Signature: 8a477f597d28d172789f06886806bc55\\n# This file is a cache directory tag created by cacache.\\n# For information about cache directory tags, see …"
+        },
+        {
+          "host": "codeload.github.com",
+          "context": "literal",
+          "file": "build/index.js",
+          "line": 4507,
+          "snippet": "tarballtemplate: ({ project: e, committish: t }) => `https://codeload.github.com/gist/${e}/tar.gz/${r(t || \"HEAD\")}`,"
+        },
+        {
+          "host": "empty.invalid",
+          "context": "literal",
+          "file": "build/cli.js",
+          "line": 2348,
+          "snippet": "t = new globalThis.Request(\"https://empty.invalid\", {"
+        },
+        {
+          "host": "gist.githubusercontent.com",
+          "context": "literal",
+          "file": "build/index.js",
+          "line": 4502,
+          "snippet": "filetemplate: ({ user: e, project: t, committish: i, path: a }) => `https://gist.githubusercontent.com/${e}/${t}/raw${n(\"/\", r(i))}/${a}`,"
+        },
+        {
+          "host": "git.coolaj86.com",
+          "context": "embedded-text",
+          "file": "build/index.js",
+          "line": 5453,
+          "snippet": "For the SemVer type definition, see: https://git.coolaj86.com/coolaj86/semver-utils.js#semverutils-parse-semverstring"
+        },
+        {
+          "host": "github.com",
+          "context": "literal",
+          "file": "build/chunks/lib-ClO25DK1.js",
+          "line": 11405,
+          "snippet": "url: \"git+https://github.com/npm/make-fetch-happen.git\""
+        },
+        {
+          "host": "npm.im",
+          "context": "literal",
+          "file": "build/chunks/lib-ClO25DK1.js",
+          "line": 11462,
+          "snippet": "var { Minipass: r } = y(), i = Y(), { promiseRetry: a } = Ft(), o = Z(), { log: s } = ve(), { redact: c } = xe(), l = Mt(), { getAgent: u } = qn(), d = (ur(), e(Jn).default), f = `${d.name}/${d.versi…"
+        },
+        {
+          "host": "npmdiff.dev",
+          "context": "literal",
+          "file": "build/index.js",
+          "line": 5160,
+          "snippet": "let u = r?.includes(\"installedVersion\") || r?.includes(\"homepage\") || r?.includes(\"repo\") ? await Dn(s, { pkgFile: a }) : null, d = (r?.includes(\"installedVersion\") ? u?.version : e[s]) || \"\", f = s …"
+        },
+        {
+          "host": "registry.npmjs.org",
+          "context": "literal",
+          "file": "build/chunks/lib-ClO25DK1.js",
+          "line": 1588,
+          "snippet": "registry: \"https://registry.npmjs.org/\","
+        }
+      ]
+    },
+    {
+      "pair": {
+        "name": "npm-check-updates",
+        "oldVersion": "23.1.0",
+        "newVersion": "23.1.1",
+        "oldIntegrity": "sha512-u6Odx/JDpDXNqXp5pPsVN0RhuWkNrBe4Sz26J7yWJcEadopKhQgcB+bFq2PK35iJY6vc6h1PbnXmnwfiOFQl/w==",
+        "newIntegrity": "sha512-UzYDvvsQRkmXR59g9SqsQxygYp7AhFpfEcOOGOJaB/P7pF/XlaqIYLK3UjUGfMHH1+aS2nZvJRaIsk2nk0z5ag==",
+        "oldResolvedUrl": "https://registry.npmjs.org/npm-check-updates/-/npm-check-updates-23.1.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/npm-check-updates/-/npm-check-updates-23.1.1.tgz"
+      },
+      "status": "analyzed",
+      "observations": [
+        {
+          "host": "api.mydomain",
+          "context": "embedded-text",
+          "file": "build/index.js",
+          "line": 5533,
+          "snippet": "ncu --registryType json --registry https://api.mydomain/registry.json"
+        },
+        {
+          "host": "bford.info",
+          "context": "embedded-text",
+          "file": "build/chunks/lib-DQyQ2Yp2.js",
+          "line": 4129,
+          "snippet": "var r = t(\"fs/promises\"), i = t(\"path\"), a = \"Signature: 8a477f597d28d172789f06886806bc55\\n# This file is a cache directory tag created by cacache.\\n# For information about cache directory tags, see …"
+        },
+        {
+          "host": "codeload.github.com",
+          "context": "literal",
+          "file": "build/index.js",
+          "line": 4424,
+          "snippet": "tarballtemplate: ({ project: e, committish: t }) => `https://codeload.github.com/gist/${e}/tar.gz/${r(t || \"HEAD\")}`,"
+        },
+        {
+          "host": "empty.invalid",
+          "context": "literal",
+          "file": "build/cli.js",
+          "line": 2348,
+          "snippet": "t = new globalThis.Request(\"https://empty.invalid\", {"
+        },
+        {
+          "host": "gist.githubusercontent.com",
+          "context": "literal",
+          "file": "build/index.js",
+          "line": 4419,
+          "snippet": "filetemplate: ({ user: e, project: t, committish: i, path: a }) => `https://gist.githubusercontent.com/${e}/${t}/raw${n(\"/\", r(i))}/${a}`,"
+        },
+        {
+          "host": "git.coolaj86.com",
+          "context": "embedded-text",
+          "file": "build/index.js",
+          "line": 5384,
+          "snippet": "For the SemVer type definition, see: https://git.coolaj86.com/coolaj86/semver-utils.js#semverutils-parse-semverstring"
+        },
+        {
+          "host": "github.com",
+          "context": "literal",
+          "file": "build/chunks/lib-DQyQ2Yp2.js",
+          "line": 11405,
+          "snippet": "url: \"git+https://github.com/npm/make-fetch-happen.git\""
+        },
+        {
+          "host": "npm.im",
+          "context": "literal",
+          "file": "build/chunks/lib-DQyQ2Yp2.js",
+          "line": 11462,
+          "snippet": "var { Minipass: r } = y(), i = Y(), { promiseRetry: a } = Ft(), o = Z(), { log: s } = ve(), { redact: c } = xe(), l = Mt(), { getAgent: u } = qn(), d = (ur(), e(Jn).default), f = `${d.name}/${d.versi…"
+        },
+        {
+          "host": "npmdiff.dev",
+          "context": "literal",
+          "file": "build/index.js",
+          "line": 5120,
+          "snippet": "let u = r?.includes(\"installedVersion\") || r?.includes(\"homepage\") || r?.includes(\"repo\") ? await en(s, { pkgFile: a }) : null, d = r?.includes(\"installedVersion\") ? u?.version : void 0, f = (d && d.…"
+        },
+        {
+          "host": "registry.npmjs.org",
+          "context": "literal",
+          "file": "build/chunks/lib-DQyQ2Yp2.js",
+          "line": 1588,
+          "snippet": "registry: \"https://registry.npmjs.org/\","
+        }
+      ]
+    },
+    {
+      "pair": {
+        "name": "update-notifier",
+        "oldVersion": "7.1.0",
+        "newVersion": "7.2.0",
+        "oldIntegrity": "sha512-8SV3rIqVY6EFC1WxH6L0j55s0MO79MFBS1pivmInRJg3pCEDgWHBj1Q6XByTtCLOZIFA0f6zoG9ZWf2Ks9lvTA==",
+        "newIntegrity": "sha512-GoBCFKIbF88latQyk8HpHUoJHqZUzYSPI6BySAjs5TWd/TCTMynAsIfGfJ6Ep2DAx6O5YExYGPs3Hdnt2TWdzQ==",
+        "oldResolvedUrl": "https://registry.npmjs.org/update-notifier/-/update-notifier-7.1.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/update-notifier/-/update-notifier-7.2.0.tgz"
+      },
+      "status": "analyzed",
+      "observations": []
+    },
+    {
+      "pair": {
+        "name": "update-notifier",
+        "oldVersion": "7.2.0",
+        "newVersion": "7.3.0",
+        "oldIntegrity": "sha512-GoBCFKIbF88latQyk8HpHUoJHqZUzYSPI6BySAjs5TWd/TCTMynAsIfGfJ6Ep2DAx6O5YExYGPs3Hdnt2TWdzQ==",
+        "newIntegrity": "sha512-nA5Zoy3rahYd/Lx1s6jZYHfrKKYOgw0kThkLdwgJtXEFsXqEbMnwdVNPT9D+HELlEXqTR7Iq8rjg/NjenGLIvg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/update-notifier/-/update-notifier-7.2.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/update-notifier/-/update-notifier-7.3.0.tgz"
+      },
+      "status": "analyzed",
+      "observations": []
+    },
+    {
+      "pair": {
+        "name": "update-notifier",
+        "oldVersion": "7.3.0",
+        "newVersion": "7.3.1",
+        "oldIntegrity": "sha512-nA5Zoy3rahYd/Lx1s6jZYHfrKKYOgw0kThkLdwgJtXEFsXqEbMnwdVNPT9D+HELlEXqTR7Iq8rjg/NjenGLIvg==",
+        "newIntegrity": "sha512-+dwUY4L35XFYEzE+OAL3sarJdUioVovq+8f7lcIJ7wnmnYQV5UD1Y/lcwaMSyaQ6Bj3JMj1XSTjZbNLHn/19yA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/update-notifier/-/update-notifier-7.3.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/update-notifier/-/update-notifier-7.3.1.tgz"
+      },
+      "status": "analyzed",
+      "observations": []
+    },
+    {
+      "pair": {
+        "name": "marked",
+        "oldVersion": "18.0.13",
+        "newVersion": "18.0.14",
+        "oldIntegrity": "sha512-xTxVzZsBFwunP6HDmtBkabUQEYArnP7/rMDGmPj9SlrKlQ4i8MdYVow+nJL0eOqwpUqhzBoTBRADGN6uYwPyOw==",
+        "newIntegrity": "sha512-mBHK6FBHuBAlhgRe88w9F0O1AbwwXJUcQibUbC/QcdTbVGAD7aWza+xt3N6oT/jCZx3/OMeS+8rnuiHZcQ9s7A==",
+        "oldResolvedUrl": "https://registry.npmjs.org/marked/-/marked-18.0.13.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/marked/-/marked-18.0.14.tgz"
+      },
+      "status": "analyzed",
+      "observations": [
+        {
+          "host": "github.com",
+          "context": "embedded-text",
+          "file": "lib/marked.esm.js",
+          "line": 79,
+          "snippet": "Please report this to https://github.com/markedjs/marked.`,e){let s=\"<p>An error occurred:</p><pre>\"+O(n.message+\"\",!0)+\"</pre>\";return t?Promise.resolve(s):s}if(t)return Promise.reject(n);throw n}}}…"
+        }
+      ]
+    },
+    {
+      "pair": {
+        "name": "marked",
+        "oldVersion": "18.0.14",
+        "newVersion": "18.1.0",
+        "oldIntegrity": "sha512-mBHK6FBHuBAlhgRe88w9F0O1AbwwXJUcQibUbC/QcdTbVGAD7aWza+xt3N6oT/jCZx3/OMeS+8rnuiHZcQ9s7A==",
+        "newIntegrity": "sha512-PamYXWWWg2nboG3oX5Ffzpy3EFZROqZJK9hSlMmUnekp7TxPs5DcT95vwd46m73/exfKCRVMtgXoPMI4FEJL6w==",
+        "oldResolvedUrl": "https://registry.npmjs.org/marked/-/marked-18.0.14.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/marked/-/marked-18.1.0.tgz"
+      },
+      "status": "analyzed",
+      "observations": [
+        {
+          "host": "github.com",
+          "context": "embedded-text",
+          "file": "lib/marked.esm.js",
+          "line": 79,
+          "snippet": "Please report this to https://github.com/markedjs/marked.`,e){let s=\"<p>An error occurred:</p><pre>\"+O(n.message+\"\",!0)+\"</pre>\";return t?Promise.resolve(s):s}if(t)return Promise.reject(n);throw n}}}…"
+        }
+      ]
+    },
+    {
+      "pair": {
+        "name": "marked",
+        "oldVersion": "18.1.0",
+        "newVersion": "18.1.1",
+        "oldIntegrity": "sha512-PamYXWWWg2nboG3oX5Ffzpy3EFZROqZJK9hSlMmUnekp7TxPs5DcT95vwd46m73/exfKCRVMtgXoPMI4FEJL6w==",
+        "newIntegrity": "sha512-zEGgrtUG8crk+TrMacJSVABU4DYDDkS8uqgU3ohrn/2fW9C2AEfUrO3m6IhpIpQpl7YcVpiXXC9cSMWDANT3dg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/marked/-/marked-18.1.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/marked/-/marked-18.1.1.tgz"
+      },
+      "status": "analyzed",
+      "observations": [
+        {
+          "host": "github.com",
+          "context": "embedded-text",
+          "file": "lib/marked.esm.js",
+          "line": 77,
+          "snippet": "Please report this to https://github.com/markedjs/marked.`,e){let i=\"<p>An error occurred:</p><pre>\"+w(n.message+\"\",!0)+\"</pre>\";return t?Promise.resolve(i):i}if(t)return Promise.reject(n);throw n}}}…"
+        }
+      ]
+    },
+    {
+      "pair": {
+        "name": "concurrently",
+        "oldVersion": "10.0.3",
+        "newVersion": "10.0.4",
+        "oldIntegrity": "sha512-hc3LH4UaKWd/bbyDK/IGVa4RB6PtQ3CUYwtrkzqHn+wIG3Hr5fhpRlk0L/gCa8ZE1L/Ufj50Zho69cI5w8SQBA==",
+        "newIntegrity": "sha512-trZql+7l/0+WRAsAnEdctr4+iiOS6ZrViI6H8QWcCF9MFS/LT0dKpe8vluB1to6it+OxSI4VospFTIFMW8DJRw==",
+        "oldResolvedUrl": "https://registry.npmjs.org/concurrently/-/concurrently-10.0.3.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/concurrently/-/concurrently-10.0.4.tgz"
+      },
+      "status": "analyzed",
+      "observations": [
+        {
+          "host": "www.npmjs.com",
+          "context": "embedded-text",
+          "file": "dist/bin/index.js",
+          "line": 138,
+          "snippet": "'See https://www.npmjs.com/package/chalk for more information.',"
+        },
+        {
+          "host": "www.unicode.org",
+          "context": "literal",
+          "file": "dist/bin/index.js",
+          "line": 156,
+          "snippet": "'https://www.unicode.org/reports/tr35/tr35-dates.html#Date_Field_Symbol_Table',"
+        }
+      ]
+    },
+    {
+      "pair": {
+        "name": "concurrently",
+        "oldVersion": "10.0.4",
+        "newVersion": "10.0.5",
+        "oldIntegrity": "sha512-trZql+7l/0+WRAsAnEdctr4+iiOS6ZrViI6H8QWcCF9MFS/LT0dKpe8vluB1to6it+OxSI4VospFTIFMW8DJRw==",
+        "newIntegrity": "sha512-JaP/CoftUrCcAFW/g//RbgEGwlelnEae6cfBLgH6ZdO6s8jPkn6p9SB9u6pdVxYXoiSnFqseOlHfrEfF82TVOg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/concurrently/-/concurrently-10.0.4.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/concurrently/-/concurrently-10.0.5.tgz"
+      },
+      "status": "analyzed",
+      "observations": [
+        {
+          "host": "www.npmjs.com",
+          "context": "embedded-text",
+          "file": "dist/bin/index.js",
+          "line": 139,
+          "snippet": "'See https://www.npmjs.com/package/chalk for more information.',"
+        },
+        {
+          "host": "www.unicode.org",
+          "context": "literal",
+          "file": "dist/bin/index.js",
+          "line": 157,
+          "snippet": "'https://www.unicode.org/reports/tr35/tr35-dates.html#Date_Field_Symbol_Table',"
+        }
+      ]
+    },
+    {
+      "pair": {
+        "name": "concurrently",
+        "oldVersion": "10.0.5",
+        "newVersion": "10.0.6",
+        "oldIntegrity": "sha512-JaP/CoftUrCcAFW/g//RbgEGwlelnEae6cfBLgH6ZdO6s8jPkn6p9SB9u6pdVxYXoiSnFqseOlHfrEfF82TVOg==",
+        "newIntegrity": "sha512-qgICXXFp2/3nAebRLmxcINKEXM1mLK3ij/y31P02VTs/KIkddIeC05n73DxOXsXMB9LFSqNU1/na3lDlOhcbIw==",
+        "oldResolvedUrl": "https://registry.npmjs.org/concurrently/-/concurrently-10.0.5.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/concurrently/-/concurrently-10.0.6.tgz"
+      },
+      "status": "analyzed",
+      "observations": [
+        {
+          "host": "www.npmjs.com",
+          "context": "embedded-text",
+          "file": "dist/bin/index.js",
+          "line": 139,
+          "snippet": "'See https://www.npmjs.com/package/chalk for more information.',"
+        },
+        {
+          "host": "www.unicode.org",
+          "context": "literal",
+          "file": "dist/bin/index.js",
+          "line": 157,
+          "snippet": "'https://www.unicode.org/reports/tr35/tr35-dates.html#Date_Field_Symbol_Table',"
+        }
+      ]
+    },
+    {
+      "pair": {
+        "name": "@sentry/node",
+        "oldVersion": "11.5.0",
+        "newVersion": "11.6.0",
+        "oldIntegrity": "sha512-uNSFtwEjeRzUPnrpnMIW3g8j4sivk+StlvlpEMZ46zKsBF597UZ7XNldKUJDwopURybhai1wZ8xjc46ufsv1jg==",
+        "newIntegrity": "sha512-5uHdUSACyodmtar+LxhFl4/MdICJ1/38mrp5lrMpDKfWSV/7tu/KRmr5gD2J9Nm47I/xxbghSz+oinJ4EtJatQ==",
+        "oldResolvedUrl": "https://registry.npmjs.org/@sentry/node/-/node-11.5.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/@sentry/node/-/node-11.6.0.tgz"
+      },
+      "status": "analyzed",
+      "observations": []
+    },
+    {
+      "pair": {
+        "name": "@sentry/node",
+        "oldVersion": "11.6.0",
+        "newVersion": "11.7.0",
+        "oldIntegrity": "sha512-5uHdUSACyodmtar+LxhFl4/MdICJ1/38mrp5lrMpDKfWSV/7tu/KRmr5gD2J9Nm47I/xxbghSz+oinJ4EtJatQ==",
+        "newIntegrity": "sha512-QDqFfZSfEHt07HI8oJcOTTio9yjkKv6UXLEwl+T2NxSU0Tc+b5uEDIsT8/kMgBSuEZxij9Sl6Gnz5sSjkOTdmA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/@sentry/node/-/node-11.6.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/@sentry/node/-/node-11.7.0.tgz"
+      },
+      "status": "analyzed",
+      "observations": []
+    },
+    {
+      "pair": {
+        "name": "@sentry/node",
+        "oldVersion": "11.7.0",
+        "newVersion": "11.8.0",
+        "oldIntegrity": "sha512-QDqFfZSfEHt07HI8oJcOTTio9yjkKv6UXLEwl+T2NxSU0Tc+b5uEDIsT8/kMgBSuEZxij9Sl6Gnz5sSjkOTdmA==",
+        "newIntegrity": "sha512-8vFPfCRYoUYmsno+OYdvtf5akIUUvd7FvcuIGcfrge8S/bSLFRKq58YtFmX25JFcrMNZ2oQD8r0jkgZfm/2iuA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/@sentry/node/-/node-11.7.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/@sentry/node/-/node-11.8.0.tgz"
+      },
+      "status": "analyzed",
+      "observations": []
+    },
+    {
+      "pair": {
+        "name": "winston",
+        "oldVersion": "3.18.1",
+        "newVersion": "3.18.2",
+        "oldIntegrity": "sha512-EaQ6y7b9h6q7UJQn4/xlOsiu0I8844FfMdbN6V2I2i4528qeEWqRUcHzhvkseckAb1QxMhwX5V2YYiABkOfGfg==",
+        "newIntegrity": "sha512-+yDkrWD2rWkv6XjSgK2QyujZDNsHE9YLa8S284TpVrYdaloMkZ7NvHzfnETYlSPOX9h5j5VJ+Ro9J872O8CC/g==",
+        "oldResolvedUrl": "https://registry.npmjs.org/winston/-/winston-3.18.1.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/winston/-/winston-3.18.2.tgz"
+      },
+      "status": "analyzed",
+      "observations": [
+        {
+          "host": "github.com",
+          "context": "embedded-text",
+          "file": "dist/winston/logger.js",
+          "line": 153,
+          "snippet": "throw new Error(['{ colors, emitErrs, formatters, padLevels, rewriters, stripColors } were removed in winston@3.0.0.', 'Use a custom winston.format(function) instead.', 'See: https://github.com/winst…"
+        }
+      ]
+    },
+    {
+      "pair": {
+        "name": "winston",
+        "oldVersion": "3.18.2",
+        "newVersion": "3.18.3",
+        "oldIntegrity": "sha512-+yDkrWD2rWkv6XjSgK2QyujZDNsHE9YLa8S284TpVrYdaloMkZ7NvHzfnETYlSPOX9h5j5VJ+Ro9J872O8CC/g==",
+        "newIntegrity": "sha512-NoBZauFNNWENgsnC9YpgyYwOVrl2m58PpQ8lNHjV3kosGs7KJ7Npk9pCUE+WJlawVSe8mykWDKWFSVfs3QO9ww==",
+        "oldResolvedUrl": "https://registry.npmjs.org/winston/-/winston-3.18.2.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/winston/-/winston-3.18.3.tgz"
+      },
+      "status": "analyzed",
+      "observations": [
+        {
+          "host": "github.com",
+          "context": "embedded-text",
+          "file": "dist/winston/logger.js",
+          "line": 153,
+          "snippet": "throw new Error(['{ colors, emitErrs, formatters, padLevels, rewriters, stripColors } were removed in winston@3.0.0.', 'Use a custom winston.format(function) instead.', 'See: https://github.com/winst…"
+        }
+      ]
+    },
+    {
+      "pair": {
+        "name": "winston",
+        "oldVersion": "3.18.3",
+        "newVersion": "3.19.0",
+        "oldIntegrity": "sha512-NoBZauFNNWENgsnC9YpgyYwOVrl2m58PpQ8lNHjV3kosGs7KJ7Npk9pCUE+WJlawVSe8mykWDKWFSVfs3QO9ww==",
+        "newIntegrity": "sha512-LZNJgPzfKR+/J3cHkxcpHKpKKvGfDZVPS4hfJCc4cCG0CgYzvlD6yE/S3CIL/Yt91ak327YCpiF/0MyeZHEHKA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/winston/-/winston-3.18.3.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/winston/-/winston-3.19.0.tgz"
+      },
+      "status": "analyzed",
+      "observations": [
+        {
+          "host": "github.com",
+          "context": "embedded-text",
+          "file": "dist/winston/logger.js",
+          "line": 154,
+          "snippet": "throw new Error(['{ colors, emitErrs, formatters, padLevels, rewriters, stripColors } were removed in winston@3.0.0.', 'Use a custom winston.format(function) instead.', 'See: https://github.com/winst…"
+        }
+      ]
+    }
+  ],
+  "totals": {
+    "literal": 48,
+    "embedded-text": 35,
+    "unknown": 3
+  }
+}
