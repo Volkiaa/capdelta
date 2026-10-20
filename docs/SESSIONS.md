@@ -886,3 +886,42 @@ escapes; worth considering a CI grep for control characters in source files.
   package to analyzed would have silently dropped ADR-018's exit 1 (`src/core/run-severity.ts:406-413`).
 - A registry packument's `dist.fileCount` finds real packages that cross an extraction cap between versions. That gave
   D2c a real CLI proof without a hand-made registry.
+
+## 2026-10-21 (early morning), D1 completion run
+
+### 1. What landed
+
+- **#137.** The PR comment caps its baseline-failure and reviewed-exception lists at `maxRows`. Before, many baseline
+  failures could keep the comment over `maxCharacters` at every row count, so the fit threw. A hidden-exception count
+  still renders at zero rows.
+- **#138.** D1b, third attempt. The parser worker reports, per string range, whether the cooked value holds whitespace
+  after WHATWG URL input normalization. A URL is `embedded-text` only when that value and the raw source both do.
+  Codex approved. A 20-drive replay was byte-identical to main.
+- **#139.** D1c. A new host seen only as `embedded-text` is LOW with `(mentioned in text)`. It adds the golden case
+  `url-mentioned-in-text` and ADR-024's destination-swap boundary tests. In the real drive, husky's `typicode.github.io`
+  moved from HIGH to LOW. Every `gateSeverity` in the replay is unchanged.
+- **#140.** D1d. `scripts/m5-measure.ts contexts` dumps every new-side domain observation with its context. On the
+  frozen corpus, finding counts are unchanged, and all 82 `embedded-text` observations are prose
+  (`docs/heldout-2026-10-20/classifier-labels.json`).
+- **#141.** The README and the blog draft describe ADR-024.
+
+### 2. Half-done and exact resume point
+
+- Nothing is half-done. v0.1.0 and the blog wait on the maintainer. Four designs wait on approval (HANDOFF "Next" 3).
+
+### 3. ADR status
+
+- No ADR changed. IPv6 context rules would need a new ADR or an ADR-024 amendment.
+
+### 4. Lessons
+
+- My predictions can be wrong in the conservative direction. I expected axios's `github.com` to drop to LOW. Its
+  template element `" (https://github.com/"` holds only the URL once trimmed, so it stays `literal`. Record the
+  prediction before the drive so the miss is visible.
+- The first evidence snippet is not always the occurrence that decided a merged observation. pino's prose URL in
+  `bin.js` shows as `unknown` because an unparsed `.ts` test file also names the host. Check the deciding file before
+  calling a classification wrong.
+- A one-line helper that resets a property can exist to stop TypeScript from narrowing that property across an
+  `await`. Inlining it failed lint (`no-unnecessary-condition`). Read why a helper exists before you collapse it.
+- The pipeline factory takes adapters, so a measurement script can wrap `diff` to see the new-side capability set
+  without changing `src/`.
