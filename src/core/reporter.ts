@@ -7,6 +7,7 @@ import {
   analysisIssueGuidance,
   capabilityGuidance,
   guidanceWarranted,
+  lockfileGuidance,
   shapeGuidance,
   signalGuidance,
   type Guidance,
@@ -207,10 +208,13 @@ export function formatTextRunReport(report: JsonRunReport): string {
     lines.push(
       "",
       "Lockfile findings:",
-      ...report.lockfileFindings.map(
-        (finding) =>
-          `- [${finding.severity}] [${finding.kind}] ${quote(finding.name)} at ${quote(finding.path)}: ${finding.oldVersion === null ? "<new package>" : quote(finding.oldVersion)} -> ${quote(finding.newVersion)}`,
-      ),
+      ...report.lockfileFindings.flatMap((finding) => [
+        `- [${finding.severity}] [${finding.kind}] ${quote(finding.name)} at ${quote(finding.path)}: ${finding.oldVersion === null ? "<new package>" : quote(finding.oldVersion)} -> ${quote(finding.newVersion)}`,
+        ...findingGuidanceLines(
+          finding.severity,
+          lockfileGuidance(finding.kind),
+        ),
+      ]),
     );
   }
 

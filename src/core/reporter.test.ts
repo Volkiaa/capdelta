@@ -371,6 +371,39 @@ describe("manifest Reporter", () => {
     });
   });
 
+  it("prints guidance for a HIGH lockfile finding but not an INFO one", () => {
+    const runWith = (
+      kind: "integrity-changed-version-same" | "version-downgrade",
+    ): CapabilityAnalysisRun => ({
+      firstRun: false,
+      summary: { changed: 0, analyzed: 0, unavailable: 0, skipped: 0 },
+      packages: [],
+      lockfileFindings: [
+        {
+          kind,
+          name: "fixture",
+          path: "node_modules/fixture",
+          oldVersion: "2.0.0",
+          newVersion: "1.0.0",
+        },
+      ],
+      skipped: [],
+    });
+
+    const high = renderTextRunReport(runWith("integrity-changed-version-same"));
+    expect(high).toContain(
+      "  Why: npm does not let a published version change its contents",
+    );
+    expect(high).toContain(
+      "  Check: Compare the old and new resolved and integrity fields",
+    );
+
+    const info = renderTextRunReport(runWith("version-downgrade"));
+    expect(info).toContain("[INFO] [version-downgrade]");
+    expect(info).not.toContain("  Why: ");
+    expect(info).not.toContain("  Check: ");
+  });
+
   it("reports whole-analysis cancellation without inventing a package side", () => {
     const changed = changedPackage("queued", null);
     const run: CapabilityAnalysisRun = {

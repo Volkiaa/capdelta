@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { CapabilityAnalysisRun } from "./capability-analysis-pipeline.js";
-import type { ChangedPackage } from "./contract/lockfile-diff.js";
+import type {
+  ChangedPackage,
+  LockfileFinding,
+} from "./contract/lockfile-diff.js";
 import { ReporterContractError } from "./report-builder.js";
 import { renderSarifReport } from "./sarif-reporter.js";
 import {
@@ -55,6 +58,18 @@ function mismatchRun(
       ],
     })),
     lockfileFindings: [],
+    skipped: [],
+  };
+}
+
+function lockfileRun(
+  lockfileFindings: readonly LockfileFinding[],
+): CapabilityAnalysisRun {
+  return {
+    firstRun: false,
+    summary: { changed: 0, analyzed: 0, unavailable: 0, skipped: 0 },
+    packages: [],
+    lockfileFindings: [...lockfileFindings],
     skipped: [],
   };
 }
@@ -732,6 +747,151 @@ describe("renderSarifReport", () => {
     expect(sarif.runs[0].results[0]).toMatchObject({
       ruleId: "CAPDELTA-INTEGRITY-MISMATCH",
       properties: { side: "old", version: "1.0.0" },
+    });
+  });
+
+  describe("lockfile findings", () => {
+    it("renders a same-version integrity change as an error at the lockfile", () => {
+      const sarif = JSON.parse(
+        renderSarifReport(
+          lockfileRun([
+            {
+              kind: "integrity-changed-version-same",
+              name: "golden-integrity",
+              path: "node_modules/golden-integrity",
+              oldVersion: "1.0.0",
+              newVersion: "1.0.0",
+            },
+          ]),
+          { lockfilePath: "package-lock.json" },
+        ),
+      ) as ParsedSarif;
+
+      expect(sarif.runs[0].tool.driver.rules).toEqual([
+        expect.objectContaining({
+          id: "CAPDELTA-LOCKFILE-INTEGRITY-CHANGED-VERSION-SAME",
+          shortDescription: { text: "Lockfile entry changed" },
+        }),
+      ]);
+      expect(sarif.runs[0].tool.driver.rules[0]?.help.text).toContain(
+        "npm does not let a published version change its contents, so different bytes under the same version mean the lockfile entry, its resolved URL, or the registry changed.",
+      );
+      expect(sarif.runs[0].tool.driver.rules[0]?.help.text).toContain(
+        "Compare the old and new resolved and integrity fields, find the commit that changed them, and regenerate the lockfile from a trusted registry if nobody can explain the change.",
+      );
+      expect(sarif.runs[0].tool.driver.rules[0]?.help.text).toContain(
+        "This result does not assert malware.",
+      );
+      expect(sarif.runs[0].results).toEqual([
+        {
+          ruleId: "CAPDELTA-LOCKFILE-INTEGRITY-CHANGED-VERSION-SAME",
+          level: "error",
+          message: {
+            text: "Review this change: integrity-changed-version-same for golden-integrity at node_modules/golden-integrity: 1.0.0 -> 1.0.0.",
+          },
+          locations: [
+            {
+              physicalLocation: {
+                artifactLocation: { uri: "package-lock.json" },
+              },
+            },
+          ],
+          properties: {
+            kind: "lockfile",
+            lockfileFinding: "integrity-changed-version-same",
+            path: "node_modules/golden-integrity",
+            oldVersion: "1.0.0",
+            newVersion: "1.0.0",
+            severity: "HIGH",
+            package: "golden-integrity",
+            version: "1.0.0",
+            evidence: [],
+          },
+        },
+      ]);
+    });
+
+    it("renders a version downgrade as a note", () => {
+      const sarif = JSON.parse(
+        renderSarifReport(
+          lockfileRun([
+            {
+              kind: "version-downgrade",
+              name: "left-pad",
+              path: "node_modules/left-pad",
+              oldVersion: "2.0.0",
+              newVersion: "1.0.0",
+            },
+          ]),
+        ),
+      ) as ParsedSarif;
+
+      expect(sarif.runs[0].results).toEqual([
+        expect.objectContaining({
+          ruleId: "CAPDELTA-LOCKFILE-VERSION-DOWNGRADE",
+          level: "note",
+          properties: expect.objectContaining({ severity: "INFO" }) as unknown,
+        }),
+      ]);
+    });
+
+    it("bounds attacker-controlled lockfile identity and path", () => {
+      const marker = "](http://x)";
+      const sarifText = renderSarifReport(
+        lockfileRun([
+          {
+            kind: "integrity-changed-version-same",
+            name: `%evil${"n".repeat(300)}${marker}`,
+            path: `%node_modules/${"p".repeat(300)}${marker}`,
+            oldVersion: `%1.0.0-${"o".repeat(300)}${marker}`,
+            newVersion: `%2.0.0-${"v".repeat(300)}${marker}`,
+          },
+        ]),
+        { lockfilePath: "lock dir%/package-lock.json" },
+      );
+      const result = (JSON.parse(sarifText) as ParsedSarif).runs[0].results[0];
+      if (result === undefined) throw new Error("missing result");
+
+      expect(Array.from(String(result.properties.package))).toHaveLength(160);
+      expect(Array.from(String(result.properties.path))).toHaveLength(200);
+      expect(Array.from(String(result.properties.oldVersion))).toHaveLength(
+        160,
+      );
+      expect(Array.from(String(result.properties.newVersion))).toHaveLength(
+        160,
+      );
+      expect(String(result.properties.package).endsWith("\u2026")).toBe(true);
+      expect(String(result.properties.path).endsWith("\u2026")).toBe(true);
+      expect(result.message.text).not.toContain(marker);
+      expect(result.message.text).toContain("%evil");
+      expect(result.message.text).toContain("%node_modules/");
+      expect(result.message.text).not.toContain("http://x");
+      expect(sarifText).not.toContain("http://x");
+      expect(result.locations).toEqual([
+        {
+          physicalLocation: {
+            artifactLocation: { uri: "lock%20dir%25/package-lock.json" },
+          },
+        },
+      ]);
+    });
+
+    it("omits the location when the caller gives no lockfile path", () => {
+      const sarif = JSON.parse(
+        renderSarifReport(
+          lockfileRun([
+            {
+              kind: "integrity-changed-version-same",
+              name: "golden-integrity",
+              path: "node_modules/golden-integrity",
+              oldVersion: "1.0.0",
+              newVersion: "1.0.0",
+            },
+          ]),
+        ),
+      ) as ParsedSarif;
+
+      expect(sarif.runs[0].results[0]?.locations).toEqual([]);
     });
   });
 
