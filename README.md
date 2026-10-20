@@ -14,7 +14,7 @@ before a CVE exists.
 
 > **Status: pre-release, under active development.** The repository is public,
 > but the npm package is private, unpublished, and versioned `0.0.0`. The CLI
-> and the GitHub Action work end to end, and the first false-positive
+> and the GitHub Action work end to end, and the first formal false-positive
 > measurement is [below](#measured-results-2026-10-12). capdelta is suitable for
 > development and evaluation, not production enforcement. No detection rate has
 > been measured; the attack reconstructions are modeled cases.
@@ -81,26 +81,33 @@ install-time location context.
 
 Lockfile-level facts are also surfaced: same-version integrity changes,
 downgrades, unanalyzable git/file/link sources, private registries, malformed
-entries, and first-run lockfile additions.
+entries, and first-run lockfile additions. Each lockfile finding appears as a
+row in the PR comment's findings table under the same row cap, order, and
+count as package findings, and as one `CAPDELTA-LOCKFILE-<KIND>` SARIF result
+located at the lockfile.
 
 ### Measured results (2026-10-12)
 
 At a frozen policy, on 90 assumed-benign bumps across 30 pre-registered packages
 (single-package diffs, all 90 analyzed), the default CRITICAL gate failed on **2 / 90**.
 Both were real registry install-hook command changes (`bcrypt` 6.0.0, `sqlite3`
-5.1.7), which capdelta intends you to review; none was noise. One bump had a HIGH
-finding (a documentation link in a string literal), and 11 would fail `--strict`
-because of TypeScript sources or an unparseable file. This is a selected, clustered
-sample with single-reviewer labels, not an ecosystem false-positive rate. The method,
-frozen inputs, raw results, and every label are in
-[docs/m5-2026-10-12](docs/m5-2026-10-12/README.md).
+5.1.7), which capdelta intends you to review; neither gate failure was noise. One
+bump, `yargs` 17.7.3 to 18.0.0, had a HIGH finding for a documentation link in a
+string literal, which the record labels as noise. Separately, 11 bumps would fail
+`--strict` because of TypeScript sources or an unparseable file. This is a selected,
+clustered sample with single-reviewer labels, not an ecosystem false-positive rate.
+The method, frozen inputs, raw results, and every label are in
+[docs/m5-2026-10-12](docs/m5-2026-10-12/README.md). That frozen record predates
+ADR-016, so its scenario table still shows the axios dropper over an extraction cap
+as passing; the evasion section below describes current behavior.
 
 ### Attack reconstructions
 
 Defanged, synthetic reconstructions of documented npm compromises run through the full
 lockfile → fetch → static analysis → default gate path (`src/core/attack-reconstructions.test.ts`).
 They are modeled on public analyses, labeled as reconstructions, and never contain the
-original artifacts. Each has a benign control bump that must pass.
+original artifacts. Each of the three incident reconstructions has a benign control
+bump that must pass.
 
 | Incident                                                                                                                                        | Modeled delta                                                                                                                    | Why capdelta fails the default gate                                                                                                                                     |
 | ----------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -145,18 +152,26 @@ paths, obfuscation, entropy) say what static analysis found or suggests, never
 what the package is. In the PR comment the size cap cuts guidance before it
 touches a finding row, and a footer says how many classes were omitted.
 
+Lockfile findings get the same guidance. A CRITICAL or HIGH lockfile kind is
+explained in the comment, as `Why:` and `Check:` lines in the text report, and
+in its SARIF rule help.
+
 ## Quick start
 
 ### CLI
 
 Requirements: Node.js 20 or newer, npm, and Git.
 
-From the directory containing one `package-lock.json`:
+capdelta is not published to npm. Clone it, install and build it, then run the
+built CLI from the target repository, which must contain one `package-lock.json`:
 
 ```bash
+git clone https://github.com/Volkiaa/capdelta.git
+cd capdelta
 npm ci --ignore-scripts
 npm run build
-node dist/cli.js --base main
+cd /path/to/target-repository
+node /path/to/capdelta/dist/cli.js --base main
 ```
 
 The full reference for flags, exit codes, allowlists, and unanalyzable
@@ -272,8 +287,10 @@ than `registry.npmjs.org` is skipped and flagged.
   `--strict` still returns exit 2. The axios reconstruction includes a test
   that records this boundary. A non-retryable HTTP status, such as a `resolved`
   URL that 404s, is CRITICAL in the same way (ADR-018). A transient fetch
-  failure that outlives its retries, or a package the deadline or cancellation
-  left unanalyzed, fails the run with exit 1 even under `--fail-on none`.
+  failure that outlives its retries, a residual `filesystem-error` during
+  extraction, an unreadable `package.json` (`manifest-unreadable`), or a
+  package the deadline or cancellation left unanalyzed fails the run with exit
+  1 even under `--fail-on none` (ADR-018, ADR-019).
 - **Registry scope:** private registries, mirrors, git, file, and link
   dependencies are skipped and surfaced as unanalyzed.
 - **Single ecosystem and lockfile:** npm lockfile v2/v3 only, one lockfile per
@@ -302,10 +319,19 @@ Dependabot PRs get the same review as any other PR.
 
 ![capdelta's comment on Dependabot PR #63: one LOW finding, @actions/artifact added the dependency @protobuf-ts/runtime-rpc](docs/images/dependabot-pr-63.png)
 
-capdelta currently has four direct runtime dependencies: `acorn`, `acorn-walk`,
-`jsonc-parser`, and `tar`. The `@actions/*` packages are build-time only, bundled into
-`dist/action`. CI fails at 10, so the enforced budget remains **fewer than 10**.
-Transitive runtime packages are reported by the check but are not the gate.
+A gate failure looks like this. A throwaway demo PR bumped `bcrypt` from 5.1.1 to
+6.0.0, one of the two M5 gate failures above. capdelta failed the check on the
+CRITICAL install-hook change and listed the new `node-gyp-build` dependency's
+capabilities. The PR was closed unmerged.
+
+![capdelta's comment on a demo PR bumping bcrypt from 5.1.1 to 6.0.0: one CRITICAL changed install hook, one HIGH process capability in node-gyp-build](docs/images/demo-bcrypt-6.png)
+
+capdelta currently has seven direct runtime dependencies: `@actions/artifact`,
+`@actions/core`, `@actions/github`, `acorn`, `acorn-walk`, `jsonc-parser`, and
+`tar`. The `@actions/*` packages are bundled into `dist/action` and listed in
+the release SBOM. `npm run check:deps` counts all seven against the limit of
+fewer than 10, and CI fails at 10. Transitive runtime packages are reported by
+the check but are not the gate.
 
 ## Architecture decisions
 
@@ -343,9 +369,9 @@ The authoritative architecture and roadmap remain in
 - **M0-M3.** Scaffolding, the manifest CLI, secure retrieval and extraction,
   Action reporting, the AST taxonomy, shape severity, SARIF, dependency
   cross-linking, and the false-positive harness are on `main`.
-- **Post-M3 checkpoint.** All 60 selected legitimate bumps were analyzed; 54
-  had no findings, all 16 findings were LOW/INFO, and no bump tripped the
-  default CRITICAL gate. The detailed corpus record documents the
+- **Post-M3 checkpoint.** All 60 selected assumed-legitimate bumps were
+  analyzed; 54 had no findings, all 16 findings were LOW/INFO, and no bump
+  tripped the default CRITICAL gate. The detailed corpus record documents the
   diagnostic-noise and tuning observations.
 - **M4, except benign-pattern suppression.** Signals, justified allowlists,
   strict mode, bounded scheduling, loud partial-analysis reporting, and
@@ -359,16 +385,18 @@ The authoritative architecture and roadmap remain in
 - **Finding guidance.** Capability, signal, and analysis-failure findings
   explain why they matter and what to check, in the text report, the PR
   comment, and SARIF rule help.
-- **First measurement.** The 2026-10-12 false-positive study
+- **First formal measurement.** The 2026-10-12 false-positive study
   [above](#measured-results-2026-10-12).
 - **Dependabot demo.** Dependabot PRs get the sticky comment and SARIF (ADR-020);
   see [the dogfooding evidence](#dogfooding-evidence).
 
 ### Next
 
-1. M5 publication of the measured results.
-2. Noise reduction, measured on a new held-out corpus.
-3. Analyzing the new side as a new package when the old side cannot be
+1. Cut v0.1.0 and verify the signed provenance and SBOM for both Action
+   bundles.
+2. M5 publication of the measured results.
+3. Noise reduction, measured on a new held-out corpus.
+4. Analyzing the new side as a new package when the old side cannot be
    analyzed.
 
 ## Contributing and security reports
