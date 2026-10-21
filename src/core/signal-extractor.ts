@@ -353,19 +353,32 @@ function mergeEvidence(lists: readonly EvidenceList[]): EvidenceList {
   return [first, ...rest];
 }
 
+// One snippet per line per source. Building it trims the whole line, so
+// building it per match made many matches on one long line quadratic.
+const snippetsBySource = new WeakMap<readonly number[], Map<number, string>>();
+
 function evidenceAt(
   source: string,
   starts: readonly number[],
   index: number,
 ): Evidence {
   const lineIndex = lineIndexAt(starts, index);
-  const lineStart = starts[lineIndex] ?? 0;
-  const nextLineStart = starts[lineIndex + 1] ?? source.length;
-  const snippet = source
-    .slice(lineStart, nextLineStart)
-    .replace(/[\r\n]+$/gu, "")
-    .trim()
-    .slice(0, MAX_EVIDENCE_SNIPPET);
+  let snippets = snippetsBySource.get(starts);
+  if (snippets === undefined) {
+    snippets = new Map();
+    snippetsBySource.set(starts, snippets);
+  }
+  let snippet = snippets.get(lineIndex);
+  if (snippet === undefined) {
+    const lineStart = starts[lineIndex] ?? 0;
+    const nextLineStart = starts[lineIndex + 1] ?? source.length;
+    snippet = source
+      .slice(lineStart, nextLineStart)
+      .replace(/[\r\n]+$/gu, "")
+      .trim()
+      .slice(0, MAX_EVIDENCE_SNIPPET);
+    snippets.set(lineIndex, snippet);
+  }
   return { file: "", line: lineIndex + 1, snippet };
 }
 

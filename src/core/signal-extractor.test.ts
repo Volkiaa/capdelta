@@ -272,6 +272,18 @@ describe("signal aggregation", () => {
     }
   });
 
+  it("builds evidence for many matches on one long line in linear time", () => {
+    const text = 'f("https://evil.test/x");'.repeat(64_000);
+
+    const started = performance.now();
+    const [endpoint] = buildSignalSet([
+      source("a.js", text, "unparseable"),
+    ]).endpoints;
+
+    expect(endpoint?.evidence).toHaveLength(1);
+    expect(performance.now() - started).toBeLessThan(3_000);
+  });
+
   it("merges thousands of matches for one host in linear time", () => {
     const text = Array.from(
       { length: 20_000 },
