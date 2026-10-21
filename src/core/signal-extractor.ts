@@ -463,14 +463,23 @@ function stringRangeLookup(
     }
     previousEnd = end;
   }
+  const contexts = new Map<number, SignalEndpointContext>();
   return {
     contextAt: (start) => {
       const range = containingStringRange(ranges, start);
       if (range === undefined) return "unknown";
-      // Neither the raw form nor the value alone may demote a URL.
-      return /\s/u.test(wordsOf(source.slice(range[0], range[1]))) && range[2]
-        ? "embedded-text"
-        : "literal";
+      // One classification per string: it reads the whole string, so doing it
+      // per URL made many URLs in one string quadratic.
+      let context = contexts.get(range[0]);
+      if (context === undefined) {
+        // Neither the raw form nor the value alone may demote a URL.
+        context =
+          /\s/u.test(wordsOf(source.slice(range[0], range[1]))) && range[2]
+            ? "embedded-text"
+            : "literal";
+        contexts.set(range[0], context);
+      }
+      return context;
     },
     rangeEndAt: (start) => containingStringRange(ranges, start)?.[1] ?? null,
   };

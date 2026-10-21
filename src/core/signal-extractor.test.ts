@@ -284,6 +284,24 @@ describe("signal aggregation", () => {
     expect(performance.now() - started).toBeLessThan(3_000);
   });
 
+  it("classifies many URLs in one parsed string in linear time", () => {
+    const text = `f("${"https://evil.test/x ".repeat(64_000)}");`;
+    const content = text.indexOf('"') + 1;
+
+    const started = performance.now();
+    const [endpoint] = buildSignalSet([
+      observeSignalSource({
+        file: "a.js",
+        bytes: new TextEncoder().encode(text),
+        parseState: "parsed",
+        stringRanges: [[content, text.lastIndexOf('"'), true]],
+      }),
+    ]).endpoints;
+
+    expect(endpoint?.context).toBe("embedded-text");
+    expect(performance.now() - started).toBeLessThan(3_000);
+  });
+
   it("merges thousands of matches for one host in linear time", () => {
     const text = Array.from(
       { length: 20_000 },
