@@ -3,8 +3,16 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { valueHasWords } from "../src/core/npm/url-value-words.js";
+import {
+  collectStringContent,
+  parseSource,
+} from "../src/core/npm/javascript-parse.js";
+import type {
+  CommentRange,
+  StringRange,
+} from "../src/core/npm/javascript-parser-protocol.js";
 import * as headModule from "../src/core/signal-extractor.js";
+import type { SignalSourceInput } from "../src/core/signal-extractor.js";
 
 export type SignalModule = Pick<
   typeof headModule,
@@ -27,6 +35,16 @@ export interface FuzzDifference {
 export interface FuzzResult {
   differences: number;
   examples: FuzzDifference[];
+}
+
+export interface FuzzCounts {
+  parsed: number;
+  unparseableByChoice: number;
+  unparseableBySyntax: number;
+}
+
+export interface DetailedFuzzResult extends FuzzResult {
+  counts: FuzzCounts;
 }
 
 export interface FuzzArguments extends FuzzOptions {
@@ -107,10 +125,29 @@ export function fuzz(
   head: SignalModule,
   options: FuzzOptions,
 ): FuzzResult {
+  const { differences, examples } = fuzzWithCounts(base, head, options);
+  return { differences, examples };
+}
+
+/**
+ * Like fuzz, but also reports how the samples were fed. The fuzzer marks some
+ * samples unparseable by choice, and a sample that the parser rejects is
+ * unparseable by syntax, as production records it.
+ */
+export function fuzzWithCounts(
+  base: SignalModule,
+  head: SignalModule,
+  options: FuzzOptions,
+): DetailedFuzzResult {
   const parts = options.narrow ? NARROW_PARTS : WIDE_PARTS;
   const maxParts = options.narrow ? 6 : 8;
   const random = mulberry32(options.seed);
   const examples: FuzzDifference[] = [];
+  const counts: FuzzCounts = {
+    parsed: 0,
+    unparseableByChoice: 0,
+    unparseableBySyntax: 0,
+  };
   let differences = 0;
   for (let i = 0; i < options.iterations; i++) {
     let body = "";
@@ -118,34 +155,63 @@ export function fuzz(
     for (let j = 0; j < count; j++) body += pick(parts, random);
     const quote = pick(QUOTES, random);
     const text = `f(${quote}${body}${quote});`;
-    const parsed = random(2) === 0;
-    const baseOutput = endpoints(base, text, parsed, body);
-    const headOutput = endpoints(head, text, parsed, body);
+    const wantsParsed = random(2) === 0;
+    const sample = wantsParsed ? parseSample(text) : null;
+    let input: SignalSourceInput;
+    if (sample !== null) {
+      counts.parsed++;
+      input = {
+        file: "a.js",
+        bytes: new TextEncoder().encode(text),
+        parseState: "parsed",
+        commentRanges: sample.comments,
+        stringRanges: sample.stringRanges,
+        cookedStrings: sample.cookedStrings,
+      };
+    } else {
+      if (wantsParsed) counts.unparseableBySyntax++;
+      else counts.unparseableByChoice++;
+      input = {
+        file: "a.js",
+        bytes: new TextEncoder().encode(text),
+        parseState: "unparseable",
+      };
+    }
+    const baseOutput = endpoints(base, input);
+    const headOutput = endpoints(head, input);
     if (baseOutput === headOutput) continue;
     differences++;
     if (examples.length < MAX_EXAMPLES) {
-      examples.push({ text, parsed, base: baseOutput, head: headOutput });
+      examples.push({
+        text,
+        parsed: sample !== null,
+        base: baseOutput,
+        head: headOutput,
+      });
     }
   }
-  return { differences, examples };
+  return { differences, examples, counts };
 }
 
-function endpoints(
-  module: SignalModule,
-  text: string,
-  parsed: boolean,
-  body: string,
-): string {
-  const input = {
-    file: "a.js",
-    bytes: new TextEncoder().encode(text),
-    ...(parsed
-      ? {
-          parseState: "parsed" as const,
-          stringRanges: [[3, text.length - 2, valueHasWords(body)] as const],
-        }
-      : { parseState: "unparseable" as const }),
-  };
+interface ParsedSample {
+  comments: CommentRange[];
+  stringRanges: StringRange[];
+  cookedStrings: (readonly [start: number, value: string])[];
+}
+
+function parseSample(text: string): ParsedSample | null {
+  try {
+    const { ast, comments } = parseSource(text, "either");
+    return { comments, ...collectStringContent(ast, text) };
+  } catch (error) {
+    // acorn reports a rejected sample by throwing. Production records that as
+    // an unparseable parse state, so anything else is a bug worth surfacing.
+    if (!(error instanceof SyntaxError)) throw error;
+    return null;
+  }
+}
+
+function endpoints(module: SignalModule, input: SignalSourceInput): string {
   try {
     const set = module.buildSignalSet([module.observeSignalSource(input)]);
     return JSON.stringify(
@@ -244,7 +310,7 @@ async function main(): Promise<void> {
   const directory = mkdtempSync(join(tmpdir(), "capdelta-difffuzz-"));
   try {
     const base = await loadBase(options.base, directory);
-    const result = fuzz(base, headModule, options);
+    const result = fuzzWithCounts(base, headModule, options);
     for (const example of result.examples) {
       console.log(
         JSON.stringify(example.text),
@@ -255,6 +321,9 @@ async function main(): Promise<void> {
     }
     console.log(
       `differences: ${String(result.differences)} of ${String(options.iterations)}`,
+    );
+    console.log(
+      `samples: ${String(result.counts.parsed)} parsed, ${String(result.counts.unparseableByChoice)} unparseable-by-choice, ${String(result.counts.unparseableBySyntax)} unparseable-by-syntax`,
     );
     if (result.differences > 0) process.exitCode = 1;
   } finally {
