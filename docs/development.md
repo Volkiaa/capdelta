@@ -69,3 +69,19 @@ returns exit `2` when a package or bump could not be analyzed. The required
 informal run covered 20 packages and 60 bumps; see the
 [recorded results and interpretation](fp-corpus-2026-07-29.md). This is a
 pre-M4 tuning exercise, not the formal M5 false-positive measurement.
+
+Before changing URL or IP detection in `src/core/signal-extractor.ts`, run
+the differential fuzzer against main:
+
+```bash
+npm run difffuzz -- --base origin/main
+```
+
+It generates 500,000 string literals from URL fragments, escapes, `${x}` and
+control characters. Each goes to the extractor at `--base` and the one in the
+working tree, and the script prints up to 8 inputs whose endpoints differ. It
+exits `1` when any differ and `2` on a usage error. Every difference must be
+one the change intends. `--narrow` uses fewer fragments, which finds
+template-boundary cases faster, and `--seed` picks another input sequence. A
+zero means only that these inputs agree; its unit test checks that the fuzzer
+finds an extractor that drops an endpoint.
