@@ -83,3 +83,25 @@ This amends the PLAN §4.4 row for new external domains.
   alone and puts its URL inside text, or if the endpoint detector learns to
   resolve assembled URLs, which would make the text-embedding route the
   cheapest evasion left.
+
+## Amendment 2026-10-21: template element boundaries
+
+Status: Accepted (agent), Autonomy Tier 2.
+
+`URL_LITERAL_RE` does not stop at `${`. So a URL at the end of one template
+element ran through the expression into the next one and took the first
+element's context. In ``tag`See https://a.test/${0}https://evil.test/` ``,
+the second element's URL, which a tag function receives on its own, was
+either reported LOW or not reported at all.
+
+In a parsed file, a match that starts inside a string and runs past its end
+now yields two observations. The part inside the string keeps that string's
+context. The whole match is `unknown`, because at runtime the string can
+still join across the expression, as in `` `https://a.test${x}@evil.test/` ``.
+Scanning resumes at the end of the string, so the next element is scanned
+on its own. This only adds observations and raises contexts. Strongest
+context still wins, so no finding drops.
+
+Evidence: reconstruction `template-boundary` fails on the previous code and
+passes now. Full verification, `replay compare` against main, the held-out
+corpus before and after, and the Codex reviews are listed in the PR.
