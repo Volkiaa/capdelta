@@ -787,3 +787,28 @@ describe("synthetic non-regular manifest evasion (ADR-019)", () => {
     expect(evaluateSeverityGate(result.report, "CRITICAL").fail).toBe(false);
   });
 });
+
+describe("synthetic template element boundary (ADR-024)", () => {
+  it("reports the host fetched from the element after the expression as a new HIGH endpoint", async () => {
+    const result = await runScenario("template-boundary", "attack");
+    expectAllAnalyzed(result, 1);
+    const report = packageReport(
+      result.report,
+      "capdelta-fixture-template-boundary",
+    );
+
+    expect(report.signalFindings).toEqual([
+      expect.objectContaining({
+        kind: "new-external-endpoint",
+        severity: "HIGH",
+        detail: "new external domain docs.example.test",
+      }),
+      expect.objectContaining({
+        kind: "new-external-endpoint",
+        severity: "HIGH",
+        detail: "new external domain exfil.example.test",
+      }),
+    ]);
+    expect(evaluateSeverityGate(result.report, "HIGH").fail).toBe(true);
+  });
+});
