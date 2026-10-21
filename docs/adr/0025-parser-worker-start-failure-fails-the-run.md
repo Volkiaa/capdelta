@@ -47,8 +47,19 @@ file still gets the per-file diagnostic, as today.
 
 ## Evidence
 
-Filled in by the PR: full verification, `replay compare` of main against the
-branch, held-out corpus before and after, Codex review.
+- Full verification passes (811 tests). No golden fixture or attack
+  reconstruction changed.
+- `replay compare` of main (`run4-main`) against this branch: MATCH on all 20
+  drives.
+- Held-out corpus (`docs/heldout-2026-10-20/`), both halves rerun on this
+  branch. All 90 pair reports are byte-identical to `after-tuning.json` and
+  `after-heldout.json`.
+- CLI drive, esbuild 0.0.12 -> 0.0.13, with `dist/core/npm/javascript-parser-worker.js`
+  deleted from a copy of the build. Before, the CLI reported
+  `install.js is unparseable` and `JavaScript parser worker failed: Error` as
+  findings. After, it exits 1 with one error naming the missing worker file
+  and prints no report. With the worker present, the report matches main.
+- Codex security review: APPROVE.
 
 ## Revert
 
