@@ -52,7 +52,7 @@ usually fetched by package code.
   getaddrinfo does not reject the underscore.
 - Reconstruction `underscore-label`: with `src/` at main the test gets no
   finding; on this branch it gets HIGH `new external domain
-  a_b.exfil.example.test`.
+a_b.exfil.example.test`.
 - Held-out corpus (`scripts/m5-measure.ts run`, 45 pairs): identical to main
   at ff1a5de, 0 default-gate failures before and after. No new finding to
   label.
