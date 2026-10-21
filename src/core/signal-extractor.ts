@@ -298,7 +298,7 @@ function mergeByKey<T>(
     else current.push(item);
   }
   return [...grouped.values()]
-    .map((group) => merge(group))
+    .map((group) => (group.length === 1 ? group[0] : merge(group)))
     .sort((left, right) => compareText(keyOf(left), keyOf(right)));
 }
 
