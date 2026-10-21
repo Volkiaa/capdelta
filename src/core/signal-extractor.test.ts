@@ -256,3 +256,34 @@ describe("signal extractor", () => {
     );
   });
 });
+
+describe("signal aggregation", () => {
+  it("keeps literal confidence whichever file is seen first", () => {
+    const literal = source("a.js", 'f("https://evil.test/x");', "parsed");
+    const scanned = source("b.js", 'f("https://evil.test/x");', "unparseable");
+
+    for (const order of [
+      [literal, scanned],
+      [scanned, literal],
+    ]) {
+      expect(buildSignalSet(order).endpoints).toMatchObject([
+        { normalizedValue: "evil.test", confidence: "literal" },
+      ]);
+    }
+  });
+
+  it("merges thousands of matches for one host in linear time", () => {
+    const text = Array.from(
+      { length: 20_000 },
+      () => 'f("https://evil.test/x");',
+    ).join("\n");
+
+    const started = performance.now();
+    const [endpoint] = buildSignalSet([
+      source("a.js", text, "unparseable"),
+    ]).endpoints;
+
+    expect(endpoint?.normalizedValue).toBe("evil.test");
+    expect(performance.now() - started).toBeLessThan(2_000);
+  });
+});

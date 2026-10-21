@@ -121,23 +121,28 @@ export function buildSignalSet(
     observations.flatMap(({ endpoints: found }) => found),
     (observation) =>
       JSON.stringify([observation.endpointType, observation.normalizedValue]),
-    (current, next): SignalEndpointObservation => ({
-      ...current,
-      confidence:
-        current.confidence === "literal" || next.confidence === "literal"
-          ? "literal"
-          : "byte-scan-candidate",
-      context: strongestContext(current.context, next.context),
-      evidence: mergeEvidence(current.evidence, next.evidence),
+    (group): SignalEndpointObservation => ({
+      ...group[0],
+      confidence: group.some(({ confidence }) => confidence === "literal")
+        ? "literal"
+        : "byte-scan-candidate",
+      context: group.reduce(
+        (context, next) => strongestContext(context, next.context),
+        group[0].context,
+      ),
+      evidence: mergeEvidence(group.map(({ evidence }) => evidence)),
     }),
   );
   const obfuscationPatterns = mergeByKey(
     observations.flatMap(({ obfuscationPatterns: found }) => found),
     (observation) => JSON.stringify([observation.file, observation.pattern]),
-    (current, next) => ({
-      ...current,
-      elementCount: Math.max(current.elementCount, next.elementCount),
-      evidence: mergeEvidence(current.evidence, next.evidence),
+    (group) => ({
+      ...group[0],
+      elementCount: group.reduce(
+        (count, next) => Math.max(count, next.elementCount),
+        group[0].elementCount,
+      ),
+      evidence: mergeEvidence(group.map(({ evidence }) => evidence)),
     }),
   );
   return { sourceFiles, endpoints, obfuscationPatterns };
@@ -277,29 +282,37 @@ function arrayPattern(elements: readonly string[]): ObfuscationPattern | null {
 }
 
 /**
- * Groups items by a JSON key, merges each duplicate into the first item seen,
- * and sorts the result by the same key with the shared text comparator.
+ * Groups items by a JSON key, merges each group once, and sorts the result by
+ * the same key with the shared text comparator.
  */
 function mergeByKey<T>(
   items: readonly T[],
   keyOf: (item: T) => string,
-  merge: (current: T, next: T) => T,
+  merge: (items: readonly [T, ...T[]]) => T,
 ): T[] {
-  const grouped = new Map<string, T>();
+  const grouped = new Map<string, [T, ...T[]]>();
   for (const item of items) {
     const key = keyOf(item);
     const current = grouped.get(key);
-    grouped.set(key, current === undefined ? item : merge(current, item));
+    if (current === undefined) grouped.set(key, [item]);
+    else current.push(item);
   }
-  return [...grouped.values()].sort((left, right) =>
-    compareText(keyOf(left), keyOf(right)),
-  );
+  return [...grouped.values()]
+    .map((group) => (group.length === 1 ? group[0] : merge(group)))
+    .sort((left, right) => compareText(keyOf(left), keyOf(right)));
 }
 
-function mergeEvidence(left: EvidenceList, right: EvidenceList): EvidenceList {
+/**
+ * Merges every observation's evidence in one pass, so a file with thousands of
+ * matches for one host does not re-sort a growing list on each merge. An exact
+ * duplicate (same file, line and snippet) is kept once.
+ */
+function mergeEvidence(lists: readonly EvidenceList[]): EvidenceList {
   const unique = new Map<string, Evidence>();
-  for (const item of [...left, ...right]) {
-    unique.set(JSON.stringify([item.file, item.line, item.snippet]), item);
+  for (const list of lists) {
+    for (const item of list) {
+      unique.set(JSON.stringify([item.file, item.line, item.snippet]), item);
+    }
   }
   const sorted = [...unique.values()].sort(compareEvidence);
   const [first, ...rest] = sorted;
