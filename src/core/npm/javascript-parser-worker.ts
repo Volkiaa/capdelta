@@ -65,7 +65,7 @@ function stripTypeScript(request: ParserRequest): StrippedSource {
       failure: {
         ok: false,
         reason: "unsupported-typescript",
-        detail: `TypeScript type stripping failed: ${stripErrorDetail(error)}`,
+        detail: stripErrorDetail(error),
         line: 1,
         snippet: sourceLine(request.source, 1),
       },
@@ -77,7 +77,7 @@ function stripTypeScript(request: ParserRequest): StrippedSource {
       failure: {
         ok: false,
         reason: "unsupported-typescript",
-        detail: `TypeScript type stripping changed the source length from ${String(request.source.length)} to ${String(stripped.length)}`,
+        detail: `stripping changed the source length from ${String(request.source.length)} to ${String(stripped.length)}`,
         line: 1,
         snippet: sourceLine(request.source, 1),
       },

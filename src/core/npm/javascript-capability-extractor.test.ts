@@ -246,7 +246,7 @@ describe("extractNpmJavaScriptCapabilities TypeScript", () => {
           {
             kind: "unsupported-source",
             detail:
-              "src/enums.ts uses TypeScript syntax that type stripping cannot remove: TypeScript type stripping failed: TypeScript enum is not supported in strip-only mode",
+              "src/enums.ts is TypeScript that type stripping rejected: TypeScript enum is not supported in strip-only mode",
             evidence: [{ file: "src/enums.ts", line: 1, snippet: "" }],
           },
         ]);

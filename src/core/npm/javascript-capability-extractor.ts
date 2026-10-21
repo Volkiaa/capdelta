@@ -295,7 +295,7 @@ function sourceFailureDiagnostic(
   if (failure.reason === "unsupported-typescript") {
     return diagnostic(
       "unsupported-source",
-      `${file} uses TypeScript syntax that type stripping cannot remove: ${truncate(failure.detail, MAX_VALUE_CHARS)}`,
+      `${file} is TypeScript that type stripping rejected: ${truncate(failure.detail, MAX_VALUE_CHARS)}`,
       file,
     );
   }

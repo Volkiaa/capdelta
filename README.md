@@ -261,7 +261,7 @@ than `registry.npmjs.org` is skipped and flagged.
 - **Bounded resolution:** re-exports and general JavaScript dataflow are not
   resolved. Deeper expressions become `UNKNOWN`.
 - **Source coverage:** TypeScript source is analyzed after type stripping.
-  Files that use syntax stripping cannot remove, such as enums, namespaces and
+  Files that stripping rejects, such as those using enums, namespaces or
   parameter properties, are diagnosed as unsupported.
 - **Signal coverage:** URL-domain diffs, entropy, minified-blob growth, and
   obfuscation recognizers are implemented with provisional thresholds.
