@@ -221,6 +221,7 @@ export async function extractNpmJavaScriptCapabilities(
               parseState: "parsed",
               commentRanges: response.comments,
               stringRanges: response.stringRanges,
+              cookedStrings: response.cookedStrings,
             }
           : { file, bytes, parseState: "unparseable" },
       );

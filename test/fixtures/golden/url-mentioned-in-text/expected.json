@@ -31,6 +31,11 @@
       "evidence": [
         {
           "file": "help.js",
+          "line": 2,
+          "snippet": "export const helpText = `"
+        },
+        {
+          "file": "help.js",
           "line": 4,
           "snippet": "# see https://docs.example.test/help"
         }

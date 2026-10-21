@@ -812,3 +812,20 @@ describe("synthetic template element boundary (ADR-024)", () => {
     expect(evaluateSeverityGate(result.report, "HIGH").fail).toBe(true);
   });
 });
+
+describe("synthetic escaped-string endpoint (ADR-026)", () => {
+  it("reports the host hidden behind a glued escape as a new HIGH endpoint", async () => {
+    const result = await runScenario("escaped-url", "attack");
+    expectAllAnalyzed(result, 1);
+    const report = packageReport(result.report, "capdelta-fixture-escaped-url");
+
+    expect(report.signalFindings).toEqual([
+      expect.objectContaining({
+        kind: "new-external-endpoint",
+        severity: "HIGH",
+        detail: "new external domain exfil.example.test",
+      }),
+    ]);
+    expect(evaluateSeverityGate(result.report, "HIGH").fail).toBe(true);
+  });
+});
