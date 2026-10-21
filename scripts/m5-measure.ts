@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 import {
   analyzeChangedPackages,
   createCapabilityAnalysisPipeline,
+  DEFAULT_ADAPTERS,
   hasUnanalyzedContent,
 } from "../src/core/capability-analysis-pipeline.js";
 import {
@@ -17,13 +18,6 @@ import type {
   SignalEndpointContext,
 } from "../src/core/contract/capability-set.js";
 import { compareText } from "../src/core/compare.js";
-import { extractNpmJavaScriptCapabilities } from "../src/core/npm/javascript-capability-extractor.js";
-import { extractNpmManifestCapabilities } from "../src/core/npm/manifest-capability-extractor.js";
-import { fetchChangedPackages } from "../src/core/npm/fetcher.js";
-import {
-  extractVerifiedManifest,
-  extractVerifiedTarball,
-} from "../src/core/npm/safe-extractor.js";
 import {
   MAX_EVIDENCE_FILE_CHARS,
   MAX_IDENTITY_CHARS,
@@ -230,11 +224,7 @@ async function contexts(corpusPath: string, out: string): Promise<void> {
   const startedAt = new Date().toISOString();
   const recorder: { newSet: CapabilitySet | null } = { newSet: null };
   const analyze = createCapabilityAnalysisPipeline({
-    fetch: fetchChangedPackages,
-    extract: extractVerifiedTarball,
-    extractManifestOnly: extractVerifiedManifest,
-    extractManifest: extractNpmManifestCapabilities,
-    extractJavaScript: extractNpmJavaScriptCapabilities,
+    ...DEFAULT_ADAPTERS,
     diff: recordingDiffAdapter(recorder),
   });
   const pairs: {
