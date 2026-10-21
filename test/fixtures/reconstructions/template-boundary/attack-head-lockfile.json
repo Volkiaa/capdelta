@@ -1,0 +1,17 @@
+{
+  "name": "reconstruction-project",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "name": "reconstruction-project",
+      "version": "1.0.0"
+    },
+    "node_modules/capdelta-fixture-template-boundary": {
+      "version": "1.0.1",
+      "resolved": "https://registry.npmjs.org/capdelta-fixture-template-boundary/-/capdelta-fixture-template-boundary-1.0.1.tgz",
+      "integrity": "sha512-fJtDl5q2wwbuRCGKcWy68DUknRBYRLITvW224E48Qnr/5sqnj+aK5lyFctVdhN4EIX8V87qXAio3diFQY77VIA=="
+    }
+  }
+}

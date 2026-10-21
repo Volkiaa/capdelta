@@ -82,10 +82,13 @@ export function observeSignalSource(input: SignalSourceInput): {
       : (): boolean => false;
   // Unknown is a security rule: a file the parser cannot read must never get a
   // URL demoted, so an attacker cannot gain by breaking the parse.
-  const contextAt =
+  const stringRanges =
     input.parseState === "parsed" && input.stringRanges !== undefined
-      ? contextLookup(input.file, input.stringRanges, source)
-      : (): SignalEndpointContext => "unknown";
+      ? stringRangeLookup(input.file, input.stringRanges, source)
+      : undefined;
+  const contextAt =
+    stringRanges?.contextAt ?? ((): SignalEndpointContext => "unknown");
+  const rangeEndAt = stringRanges?.rangeEndAt ?? ((): number | null => null);
   const endpoints = detectEndpoints(
     input.file,
     source,
@@ -93,6 +96,7 @@ export function observeSignalSource(input: SignalSourceInput): {
     confidence,
     inComment,
     contextAt,
+    rangeEndAt,
   );
   const obfuscationPatterns = detectObfuscationPatterns(
     input.file,
@@ -155,41 +159,68 @@ function detectEndpoints(
   confidence: SignalEndpointObservation["confidence"],
   inComment: (start: number, end: number) => boolean,
   contextAt: (start: number) => SignalEndpointContext,
+  rangeEndAt: (start: number) => number | null,
 ): SignalEndpointObservation[] {
   const found: SignalEndpointObservation[] = [];
-  for (const match of source.matchAll(URL_LITERAL_RE)) {
-    const value = match[0];
+  // The regex is global, so it carries lastIndex between calls. Reset it and
+  // move it explicitly when a match stops short of the regex's own end.
+  URL_LITERAL_RE.lastIndex = 0;
+  for (
+    let match = URL_LITERAL_RE.exec(source);
+    match !== null;
+    match = URL_LITERAL_RE.exec(source)
+  ) {
     const index = match.index;
-    // Documentation links in comments are not runtime endpoints; a match that
-    // runs into a comment ("https://x\n" after a label) is not one either.
-    if (inComment(index, index + match[0].length)) continue;
-    let parsed: URL;
-    try {
-      parsed = new URL(value);
-    } catch {
-      continue;
+    const whole = match[0];
+    const rangeEnd = rangeEndAt(index);
+    // A template element ends at `${`, which the regex does not stop at. An
+    // uncut match would take the next element's text into this element's
+    // context and could swallow the next element's URL, so the cut part keeps
+    // this element's context and scanning resumes at the element's end. The
+    // whole match is kept as "unknown" too, because the runtime string can
+    // still join across the expression (`https://a.test${x}@evil.test/`).
+    const crosses = rangeEnd !== null && index + whole.length > rangeEnd;
+    const candidates: [string, SignalEndpointContext][] = crosses
+      ? [
+          [whole.slice(0, rangeEnd - index), contextAt(index)],
+          [whole, "unknown"],
+        ]
+      : [[whole, contextAt(index)]];
+    URL_LITERAL_RE.lastIndex = crosses ? rangeEnd : index + whole.length;
+    for (const [value, context] of candidates) {
+      // Documentation links in comments are not runtime endpoints; a match
+      // that runs into a comment ("https://x\n" after a label) is not one
+      // either.
+      if (inComment(index, index + value.length)) continue;
+      let parsed: URL;
+      try {
+        parsed = new URL(value);
+      } catch {
+        continue;
+      }
+      const rawHost = parsed.hostname
+        .toLowerCase()
+        .replace(/^\[|\]$/gu, "")
+        .replace(/\.$/u, "");
+      const endpointType = endpointTypeFor(rawHost);
+      const host =
+        endpointType === "domain" ? publicStyleDomain(rawHost) : rawHost;
+      if (host === null) continue;
+      if (endpointType === null || !isExternalHost(host, endpointType))
+        continue;
+      found.push(
+        endpoint(
+          file,
+          host,
+          endpointType,
+          source,
+          starts,
+          index,
+          confidence,
+          context,
+        ),
+      );
     }
-    const rawHost = parsed.hostname
-      .toLowerCase()
-      .replace(/^\[|\]$/gu, "")
-      .replace(/\.$/u, "");
-    const endpointType = endpointTypeFor(rawHost);
-    const host =
-      endpointType === "domain" ? publicStyleDomain(rawHost) : rawHost;
-    if (host === null) continue;
-    if (endpointType === null || !isExternalHost(host, endpointType)) continue;
-    found.push(
-      endpoint(
-        file,
-        host,
-        endpointType,
-        source,
-        starts,
-        index,
-        confidence,
-        contextAt(index),
-      ),
-    );
   }
 
   for (const row of IP_LITERAL_ROWS) {
@@ -395,11 +426,14 @@ function wordsOf(raw: string): string {
   return raw.replace(/\\(?:\r\n|[\n\r\u2028\u2029])|[\t\n\r]/gu, "").trim();
 }
 
-function contextLookup(
+function stringRangeLookup(
   file: string,
   ranges: readonly StringRange[],
   source: string,
-): (start: number) => SignalEndpointContext {
+): {
+  contextAt: (start: number) => SignalEndpointContext;
+  rangeEndAt: (start: number) => number | null;
+} {
   let previousEnd = 0;
   for (const [start, end, valueWords] of ranges) {
     if (
@@ -416,22 +450,34 @@ function contextLookup(
     }
     previousEnd = end;
   }
-  return (start) => {
-    let low = 0;
-    let high = ranges.length;
-    while (low < high) {
-      const middle = (low + high) >> 1;
-      const range = ranges[middle];
-      if (range !== undefined && range[0] <= start) low = middle + 1;
-      else high = middle;
-    }
-    const range = ranges[low - 1];
-    if (range === undefined || range[1] <= start) return "unknown";
-    // Neither the raw form nor the value alone may demote a URL.
-    return /\s/u.test(wordsOf(source.slice(range[0], range[1]))) && range[2]
-      ? "embedded-text"
-      : "literal";
+  return {
+    contextAt: (start) => {
+      const range = containingStringRange(ranges, start);
+      if (range === undefined) return "unknown";
+      // Neither the raw form nor the value alone may demote a URL.
+      return /\s/u.test(wordsOf(source.slice(range[0], range[1]))) && range[2]
+        ? "embedded-text"
+        : "literal";
+    },
+    rangeEndAt: (start) => containingStringRange(ranges, start)?.[1] ?? null,
   };
+}
+
+/** Last range that starts at or before `start`, if that range still covers it. */
+function containingStringRange(
+  ranges: readonly StringRange[],
+  start: number,
+): StringRange | undefined {
+  let low = 0;
+  let high = ranges.length;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    const range = ranges[middle];
+    if (range !== undefined && range[0] <= start) low = middle + 1;
+    else high = middle;
+  }
+  const range = ranges[low - 1];
+  return range !== undefined && range[1] > start ? range : undefined;
 }
 
 /**

@@ -921,6 +921,35 @@ describe("endpoint context", () => {
       }),
     ).toEqual([]);
   });
+
+  it.each([
+    [
+      "the same host on both sides",
+      "const tag = (p) => fetch(p[1]);\ntag`See https://evil.test/${0}https://evil.test/`;",
+      [{ host: "evil.test", context: "literal" }],
+    ],
+    [
+      "different hosts on each side",
+      "const tag = (p) => fetch(p[1]);\ntag`See https://a.test/${0}https://evil.test/`;",
+      [
+        { host: "a.test", context: "unknown" },
+        { host: "evil.test", context: "literal" },
+      ],
+    ],
+    [
+      "a URL whose userinfo ends in the next element",
+      "fetch(`https://a.test${0}@evil.test/`);",
+      [
+        { host: "a.test", context: "literal" },
+        { host: "evil.test", context: "unknown" },
+      ],
+    ],
+  ])(
+    "scans each template element on its own for %s",
+    async (_label, text, expected) => {
+      expect(await endpointsOf({ "index.js": text })).toEqual(expected);
+    },
+  );
 });
 
 // ADR-024 Consequences: these two cases document the destination-swap boundary
@@ -983,6 +1012,80 @@ describe("destination swap inside text (ADR-024 boundary)", () => {
 
     expect(diff.findings).toEqual([]);
     expect(diff.signalFindings).toEqual([]);
+  });
+});
+
+describe("template element boundary (ADR-024)", () => {
+  async function analyze(
+    files: Record<string, string>,
+    version: string,
+  ): Promise<CapabilitySet> {
+    let result: CapabilitySet | undefined;
+    await withPackage(files, async (root) => {
+      const manifest = await extractNpmManifestCapabilities(
+        { root },
+        { ecosystem: "npm", name: "fixture", version },
+      );
+      if (manifest.status !== "analyzed")
+        throw new Error("manifest unavailable");
+      result = mergeJavaScriptCapabilityLayer(
+        manifest.set,
+        await extractNpmJavaScriptCapabilities({ root }, manifest.set),
+      );
+    });
+    if (result === undefined) throw new Error("analysis did not run");
+    return result;
+  }
+
+  it("reports the fetched element at HIGH when prose mentions the same host", async () => {
+    const base = await analyze(
+      { "index.js": "module.exports = 1;\n" },
+      "2.0.0",
+    );
+    const head = await analyze(
+      {
+        "index.js":
+          "const tag = (p) => fetch(p[1]);\ntag`See https://evil.test/${0}https://evil.test/`;",
+      },
+      "2.0.0",
+    );
+    const diff = diffManifestCapabilities(base, head);
+
+    expect(diff.signalFindings).toEqual([
+      expect.objectContaining({
+        kind: "new-external-endpoint",
+        severity: "HIGH",
+        detail: "new external domain evil.test",
+      }),
+    ]);
+  });
+
+  it("reports both hosts at HIGH when the prose URL runs into an expression", async () => {
+    const base = await analyze(
+      { "index.js": "module.exports = 1;\n" },
+      "2.0.0",
+    );
+    const head = await analyze(
+      {
+        "index.js":
+          "const tag = (p) => fetch(p[1]);\ntag`See https://a.test/${0}https://evil.test/`;",
+      },
+      "2.0.0",
+    );
+    const diff = diffManifestCapabilities(base, head);
+
+    expect(diff.signalFindings).toEqual([
+      expect.objectContaining({
+        kind: "new-external-endpoint",
+        severity: "HIGH",
+        detail: "new external domain a.test",
+      }),
+      expect.objectContaining({
+        kind: "new-external-endpoint",
+        severity: "HIGH",
+        detail: "new external domain evil.test",
+      }),
+    ]);
   });
 });
 

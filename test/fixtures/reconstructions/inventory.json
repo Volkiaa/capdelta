@@ -162,6 +162,23 @@
           "head": ["victim-1.0.2-control"]
         }
       }
+    },
+    {
+      "name": "template-boundary",
+      "title": "Synthetic template element boundary (not a historical incident)",
+      "date": "n/a: regression for ADR-024",
+      "sources": [
+        "https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-template-literals"
+      ],
+      "kept": "The 1.0.1 bump adds a tag function that fetches its second template element, and tag`See https://docs.example.test/${0}https://exfil.example.test/c` in index.js. The URL scan used to run past the end of the first element, so it reported only the prose URL and never saw the fetched host.",
+      "omitted": "Everything else: the package is a minimal synthetic stand-in. Neither the tag function nor module.exports is ever called and the reserved .example.test hosts are never contacted.",
+      "expected": "Each template element is scanned on its own, so exfil.example.test is a HIGH new-external-endpoint. The URL that crosses the expression is kept at unknown, which leaves docs.example.test at HIGH too, and the default HIGH gate fails.",
+      "scenarios": {
+        "attack": {
+          "base": ["template-boundary-1.0.0"],
+          "head": ["template-boundary-1.0.1"]
+        }
+      }
     }
   ]
 }
