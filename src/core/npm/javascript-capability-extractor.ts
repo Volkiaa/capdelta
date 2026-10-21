@@ -22,8 +22,10 @@ import { analysisStopDetail } from "../analysis-execution-policy.js";
 import { NamedError } from "../named-error.js";
 import { errorName, isAbortSignal, isRecord } from "../guards.js";
 import { compareEvidence, compareText } from "../compare.js";
+import { MAX_VALUE_CHARS, truncate } from "../report-builder.js";
 import type { ExtractedTarball } from "./safe-extractor.js";
 import type {
+  ParserFailure,
   ParserReadyMessage,
   ParserRequest,
   ParserResponse,
@@ -188,49 +190,14 @@ export async function extractNpmJavaScriptCapabilities(
         );
         continue;
       }
-      if (isTypeScript) {
-        signalInputs.push({ file, bytes, parseState: "unsupported" });
-        diagnostics.push(
-          diagnostic(
-            "unsupported-source",
-            `${file} is TypeScript source; v0.1 parses JavaScript only`,
-            file,
-          ),
-        );
-        continue;
-      }
       const response = await parser.parse(
-        {
-          source,
-          file,
-          sourceType:
-            extension === ".mjs"
-              ? "module"
-              : extension === ".cjs"
-                ? "script"
-                : "either",
-        },
+        parserRequest(source, file, extension, isTypeScript),
         resolvedOptions.signal,
       );
       throwIfStopped(resolvedOptions.signal);
-      signalInputs.push(
-        response.ok
-          ? {
-              file,
-              bytes,
-              parseState: "parsed",
-              commentRanges: response.comments,
-              stringRanges: response.stringRanges,
-              cookedStrings: response.cookedStrings,
-            }
-          : { file, bytes, parseState: "unparseable" },
-      );
+      signalInputs.push(signalInput(file, bytes, response));
       if (!response.ok) {
-        diagnostics.push({
-          kind: "unparseable-source",
-          detail: response.detail,
-          evidence: [{ file, line: response.line, snippet: response.snippet }],
-        });
+        diagnostics.push(sourceFailureDiagnostic(file, response));
         continue;
       }
       const locations = installFiles.get(file) ?? [
@@ -271,6 +238,71 @@ export async function extractNpmJavaScriptCapabilities(
     capabilities,
     diagnostics,
     signals: buildSignalSet(signalInputs.map(observeSignalSource)),
+  };
+}
+
+function parserRequest(
+  source: string,
+  file: string,
+  extension: string,
+  isTypeScript: boolean,
+): ParserRequest {
+  if (isTypeScript) {
+    return { source, file, language: "typescript", sourceType: "either" };
+  }
+  return {
+    source,
+    file,
+    language: "javascript",
+    sourceType:
+      extension === ".mjs"
+        ? "module"
+        : extension === ".cjs"
+          ? "script"
+          : "either",
+  };
+}
+
+function signalInput(
+  file: string,
+  bytes: Uint8Array,
+  response: ParserResponse,
+): SignalSourceInput {
+  if (response.ok) {
+    return {
+      file,
+      bytes,
+      parseState: "parsed",
+      commentRanges: response.comments,
+      stringRanges: response.stringRanges,
+      cookedStrings: response.cookedStrings,
+    };
+  }
+  return {
+    file,
+    bytes,
+    parseState:
+      response.reason === "unsupported-typescript"
+        ? "unsupported"
+        : "unparseable",
+  };
+}
+
+function sourceFailureDiagnostic(
+  file: string,
+  failure: ParserFailure,
+): AnalysisDiagnostic {
+  if (failure.reason === "unsupported-typescript") {
+    return diagnostic(
+      "unsupported-source",
+      `${file} is TypeScript that type stripping rejected: ${truncate(failure.detail, MAX_VALUE_CHARS)}`,
+      file,
+    );
+  }
+  return {
+    kind: "unparseable-source",
+    detail: failure.detail,
+    evidence: [{ file, line: failure.line, snippet: failure.snippet }],
   };
 }
 
@@ -483,6 +515,7 @@ class ParserWorkerClient {
         terminate();
         resolveReady({
           ok: false,
+          reason: "syntax",
           detail:
             signal === undefined
               ? "analysis aborted"
@@ -536,6 +569,7 @@ class ParserWorkerClient {
         finish(
           {
             ok: false,
+            reason: "syntax",
             detail: `JavaScript parser worker failed: ${errorName(error)}`,
             line: 1,
             snippet: "",
@@ -547,6 +581,7 @@ class ParserWorkerClient {
         finish(
           {
             ok: false,
+            reason: "syntax",
             detail:
               signal === undefined
                 ? "analysis aborted"
@@ -561,6 +596,7 @@ class ParserWorkerClient {
         finish(
           {
             ok: false,
+            reason: "syntax",
             detail: `JavaScript parse exceeded ${String(this.timeoutMs)} ms`,
             line: 1,
             snippet:

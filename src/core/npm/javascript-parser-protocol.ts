@@ -3,6 +3,7 @@ import type { CodeCapabilityKind } from "../contract/capability-set.js";
 export interface ParserRequest {
   source: string;
   file: string;
+  language: "javascript" | "typescript";
   sourceType: "module" | "script" | "either";
 }
 
@@ -33,6 +34,7 @@ export interface ParserSuccess {
 
 export interface ParserFailure {
   ok: false;
+  reason: "syntax" | "unsupported-typescript";
   detail: string;
   line: number;
   snippet: string;

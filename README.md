@@ -160,7 +160,7 @@ in its SARIF rule help.
 
 ### CLI
 
-Requirements: Node.js 20 or newer, npm, and Git.
+Requirements: Node.js 22 or newer, npm, and Git.
 
 capdelta is not published to npm. Clone it, install and build it, then run the
 built CLI from the target repository, which must contain one `package-lock.json`:
@@ -260,7 +260,9 @@ than `registry.npmjs.org` is skipped and flagged.
   planned for v0.2.
 - **Bounded resolution:** re-exports and general JavaScript dataflow are not
   resolved. Deeper expressions become `UNKNOWN`.
-- **Source coverage:** TypeScript source is diagnosed as unsupported in v0.1.
+- **Source coverage:** TypeScript source is analyzed after type stripping.
+  Files that stripping rejects, such as those using enums, namespaces or
+  parameter properties, are diagnosed as unsupported.
 - **Signal coverage:** URL-domain diffs, entropy, minified-blob growth, and
   obfuscation recognizers are implemented with provisional thresholds.
 - **Endpoint heuristics:** in files that parse, URLs and IPs inside comments
