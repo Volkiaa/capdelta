@@ -378,6 +378,16 @@ describe("signal aggregation", () => {
     expect(performance.now() - started).toBeLessThan(3_000);
   });
 
+  it.each(["https://evil.test\u0000/x", "https://evil.test\u0001?x"])(
+    "rejects a host followed by a control character (%j)",
+    (url) => {
+      expect(
+        buildSignalSet([source("a.js", `f("${url}");`, "unparseable")])
+          .endpoints,
+      ).toEqual([]);
+    },
+  );
+
   it("merges thousands of matches for one host in linear time", () => {
     const text = Array.from(
       { length: 20_000 },

@@ -196,12 +196,23 @@ function detectEndpoints(
     // whole span is kept as "unknown" too, because the runtime string can
     // still join across the expression (`https://a.test${x}@evil.test/`).
     const crosses = rangeEnd !== null && lexicalEnd > rangeEnd;
+    // The parser sees the delimiter after the authority too, so a trailing
+    // control character is rejected as on a full URL, never stripped.
+    const authorityEnd = index + authority.length;
+    const delimited =
+      authorityEnd < lexicalEnd
+        ? source.slice(index, authorityEnd + 1)
+        : authority;
     const candidates: [string, number, SignalEndpointContext][] = crosses
       ? [
-          [authority.slice(0, rangeEnd - index), rangeEnd, contextAt(index)],
-          [authority, lexicalEnd, "unknown"],
+          [
+            source.slice(index, Math.min(rangeEnd, index + delimited.length)),
+            rangeEnd,
+            contextAt(index),
+          ],
+          [delimited, lexicalEnd, "unknown"],
         ]
-      : [[authority, lexicalEnd, contextAt(index)]];
+      : [[delimited, lexicalEnd, contextAt(index)]];
     URL_LITERAL_RE.lastIndex = crosses ? rangeEnd : lexicalEnd;
     for (const [value, spanEnd, context] of candidates) {
       // Documentation links in comments are not runtime endpoints; a match
