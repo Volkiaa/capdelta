@@ -850,8 +850,7 @@ describe("synthetic underscore-label endpoint (ADR-029)", () => {
   });
 });
 
-
-describe("synthetic extensionless Node bin script (ADR-029)", () => {
+describe("synthetic extensionless Node bin script (ADR-030)", () => {
   it("reports the host fetched by the new bin script as a new HIGH endpoint", async () => {
     const result = await runScenario("file-kinds", "attack");
     expectAllAnalyzed(result, 1);

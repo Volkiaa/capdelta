@@ -1,4 +1,4 @@
-# ADR-029: Analyze .mts, .cts and extensionless Node scripts
+# ADR-030: Analyze .mts, .cts and extensionless Node scripts
 
 - **Status:** Proposed
 - **Date:** 2026-10-22
