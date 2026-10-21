@@ -21,7 +21,12 @@ export const HIGH_ENTROPY_MILLIBITS = 6_500 as const;
 export const MIN_OBFUSCATION_ARRAY_ELEMENTS = 8 as const;
 
 const MAX_EVIDENCE_SNIPPET = 240;
-const URL_LITERAL_RE = /\b(?:https?|wss?):\/\/[^\s"'`<>\\]+/gu;
+// Only the scheme and authority decide the host, so a match stops at the first
+// "/", "?" or "#" after it. That keeps every match short, so rescanning after
+// a template element boundary costs one authority, never the rest of the file.
+// Extra leading slashes are kept: "https:///evil.test" still reaches evil.test.
+const URL_STOP_RE = /[\s"'`<>\\]/u;
+const URL_LITERAL_RE = /\b(?:https?|wss?):\/\/\/*[^\s"'`<>\\/?#]*/gu;
 const IP_LITERAL_ROWS = [
   {
     pattern: /\b(?:\d{1,3}\.){3}\d{1,3}\b/gu,
@@ -165,33 +170,55 @@ function detectEndpoints(
   // The regex is global, so it carries lastIndex between calls. Reset it and
   // move it explicitly when a match stops short of the regex's own end.
   URL_LITERAL_RE.lastIndex = 0;
+  let stopCursor = 0;
   for (
     let match = URL_LITERAL_RE.exec(source);
     match !== null;
     match = URL_LITERAL_RE.exec(source)
   ) {
     const index = match.index;
-    const whole = match[0];
+    const authority = match[0];
+    // The URL's lexical span is what #150's boundary rule and the comment check
+    // judge; only its authority is parsed. The stop cursor moves forward only,
+    // so finding every span's end stays linear in the source size.
+    if (stopCursor < index) stopCursor = index;
+    while (
+      stopCursor < source.length &&
+      !URL_STOP_RE.test(source.charAt(stopCursor))
+    )
+      stopCursor += 1;
+    const lexicalEnd = stopCursor;
     const rangeEnd = rangeEndAt(index);
-    // A template element ends at `${`, which the regex does not stop at. An
-    // uncut match would take the next element's text into this element's
+    // A template element ends at `${`, which a URL span does not stop at. An
+    // uncut span would take the next element's text into this element's
     // context and could swallow the next element's URL, so the cut part keeps
     // this element's context and scanning resumes at the element's end. The
-    // whole match is kept as "unknown" too, because the runtime string can
+    // whole span is kept as "unknown" too, because the runtime string can
     // still join across the expression (`https://a.test${x}@evil.test/`).
-    const crosses = rangeEnd !== null && index + whole.length > rangeEnd;
-    const candidates: [string, SignalEndpointContext][] = crosses
+    const crosses = rangeEnd !== null && lexicalEnd > rangeEnd;
+    // The parser sees the delimiter after the authority too, so a trailing
+    // control character is rejected as on a full URL, never stripped.
+    const authorityEnd = index + authority.length;
+    const delimited =
+      authorityEnd < lexicalEnd
+        ? source.slice(index, authorityEnd + 1)
+        : authority;
+    const candidates: [string, number, SignalEndpointContext][] = crosses
       ? [
-          [whole.slice(0, rangeEnd - index), contextAt(index)],
-          [whole, "unknown"],
+          [
+            source.slice(index, Math.min(rangeEnd, index + delimited.length)),
+            rangeEnd,
+            contextAt(index),
+          ],
+          [delimited, lexicalEnd, "unknown"],
         ]
-      : [[whole, contextAt(index)]];
-    URL_LITERAL_RE.lastIndex = crosses ? rangeEnd : index + whole.length;
-    for (const [value, context] of candidates) {
+      : [[delimited, lexicalEnd, contextAt(index)]];
+    URL_LITERAL_RE.lastIndex = crosses ? rangeEnd : lexicalEnd;
+    for (const [value, spanEnd, context] of candidates) {
       // Documentation links in comments are not runtime endpoints; a match
       // that runs into a comment ("https://x\n" after a label) is not one
       // either.
-      if (inComment(index, index + value.length)) continue;
+      if (inComment(index, spanEnd)) continue;
       let parsed: URL;
       try {
         parsed = new URL(value);
@@ -353,19 +380,31 @@ function mergeEvidence(lists: readonly EvidenceList[]): EvidenceList {
   return [first, ...rest];
 }
 
+// One snippet per line per source. Building it trims the whole line, so
+// building it per match made many matches on one long line quadratic.
+const snippetsBySource = new WeakMap<readonly number[], Map<number, string>>();
+
 function evidenceAt(
   source: string,
   starts: readonly number[],
   index: number,
 ): Evidence {
   const lineIndex = lineIndexAt(starts, index);
-  const lineStart = starts[lineIndex] ?? 0;
-  const nextLineStart = starts[lineIndex + 1] ?? source.length;
-  const snippet = source
-    .slice(lineStart, nextLineStart)
-    .replace(/[\r\n]+$/gu, "")
-    .trim()
-    .slice(0, MAX_EVIDENCE_SNIPPET);
+  let snippets = snippetsBySource.get(starts);
+  if (snippets === undefined) {
+    snippets = new Map();
+    snippetsBySource.set(starts, snippets);
+  }
+  let snippet = snippets.get(lineIndex);
+  if (snippet === undefined) {
+    const lineStart = starts[lineIndex] ?? 0;
+    const nextLineStart = starts[lineIndex + 1] ?? source.length;
+    snippet = source
+      .slice(lineStart, nextLineStart)
+      .trim()
+      .slice(0, MAX_EVIDENCE_SNIPPET);
+    snippets.set(lineIndex, snippet);
+  }
   return { file: "", line: lineIndex + 1, snippet };
 }
 
@@ -380,9 +419,14 @@ const MAX_DOMAIN_LENGTH = 253;
  * One recovery retries after trimming trailing punctuation, so a markdown
  * link's "example.org)" becomes "example.org".
  */
+const TRAILING_PUNCTUATION = new Set(")]}>,.;:!?'\"");
+
 function publicStyleDomain(host: string): string | null {
   if (isPublicStyleDomain(host)) return host;
-  const trimmed = host.replace(/[)\]}>,.;:!?'"]+$/u, "");
+  // A backward scan, not a `+$` regex, which retries every suffix.
+  let end = host.length;
+  while (end > 0 && TRAILING_PUNCTUATION.has(host.charAt(end - 1))) end -= 1;
+  const trimmed = host.slice(0, end);
   return trimmed !== host && isPublicStyleDomain(trimmed) ? trimmed : null;
 }
 
@@ -450,14 +494,23 @@ function stringRangeLookup(
     }
     previousEnd = end;
   }
+  const contexts = new Map<number, SignalEndpointContext>();
   return {
     contextAt: (start) => {
       const range = containingStringRange(ranges, start);
       if (range === undefined) return "unknown";
-      // Neither the raw form nor the value alone may demote a URL.
-      return /\s/u.test(wordsOf(source.slice(range[0], range[1]))) && range[2]
-        ? "embedded-text"
-        : "literal";
+      // One classification per string: it reads the whole string, so doing it
+      // per URL made many URLs in one string quadratic.
+      let context = contexts.get(range[0]);
+      if (context === undefined) {
+        // Neither the raw form nor the value alone may demote a URL.
+        context =
+          /\s/u.test(wordsOf(source.slice(range[0], range[1]))) && range[2]
+            ? "embedded-text"
+            : "literal";
+        contexts.set(range[0], context);
+      }
+      return context;
     },
     rangeEndAt: (start) => containingStringRange(ranges, start)?.[1] ?? null,
   };

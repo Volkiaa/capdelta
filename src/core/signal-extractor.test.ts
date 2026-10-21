@@ -272,6 +272,122 @@ describe("signal aggregation", () => {
     }
   });
 
+  it("builds evidence for many matches on one long line in linear time", () => {
+    const text = 'f("https://evil.test/x");'.repeat(64_000);
+
+    const started = performance.now();
+    const [endpoint] = buildSignalSet([
+      source("a.js", text, "unparseable"),
+    ]).endpoints;
+
+    expect(endpoint?.evidence).toHaveLength(1);
+    expect(performance.now() - started).toBeLessThan(3_000);
+  });
+
+  it("classifies many URLs in one parsed string in linear time", () => {
+    const text = `f("${"https://evil.test/x ".repeat(64_000)}");`;
+    const content = text.indexOf('"') + 1;
+
+    const started = performance.now();
+    const [endpoint] = buildSignalSet([
+      observeSignalSource({
+        file: "a.js",
+        bytes: new TextEncoder().encode(text),
+        parseState: "parsed",
+        stringRanges: [[content, text.lastIndexOf('"'), true]],
+      }),
+    ]).endpoints;
+
+    expect(endpoint?.context).toBe("embedded-text");
+    expect(performance.now() - started).toBeLessThan(3_000);
+  });
+
+  it("scans a template of many joined URL elements in linear time", () => {
+    const element = "https://evil.test/${x}";
+    const body = element.repeat(16_000);
+    const ranges: [number, number, boolean][] = [];
+    const open = "f(`".length;
+    for (let i = 0; i < 16_000; i += 1) {
+      const start = open + i * element.length;
+      ranges.push([start, start + "https://evil.test/".length, false]);
+    }
+    const text = `f(\`${body}\`);`;
+
+    const started = performance.now();
+    const [endpoint] = buildSignalSet([
+      observeSignalSource({
+        file: "a.js",
+        bytes: new TextEncoder().encode(text),
+        parseState: "parsed",
+        stringRanges: ranges,
+      }),
+    ]).endpoints;
+
+    expect(endpoint?.normalizedValue).toBe("evil.test");
+    expect(performance.now() - started).toBeLessThan(3_000);
+  });
+
+  it("still reports a URL with extra leading slashes", () => {
+    expect(
+      buildSignalSet([
+        source("a.js", 'f("https:///evil.test/x");', "unparseable"),
+      ]).endpoints.map(({ normalizedValue }) => normalizedValue),
+    ).toEqual(["evil.test"]);
+  });
+
+  it("keeps a prose URL that runs into a template expression at unknown", () => {
+    const text = "f(`docs https://evil.test/${x}`);";
+    const [endpoint] = buildSignalSet([
+      observeSignalSource({
+        file: "a.js",
+        bytes: new TextEncoder().encode(text),
+        parseState: "parsed",
+        stringRanges: [[3, text.indexOf("${"), true]],
+      }),
+    ]).endpoints;
+
+    expect(endpoint).toMatchObject({
+      normalizedValue: "evil.test",
+      context: "unknown",
+    });
+  });
+
+  it("trims many trailing brackets from a host in linear time", () => {
+    const text = `f("https://evil.test${")".repeat(80_000)}z");`;
+
+    const started = performance.now();
+    buildSignalSet([source("a.js", text, "unparseable")]);
+
+    expect(performance.now() - started).toBeLessThan(3_000);
+  });
+
+  it("does not report a URL found inside another URL's query", () => {
+    expect(
+      buildSignalSet([
+        source("a.js", 'f("https://?x=https://evil.test");', "unparseable"),
+      ]).endpoints,
+    ).toEqual([]);
+  });
+
+  it("builds a snippet for a line of many carriage returns in linear time", () => {
+    const text = `${"\r".repeat(200_000)}x https://evil.test`;
+
+    const started = performance.now();
+    buildSignalSet([source("a.js", text, "unparseable")]);
+
+    expect(performance.now() - started).toBeLessThan(3_000);
+  });
+
+  it.each(["https://evil.test\u0000/x", "https://evil.test\u0001?x"])(
+    "rejects a host followed by a control character (%j)",
+    (url) => {
+      expect(
+        buildSignalSet([source("a.js", `f("${url}");`, "unparseable")])
+          .endpoints,
+      ).toEqual([]);
+    },
+  );
+
   it("merges thousands of matches for one host in linear time", () => {
     const text = Array.from(
       { length: 20_000 },
