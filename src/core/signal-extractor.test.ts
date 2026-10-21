@@ -361,6 +361,23 @@ describe("signal aggregation", () => {
     expect(performance.now() - started).toBeLessThan(3_000);
   });
 
+  it("does not report a URL found inside another URL's query", () => {
+    expect(
+      buildSignalSet([
+        source("a.js", 'f("https://?x=https://evil.test");', "unparseable"),
+      ]).endpoints,
+    ).toEqual([]);
+  });
+
+  it("builds a snippet for a line of many carriage returns in linear time", () => {
+    const text = `${"\r".repeat(200_000)}x https://evil.test`;
+
+    const started = performance.now();
+    buildSignalSet([source("a.js", text, "unparseable")]);
+
+    expect(performance.now() - started).toBeLessThan(3_000);
+  });
+
   it("merges thousands of matches for one host in linear time", () => {
     const text = Array.from(
       { length: 20_000 },

@@ -26,7 +26,7 @@ const MAX_EVIDENCE_SNIPPET = 240;
 // a template element boundary costs one authority, never the rest of the file.
 // Extra leading slashes are kept: "https:///evil.test" still reaches evil.test.
 const URL_STOP_RE = /[\s"'`<>\\]/u;
-const URL_LITERAL_RE = /\b(?:https?|wss?):\/\/\/*[^\s"'`<>\\/?#]+/gu;
+const URL_LITERAL_RE = /\b(?:https?|wss?):\/\/\/*[^\s"'`<>\\/?#]*/gu;
 const IP_LITERAL_ROWS = [
   {
     pattern: /\b(?:\d{1,3}\.){3}\d{1,3}\b/gu,
@@ -390,7 +390,6 @@ function evidenceAt(
     const nextLineStart = starts[lineIndex + 1] ?? source.length;
     snippet = source
       .slice(lineStart, nextLineStart)
-      .replace(/[\r\n]+$/gu, "")
       .trim()
       .slice(0, MAX_EVIDENCE_SNIPPET);
     snippets.set(lineIndex, snippet);
