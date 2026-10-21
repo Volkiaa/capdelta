@@ -867,7 +867,6 @@ describe("synthetic extensionless Node bin script (ADR-030)", () => {
   });
 });
 
-
 describe("synthetic inet_aton IPv4 host (ADR-031)", () => {
   it("reports the hex-part host as a new HIGH endpoint", async () => {
     const result = await runScenario("ipv4-octal-hex", "attack");
