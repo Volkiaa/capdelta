@@ -62,7 +62,8 @@ describe("Action package", () => {
     const responses = await new Promise<unknown[]>(
       (resolveResponse, reject) => {
         const received: unknown[] = [];
-        worker.on("message", (response) => {
+        worker.on("message", (response: { type?: string }) => {
+          if (response.type === "ready") return;
           received.push(response);
           if (received.length === 1) {
             worker.postMessage({

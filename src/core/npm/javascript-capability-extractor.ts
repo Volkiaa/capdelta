@@ -24,8 +24,10 @@ import { errorName, isAbortSignal, isRecord } from "../guards.js";
 import { compareEvidence, compareText } from "../compare.js";
 import type { ExtractedTarball } from "./safe-extractor.js";
 import type {
+  ParserReadyMessage,
   ParserRequest,
   ParserResponse,
+  ParserWorkerMessage,
 } from "./javascript-parser-protocol.js";
 
 const DEFAULT_MAX_SOURCE_BYTES = 2 * 1024 * 1024;
@@ -434,8 +436,86 @@ class ParserWorkerClient {
     signal: AbortSignal | undefined,
   ): Promise<ParserResponse> {
     throwIfStopped(signal);
+    const starting = this.worker === null;
     const worker = this.worker ?? new Worker(workerUrl());
     this.worker = worker;
+    if (starting) {
+      const aborted = await this.waitUntilReady(worker, signal);
+      if (aborted !== null) return aborted;
+    }
+    throwIfStopped(signal);
+    return await this.request(worker, request, signal);
+  }
+
+  private async waitUntilReady(
+    worker: Worker,
+    signal: AbortSignal | undefined,
+  ): Promise<ParserResponse | null> {
+    return await new Promise((resolveReady, rejectReady) => {
+      const terminate = (): void => {
+        if (this.worker === worker) this.worker = null;
+        this.terminations.push(worker.terminate());
+      };
+      const fail = (cause: Error): void => {
+        cleanup();
+        terminate();
+        rejectReady(
+          new JavaScriptCapabilityExtractorConfigurationError(
+            `JavaScript parser worker failed to start: ${errorName(cause)}: ${cause.message}`,
+            { cause },
+          ),
+        );
+      };
+      const onMessage = (message: ParserWorkerMessage): void => {
+        if (!isReadyMessage(message)) return;
+        cleanup();
+        resolveReady(null);
+      };
+      const onError = (error: Error): void => {
+        fail(error);
+      };
+      const onExit = (code: number): void => {
+        fail(new Error(`worker exited with code ${String(code)}`));
+      };
+      const onAbort = (): void => {
+        cleanup();
+        terminate();
+        resolveReady({
+          ok: false,
+          detail:
+            signal === undefined
+              ? "analysis aborted"
+              : analysisStopDetail(signal),
+          line: 1,
+          snippet: "",
+        });
+      };
+      const timer = setTimeout(() => {
+        fail(
+          new Error(
+            `ready message did not arrive within ${String(this.timeoutMs)} ms`,
+          ),
+        );
+      }, this.timeoutMs);
+      const cleanup = (): void => {
+        clearTimeout(timer);
+        worker.off("message", onMessage);
+        worker.off("error", onError);
+        worker.off("exit", onExit);
+        signal?.removeEventListener("abort", onAbort);
+      };
+      worker.on("message", onMessage);
+      worker.once("error", onError);
+      worker.once("exit", onExit);
+      signal?.addEventListener("abort", onAbort, { once: true });
+    });
+  }
+
+  private async request(
+    worker: Worker,
+    request: ParserRequest,
+    signal: AbortSignal | undefined,
+  ): Promise<ParserResponse> {
     return await new Promise((resolveResponse) => {
       const finish = (response: ParserResponse, discard: boolean): void => {
         clearTimeout(timeout);
@@ -508,6 +588,12 @@ function throwIfStopped(signal: AbortSignal | undefined): void {
   if (signal?.aborted === true) {
     throw new JavaScriptCapabilityExtractorError(analysisStopDetail(signal));
   }
+}
+
+function isReadyMessage(
+  message: ParserWorkerMessage,
+): message is ParserReadyMessage {
+  return "type" in message;
 }
 
 function workerUrl(): URL {
