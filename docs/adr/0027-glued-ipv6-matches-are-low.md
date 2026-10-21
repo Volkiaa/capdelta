@@ -51,5 +51,15 @@ attack reconstruction uses an IP literal.
 
 ## Evidence
 
-Filled in by the PR: tests, held-out corpus before and after with every
-changed finding listed.
+- Full verification passes (824 tests). No golden fixture or attack
+  reconstruction changed.
+- `replay compare` of main against this branch: MATCH on all 20 drives.
+- Held-out corpus, both halves. 89 of 90 pair reports are unchanged. The only
+  change is markdown-it 15.0.2 -> 15.0.3, where `c::9bb` and `c::a` go from
+  HIGH to LOW "(inside a longer string)". Both are labelled noise. That
+  pair's `gateSeverity` goes from HIGH 2 to LOW 2.
+- Codex security review, three rounds. Round 1 blocked because a zone ID
+  (`"2001:4860:4860::8888%eth0"`) counted as glued text. Round 2 blocked
+  because the pattern stops at `::127` in `"2001:4860:4860::127.0.0.1"`, so
+  the `.` counted as glued. Both came from judging the regex match instead
+  of the whole address, which decision 1 now does. Round 3: APPROVE.
