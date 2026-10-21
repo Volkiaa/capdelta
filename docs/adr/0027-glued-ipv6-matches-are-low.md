@@ -1,6 +1,6 @@
 # ADR-027: Report a bare IPv6 match glued to other characters at LOW
 
-- **Status:** Proposed
+- **Status:** Accepted (agent, 2026-10-21, under the maintainer's grant to decide the open drafts)
 - **Date:** 2026-10-21
 - **Plan reference:** PLAN §4.4, ADR-024, CLAUDE.md "Autonomy", Tier 3
 
@@ -28,7 +28,8 @@ attack reconstruction uses an IP literal.
    right after it, within that string, is none of: the string's edge,
    whitespace, `,`, `;`, `[`, `]`, `(`, `)`, `/`, `@`, `"`, `'`, `=`, `&`,
    `?`, `#`, `|`, `<`, `>`. The last seven bound values in key-value and
-   query strings.
+   query strings. A template element ends at `${`, so an address next to an
+   expression has the element's edge on that side and keeps `unknown`.
 2. **A glued match is `embedded-text`.** Every other bare IPv6 match keeps
    `unknown`: outside any string, in a string with a backslash, in a file that
    did not parse, or with separators on both sides.
@@ -63,3 +64,18 @@ attack reconstruction uses an IP literal.
   because the pattern stops at `::127` in `"2001:4860:4860::127.0.0.1"`, so
   the `.` counted as glued. Both came from judging the regex match instead
   of the whole address, which decision 1 now does. Round 3: APPROVE.
+
+## Why it was accepted
+
+The lowering opens no evasion that is not already free. To use a glued
+address, the code must cut it out of its string at runtime. Splitting the
+address across two strings costs an attacker the same effort and was never
+detected at all, because neither half is a valid address. A glued match
+still reports, at LOW. The alternative, an allowlist entry for markdown-it,
+would leave every other package with minified tables to the same noise.
+
+## How to revert
+
+Return `"unknown"` for every IP row in `detectEndpoints` and delete
+`ipv6ContextAt` and `ipv6GluedContext`. The "(inside a longer string)" wording
+in `signal-differ.ts` then never fires and can go too.
