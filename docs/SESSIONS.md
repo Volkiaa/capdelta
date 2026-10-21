@@ -964,3 +964,38 @@ escapes; worth considering a CI grep for control characters in source files.
   on a known-bad variant exposed that. Never trust a zero from a check that has not first found a planted
   difference.
 - Two IPv6 blocks shared the premise that the regex match is the whole address. Judging the widened token fixed both.
+
+## 2026-10-21 (evening), draft decisions run
+
+The maintainer granted the agent the decision on the three open drafts ("You take the best decisions"). Releases and
+the blog stayed parked.
+
+### 1. What landed
+
+- **#148.** ADR-027 accepted (agent). A bare IPv6 address glued to non-separator text inside a string without escapes
+  is `embedded-text`, so a host seen only that way is LOW. On the held-out corpus only markdown-it changes, two noise
+  findings from HIGH to LOW. Two new tests keep an address next to a template `${` at HIGH, which closes the HANDOFF
+  follow-up: the IP patterns cannot match `$`, `{` or `}`.
+- **#152.** ADR-026 accepted (agent), both sides scanned. URLs in the runtime value of escaped strings are found. All
+  90 held-out reports unchanged. Codex reviewed the rebase onto #148 again: APPROVE.
+- **#154.** ADR-028 option B accepted (agent). `.ts` files are stripped with amaro 1.1.11 (strip-only) and analyzed
+  like JavaScript. `engines` is `>=22`; CI and the `main` ruleset drop Node 20. Held-out: 81 of 90 reports unchanged,
+  no gate pass or fail moves, no finding added, 30 MEDIUM noise findings gone (openai, pino). openai 7.38.0 -> 7.39.0
+  in the CLI: 10 MEDIUM and 879 diagnostics on main, none and 2 after. #147 closed as superseded.
+
+### 2. Half-done and exact resume point
+
+- Nothing is half-done. v0.1.0 and the blog wait on the maintainer.
+
+### 3. ADR status
+
+- ADR-026, ADR-027 and ADR-028 accepted (agent).
+
+### 4. Lessons
+
+- capdelta's own dependency review ran on #154 and reported amaro's 3.8 MB `dist/index.js` as MEDIUM
+  `unparseable-file`: it is over the 2 MB parser limit. The gate passed. The first run failed on an empty `HttpError`
+  from the SARIF upload, and a rerun passed.
+- A strip failure is not always unsupported syntax. karma's `config.tpl.ts` is a template that fails as a syntax error,
+  so the diagnostic says "type stripping rejected" instead of naming a cause.
+- Pin a new dependency to the version the platform already vendors when there is one. amaro 1.2.2 was one day old.
