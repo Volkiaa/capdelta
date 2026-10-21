@@ -1,8 +1,8 @@
 # ADR-029: Keep non-TLD labels that contain an underscore
 
-- **Status:** Proposed
+- **Status:** Accepted (agent, 2026-10-22, Tier 2 under CLAUDE.md "Autonomy")
 - **Date:** 2026-10-22
-- **Plan reference:** PLAN §4.4 (new external domain in literals)
+- **Plan reference:** PLAN §4.4 (new external domain in literals), CLAUDE.md "Autonomy", Tier 2
 
 ## Context
 
@@ -44,3 +44,26 @@ reconstruction proves the HIGH finding end to end.
 Revisit if the held-out corpus shows real noise from underscore hosts. The
 common legitimate cases are service labels such as `_dmarc`, which are not
 usually fetched by package code.
+
+## Evidence
+
+- Runtime: `new URL("https://a_b.evil.test/x").hostname` is `a_b.evil.test`,
+  and `dns.lookup("a_b.localhost")` returns `::1` like `ab.localhost`, so
+  getaddrinfo does not reject the underscore.
+- Reconstruction `underscore-label`: with `src/` at main the test gets no
+  finding; on this branch it gets HIGH `new external domain
+  a_b.exfil.example.test`.
+- Held-out corpus (`scripts/m5-measure.ts run`, 45 pairs): identical to main
+  at ff1a5de, 0 default-gate failures before and after. No new finding to
+  label.
+- CLI replay (`verify-capdelta` replay, 20 drives): byte-identical to
+  `run5-main154`.
+- `npm run difffuzz -- --base origin/main` and `--narrow`: 0 of 500000. The
+  fuzz fragments hold no `_`, so this only shows nothing else moved.
+- Codex security review: APPROVE.
+
+## How to revert
+
+Revert the squash commit. The only behavior change is in
+`publicStyleDomain`; the `underscore-label` reconstruction and its test then
+fail and must be removed with it.
