@@ -171,46 +171,56 @@ function detectEndpoints(
     match = URL_LITERAL_RE.exec(source)
   ) {
     const index = match.index;
-    let value = match[0];
+    const whole = match[0];
     const rangeEnd = rangeEndAt(index);
     // A template element ends at `${`, which the regex does not stop at. An
     // uncut match would take the next element's text into this element's
-    // context and could swallow the next element's URL entirely.
-    if (rangeEnd !== null && index + value.length > rangeEnd) {
-      value = value.slice(0, rangeEnd - index);
+    // context and could swallow the next element's URL, so the cut part keeps
+    // this element's context and scanning resumes at the element's end. The
+    // whole match is kept as "unknown" too, because the runtime string can
+    // still join across the expression (`https://a.test${x}@evil.test/`).
+    const crosses = rangeEnd !== null && index + whole.length > rangeEnd;
+    const candidates: [string, SignalEndpointContext][] = crosses
+      ? [
+          [whole.slice(0, rangeEnd - index), contextAt(index)],
+          [whole, "unknown"],
+        ]
+      : [[whole, contextAt(index)]];
+    URL_LITERAL_RE.lastIndex = crosses ? rangeEnd : index + whole.length;
+    for (const [value, context] of candidates) {
+      // Documentation links in comments are not runtime endpoints; a match
+      // that runs into a comment ("https://x\n" after a label) is not one
+      // either.
+      if (inComment(index, index + value.length)) continue;
+      let parsed: URL;
+      try {
+        parsed = new URL(value);
+      } catch {
+        continue;
+      }
+      const rawHost = parsed.hostname
+        .toLowerCase()
+        .replace(/^\[|\]$/gu, "")
+        .replace(/\.$/u, "");
+      const endpointType = endpointTypeFor(rawHost);
+      const host =
+        endpointType === "domain" ? publicStyleDomain(rawHost) : rawHost;
+      if (host === null) continue;
+      if (endpointType === null || !isExternalHost(host, endpointType))
+        continue;
+      found.push(
+        endpoint(
+          file,
+          host,
+          endpointType,
+          source,
+          starts,
+          index,
+          confidence,
+          context,
+        ),
+      );
     }
-    // Resuming at the element's end scans the next element on its own.
-    URL_LITERAL_RE.lastIndex = index + value.length;
-    // Documentation links in comments are not runtime endpoints; a match that
-    // runs into a comment ("https://x\n" after a label) is not one either.
-    if (inComment(index, index + value.length)) continue;
-    let parsed: URL;
-    try {
-      parsed = new URL(value);
-    } catch {
-      continue;
-    }
-    const rawHost = parsed.hostname
-      .toLowerCase()
-      .replace(/^\[|\]$/gu, "")
-      .replace(/\.$/u, "");
-    const endpointType = endpointTypeFor(rawHost);
-    const host =
-      endpointType === "domain" ? publicStyleDomain(rawHost) : rawHost;
-    if (host === null) continue;
-    if (endpointType === null || !isExternalHost(host, endpointType)) continue;
-    found.push(
-      endpoint(
-        file,
-        host,
-        endpointType,
-        source,
-        starts,
-        index,
-        confidence,
-        contextAt(index),
-      ),
-    );
   }
 
   for (const row of IP_LITERAL_ROWS) {

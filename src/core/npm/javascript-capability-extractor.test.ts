@@ -932,8 +932,16 @@ describe("endpoint context", () => {
       "different hosts on each side",
       "const tag = (p) => fetch(p[1]);\ntag`See https://a.test/${0}https://evil.test/`;",
       [
-        { host: "a.test", context: "embedded-text" },
+        { host: "a.test", context: "unknown" },
         { host: "evil.test", context: "literal" },
+      ],
+    ],
+    [
+      "a URL whose userinfo ends in the next element",
+      "fetch(`https://a.test${0}@evil.test/`);",
+      [
+        { host: "a.test", context: "literal" },
+        { host: "evil.test", context: "unknown" },
       ],
     ],
   ])(
@@ -1052,7 +1060,7 @@ describe("template element boundary (ADR-024)", () => {
     ]);
   });
 
-  it("reports the prose host at LOW and the fetched host at HIGH", async () => {
+  it("reports both hosts at HIGH when the prose URL runs into an expression", async () => {
     const base = await analyze(
       { "index.js": "module.exports = 1;\n" },
       "2.0.0",
@@ -1070,12 +1078,12 @@ describe("template element boundary (ADR-024)", () => {
       expect.objectContaining({
         kind: "new-external-endpoint",
         severity: "HIGH",
-        detail: "new external domain evil.test",
+        detail: "new external domain a.test",
       }),
       expect.objectContaining({
         kind: "new-external-endpoint",
-        severity: "LOW",
-        detail: "new external domain a.test (mentioned in text)",
+        severity: "HIGH",
+        detail: "new external domain evil.test",
       }),
     ]);
   });
