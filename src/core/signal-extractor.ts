@@ -541,7 +541,9 @@ function containingStringRange(
   return range !== undefined && range[1] > start ? range : undefined;
 }
 
-const IPV6_SEPARATOR_RE = /[\s,;[\]()/@"']/u;
+// `%` starts a zone ID that Node accepts as part of the address, and `=`, `&`,
+// `?`, `#` and `|` bound a value in key-value and query strings.
+const IPV6_SEPARATOR_RE = /[\s,;[\]()/@"'%=&?#|<>]/u;
 
 function isIpv6Separator(char: string): boolean {
   return char === "" || IPV6_SEPARATOR_RE.test(char);

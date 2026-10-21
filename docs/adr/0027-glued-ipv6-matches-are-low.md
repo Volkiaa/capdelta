@@ -22,7 +22,10 @@ attack reconstruction uses an IP literal.
    element whose raw content holds no backslash, the match is "glued" when the
    character right before it or right after it, within that string, is none
    of: the string's edge, whitespace, `,`, `;`, `[`, `]`, `(`, `)`, `/`, `@`,
-   `"`, `'`.
+   `"`, `'`, `%`, `=`, `&`, `?`, `#`, `|`, `<`, `>`. `%` starts a zone ID,
+   which Node accepts as part of the address
+   (`"2001:4860:4860::8888%eth0"`), and the others bound values in key-value
+   and query strings.
 2. **A glued match is `embedded-text`.** Every other bare IPv6 match keeps
    `unknown`: outside any string, in a string with a backslash, in a file that
    did not parse, or with separators on both sides.
