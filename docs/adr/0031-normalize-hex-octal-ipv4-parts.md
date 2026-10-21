@@ -1,6 +1,6 @@
 # ADR-031: Normalize a hex or octal part in a bare dotted IPv4 host
 
-- **Status:** Proposed
+- **Status:** Accepted (agent, 2026-10-22, Tier 2 under CLAUDE.md "Autonomy")
 - **Date:** 2026-10-22
 - **Plan reference:** PLAN §4.4, CLAUDE.md "Autonomy", Tier 2
 
@@ -82,4 +82,25 @@ getaddrinfo (`93.184.216.28`, `93.184.216.34`, `93.184.216.34` and
 
 ## Evidence
 
-The orchestrator fills in the verification and corpus evidence.
+- Runtime: `dns.lookup(h, { family: 4 })` resolves `93.0xb8.216.34`,
+  `0135.0270.0330.042`, `93.184.216.00000000000000000042` and
+  `0x0000005d.184.216.34` to `93.184.216.34`, without a network packet for
+  a numeric host.
+- Reconstruction `ipv4-octal-hex`: with `src/core/signal-extractor.ts` at
+  main the bump gets no finding; on this branch it gets HIGH `new external
+ipv4 93.184.216.34`.
+- Held-out corpus (`scripts/m5-measure.ts run`, 45 pairs): identical to
+  main, 0 default-gate failures before and after.
+- CLI replay (`verify-capdelta` replay, 20 drives): byte-identical to
+  `run5-main154`.
+- `npm run difffuzz -- --base origin/main` and `--narrow`: 0 of 500000. The
+  fuzz fragments hold no dotted numeric token, so this only shows nothing
+  else moved.
+- Codex security review: APPROVE on round 1, and APPROVE on round 2 after
+  the orchestrator found that the four-digit part cap was itself a bypass
+  (zero padding).
+
+## How to revert
+
+Revert the squash commit. Only the second IPv4 row and its normalizer go;
+remove the `ipv4-octal-hex` reconstruction and its test with it.
