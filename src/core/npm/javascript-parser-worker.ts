@@ -4,6 +4,7 @@ import { fullAncestor } from "acorn-walk";
 import type {
   CommentRange,
   ParserDetection,
+  ParserReadyMessage,
   ParserRequest,
   ParserResponse,
   StringRange,
@@ -759,3 +760,5 @@ if (port === null) throw new Error("parser worker requires a parent port");
 port.on("message", (request: ParserRequest) => {
   port.postMessage(analyze(request));
 });
+const ready: ParserReadyMessage = { type: "ready" };
+port.postMessage(ready);

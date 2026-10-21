@@ -37,3 +37,10 @@ export interface ParserFailure {
 }
 
 export type ParserResponse = ParserSuccess | ParserFailure;
+
+/** Posted once, after the worker registers its message listener. */
+export interface ParserReadyMessage {
+  type: "ready";
+}
+
+export type ParserWorkerMessage = ParserReadyMessage | ParserResponse;

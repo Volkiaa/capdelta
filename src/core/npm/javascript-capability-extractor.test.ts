@@ -1,6 +1,15 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import {
+  cp,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 import { diffManifestCapabilities } from "../capability-differ.js";
 import {
@@ -974,5 +983,134 @@ describe("destination swap inside text (ADR-024 boundary)", () => {
 
     expect(diff.findings).toEqual([]);
     expect(diff.signalFindings).toEqual([]);
+  });
+});
+
+// The copied files keep sourceMappingURL comments after the maps are dropped.
+// Leaving them in makes Vite log a stack trace for every imported module.
+async function stripSourceMapComments(directory: string): Promise<void> {
+  for (const file of await readdir(directory, { recursive: true })) {
+    if (!file.endsWith(".js")) continue;
+    const path = join(directory, file);
+    const source = await readFile(path, "utf8");
+    await writeFile(path, source.replace(/^\/\/# sourceMappingURL=.*$/gmu, ""));
+  }
+}
+
+// The built tree is copied so the test can break only the copy's worker. The
+// copy is a different module instance, so compare errors by name, not class.
+describe("extractNpmJavaScriptCapabilities worker start (ADR-025)", () => {
+  const repoRoot = resolve(import.meta.dirname, "../../..");
+
+  async function withCopiedExtractor(
+    prepareWorker: (workerPath: string) => Promise<void>,
+    run: (extract: (root: string) => Promise<unknown>) => Promise<void>,
+  ): Promise<void> {
+    const root = await mkdtemp(join(tmpdir(), "capdelta-worker-test-"));
+    try {
+      await cp(join(repoRoot, "dist", "core"), join(root, "dist", "core"), {
+        recursive: true,
+        filter: (source) => !source.endsWith(".map"),
+      });
+      await stripSourceMapComments(join(root, "dist", "core"));
+      await writeFile(
+        join(root, "package.json"),
+        JSON.stringify({ type: "module" }),
+      );
+      await prepareWorker(
+        join(root, "dist", "core", "npm", "javascript-parser-worker.js"),
+      );
+      const module = (await import(
+        pathToFileURL(
+          join(
+            root,
+            "dist",
+            "core",
+            "npm",
+            "javascript-capability-extractor.js",
+          ),
+        ).href
+      )) as {
+        extractNpmJavaScriptCapabilities: typeof extractNpmJavaScriptCapabilities;
+      };
+      await run((packageRoot) =>
+        module.extractNpmJavaScriptCapabilities(
+          { root: packageRoot },
+          manifestSet,
+        ),
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  }
+
+  it.each([
+    [
+      "is missing",
+      async (workerPath: string): Promise<void> => {
+        await rm(workerPath);
+      },
+    ],
+    [
+      "throws while loading",
+      async (workerPath: string): Promise<void> => {
+        await writeFile(workerPath, 'throw new Error("broken");\n');
+      },
+    ],
+  ])("fails the run when the worker %s", async (_label, prepareWorker) => {
+    await withCopiedExtractor(prepareWorker, async (extract) => {
+      await withPackage(
+        { "index.js": "module.exports = 1;\n" },
+        async (root) => {
+          const error: unknown = await extract(root).then(
+            () => undefined,
+            (caught: unknown) => caught,
+          );
+          expect(error).toBeInstanceOf(Error);
+          expect((error as Error).name).toBe(
+            "JavaScriptCapabilityExtractorConfigurationError",
+          );
+          expect((error as Error).message).toMatch(
+            /^JavaScript parser worker failed to start/u,
+          );
+          expect((error as Error).cause).toBeInstanceOf(Error);
+        },
+      );
+    });
+  });
+
+  it("keeps a worker crash while parsing as an unparseable-source diagnostic", async () => {
+    await withCopiedExtractor(
+      async (workerPath) => {
+        await writeFile(
+          workerPath,
+          [
+            'import { parentPort } from "node:worker_threads";',
+            'parentPort.on("message", () => {',
+            '  throw new Error("crash after ready");',
+            "});",
+            'parentPort.postMessage({ type: "ready" });',
+            "",
+          ].join("\n"),
+        );
+      },
+      async (extract) => {
+        await withPackage(
+          { "index.js": "module.exports = 1;\n" },
+          async (root) => {
+            const result = (await extract(root)) as Awaited<
+              ReturnType<typeof extractNpmJavaScriptCapabilities>
+            >;
+            expect(result.diagnostics).toEqual([
+              {
+                kind: "unparseable-source",
+                detail: "JavaScript parser worker failed: Error",
+                evidence: [{ file: "index.js", line: 1, snippet: "" }],
+              },
+            ]);
+          },
+        );
+      },
+    );
   });
 });
