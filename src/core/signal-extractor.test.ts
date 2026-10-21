@@ -137,8 +137,9 @@ describe("signal extractor", () => {
 
     it.each([
       ["a template placeholder", "x = 'http://$addr/';"],
+      ["a placeholder in a label", "x = 'https://a$b.example.com/';"],
       ["a single-label host", "x = 'https://@fs/path';"],
-      ["an underscore label", "x = 'https://a_b.example.com/';"],
+      ["an underscore in the TLD", "x = 'https://example.co_m/';"],
       ["a numeric TLD", "x = 'https://example.123/';"],
       ["a bare punycode TLD", "x = 'https://example.xn--/';"],
       ["an oversized domain", `x = 'https://${"a.".repeat(130)}com/';`],
@@ -172,6 +173,16 @@ describe("signal extractor", () => {
         "reserved test TLD",
         "x = 'https://c2.example.test/';",
         "c2.example.test",
+      ],
+      [
+        "an underscore label",
+        "x = 'https://a_b.example.com/';",
+        "a_b.example.com",
+      ],
+      [
+        "an underscore at the start of a label",
+        "x = 'https://_dmarc.example.com/';",
+        "_dmarc.example.com",
       ],
     ])("keeps %s", (_label, text, expected) => {
       expect(hosts(text)).toEqual([expected]);

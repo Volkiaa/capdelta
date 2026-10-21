@@ -1,0 +1,17 @@
+{
+  "name": "reconstruction-project",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "name": "reconstruction-project",
+      "version": "1.0.0"
+    },
+    "node_modules/capdelta-fixture-underscore-label": {
+      "version": "1.0.0",
+      "resolved": "https://registry.npmjs.org/capdelta-fixture-underscore-label/-/capdelta-fixture-underscore-label-1.0.0.tgz",
+      "integrity": "sha512-z+gU5VGsZqECrslIohXiOVs8RSKb2UFWwWu35diiWnPyzqETHMqCAJ5t/AVwhOHWFLvR5gOgfgnUOCYaqNNubQ=="
+    }
+  }
+}

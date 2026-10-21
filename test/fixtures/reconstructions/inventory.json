@@ -196,6 +196,24 @@
           "head": ["escaped-url-1.0.1"]
         }
       }
+    },
+    {
+      "name": "underscore-label",
+      "title": "Synthetic underscore-label endpoint (not a historical incident)",
+      "date": "n/a: regression for ADR-029",
+      "sources": [
+        "https://www.rfc-editor.org/rfc/rfc1035#section-2.3.1",
+        "https://url.spec.whatwg.org/#host-parsing"
+      ],
+      "kept": "The 1.0.1 bump changes the fetched host from cdn.example.test to a_b.exfil.example.test. URL parsing keeps the underscore, and DNS resolves a label that contains one.",
+      "omitted": "Everything else: the package is a minimal synthetic stand-in. run() is never called and the reserved .example.test hosts are never contacted.",
+      "expected": "ADR-029 keeps underscore characters in non-TLD labels, so the bump reports a HIGH new-external-endpoint for a_b.exfil.example.test and the default HIGH gate fails.",
+      "scenarios": {
+        "attack": {
+          "base": ["underscore-label-1.0.0"],
+          "head": ["underscore-label-1.0.1"]
+        }
+      }
     }
   ]
 }

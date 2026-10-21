@@ -489,11 +489,16 @@ function evidenceAt(
 }
 
 const DOMAIN_LABEL_RE = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/u;
+// DNS allows any octet in a label, so getaddrinfo resolves `a_b.example.test`.
+// An attacker controls their own zone's records, so dropping the host would
+// hide a reachable endpoint. The TLD keeps the stricter rule above.
+const NON_TLD_DOMAIN_LABEL_RE = /^[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9_])?$/u;
 const MAX_DOMAIN_LENGTH = 253;
 
 /**
  * Public-style hostname heuristic (not a DNS definition): at least two
- * labels, LDH labels, and an alphabetic or punycode TLD. It drops lexical
+ * labels, letter-digit-hyphen or underscore non-TLD labels, and an
+ * alphabetic or punycode TLD. It drops lexical
  * artifacts the URL parser accepts ("$addr", "fs") and narrows coverage to
  * public-looking names; single-label hosts are deliberately not reported.
  * One recovery retries after trimming trailing punctuation, so a markdown
@@ -515,7 +520,15 @@ function isPublicStyleDomain(host: string): boolean {
   const labels = host.split(".");
   const tld = labels.at(-1);
   if (labels.length < 2 || tld === undefined) return false;
-  if (!labels.every((label) => DOMAIN_LABEL_RE.test(label))) return false;
+  if (
+    !labels.every((label, index) =>
+      index === labels.length - 1
+        ? DOMAIN_LABEL_RE.test(label)
+        : NON_TLD_DOMAIN_LABEL_RE.test(label),
+    )
+  ) {
+    return false;
+  }
   return /^[a-z]+$/u.test(tld) || /^xn--[a-z0-9-]+$/u.test(tld);
 }
 
