@@ -1,8 +1,8 @@
 # ADR-030: Analyze .mts, .cts and extensionless Node scripts
 
-- **Status:** Proposed
+- **Status:** Accepted (agent, 2026-10-22, Tier 2 under CLAUDE.md "Autonomy")
 - **Date:** 2026-10-22
-- **Plan reference:** PLAN §2 (degrade loudly), §4 (capability extraction)
+- **Plan reference:** PLAN §2 (degrade loudly), §4 (capability extraction), CLAUDE.md "Autonomy", Tier 2
 
 ## Context
 
@@ -64,3 +64,27 @@ two kinds of runnable code:
   widen the probe if a real package needs it.
 - Revisit if Node changes how it detects the module form of extensionless
   files or stops running `.mts` and `.cts`.
+
+## Evidence
+
+- Reconstruction `file-kinds`: with the extractor at main the bump gets no
+  finding; on this branch it gets HIGH `new external domain
+exfil.example.test` from the new `bin/cli`.
+- Held-out corpus (`scripts/m5-measure.ts run`, 45 pairs): 0 default-gate
+  failures before and after. One new MEDIUM in pino 10.3.1 -> 10.4.0:
+  `test/types/pino-import.tst.cts` is now read and type stripping rejects
+  it, so it is `unsupported`. Labelled noise (a type test file), and it does
+  not reach the default gate.
+- CLI replay (`verify-capdelta` replay, 20 drives): byte-identical to
+  `run5-main154`.
+- `npm run difffuzz -- --base origin/main` and `--narrow`: 0 of 500000.
+  The fuzzer drives the signal extractor only, so it cannot see file
+  selection.
+- Codex security review: BLOCK on round 1 (a file named `.js` lost its
+  extension and was skipped), APPROVE on round 2 after the extension came
+  from the basename.
+
+## How to revert
+
+Revert the squash commit. File selection returns to `.js`, `.mjs`, `.cjs`
+and `.ts`; remove the `file-kinds` reconstruction and its test with it.
