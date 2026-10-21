@@ -246,7 +246,7 @@ type ManifestPreflightResult =
 
 type SideAnalysisResult = SideAnalysisSuccess | SideAnalysisFailure;
 
-const DEFAULT_ADAPTERS: CapabilityAnalysisAdapters = {
+export const DEFAULT_ADAPTERS: CapabilityAnalysisAdapters = {
   fetch: fetchChangedPackages,
   extract: extractVerifiedTarball,
   extractManifestOnly: extractVerifiedManifest,
