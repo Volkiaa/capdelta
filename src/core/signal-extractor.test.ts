@@ -302,6 +302,39 @@ describe("signal aggregation", () => {
     expect(performance.now() - started).toBeLessThan(3_000);
   });
 
+  it("scans a template of many joined URL elements in linear time", () => {
+    const element = "https://evil.test/${x}";
+    const body = element.repeat(16_000);
+    const ranges: [number, number, boolean][] = [];
+    const open = "f(`".length;
+    for (let i = 0; i < 16_000; i += 1) {
+      const start = open + i * element.length;
+      ranges.push([start, start + "https://evil.test/".length, false]);
+    }
+    const text = `f(\`${body}\`);`;
+
+    const started = performance.now();
+    const [endpoint] = buildSignalSet([
+      observeSignalSource({
+        file: "a.js",
+        bytes: new TextEncoder().encode(text),
+        parseState: "parsed",
+        stringRanges: ranges,
+      }),
+    ]).endpoints;
+
+    expect(endpoint?.normalizedValue).toBe("evil.test");
+    expect(performance.now() - started).toBeLessThan(3_000);
+  });
+
+  it("still reports a URL with extra leading slashes", () => {
+    expect(
+      buildSignalSet([
+        source("a.js", 'f("https:///evil.test/x");', "unparseable"),
+      ]).endpoints.map(({ normalizedValue }) => normalizedValue),
+    ).toEqual(["evil.test"]);
+  });
+
   it("merges thousands of matches for one host in linear time", () => {
     const text = Array.from(
       { length: 20_000 },

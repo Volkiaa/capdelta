@@ -21,7 +21,11 @@ export const HIGH_ENTROPY_MILLIBITS = 6_500 as const;
 export const MIN_OBFUSCATION_ARRAY_ELEMENTS = 8 as const;
 
 const MAX_EVIDENCE_SNIPPET = 240;
-const URL_LITERAL_RE = /\b(?:https?|wss?):\/\/[^\s"'`<>\\]+/gu;
+// Only the scheme and authority decide the host, so a match stops at the first
+// "/", "?" or "#" after it. That keeps every match short, so rescanning after
+// a template element boundary costs one authority, never the rest of the file.
+// Extra leading slashes are kept: "https:///evil.test" still reaches evil.test.
+const URL_LITERAL_RE = /\b(?:https?|wss?):\/\/\/*[^\s"'`<>\\/?#]+/gu;
 const IP_LITERAL_ROWS = [
   {
     pattern: /\b(?:\d{1,3}\.){3}\d{1,3}\b/gu,
