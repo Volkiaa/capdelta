@@ -849,3 +849,21 @@ describe("synthetic underscore-label endpoint (ADR-029)", () => {
     expect(evaluateSeverityGate(result.report, "HIGH").fail).toBe(true);
   });
 });
+
+
+describe("synthetic extensionless Node bin script (ADR-029)", () => {
+  it("reports the host fetched by the new bin script as a new HIGH endpoint", async () => {
+    const result = await runScenario("file-kinds", "attack");
+    expectAllAnalyzed(result, 1);
+    const report = packageReport(result.report, "capdelta-fixture-file-kinds");
+
+    expect(report.signalFindings).toEqual([
+      expect.objectContaining({
+        kind: "new-external-endpoint",
+        severity: "HIGH",
+        detail: "new external domain exfil.example.test",
+      }),
+    ]);
+    expect(evaluateSeverityGate(result.report, "HIGH").fail).toBe(true);
+  });
+});

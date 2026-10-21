@@ -1,0 +1,8 @@
+{
+  "name": "capdelta-fixture-file-kinds",
+  "version": "1.0.1",
+  "main": "index.js",
+  "bin": {
+    "capdelta-fixture-file-kinds": "bin/cli"
+  }
+}
