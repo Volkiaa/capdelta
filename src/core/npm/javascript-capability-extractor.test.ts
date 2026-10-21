@@ -16,6 +16,8 @@ import {
   CAPABILITY_SET_SCHEMA_VERSION,
   type CapabilitySet,
 } from "../contract/capability-set.js";
+import { diffSignals } from "../signal-differ.js";
+import { emptySignalSet } from "../signal-extractor.js";
 import {
   JavaScriptCapabilityExtractorConfigurationError,
   JavaScriptCapabilityExtractorError,
@@ -950,6 +952,121 @@ describe("endpoint context", () => {
       expect(await endpointsOf({ "index.js": text })).toEqual(expected);
     },
   );
+});
+
+describe("bare IPv6 context (ADR-027)", () => {
+  async function findingsOf(files: Record<string, string>) {
+    let findings: ReturnType<typeof diffSignals> = [];
+    await withPackage(files, async (root) => {
+      const result = await extractNpmJavaScriptCapabilities(
+        { root },
+        manifestSet,
+      );
+      findings = diffSignals(null, result.signals ?? emptySignalSet()).filter(
+        (finding) => finding.kind === "new-external-endpoint",
+      );
+    });
+    return findings;
+  }
+
+  it("reports a new host glued inside text at LOW", async () => {
+    const findings = await findingsOf({
+      "index.js": 'const data = "prefix =C::9bb~ suffix";',
+    });
+
+    expect(findings).toEqual([
+      expect.objectContaining({
+        kind: "new-external-endpoint",
+        severity: "LOW",
+        detail: "new external ipv6 c::9bb (inside a longer string)",
+      }),
+    ]);
+  });
+
+  it.each([
+    ["a whole-string literal", 'const a = "2001:db8::1";'],
+    ["a bracketed host and port", 'const a = "[2001:db8::1]:443";'],
+    ["a comma-separated list", 'const a = "2001:db8::1,2001:db8::2";'],
+    [
+      "a zone ID",
+      'net.connect({ host: "2001:4860:4860::8888%eth0", port: 443 });',
+    ],
+    ["a key-value string", 'const a = "host=2001:4860:4860::8888&port=443";'],
+    ["a dotted IPv4 tail", 'const host = "2001:4860:4860::127.0.0.1";'],
+    ["a sentence", 'const a = "connect to 2001:db8::1 now";'],
+    [
+      "an address before a template expression",
+      "const a = `2001:4860:4860::8888${port}`;",
+    ],
+    [
+      "an address after a template expression",
+      "const a = `${prefix}2001:4860:4860::8888`;",
+    ],
+  ])("keeps %s at HIGH", async (_label, source) => {
+    const findings = await findingsOf({ "index.js": source });
+
+    expect(findings.length).toBeGreaterThan(0);
+    expect(findings.every((finding) => finding.severity === "HIGH")).toBe(true);
+    expect(
+      findings.some((finding) => finding.detail.includes("inside a longer")),
+    ).toBe(false);
+  });
+
+  it("keeps a glued match in a string that holds a backslash at HIGH", async () => {
+    const findings = await findingsOf({
+      "index.js": 'const data = "prefix =C::9bb~ suffix\\n";',
+    });
+
+    expect(findings).toEqual([
+      expect.objectContaining({
+        kind: "new-external-endpoint",
+        severity: "HIGH",
+        detail: "new external ipv6 c::9bb",
+      }),
+    ]);
+  });
+
+  it("keeps a glued match in a file that does not parse at HIGH", async () => {
+    const findings = await findingsOf({
+      "index.js": 'const data = "prefix =C::9bb~ suffix";\nconst = ;\n',
+    });
+
+    expect(findings).toEqual([
+      expect.objectContaining({
+        kind: "new-external-endpoint",
+        severity: "HIGH",
+      }),
+    ]);
+  });
+
+  it("keeps a host glued in one file and whole in another at HIGH", async () => {
+    const findings = await findingsOf({
+      "index.js": 'const a = "x2001:db8::1y";',
+      "other.js": 'const b = "2001:db8::1";',
+    });
+
+    expect(findings).toEqual([
+      expect.objectContaining({
+        kind: "new-external-endpoint",
+        severity: "HIGH",
+        detail: "new external ipv6 2001:db8::1",
+      }),
+    ]);
+  });
+
+  it("keeps a glued IPv4 match at HIGH", async () => {
+    const findings = await findingsOf({
+      "index.js": 'const data = "prefix =1.2.3.4~ suffix";',
+    });
+
+    expect(findings).toEqual([
+      expect.objectContaining({
+        kind: "new-external-endpoint",
+        severity: "HIGH",
+        detail: "new external ipv4 1.2.3.4",
+      }),
+    ]);
+  });
 });
 
 // ADR-024 Consequences: these two cases document the destination-swap boundary

@@ -150,15 +150,21 @@ function endpointKey(endpoint: SignalEndpointObservation): string {
 /**
  * ADR-024: a host seen only inside prose stays in the report, but at LOW. Any
  * literal or unparsed occurrence keeps HIGH (strongest context wins during
- * extraction), and only the new side's context decides.
+ * extraction), and only the new side's context decides. ADR-027 keeps the rule
+ * for IPv6 and names the longer string in the detail.
  */
 function endpointFinding(endpoint: SignalEndpointObservation): SignalFinding {
   const mentionedInText = endpoint.context === "embedded-text";
+  const mention = mentionedInText
+    ? endpoint.endpointType === "ipv6"
+      ? " (inside a longer string)"
+      : " (mentioned in text)"
+    : "";
   return {
     kind: "new-external-endpoint",
     severity: mentionedInText ? "LOW" : "HIGH",
     change: "added",
-    detail: `new external ${endpoint.endpointType} ${endpoint.normalizedValue}${mentionedInText ? " (mentioned in text)" : ""}`,
+    detail: `new external ${endpoint.endpointType} ${endpoint.normalizedValue}${mention}`,
     evidence: endpoint.evidence,
   };
 }
