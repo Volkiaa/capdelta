@@ -17,15 +17,18 @@ attack reconstruction uses an IP literal.
 
 ## Decision
 
-1. **Look at the characters around a bare IPv6 match inside a string.** In a
-   file that parsed, when the match lies inside a string literal or template
-   element whose raw content holds no backslash, the match is "glued" when the
-   character right before it or right after it, within that string, is none
-   of: the string's edge, whitespace, `,`, `;`, `[`, `]`, `(`, `)`, `/`, `@`,
-   `"`, `'`, `%`, `=`, `&`, `?`, `#`, `|`, `<`, `>`. `%` starts a zone ID,
-   which Node accepts as part of the address
-   (`"2001:4860:4860::8888%eth0"`), and the others bound values in key-value
-   and query strings.
+1. **Look at the characters around the whole address.** In a file that
+   parsed, when the match lies inside a string literal or template element
+   whose raw content holds no backslash, first widen it to the run of hex
+   digits, `:` and `.` around it. The pattern can stop inside an address Node
+   accepts, as in `"2001:4860:4860::127.0.0.1"`, so the match alone is never
+   judged. If that run is not a valid IPv6 address, or a `%` (a zone ID, as in
+   `"2001:4860:4860::8888%eth0"`) follows it, the match keeps `unknown`.
+   Otherwise the address is "glued" when the character right before it or
+   right after it, within that string, is none of: the string's edge,
+   whitespace, `,`, `;`, `[`, `]`, `(`, `)`, `/`, `@`, `"`, `'`, `=`, `&`,
+   `?`, `#`, `|`, `<`, `>`. The last seven bound values in key-value and
+   query strings.
 2. **A glued match is `embedded-text`.** Every other bare IPv6 match keeps
    `unknown`: outside any string, in a string with a backslash, in a file that
    did not parse, or with separators on both sides.

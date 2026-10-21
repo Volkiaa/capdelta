@@ -992,6 +992,7 @@ describe("bare IPv6 context (ADR-027)", () => {
       'net.connect({ host: "2001:4860:4860::8888%eth0", port: 443 });',
     ],
     ["a key-value string", 'const a = "host=2001:4860:4860::8888&port=443";'],
+    ["a dotted IPv4 tail", 'const host = "2001:4860:4860::127.0.0.1";'],
     ["a sentence", 'const a = "connect to 2001:db8::1 now";'],
   ])("keeps %s at HIGH", async (_label, source) => {
     const findings = await findingsOf({ "index.js": source });

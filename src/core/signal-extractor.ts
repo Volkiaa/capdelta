@@ -94,8 +94,8 @@ export function observeSignalSource(input: SignalSourceInput): {
   const contextAt =
     stringRanges?.contextAt ?? ((): SignalEndpointContext => "unknown");
   const rangeEndAt = stringRanges?.rangeEndAt ?? ((): number | null => null);
-  const rangeAt =
-    stringRanges?.rangeAt ?? ((): StringRange | undefined => undefined);
+  const ipv6ContextAt =
+    stringRanges?.ipv6ContextAt ?? ((): SignalEndpointContext => "unknown");
   const endpoints = detectEndpoints(
     input.file,
     source,
@@ -104,7 +104,7 @@ export function observeSignalSource(input: SignalSourceInput): {
     inComment,
     contextAt,
     rangeEndAt,
-    rangeAt,
+    ipv6ContextAt,
   );
   const obfuscationPatterns = detectObfuscationPatterns(
     input.file,
@@ -168,7 +168,7 @@ function detectEndpoints(
   inComment: (start: number, end: number) => boolean,
   contextAt: (start: number) => SignalEndpointContext,
   rangeEndAt: (start: number) => number | null,
-  rangeAt: (start: number) => StringRange | undefined,
+  ipv6ContextAt: (start: number, end: number) => SignalEndpointContext,
 ): SignalEndpointObservation[] {
   const found: SignalEndpointObservation[] = [];
   // The regex is global, so it carries lastIndex between calls. Reset it and
@@ -272,7 +272,7 @@ function detectEndpoints(
           confidence,
           // ADR-027 classifies bare IPv6 by its string; IPv4 keeps "unknown".
           row.family === 6
-            ? ipv6Context(rangeAt(index), index, index + value.length, source)
+            ? ipv6ContextAt(index, index + value.length)
             : "unknown",
         ),
       );
@@ -483,7 +483,7 @@ function stringRangeLookup(
 ): {
   contextAt: (start: number) => SignalEndpointContext;
   rangeEndAt: (start: number) => number | null;
-  rangeAt: (start: number) => StringRange | undefined;
+  ipv6ContextAt: (start: number, end: number) => SignalEndpointContext;
 } {
   let previousEnd = 0;
   for (const [start, end, valueWords] of ranges) {
@@ -502,6 +502,7 @@ function stringRangeLookup(
     previousEnd = end;
   }
   const contexts = new Map<number, SignalEndpointContext>();
+  const escapeByRange = new Map<number, boolean>();
   return {
     contextAt: (start) => {
       const range = containingStringRange(ranges, start);
@@ -520,7 +521,22 @@ function stringRangeLookup(
       return context;
     },
     rangeEndAt: (start) => containingStringRange(ranges, start)?.[1] ?? null,
-    rangeAt: (start) => containingStringRange(ranges, start),
+    ipv6ContextAt: (start, end) => {
+      const range = containingStringRange(ranges, start);
+      if (range === undefined || end > range[1]) return "unknown";
+      // A backslash anywhere in the raw string keeps the match "unknown", so
+      // an escape cannot lower it. One scan per string: reading the whole
+      // string per match, as the URL context above also avoids, is quadratic.
+      let hasEscape = escapeByRange.get(range[0]);
+      if (hasEscape === undefined) {
+        hasEscape = source.slice(range[0], range[1]).includes("\\");
+        escapeByRange.set(range[0], hasEscape);
+      }
+      if (hasEscape) return "unknown";
+      return ipv6GluedContext(range, start, end, source)
+        ? "embedded-text"
+        : "unknown";
+    },
   };
 }
 
@@ -541,31 +557,52 @@ function containingStringRange(
   return range !== undefined && range[1] > start ? range : undefined;
 }
 
-// `%` starts a zone ID that Node accepts as part of the address, and `=`, `&`,
-// `?`, `#` and `|` bound a value in key-value and query strings.
-const IPV6_SEPARATOR_RE = /[\s,;[\]()/@"'%=&?#|<>]/u;
+// `=`, `&`, `?`, `#` and `|` bound a value in key-value and query strings.
+const IPV6_SEPARATOR_RE = /[\s,;[\]()/@"'=&?#|<>]/u;
+const IPV6_TOKEN_CHAR_RE = /[0-9a-f:.]/iu;
 
 function isIpv6Separator(char: string): boolean {
   return char === "" || IPV6_SEPARATOR_RE.test(char);
 }
 
+// Node accepts at most 45 characters for an address written out, an IPv6
+// address with a dotted IPv4 tail. A longer token cannot be one, so the token
+// scan stops just past that limit: a match in a string that is one long run of
+// hex digits and colons then costs a constant, not the string's length.
+const MAX_IPV6_ADDRESS_LENGTH = 45;
+
 /**
- * ADR-027: a bare IPv6 match inside a parsed string is "embedded-text" when a
- * character other than a separator touches it within that string. A backslash
- * anywhere in the raw string keeps it "unknown", so an escape cannot lower it.
+ * ADR-027: a bare IPv6 match is glued when a character other than a separator
+ * touches its whole address token within the string.
  */
-function ipv6Context(
-  range: StringRange | undefined,
+function ipv6GluedContext(
+  range: StringRange,
   start: number,
   end: number,
   source: string,
-): SignalEndpointContext {
-  if (range === undefined || end > range[1]) return "unknown";
-  if (source.slice(range[0], range[1]).includes("\\")) return "unknown";
-  const before = start > range[0] ? source.charAt(start - 1) : "";
-  const after = end < range[1] ? source.charAt(end) : "";
-  const glued = !isIpv6Separator(before) || !isIpv6Separator(after);
-  return glued ? "embedded-text" : "unknown";
+): boolean {
+  // The pattern can stop inside an address Node accepts, before a dotted IPv4
+  // tail or a zone ID, so judge the whole token, never the match alone.
+  let tokenStart = start;
+  let tokenEnd = end;
+  while (
+    tokenStart > range[0] &&
+    tokenEnd - tokenStart <= MAX_IPV6_ADDRESS_LENGTH &&
+    IPV6_TOKEN_CHAR_RE.test(source.charAt(tokenStart - 1))
+  )
+    tokenStart -= 1;
+  while (
+    tokenEnd < range[1] &&
+    tokenEnd - tokenStart <= MAX_IPV6_ADDRESS_LENGTH &&
+    IPV6_TOKEN_CHAR_RE.test(source.charAt(tokenEnd))
+  )
+    tokenEnd += 1;
+  if (tokenEnd - tokenStart > MAX_IPV6_ADDRESS_LENGTH) return false;
+  if (isIP(source.slice(tokenStart, tokenEnd)) !== 6) return false;
+  const before = tokenStart > range[0] ? source.charAt(tokenStart - 1) : "";
+  const after = tokenEnd < range[1] ? source.charAt(tokenEnd) : "";
+  if (after === "%") return false;
+  return !isIpv6Separator(before) || !isIpv6Separator(after);
 }
 
 /**

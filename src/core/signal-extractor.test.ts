@@ -302,6 +302,24 @@ describe("signal aggregation", () => {
     expect(performance.now() - started).toBeLessThan(3_000);
   });
 
+  it("classifies many IPv6 matches in one parsed string in linear time", () => {
+    const text = `f("${"prefix =c::9bb~ ".repeat(64_000)}");`;
+    const content = text.indexOf('"') + 1;
+
+    const started = performance.now();
+    const [endpoint] = buildSignalSet([
+      observeSignalSource({
+        file: "a.js",
+        bytes: new TextEncoder().encode(text),
+        parseState: "parsed",
+        stringRanges: [[content, text.lastIndexOf('"'), true]],
+      }),
+    ]).endpoints;
+
+    expect(endpoint?.context).toBe("embedded-text");
+    expect(performance.now() - started).toBeLessThan(3_000);
+  });
+
   it("scans a template of many joined URL elements in linear time", () => {
     const element = "https://evil.test/${x}";
     const body = element.repeat(16_000);
