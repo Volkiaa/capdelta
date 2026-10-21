@@ -65,6 +65,36 @@ R="$(.claude/skills/verify-capdelta/bin/scenario esbuild 0.0.12 0.0.13)"
 
 `docs/cli.md` lists every flag, exit code, and allowlist exception.
 
+## Replay
+
+Replays 20 fixed CLI drives against scenario repos created once, then compares
+two recordings byte for byte. It proves that a change moved no CLI output and no
+`summary.gateSeverity`. It does not prove that either build is correct.
+
+```sh
+# Once per machine.
+.claude/skills/verify-capdelta/bin/replay setup
+
+# Run on main.
+npm run build
+.claude/skills/verify-capdelta/bin/replay record base
+
+# Run on the branch.
+npm run build
+.claude/skills/verify-capdelta/bin/replay record head
+
+.claude/skills/verify-capdelta/bin/replay compare base head
+```
+
+`setup` builds the scenario repos under `$HOME/.cache/capdelta-dedupe` and is
+the only step that needs the network. `record` writes evidence to
+`$HOME/.local/state/capdelta-verify/dedupe-<label>`. `compare` prints
+`gateSeverity` and the exit code for each JSON drive, and exits 1 on any
+difference or 2 when a recording is missing.
+
+An intended output change shows up as a difference. Explain it in the PR instead
+of recording the base again to make it match.
+
 ## Evidence
 
 Evidence goes to
@@ -97,6 +127,7 @@ All helpers are executable `bash` with `set -eu`:
 - `bin/doctor` checks the environment and build.
 - `bin/scenario` creates a scratch git repo with a package bump.
 - `bin/drive` runs the CLI in a scenario repo and records evidence.
+- `bin/replay` records and compares two builds over the fixed drive set.
 - `bin/cleanup` removes scratch run dirs and keeps evidence.
 
 The feature map is in `features/README.md`.

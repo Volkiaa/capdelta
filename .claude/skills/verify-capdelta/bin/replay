@@ -1,0 +1,142 @@
+#!/usr/bin/env bash
+# Replays the fixed drive set against the scenario repos and compares two
+# recorded builds. Usage: replay setup | record <label> | compare <base> <head>
+set -eu
+BIN="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(cd "$BIN/../../../.." && pwd)"
+SCRATCH="$HOME/.cache/capdelta-dedupe"
+EVIDENCE="$HOME/.local/state/capdelta-verify"
+SCENARIOS="$SCRATCH/scenarios.env"
+
+usage() {
+  printf 'usage: replay setup | record <label> | compare <base> <head>\n' >&2
+  exit 2
+}
+
+setup() {
+  export TMPDIR="$SCRATCH"
+  export CAPDELTA_VERIFY_RUN_ID="dedupe-scenarios"
+  export CAPDELTA_VERIFY_EVIDENCE="$EVIDENCE"
+  mkdir -p "$TMPDIR" "$CAPDELTA_VERIFY_EVIDENCE/$CAPDELTA_VERIFY_RUN_ID"
+  local allow="$CAPDELTA_VERIFY_EVIDENCE/$CAPDELTA_VERIFY_RUN_ID/husky-allow.yml"
+  cat >"$allow" <<'YML'
+allowlist:
+  - package: husky
+    capability: new-external-endpoint
+    justification: "docs link verified"
+YML
+  local staging="$SCENARIOS.tmp"
+  add() { printf '%s=%q\n' "$1" "$2"; }
+  {
+    add R_ES "$("$BIN/scenario" --run-id dedupe-R_ES esbuild 0.0.12 0.0.13)"
+    add R_UNCH "$("$BIN/scenario" --run-id dedupe-R_UNCH esbuild 0.0.12 0.0.13)"
+    add R_BADUTF "$("$BIN/scenario" --run-id dedupe-R_BADUTF esbuild 0.0.12 0.0.13)"
+    add R_OFF "$("$BIN/scenario" --run-id dedupe-R_OFF --offline corp-pkg 1.0.0 2.0.0)"
+    add R_FIRST "$("$BIN/scenario" --run-id dedupe-R_FIRST --first-run esbuild 0.0.12 0.0.13)"
+    add R_ALLOW "$("$BIN/scenario" --run-id dedupe-R_ALLOW --base-config "$allow" .capdelta.yml husky 5.0.9 5.1.0)"
+    add R_CFG "$("$BIN/scenario" --run-id dedupe-R_CFG --base-config "$allow" cfg/policy.yml husky 5.0.9 5.1.0)"
+    add R_AX "$("$BIN/scenario" --run-id dedupe-R_AX axios 0.27.2 1.0.0)"
+  } >"$staging"
+  mv "$staging" "$SCENARIOS"
+  # shellcheck source=/dev/null
+  . "$SCENARIOS"
+  git -C "$R_UNCH" checkout -- .
+  printf '\xff\xfe{"lockfileVersion":3}\n' >"$R_BADUTF/package-lock.json"
+  cat "$SCENARIOS"
+}
+
+record() {
+  local label="$1"
+  if [ ! -f "$SCENARIOS" ]; then
+    printf 'replay: %s is missing; run: replay setup\n' "$SCENARIOS" >&2
+    exit 2
+  fi
+  if [ ! -f "$ROOT/dist/cli.js" ]; then
+    printf 'replay: %s is missing; run: npm run build\n' "$ROOT/dist/cli.js" >&2
+    exit 2
+  fi
+  export TMPDIR="$SCRATCH"
+  export CAPDELTA_VERIFY_EVIDENCE="$EVIDENCE"
+  # shellcheck source=/dev/null
+  . "$SCENARIOS"
+  RUN="dedupe-$label"
+  rm -rf "${CAPDELTA_VERIFY_EVIDENCE:?}/${RUN:?}"
+  d() {
+    local repo="$1" name="$2"
+    shift 2
+    # A drive exits 1 or 2 on purpose; the recording keeps that exit code.
+    "$BIN/drive" --run-id "$RUN" --repo "$repo" --name "$name" -- "$@" >/dev/null 2>&1 || true
+  }
+  d "$R_ES" es-text --base HEAD
+  d "$R_ES" es-json --base HEAD --format json
+  d "$R_ES" es-high --base HEAD --fail-on HIGH
+  d "$R_ES" es-none-json --base HEAD --format json --fail-on none
+  d "$R_OFF" off-strict --base HEAD --strict
+  d "$R_OFF" off-json --base HEAD --format json
+  d "$R_FIRST" first-text --base HEAD
+  d "$R_FIRST" first-json --base HEAD --format json
+  d "$R_ALLOW" allow-text --base HEAD --fail-on HIGH
+  d "$R_ALLOW" allow-json --base HEAD --format json --fail-on HIGH
+  d "$R_CFG" cfg-text --base HEAD --fail-on HIGH --config cfg/policy.yml
+  d "$R_AX" ax-text --base HEAD --fail-on none
+  d "$R_AX" ax-json --base HEAD --format json --fail-on none
+  d "$R_UNCH" unchanged --base HEAD
+  d "$R_BADUTF" bad-utf8 --base HEAD
+  d "$R_ES" usage-format --base HEAD --format xml
+  d "$R_ES" usage-base-missing --base
+  d "$R_ES" usage-config-missing --base HEAD --config
+  d "$R_ES" usage-config-dup --base HEAD --config a --config b
+  d "$R_ES" usage-base-dup --base HEAD --base HEAD
+  rm -f "$CAPDELTA_VERIFY_EVIDENCE/$RUN"/*.cmd
+  printf '%s\n' "$CAPDELTA_VERIFY_EVIDENCE/$RUN"
+}
+
+compare() {
+  local base="$1" head="$2"
+  local b="$EVIDENCE/dedupe-$base" h="$EVIDENCE/dedupe-$head"
+  local status=0 f name
+  if [ ! -d "$b" ]; then
+    printf 'replay: no recording for %s at %s\n' "$base" "$b" >&2
+    exit 2
+  fi
+  if [ ! -d "$h" ]; then
+    printf 'replay: no recording for %s at %s\n' "$head" "$h" >&2
+    exit 2
+  fi
+  diff -r -x compare.txt "$b" "$h" || status=1
+  for f in "$h"/*json.out; do
+    [ -e "$f" ] || continue
+    name="$(basename "$f" .out)"
+    local severity
+    severity="$(node -e 'const r=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));console.log(JSON.stringify(r.summary?.gateSeverity))' "$f")" || {
+      printf 'replay: cannot read gateSeverity from %s\n' "$f" >&2
+      exit 2
+    }
+    printf '%s exit=%s gateSeverity=%s\n' "$name" "$(cat "$h/$name.exit")" "$severity"
+  done
+  if [ "$status" -eq 0 ]; then
+    printf 'MATCH: %s == %s\n' "$base" "$head"
+  else
+    printf 'MISMATCH: %s != %s\n' "$base" "$head"
+  fi
+  exit "$status"
+}
+
+[ "$#" -ge 1 ] || usage
+CMD="$1"
+shift
+case "$CMD" in
+  setup)
+    [ "$#" -eq 0 ] || usage
+    setup
+    ;;
+  record)
+    [ "$#" -eq 1 ] || usage
+    record "$1"
+    ;;
+  compare)
+    [ "$#" -eq 2 ] || usage
+    compare "$1" "$2"
+    ;;
+  *) usage ;;
+esac
