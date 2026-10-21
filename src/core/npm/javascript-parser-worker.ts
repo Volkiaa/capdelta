@@ -1,9 +1,11 @@
 import { parentPort } from "node:worker_threads";
 import { parse, type Node } from "acorn";
 import { fullAncestor } from "acorn-walk";
+import { transformSync } from "amaro";
 import type {
   CommentRange,
   ParserDetection,
+  ParserFailure,
   ParserReadyMessage,
   ParserRequest,
   ParserResponse,
@@ -14,9 +16,11 @@ import { valueHasWords } from "./url-value-words.js";
 type LocatedNode = Node & { start: number };
 
 function analyze(request: ParserRequest): ParserResponse {
+  const stripped = stripTypeScript(request);
+  if (!stripped.ok) return stripped.failure;
   try {
-    const { ast, comments } = parseSource(request);
-    const resolver = new BindingResolver(ast, request.source);
+    const { ast, comments } = parseSource(stripped.source, request.sourceType);
+    const resolver = new BindingResolver(ast, stripped.source);
     return {
       ok: true,
       detections: detectCapabilities(resolver, request.source),
@@ -32,11 +36,54 @@ function analyze(request: ParserRequest): ParserResponse {
         : 1;
     return {
       ok: false,
+      reason: "syntax",
       detail: `JavaScript parse failed: ${errorName(error)}`,
       line,
       snippet: sourceLine(request.source, line),
     };
   }
+}
+
+type StrippedSource =
+  { ok: true; source: string } | { ok: false; failure: ParserFailure };
+
+/**
+ * Strip-only mode replaces each type with whitespace, so the stripped code has
+ * the same length and line breaks as the source. A different length would move
+ * every later offset, so it is rejected rather than parsed.
+ */
+function stripTypeScript(request: ParserRequest): StrippedSource {
+  if (request.language !== "typescript") {
+    return { ok: true, source: request.source };
+  }
+  let stripped: string;
+  try {
+    stripped = transformSync(request.source, { mode: "strip-only" }).code;
+  } catch (error: unknown) {
+    return {
+      ok: false,
+      failure: {
+        ok: false,
+        reason: "unsupported-typescript",
+        detail: `TypeScript type stripping failed: ${stripErrorDetail(error)}`,
+        line: 1,
+        snippet: sourceLine(request.source, 1),
+      },
+    };
+  }
+  if (stripped.length !== request.source.length) {
+    return {
+      ok: false,
+      failure: {
+        ok: false,
+        reason: "unsupported-typescript",
+        detail: `TypeScript type stripping changed the source length from ${String(request.source.length)} to ${String(stripped.length)}`,
+        line: 1,
+        snippet: sourceLine(request.source, 1),
+      },
+    };
+  }
+  return { ok: true, source: stripped };
 }
 
 interface NodeVisit {
@@ -675,24 +722,27 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
-function parseSource(request: ParserRequest): {
+function parseSource(
+  source: string,
+  sourceType: ParserRequest["sourceType"],
+): {
   ast: Node;
   comments: CommentRange[];
 } {
-  const attempt = (sourceType: "module" | "script") => {
+  const attempt = (next: "module" | "script") => {
     const comments: CommentRange[] = [];
-    const ast = parse(request.source, {
+    const ast = parse(source, {
       ecmaVersion: "latest",
       allowHashBang: true,
       locations: true,
-      sourceType,
+      sourceType: next,
       onComment: (_block, _text, start, end) => {
         comments.push([start, end]);
       },
     });
     return { ast, comments };
   };
-  if (request.sourceType !== "either") return attempt(request.sourceType);
+  if (sourceType !== "either") return attempt(sourceType);
   try {
     return attempt("module");
   } catch {
@@ -797,6 +847,13 @@ function errorName(error: unknown): string {
   return error instanceof Error
     ? `${error.name}: ${error.message}`
     : typeof error;
+}
+
+/** Amaro's wasm errors carry a message but do not extend Error. */
+function stripErrorDetail(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  const message = asRecord(error)?.message;
+  return typeof message === "string" ? message : errorName(error);
 }
 
 const port = parentPort;

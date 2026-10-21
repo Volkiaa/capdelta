@@ -69,7 +69,16 @@ describe("Action package", () => {
             worker.postMessage({
               source: "process.env.TEST;",
               file: "second.js",
+              language: "javascript",
               sourceType: "script",
+            });
+          } else if (received.length === 2) {
+            worker.postMessage({
+              source:
+                'const url: string = "https://example.test";\nfetch(url);\n',
+              file: "third.ts",
+              language: "typescript",
+              sourceType: "either",
             });
           } else {
             resolveResponse(received);
@@ -79,6 +88,7 @@ describe("Action package", () => {
         worker.postMessage({
           source: "fetch('https://example.test');",
           file: "fixture.js",
+          language: "javascript",
           sourceType: "script",
         });
       },
@@ -91,6 +101,10 @@ describe("Action package", () => {
     expect(responses[1]).toMatchObject({
       ok: true,
       detections: [{ kind: "ENV", line: 1 }],
+    });
+    expect(responses[2]).toMatchObject({
+      ok: true,
+      detections: [{ kind: "NET", line: 2 }],
     });
   });
 });

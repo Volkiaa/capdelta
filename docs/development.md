@@ -13,7 +13,7 @@ attack reconstructions cover documented incidents
 `npx vitest run <golden test file> -u` to rewrite the `expected-*` files, then
 review the diff. Put `-u` after the test file path because vitest reads the next
 argument as the update type.
-CI executes the suite on Node.js 20, 22, and 24 and verifies that the committed
+CI executes the suite on Node.js 22 and 24 and verifies that the committed
 Action bundle is reproducible.
 
 ## Updating bundled dependencies

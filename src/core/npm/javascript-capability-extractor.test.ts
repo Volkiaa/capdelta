@@ -122,7 +122,7 @@ describe("extractNpmJavaScriptCapabilities UNKNOWN", () => {
     );
   });
 
-  it("degrades loudly for TypeScript and malformed JavaScript", async () => {
+  it("degrades loudly for malformed JavaScript", async () => {
     await withPackage(
       { "index.ts": "export const x = 1;", "bad.js": "const =" },
       async (root) => {
@@ -133,7 +133,6 @@ describe("extractNpmJavaScriptCapabilities UNKNOWN", () => {
         expect(result.capabilities).toEqual([]);
         expect(result.diagnostics.map((item) => item.kind)).toEqual([
           "unparseable-source",
-          "unsupported-source",
         ]);
       },
     );
@@ -150,17 +149,126 @@ describe("extractNpmJavaScriptCapabilities UNKNOWN", () => {
           { root },
           manifestSet,
         );
+        expect(result.diagnostics).toEqual([]);
+        expect(result.signals?.sourceFiles.map((file) => file.file)).toEqual([
+          "runtime.ts",
+        ]);
+        expect(result.signals?.sourceFiles[0]?.parseState).toBe("parsed");
+      },
+    );
+  });
+});
+
+describe("extractNpmJavaScriptCapabilities TypeScript", () => {
+  it("strips type annotations and detects network capabilities", async () => {
+    await withPackage(
+      {
+        "src/client.ts": [
+          "export async function load(id: string): Promise<Response> {",
+          "  const url: string = `https://api.example.test/x/${id}`;",
+          "  return fetch(url);",
+          "}",
+        ].join("\n"),
+      },
+      async (root) => {
+        const result = await extractNpmJavaScriptCapabilities(
+          { root },
+          manifestSet,
+        );
+        expect(result.capabilities).toEqual([
+          {
+            kind: "NET",
+            location: { kind: "runtime" },
+            evidence: [
+              {
+                file: "src/client.ts",
+                line: 3,
+                snippet: "return fetch(url);",
+              },
+            ],
+          },
+        ]);
+        expect(result.diagnostics).toEqual([]);
+        expect(result.signals?.endpoints).toEqual([
+          expect.objectContaining({
+            normalizedValue: "api.example.test",
+            context: "literal",
+          }),
+        ]);
+      },
+    );
+  });
+
+  it("ignores a URL inside a TypeScript comment", async () => {
+    await withPackage(
+      {
+        "src/client.ts":
+          "// see https://commented.example.test/docs\nexport const value: number = 1;\n",
+      },
+      async (root) => {
+        const result = await extractNpmJavaScriptCapabilities(
+          { root },
+          manifestSet,
+        );
+        expect(result.signals?.endpoints).toEqual([]);
+        expect(result.diagnostics).toEqual([]);
+      },
+    );
+  });
+
+  it("keeps a URL in a type position as an unknown-context endpoint", async () => {
+    await withPackage(
+      { "src/types.ts": 'type A = "https://t.example.test";\n' },
+      async (root) => {
+        const result = await extractNpmJavaScriptCapabilities(
+          { root },
+          manifestSet,
+        );
+        expect(result.signals?.endpoints).toEqual([
+          expect.objectContaining({
+            normalizedValue: "t.example.test",
+            context: "unknown",
+          }),
+        ]);
+      },
+    );
+  });
+
+  it("reports TypeScript syntax that stripping cannot remove", async () => {
+    await withPackage(
+      { "src/enums.ts": "enum Color {\n  Red,\n}\n" },
+      async (root) => {
+        const result = await extractNpmJavaScriptCapabilities(
+          { root },
+          manifestSet,
+        );
         expect(result.diagnostics).toEqual([
           {
             kind: "unsupported-source",
             detail:
-              "runtime.ts is TypeScript source; v0.1 parses JavaScript only",
-            evidence: [{ file: "runtime.ts", line: 1, snippet: "" }],
+              "src/enums.ts uses TypeScript syntax that type stripping cannot remove: TypeScript type stripping failed: TypeScript enum is not supported in strip-only mode",
+            evidence: [{ file: "src/enums.ts", line: 1, snippet: "" }],
           },
         ]);
-        expect(result.signals?.sourceFiles.map((file) => file.file)).toEqual([
-          "runtime.ts",
+        expect(result.signals?.sourceFiles[0]?.parseState).toBe("unsupported");
+      },
+    );
+  });
+
+  it("reports JavaScript that fails to parse after stripping", async () => {
+    await withPackage(
+      {
+        "src/broken.ts": "const value: number = 1;\nlet value = 2;\n",
+      },
+      async (root) => {
+        const result = await extractNpmJavaScriptCapabilities(
+          { root },
+          manifestSet,
+        );
+        expect(result.diagnostics).toEqual([
+          expect.objectContaining({ kind: "unparseable-source" }),
         ]);
+        expect(result.signals?.sourceFiles[0]?.parseState).toBe("unparseable");
       },
     );
   });
@@ -655,7 +763,7 @@ describe("endpoint signals and parser comments", () => {
     expect(await endpointsOf({ "index.js": source })).toEqual(expected);
   });
 
-  it("still byte-scans unsupported TypeScript, comments included", async () => {
+  it("does not treat a URL in a TypeScript comment as an endpoint", async () => {
     let result:
       Awaited<ReturnType<typeof extractNpmJavaScriptCapabilities>> | undefined;
     await withPackage(
@@ -667,12 +775,8 @@ describe("endpoint signals and parser comments", () => {
         result = await extractNpmJavaScriptCapabilities({ root }, manifestSet);
       },
     );
-    expect(
-      result?.signals?.endpoints.map((item) => item.normalizedValue),
-    ).toEqual(["ts-comment.example.org"]);
-    expect(result?.diagnostics).toEqual([
-      expect.objectContaining({ kind: "unsupported-source" }),
-    ]);
+    expect(result?.signals?.endpoints).toEqual([]);
+    expect(result?.diagnostics).toEqual([]);
   });
 
   it("keeps lexical candidates in comments when the file cannot be parsed", async () => {

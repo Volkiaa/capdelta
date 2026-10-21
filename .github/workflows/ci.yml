@@ -1,4 +1,4 @@
-# CI: lint + format + typecheck + test on Node 20, 22, and 24, plus the
+# CI: lint + format + typecheck + test on Node 22 and 24, plus the
 # dependency-budget gate (PLAN §10). Third-party actions are pinned by commit
 # SHA — the same guidance capdelta's README gives its own users (PLAN §10).
 name: CI
@@ -22,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: [20, 22, 24]
+        node: [22, 24]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
