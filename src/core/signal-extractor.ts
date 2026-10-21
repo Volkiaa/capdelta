@@ -25,6 +25,7 @@ const MAX_EVIDENCE_SNIPPET = 240;
 // "/", "?" or "#" after it. That keeps every match short, so rescanning after
 // a template element boundary costs one authority, never the rest of the file.
 // Extra leading slashes are kept: "https:///evil.test" still reaches evil.test.
+const URL_STOP_RE = /[\s"'`<>\\]/u;
 const URL_LITERAL_RE = /\b(?:https?|wss?):\/\/\/*[^\s"'`<>\\/?#]+/gu;
 const IP_LITERAL_ROWS = [
   {
@@ -169,33 +170,44 @@ function detectEndpoints(
   // The regex is global, so it carries lastIndex between calls. Reset it and
   // move it explicitly when a match stops short of the regex's own end.
   URL_LITERAL_RE.lastIndex = 0;
+  let stopCursor = 0;
   for (
     let match = URL_LITERAL_RE.exec(source);
     match !== null;
     match = URL_LITERAL_RE.exec(source)
   ) {
     const index = match.index;
-    const whole = match[0];
+    const authority = match[0];
+    // The URL's lexical span is what #150's boundary rule and the comment check
+    // judge; only its authority is parsed. The stop cursor moves forward only,
+    // so finding every span's end stays linear in the source size.
+    if (stopCursor < index) stopCursor = index;
+    while (
+      stopCursor < source.length &&
+      !URL_STOP_RE.test(source.charAt(stopCursor))
+    )
+      stopCursor += 1;
+    const lexicalEnd = stopCursor;
     const rangeEnd = rangeEndAt(index);
-    // A template element ends at `${`, which the regex does not stop at. An
-    // uncut match would take the next element's text into this element's
+    // A template element ends at `${`, which a URL span does not stop at. An
+    // uncut span would take the next element's text into this element's
     // context and could swallow the next element's URL, so the cut part keeps
     // this element's context and scanning resumes at the element's end. The
-    // whole match is kept as "unknown" too, because the runtime string can
+    // whole span is kept as "unknown" too, because the runtime string can
     // still join across the expression (`https://a.test${x}@evil.test/`).
-    const crosses = rangeEnd !== null && index + whole.length > rangeEnd;
-    const candidates: [string, SignalEndpointContext][] = crosses
+    const crosses = rangeEnd !== null && lexicalEnd > rangeEnd;
+    const candidates: [string, number, SignalEndpointContext][] = crosses
       ? [
-          [whole.slice(0, rangeEnd - index), contextAt(index)],
-          [whole, "unknown"],
+          [authority.slice(0, rangeEnd - index), rangeEnd, contextAt(index)],
+          [authority, lexicalEnd, "unknown"],
         ]
-      : [[whole, contextAt(index)]];
-    URL_LITERAL_RE.lastIndex = crosses ? rangeEnd : index + whole.length;
-    for (const [value, context] of candidates) {
+      : [[authority, lexicalEnd, contextAt(index)]];
+    URL_LITERAL_RE.lastIndex = crosses ? rangeEnd : lexicalEnd;
+    for (const [value, spanEnd, context] of candidates) {
       // Documentation links in comments are not runtime endpoints; a match
       // that runs into a comment ("https://x\n" after a label) is not one
       // either.
-      if (inComment(index, index + value.length)) continue;
+      if (inComment(index, spanEnd)) continue;
       let parsed: URL;
       try {
         parsed = new URL(value);
@@ -397,9 +409,14 @@ const MAX_DOMAIN_LENGTH = 253;
  * One recovery retries after trimming trailing punctuation, so a markdown
  * link's "example.org)" becomes "example.org".
  */
+const TRAILING_PUNCTUATION = new Set(")]}>,.;:!?'\"");
+
 function publicStyleDomain(host: string): string | null {
   if (isPublicStyleDomain(host)) return host;
-  const trimmed = host.replace(/[)\]}>,.;:!?'"]+$/u, "");
+  // A backward scan, not a `+$` regex, which retries every suffix.
+  let end = host.length;
+  while (end > 0 && TRAILING_PUNCTUATION.has(host.charAt(end - 1))) end -= 1;
+  const trimmed = host.slice(0, end);
   return trimmed !== host && isPublicStyleDomain(trimmed) ? trimmed : null;
 }
 

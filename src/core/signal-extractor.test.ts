@@ -335,6 +335,32 @@ describe("signal aggregation", () => {
     ).toEqual(["evil.test"]);
   });
 
+  it("keeps a prose URL that runs into a template expression at unknown", () => {
+    const text = "f(`docs https://evil.test/${x}`);";
+    const [endpoint] = buildSignalSet([
+      observeSignalSource({
+        file: "a.js",
+        bytes: new TextEncoder().encode(text),
+        parseState: "parsed",
+        stringRanges: [[3, text.indexOf("${"), true]],
+      }),
+    ]).endpoints;
+
+    expect(endpoint).toMatchObject({
+      normalizedValue: "evil.test",
+      context: "unknown",
+    });
+  });
+
+  it("trims many trailing brackets from a host in linear time", () => {
+    const text = `f("https://evil.test${")".repeat(80_000)}z");`;
+
+    const started = performance.now();
+    buildSignalSet([source("a.js", text, "unparseable")]);
+
+    expect(performance.now() - started).toBeLessThan(3_000);
+  });
+
   it("merges thousands of matches for one host in linear time", () => {
     const text = Array.from(
       { length: 20_000 },
