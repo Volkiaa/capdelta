@@ -43,7 +43,10 @@ only on new hosts. That run and its write-up come after the change lands.
 The tuning gate failure is http-server 13.1.0 -> 14.0.0, a
 `secret-exfiltration` shape from `lib/shims/https-server-shim.js`, which
 reads `process.env.NODE_HTTP_SERVER_SSL_PASSPHRASE` in a file that requires
-`https`. It is outside ADR-024 and is not labelled here.
+`https`. It is outside ADR-024. On 2026-10-21 it was labelled noise from the
+14.0.0 tarball, read without running it: the 67-line shim passes the
+passphrase to `https.createServer` as its TLS option and makes no outbound
+call (`lib/shims/https-server-shim.js:3,53`).
 
 The two IPv6 findings come from the IP-literal pattern matching characters in
 minified data. ADR-024 does not cover IP literals.

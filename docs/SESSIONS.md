@@ -925,3 +925,42 @@ escapes; worth considering a CI grep for control characters in source files.
   `await`. Inlining it failed lint (`no-unnecessary-condition`). Read why a helper exists before you collapse it.
 - The pipeline factory takes adapters, so a measurement script can wrap `diff` to see the new-side capability set
   without changing `src/`.
+
+## 2026-10-21 (day), Autonomy tiers run
+
+### 1. What landed
+
+- **#143.** CLAUDE.md gains the Autonomy tiers, at the maintainer's request.
+- **#144.** The `contexts` command spreads `DEFAULT_ADAPTERS` instead of copying them.
+- **#145.** The 20-drive zero-change replay is committed as `verify-capdelta/bin/replay`.
+- **#146.** ADR-025, Tier 2. A parser worker posts a ready message, and a failure before ready exits 1. With the
+  worker file deleted, the CLI used to report every file as unparseable. Now it names the missing worker.
+- **#149.** Tier 1. Signal evidence merges once per host. 20,000 repeated URL lines took 186 s.
+- **#150.** ADR-024 amendment, Tier 2. A URL no longer runs across a template literal's `${` into the next element.
+  On main, ``tag`See https://a.test/${0}https://evil.test/` `` reported only `a.test`, at LOW. New reconstruction
+  `template-boundary`.
+- **#151.** Tier 1. Signal extraction is linear: per-line snippets, per-range contexts, an authority-only URL regex
+  with a forward stop cursor, and a backward punctuation trim. Codex needed six rounds. A differential fuzz against
+  main showed 0 differences in 2,000,000 cases.
+- **Drafts.** #147 (ADR-028, TypeScript, decision only), #148 (ADR-027, glued IPv6 LOW), #152 (ADR-026, cooked-value
+  URLs).
+
+### 2. Half-done and exact resume point
+
+- Nothing is half-done. The three drafts wait on the maintainer (HANDOFF "Next" 1). v0.1.0 is delayed by the
+  maintainer.
+
+### 3. ADR status
+
+- ADR-025 accepted (agent). ADR-024 amended (agent). ADR-026, ADR-027 and ADR-028 proposed.
+
+### 4. Lessons
+
+- Reviewing a draft found three problems on main: #149, #150 and #151. A draft's review is also a review of the code
+  it touches, so land the fixes on main first, then rebase the draft.
+- I added a quadratic path in #150, and Codex caught it one PR later. A fix that changes where scanning resumes needs a
+  timing test at the size of the source limit.
+- The first differential fuzz reported 0 differences because its LCG reused low bits with a short period. Testing it
+  on a known-bad variant exposed that. Never trust a zero from a check that has not first found a planted
+  difference.
+- Two IPv6 blocks shared the premise that the regex match is the whole address. Judging the widened token fixed both.

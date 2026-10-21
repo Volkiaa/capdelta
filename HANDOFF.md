@@ -1,81 +1,77 @@
 # HANDOFF
 
 Start here, then read CLAUDE.md. `docs/SESSIONS.md` has the history and
-docs/PLAN.md (rev. 3) is the spec. Last updated 2026-10-21 (early morning).
+docs/PLAN.md (rev. 3) is the spec. Last updated 2026-10-21 (afternoon).
 
 ## Where main stands
 
-main includes #141, and CI is green on it. No PRs are open. Plan, tickets and
-decision log for the last three runs: `.scratch/next/` (gitignored, main
-checkout), `decisions.tsv` from its third `start` row on for this run.
+main includes #151, and CI is green on it. Three draft PRs wait on the
+maintainer. Plan, tickets and decision log for the last runs: `.scratch/next/`
+and `.scratch/run4/` (gitignored, main checkout). `decisions.tsv` from its
+`run4 start` row on covers this run.
 
-- **D2, new-side analysis (ADR-023): shipped** in #131 and #133-#135.
-- **D1, URLs mentioned in text (ADR-024): shipped.**
-  - #138 records each URL's context: `literal`, `embedded-text` or `unknown`.
-    The third attempt classifies the cooked string value as well as the raw
-    source. A URL is `embedded-text` only when both hold whitespace. Codex
-    approved it after blocking the two raw-text-only versions.
-  - #139 reports a new host seen only as `embedded-text` at LOW with
-    `(mentioned in text)`. A real drive moved husky 5.0.9 -> 5.1.0's
-    `typicode.github.io` from HIGH to LOW, so `--fail-on HIGH` without an
-    allowlist now exits 0 instead of 1. axios 0.27.2 -> 1.0.0 stays at HIGH 12.
-  - #140 measures it on the frozen corpus (`docs/heldout-2026-10-20/README.md`,
-    "After ADR-024"). Finding counts are unchanged, as predicted. All 82
-    `embedded-text` observations are prose.
-  - #141 documents it in the README and refreshes the blog draft's next-steps
-    paragraph.
-- **#137** caps the PR comment's baseline-failure and reviewed-exception
-  lists at `maxRows`, with a count of hidden exceptions.
-
-The blog is still parked. The draft in `docs/blog/` is current.
+- **#143** adds the Autonomy tiers to CLAUDE.md. Tier 1 (no gate change) and
+  Tier 2 (stricter or louder gate) merge on their checks. Tier 3 (anything
+  that lowers or drops a finding, new dependencies, policy rules, PLAN
+  deviations, releases) stops at a draft PR.
+- **#145** commits the zero-change replay as
+  `.claude/skills/verify-capdelta/bin/replay` (`setup`, `record`, `compare`).
+- **#146** (ADR-025, Tier 2): a parser worker that fails to start now fails
+  the run with exit 1, instead of turning every file into
+  `unparseable-source`.
+- **#150** (ADR-024 amendment, Tier 2) fixes an evasion. A URL ran across a
+  template literal's `${` and took the prose context of the element before
+  it, or swallowed the next element's URL. The `template-boundary`
+  reconstruction proves the fix.
+- **#149 and #151** (Tier 1) make signal extraction linear. Before them, a
+  package could stall a scan with repeated URLs: 20,000 lines took 186 s, and
+  64,000 URLs on one line took 10.6 s. A differential fuzz against main shows
+  no output change (`.scratch/run4/difffuzz.mjs`).
+- **#144** removes the `contexts` command's hand-copied adapters.
 
 ## Next, in order
 
-1. **Cut v0.1.0. This is a deploy, so the maintainer starts it.** Push the tag
+1. **Decide the three drafts.** Each has a Proposed ADR, held-out numbers and
+   a Codex APPROVE:
+   - #148, ADR-027: a bare IPv6 match glued to other characters is LOW. On
+     the held-out corpus only markdown-it's two noise findings change. The
+     alternative is to allowlist markdown-it.
+   - #152, ADR-026: find URLs in the runtime value of escaped strings. All 90
+     held-out reports are unchanged. The open choice is both sides (can drop
+     a finding) or new side only.
+   - #147, ADR-028: analyze published TypeScript. Pick option A, B or C, and
+     decide on Node 20. The ADR recommends `amaro` with `engines >=22`.
+     Strip-only stripping parses 307 of 332 zod files and 439 of 440 openai
+     files. The implementation comes after the choice.
+     #148 and #152 both edit `src/core/signal-extractor.ts`, so the one landed
+     second needs a rebase.
+2. **Cut v0.1.0** when the maintainer chooses. It is a deploy. Push the tag
    from main, then approve the run in the `release` environment. Afterwards:
    - check `gh attestation verify` for both `dist/action/index.js` and
      `dist/action/javascript-parser-worker.js` on a checkout of the tag;
    - repin `.github/workflows/capdelta.yml` to the release commit with a
      `# v0.1.0` comment, so Dependabot proposes later releases.
-2. **Post the blog** once the maintainer un-parks it. PLAN §6 names tl;dr sec,
+3. **Post the blog** once the maintainer un-parks it. PLAN §6 names tl;dr sec,
    Detection Engineering Weekly and r/netsec.
-3. **Designs that need the maintainer's approval.** None is started.
-   - IPv6 literals in minified data. markdown-it 15.0.3 matches `=C::9bb~` in
-     its entity trie. That is valid IPv6 syntax, so a tighter regex or `isIP`
-     cannot reject it. A fix needs a context rule for IP literals, such as
-     "only a whole string literal or a URL host counts". ADR-024 excludes IP
-     literals, so this needs an ADR.
-   - Parser worker load failure. If a built CLI or Action can't load its
-     parser worker, every file becomes an `unparseable-source` diagnostic
-     (`src/core/npm/javascript-capability-extractor.ts:453`). Proposal: a
-     worker `error` before its first message ever is a run-level operational
-     failure (exit 1), not a per-file parse result. This changes report
-     semantics.
-   - Published TypeScript. zod's 86 `unparseable-file` MEDIUMs
-     (`docs/m5-2026-10-12/labels.json:35-40`) are the largest noise class.
-     The same root makes URLs in `.ts` files `unknown`, including URLs in
-     their comments, so they keep HIGH (66 of 78 tuning `unknown` rows,
-     openai).
-   - The endpoint regex's leading `\b` finds no URL glued to an escape tail,
-     as in `"\x20https://evil.test/x"`. Concatenation (`"ht" + "tps://..."`)
-     already evades it, and #139 has a boundary test documenting that.
-     Scanning cooked string values would close both gaps. That is a detection
-     change.
 
 Small follow-ups, not started:
 
-- In the D1 tuning half, http-server 13.1.0 -> 14.0.0 fails the default gate
-  with a `secret-exfiltration` shape from a TLS passphrase environment
-  variable read in a file that requires `https`. It is not labelled yet.
-- `collectGuidance` ignores baseline failures, so they add no "What these
-  mean" row in the PR comment.
-- `renderActionComment` rebuilds the comment once per candidate guidance row.
-- `scripts/m5-measure.ts contexts` builds a full run report only to reuse
-  `isTransient`.
-- `contexts` copies the pipeline's five default adapters by hand. No test
-  checks that they still match `DEFAULT_ADAPTERS`.
-- The URL regex misses `"\x20https://..."` entirely (see Next 3), so #138's
-  test uses `"\x20 https://..."` for that escape.
+- The IP-literal rows can run across `${` like URLs did before #150. IP
+  context is always `unknown` on main, so severity cannot drop today. Fix it
+  before landing #148, which gives IPv6 a context.
+- After ready, the parser client trusts any worker message as a
+  `ParserResponse` without checking its shape (noticed in #146).
+- `difffuzz.mjs` lives in `.scratch/`. A committed version would need a pinned
+  copy of the old implementation to compare against.
+
+Decided this run, not changed:
+
+- No guidance row for baseline failures. ADR-023 already gives each one its
+  own sentence, and they never gate.
+- `renderActionComment` keeps rebuilding the comment per guidance row. The
+  row count is bounded by the number of finding classes.
+- http-server 13.1.0 -> 14.0.0's `secret-exfiltration` gate failure is
+  labelled noise (`docs/heldout-2026-10-20/README.md`).
 
 ## Decisions from 2026-10-17
 
@@ -122,9 +118,14 @@ tdd|bugs|none [--wait]`** creates the Orca worktree, runs
   a mutant here.
 - **Stacked PRs:** never `--delete-branch` a branch others are based on.
   Prefer independent PRs merged one at a time.
-- **Zero-change and before/after drives:** `.scratch/dedupe/record.sh <checkout> <label>`
-  replays 20 fixed verify-capdelta drives, and `compare.sh <base> <head>` diffs
-  them byte for byte and prints `gateSeverity`. Build the checkout first.
-  `dedupe-main-703901e` is the latest main baseline (before #138).
+- **Zero-change and before/after drives:** `.claude/skills/verify-capdelta/bin/replay`
+  (`setup` once, then `record <label>` per build and `compare <base> <head>`).
+  `dedupe-run4-main` is the latest main baseline (main at #145). Every PR since
+  matched it.
+- **Codex finds one class per round.** A security review of extraction code
+  often blocks several rounds in a row, each on a new input. After the second
+  block on the same kind of property (an output difference, a slowdown), build
+  a check that searches for it, such as `difffuzz.mjs`, and test that the check
+  finds a known-bad variant before trusting a zero.
 - **Untracked:** `.claude/agents/comment-audit.md` in the main checkout is the
   comment-audit project agent.
