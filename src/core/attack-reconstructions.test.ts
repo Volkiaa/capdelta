@@ -829,3 +829,23 @@ describe("synthetic escaped-string endpoint (ADR-026)", () => {
     expect(evaluateSeverityGate(result.report, "HIGH").fail).toBe(true);
   });
 });
+
+describe("synthetic underscore-label endpoint (ADR-029)", () => {
+  it("reports a host with an underscore in a label as a new HIGH endpoint", async () => {
+    const result = await runScenario("underscore-label", "attack");
+    expectAllAnalyzed(result, 1);
+    const report = packageReport(
+      result.report,
+      "capdelta-fixture-underscore-label",
+    );
+
+    expect(report.signalFindings).toEqual([
+      expect.objectContaining({
+        kind: "new-external-endpoint",
+        severity: "HIGH",
+        detail: "new external domain a_b.exfil.example.test",
+      }),
+    ]);
+    expect(evaluateSeverityGate(result.report, "HIGH").fail).toBe(true);
+  });
+});

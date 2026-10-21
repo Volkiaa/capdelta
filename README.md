@@ -270,8 +270,10 @@ than `registry.npmjs.org` is skipped and flagged.
   runtime may be missed. Files that do not parse are still byte-scanned,
   comments included. Domains must look public (two or more letter-digit-hyphen
   labels with an alphabetic or punycode TLD); single-label hosts are not
-  reported. A new host that the new version mentions only inside text, meaning
-  a string or template part that also holds other words (for example a help
+  reported. Non-TLD labels may also contain underscores, because DNS resolves
+  them and an attacker controls their own zone's records. A new host that the
+  new version mentions only inside text, meaning a string or template part
+  that also holds other words (for example a help
   message `"See https://example.test/docs for details"`), is reported at LOW
   with `(mentioned in text)` instead of HIGH. A string that holds only the
   URL, or a file that does not parse, keeps HIGH. So code that builds a
