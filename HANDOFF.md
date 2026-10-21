@@ -33,8 +33,6 @@ checkout), from its `run4 start` row on.
 
 Small follow-ups, not started:
 
-- `difffuzz.mjs` lives in `.scratch/`. A committed version would need a pinned
-  copy of the old implementation to compare against.
 - The capdelta self-review on #154 failed once on an empty `HttpError` from
   the SARIF upload, and a rerun passed. If it happens again, log the HTTP
   status in `ActionRunnerOperationalError`.
@@ -103,7 +101,9 @@ tdd|bugs|none [--wait]`** creates the Orca worktree, runs
 - **Codex finds one class per round.** A security review of extraction code
   often blocks several rounds in a row, each on a new input. After the second
   block on the same kind of property (an output difference, a slowdown), build
-  a check that searches for it, such as `difffuzz.mjs`, and test that the check
-  finds a known-bad variant before trusting a zero.
+  a check that searches for it, such as the differential fuzzer, and test that the check
+  finds a known-bad variant before trusting a zero. For URL and IP detection
+  that check is `npm run difffuzz -- --base origin/main`
+  (`docs/development.md`).
 - **Untracked:** `.claude/agents/comment-audit.md` in the main checkout is the
   comment-audit project agent.
