@@ -94,6 +94,8 @@ export function observeSignalSource(input: SignalSourceInput): {
   const contextAt =
     stringRanges?.contextAt ?? ((): SignalEndpointContext => "unknown");
   const rangeEndAt = stringRanges?.rangeEndAt ?? ((): number | null => null);
+  const rangeAt =
+    stringRanges?.rangeAt ?? ((): StringRange | undefined => undefined);
   const endpoints = detectEndpoints(
     input.file,
     source,
@@ -102,6 +104,7 @@ export function observeSignalSource(input: SignalSourceInput): {
     inComment,
     contextAt,
     rangeEndAt,
+    rangeAt,
   );
   const obfuscationPatterns = detectObfuscationPatterns(
     input.file,
@@ -165,6 +168,7 @@ function detectEndpoints(
   inComment: (start: number, end: number) => boolean,
   contextAt: (start: number) => SignalEndpointContext,
   rangeEndAt: (start: number) => number | null,
+  rangeAt: (start: number) => StringRange | undefined,
 ): SignalEndpointObservation[] {
   const found: SignalEndpointObservation[] = [];
   // The regex is global, so it carries lastIndex between calls. Reset it and
@@ -266,8 +270,10 @@ function detectEndpoints(
           starts,
           index,
           confidence,
-          // ADR-024 covers URLs only; a bare IP literal keeps today's severity.
-          "unknown",
+          // ADR-027 classifies bare IPv6 by its string; IPv4 keeps "unknown".
+          row.family === 6
+            ? ipv6Context(rangeAt(index), index, index + value.length, source)
+            : "unknown",
         ),
       );
     }
@@ -477,6 +483,7 @@ function stringRangeLookup(
 ): {
   contextAt: (start: number) => SignalEndpointContext;
   rangeEndAt: (start: number) => number | null;
+  rangeAt: (start: number) => StringRange | undefined;
 } {
   let previousEnd = 0;
   for (const [start, end, valueWords] of ranges) {
@@ -513,6 +520,7 @@ function stringRangeLookup(
       return context;
     },
     rangeEndAt: (start) => containingStringRange(ranges, start)?.[1] ?? null,
+    rangeAt: (start) => containingStringRange(ranges, start),
   };
 }
 
@@ -531,6 +539,31 @@ function containingStringRange(
   }
   const range = ranges[low - 1];
   return range !== undefined && range[1] > start ? range : undefined;
+}
+
+const IPV6_SEPARATOR_RE = /[\s,;[\]()/@"']/u;
+
+function isIpv6Separator(char: string): boolean {
+  return char === "" || IPV6_SEPARATOR_RE.test(char);
+}
+
+/**
+ * ADR-027: a bare IPv6 match inside a parsed string is "embedded-text" when a
+ * character other than a separator touches it within that string. A backslash
+ * anywhere in the raw string keeps it "unknown", so an escape cannot lower it.
+ */
+function ipv6Context(
+  range: StringRange | undefined,
+  start: number,
+  end: number,
+  source: string,
+): SignalEndpointContext {
+  if (range === undefined || end > range[1]) return "unknown";
+  if (source.slice(range[0], range[1]).includes("\\")) return "unknown";
+  const before = start > range[0] ? source.charAt(start - 1) : "";
+  const after = end < range[1] ? source.charAt(end) : "";
+  const glued = !isIpv6Separator(before) || !isIpv6Separator(after);
+  return glued ? "embedded-text" : "unknown";
 }
 
 /**

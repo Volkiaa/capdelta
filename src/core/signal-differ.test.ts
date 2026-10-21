@@ -88,6 +88,24 @@ describe("signal differ", () => {
     ]);
   });
 
+  it("names the longer string for an IPv6 host mentioned in text", () => {
+    const endpoint = {
+      ...endpointWith("embedded-text", "2001:db8::1"),
+      endpointType: "ipv6" as const,
+    };
+    const result = diffSignals(set(), set({ endpoints: [endpoint] }));
+
+    expect(result).toEqual([
+      {
+        kind: "new-external-endpoint",
+        severity: "LOW",
+        change: "added",
+        detail: "new external ipv6 2001:db8::1 (inside a longer string)",
+        evidence,
+      },
+    ]);
+  });
+
   it.each(["literal", "unknown"] as const)(
     "keeps a new host with %s context at HIGH",
     (context) => {
