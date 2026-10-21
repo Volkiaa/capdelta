@@ -214,6 +214,24 @@
           "head": ["underscore-label-1.0.1"]
         }
       }
+    },
+    {
+      "name": "file-kinds",
+      "title": "Synthetic extensionless Node bin script (not a historical incident)",
+      "date": "n/a: regression for ADR-030",
+      "sources": [
+        "https://docs.npmjs.com/cli/v11/configuring-npm/package-json#bin",
+        "https://nodejs.org/api/cli.html#hashbang"
+      ],
+      "kept": "The 1.0.1 bump keeps the existing fetch to cdn.example.test in index.js and adds bin/cli with a #!/usr/bin/env node hashbang, a bin entry in package.json, and a fetch to exfil.example.test.",
+      "omitted": "Everything else: the package is a minimal synthetic stand-in. Neither entry function is called and the reserved .example.test hosts are never contacted.",
+      "expected": "The extractor analyzes an extensionless file whose hashbang names node, so exfil.example.test is a HIGH new-external-endpoint and the default HIGH gate fails.",
+      "scenarios": {
+        "attack": {
+          "base": ["file-kinds-1.0.0"],
+          "head": ["file-kinds-1.0.1"]
+        }
+      }
     }
   ]
 }

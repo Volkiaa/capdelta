@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { readdir, readFile } from "node:fs/promises";
+import { open, readdir, readFile } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import { Worker } from "node:worker_threads";
@@ -35,7 +35,14 @@ import type {
 const DEFAULT_MAX_SOURCE_BYTES = 2 * 1024 * 1024;
 const DEFAULT_PARSE_TIMEOUT_MS = 5_000;
 const JAVASCRIPT_EXTENSIONS = new Set([".js", ".mjs", ".cjs"]);
-const TYPESCRIPT_EXTENSION = ".ts";
+const TYPESCRIPT_EXTENSIONS = new Set([".ts", ".mts", ".cts"]);
+const TYPESCRIPT_DECLARATION_SUFFIXES = [".d.ts", ".d.mts", ".d.cts"];
+/**
+ * Bounds the first read that decides whether an extensionless file is a Node
+ * script. The hashbang sits on the first line, so a short prefix is enough and
+ * an attacker cannot make the decision read an unbounded line.
+ */
+const HASHBANG_PROBE_BYTES = 1024;
 
 export interface AstExtractionOptions {
   maxSourceBytes?: number;
@@ -114,7 +121,7 @@ export async function extractNpmJavaScriptCapabilities(
   try {
     for (const file of files) {
       throwIfStopped(resolvedOptions.signal);
-      const extension = file.slice(file.lastIndexOf(".")).toLowerCase();
+      const extension = fileExtension(file);
       if (
         extension === ".node" ||
         file.toLowerCase().endsWith("/binding.gyp") ||
@@ -135,10 +142,25 @@ export async function extractNpmJavaScriptCapabilities(
         );
         continue;
       }
-      const isTypeScript = extension === TYPESCRIPT_EXTENSION;
-      if (isTypeScript && file.toLowerCase().endsWith(".d.ts")) continue;
-      if (!JAVASCRIPT_EXTENSIONS.has(extension) && !isTypeScript) continue;
+      const isTypeScript = TYPESCRIPT_EXTENSIONS.has(extension);
+      if (isTypeScript && isTypeScriptDeclaration(file)) continue;
       const absolute = resolveInside(extracted.root, file);
+      let isJavaScript = JAVASCRIPT_EXTENSIONS.has(extension);
+      if (extension === "" && !isTypeScript) {
+        const probe = await probeNodeHashbang(absolute, resolvedOptions.signal);
+        if (!probe.ok) {
+          diagnostics.push(
+            diagnostic(
+              "unparseable-source",
+              `${file} could not be read to decide whether it is a Node script: ${probe.detail}`,
+              file,
+            ),
+          );
+          continue;
+        }
+        isJavaScript = probe.isNodeScript;
+      }
+      if (!isJavaScript && !isTypeScript) continue;
       let bytes: Uint8Array;
       try {
         bytes = await readFile(
@@ -248,7 +270,12 @@ function parserRequest(
   isTypeScript: boolean,
 ): ParserRequest {
   if (isTypeScript) {
-    return { source, file, language: "typescript", sourceType: "either" };
+    return {
+      source,
+      file,
+      language: "typescript",
+      sourceType: typescriptSourceType(extension),
+    };
   }
   return {
     source,
@@ -261,6 +288,70 @@ function parserRequest(
           ? "script"
           : "either",
   };
+}
+
+/**
+ * Node runs .mts as ESM and .cts as CommonJS. A .ts file has no fixed module
+ * form, so it keeps the "either" attempt order the extractor already used.
+ */
+function typescriptSourceType(extension: string): ParserRequest["sourceType"] {
+  if (extension === ".mts") return "module";
+  if (extension === ".cts") return "script";
+  return "either";
+}
+
+/**
+ * The extension is the text from the last dot in the basename. A leading dot
+ * counts, so ".js" is a JavaScript file and ".npmrc" keeps its own name rather
+ * than passing as extensionless. A dot in a directory name never counts.
+ * Main derived the suffix from the whole path, which turned "lib.v2/cli" into
+ * ".v2/cli"; the basename rule only adds files that the hashbang probe then
+ * accepts.
+ */
+function fileExtension(file: string): string {
+  const name = file.slice(file.lastIndexOf("/") + 1);
+  const dot = name.lastIndexOf(".");
+  return dot === -1 ? "" : name.slice(dot).toLowerCase();
+}
+
+function isTypeScriptDeclaration(file: string): boolean {
+  const lower = file.toLowerCase();
+  return TYPESCRIPT_DECLARATION_SUFFIXES.some((suffix) =>
+    lower.endsWith(suffix),
+  );
+}
+
+type HashbangProbe =
+  { ok: true; isNodeScript: boolean } | { ok: false; detail: string };
+
+async function probeNodeHashbang(
+  absolute: string,
+  signal: AbortSignal | undefined,
+): Promise<HashbangProbe> {
+  try {
+    const handle = await open(absolute, "r");
+    try {
+      const buffer = new Uint8Array(HASHBANG_PROBE_BYTES);
+      const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
+      throwIfStopped(signal);
+      return {
+        ok: true,
+        isNodeScript: isNodeHashbang(buffer.subarray(0, bytesRead)),
+      };
+    } finally {
+      await handle.close();
+    }
+  } catch (error: unknown) {
+    throwIfStopped(signal);
+    return { ok: false, detail: errorName(error) };
+  }
+}
+
+function isNodeHashbang(bytes: Uint8Array): boolean {
+  const newline = bytes.indexOf(0x0a);
+  const firstLine = bytes.subarray(0, newline === -1 ? bytes.length : newline);
+  const text = new TextDecoder("utf-8").decode(firstLine);
+  return text.startsWith("#!") && /\bnode\b/u.test(text);
 }
 
 function signalInput(

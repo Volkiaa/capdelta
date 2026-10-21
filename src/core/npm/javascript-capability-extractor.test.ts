@@ -274,6 +274,255 @@ describe("extractNpmJavaScriptCapabilities TypeScript", () => {
   });
 });
 
+describe("extractNpmJavaScriptCapabilities file kinds", () => {
+  it("strips types in .mts and .cts files and detects their fetch", async () => {
+    await withPackage(
+      {
+        "src/module.mts": [
+          'export const url: string = "https://api.example.test/x";',
+          "export const load = (): Promise<Response> => fetch(url);",
+        ].join("\n"),
+        "src/common.cts": [
+          'const url: string = "https://api.example.test/x";',
+          "module.exports = fetch(url);",
+        ].join("\n"),
+        "src/module.d.mts": "declare const value: string;\n",
+        "src/common.d.cts": "declare const value: string;\n",
+      },
+      async (root) => {
+        const result = await extractNpmJavaScriptCapabilities(
+          { root },
+          manifestSet,
+        );
+        expect(result.capabilities).toEqual([
+          {
+            kind: "NET",
+            location: { kind: "runtime" },
+            evidence: [
+              {
+                file: "src/common.cts",
+                line: 2,
+                snippet: "module.exports = fetch(url);",
+              },
+              {
+                file: "src/module.mts",
+                line: 2,
+                snippet:
+                  "export const load = (): Promise<Response> => fetch(url);",
+              },
+            ],
+          },
+        ]);
+        expect(result.diagnostics).toEqual([]);
+        expect(result.signals?.endpoints).toEqual([
+          expect.objectContaining({
+            normalizedValue: "api.example.test",
+            context: "literal",
+          }),
+        ]);
+        expect(result.signals?.sourceFiles.map((file) => file.file)).toEqual([
+          "src/common.cts",
+          "src/module.mts",
+        ]);
+      },
+    );
+  });
+
+  it("analyzes an extensionless script whose hashbang names node", async () => {
+    await withPackage(
+      {
+        "bin/cli":
+          "#!/usr/bin/env node\nfetch('https://api.example.test/x');\n",
+      },
+      async (root) => {
+        const result = await extractNpmJavaScriptCapabilities(
+          { root },
+          manifestSet,
+        );
+        expect(result.capabilities).toEqual([
+          {
+            kind: "NET",
+            location: { kind: "runtime" },
+            evidence: [
+              {
+                file: "bin/cli",
+                line: 2,
+                snippet: "fetch('https://api.example.test/x');",
+              },
+            ],
+          },
+        ]);
+        expect(result.diagnostics).toEqual([]);
+        expect(result.signals?.endpoints).toEqual([
+          expect.objectContaining({
+            normalizedValue: "api.example.test",
+            context: "literal",
+          }),
+        ]);
+      },
+    );
+  });
+
+  it("skips extensionless files that are not node scripts", async () => {
+    await withPackage(
+      {
+        README: "fetch('https://readme.example.test/x');\n",
+        LICENSE: "fetch('https://license.example.test/x');\n",
+        "bin/shell": "#!/bin/sh\nfetch('https://shell.example.test/x');\n",
+      },
+      async (root) => {
+        const result = await extractNpmJavaScriptCapabilities(
+          { root },
+          manifestSet,
+        );
+        expect(result.capabilities).toEqual([]);
+        expect(result.diagnostics).toEqual([]);
+        expect(result.signals?.sourceFiles).toEqual([]);
+        expect(result.signals?.endpoints).toEqual([]);
+      },
+    );
+  });
+
+  it("analyzes dotfile JavaScript names with and without a directory", async () => {
+    await withPackage(
+      {
+        ".js": "fetch('https://dot-js.example.test/x');\n",
+        "lib/.js": "fetch('https://nested-dot-js.example.test/x');\n",
+        ".mjs": "fetch('https://dot-mjs.example.test/x');\n",
+        ".cjs": "fetch('https://dot-cjs.example.test/x');\n",
+        ".ts": [
+          "const url: string = 'https://dot-ts.example.test/x';",
+          "fetch(url);",
+        ].join("\n"),
+      },
+      async (root) => {
+        const result = await extractNpmJavaScriptCapabilities(
+          { root },
+          manifestSet,
+        );
+        expect(result.capabilities).toEqual([
+          {
+            kind: "NET",
+            location: { kind: "runtime" },
+            evidence: [
+              {
+                file: ".cjs",
+                line: 1,
+                snippet: "fetch('https://dot-cjs.example.test/x');",
+              },
+              {
+                file: ".js",
+                line: 1,
+                snippet: "fetch('https://dot-js.example.test/x');",
+              },
+              {
+                file: ".mjs",
+                line: 1,
+                snippet: "fetch('https://dot-mjs.example.test/x');",
+              },
+              { file: ".ts", line: 2, snippet: "fetch(url);" },
+              {
+                file: "lib/.js",
+                line: 1,
+                snippet: "fetch('https://nested-dot-js.example.test/x');",
+              },
+            ],
+          },
+        ]);
+        expect(result.diagnostics).toEqual([]);
+        expect(result.signals?.sourceFiles.map((file) => file.file)).toEqual([
+          ".cjs",
+          ".js",
+          ".mjs",
+          ".ts",
+          "lib/.js",
+        ]);
+        expect(
+          result.signals?.endpoints.map((endpoint) => endpoint.normalizedValue),
+        ).toEqual([
+          "dot-cjs.example.test",
+          "dot-js.example.test",
+          "dot-mjs.example.test",
+          "dot-ts.example.test",
+          "nested-dot-js.example.test",
+        ]);
+      },
+    );
+  });
+
+  it("keeps a file named exactly .d.ts skipped as a declaration", async () => {
+    await withPackage(
+      {
+        ".d.ts": [
+          "export declare const url: string;",
+          "fetch('https://declaration.example.test/x');",
+        ].join("\n"),
+      },
+      async (root) => {
+        const result = await extractNpmJavaScriptCapabilities(
+          { root },
+          manifestSet,
+        );
+        expect(result.capabilities).toEqual([]);
+        expect(result.diagnostics).toEqual([]);
+        expect(result.signals?.sourceFiles).toEqual([]);
+        expect(result.signals?.endpoints).toEqual([]);
+      },
+    );
+  });
+
+  it("analyzes a dot-directory file whose basename has no dot when it names node", async () => {
+    await withPackage(
+      {
+        "lib.v2/cli":
+          "#!/usr/bin/env node\nfetch('https://dir-dot.example.test/x');\n",
+      },
+      async (root) => {
+        const result = await extractNpmJavaScriptCapabilities(
+          { root },
+          manifestSet,
+        );
+        expect(result.capabilities).toEqual([
+          {
+            kind: "NET",
+            location: { kind: "runtime" },
+            evidence: [
+              {
+                file: "lib.v2/cli",
+                line: 2,
+                snippet: "fetch('https://dir-dot.example.test/x');",
+              },
+            ],
+          },
+        ]);
+        expect(result.diagnostics).toEqual([]);
+        expect(result.signals?.sourceFiles.map((file) => file.file)).toEqual([
+          "lib.v2/cli",
+        ]);
+      },
+    );
+  });
+
+  it("skips a dot-directory file without a node hashbang, and .npmrc", async () => {
+    await withPackage(
+      {
+        "lib.v2/cli": "fetch('https://no-hashbang.example.test/x');\n",
+        ".npmrc": "fetch('https://npmrc.example.test/x');\n",
+      },
+      async (root) => {
+        const result = await extractNpmJavaScriptCapabilities(
+          { root },
+          manifestSet,
+        );
+        expect(result.capabilities).toEqual([]);
+        expect(result.diagnostics).toEqual([]);
+        expect(result.signals?.sourceFiles).toEqual([]);
+        expect(result.signals?.endpoints).toEqual([]);
+      },
+    );
+  });
+});
+
 describe("extractNpmJavaScriptCapabilities PROCESS", () => {
   it("detects literal CommonJS and node:-prefixed ESM imports", async () => {
     await withPackage(
