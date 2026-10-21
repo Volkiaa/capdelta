@@ -1,0 +1,17 @@
+{
+  "name": "reconstruction-project",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "name": "reconstruction-project",
+      "version": "1.0.0"
+    },
+    "node_modules/capdelta-fixture-ipv4-octal-hex": {
+      "version": "1.0.0",
+      "resolved": "https://registry.npmjs.org/capdelta-fixture-ipv4-octal-hex/-/capdelta-fixture-ipv4-octal-hex-1.0.0.tgz",
+      "integrity": "sha512-XHDVMz+ANA3yuis4O6shZU7/C/cIWHBvatVRxJGPFLSG+sPsUDa8q6BZ6kl8rr1Tg8LeRo0kO1kKolzFRqm8aw=="
+    }
+  }
+}

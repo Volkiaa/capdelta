@@ -232,6 +232,21 @@
           "head": ["file-kinds-1.0.1"]
         }
       }
+    },
+    {
+      "name": "ipv4-octal-hex",
+      "title": "Synthetic hex-part IPv4 endpoint (not a historical incident)",
+      "date": "n/a: regression for ADR-031",
+      "sources": ["https://man7.org/linux/man-pages/man3/inet_aton.3.html"],
+      "kept": "The 1.0.1 bump changes the host in require(\"net\").connect(443, ...) from 192.0.2.10 to 93.0xb8.216.34. The connect call and every other line stay the same, so only the endpoint signal changes.",
+      "omitted": "Everything else: the package is a minimal synthetic stand-in. run() is never called and neither address is contacted.",
+      "expected": "ADR-031 normalizes the hex part and reports one HIGH new-external-endpoint for 93.184.216.34. The unchanged connect keeps the NET capability from making the diff on its own.",
+      "scenarios": {
+        "attack": {
+          "base": ["ipv4-octal-hex-1.0.0"],
+          "head": ["ipv4-octal-hex-1.0.1"]
+        }
+      }
     }
   ]
 }
