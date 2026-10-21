@@ -62,6 +62,11 @@ export interface SignalSourceInput {
    * "parsed"; absent means every URL is "unknown".
    */
   stringRanges?: readonly StringRange[];
+  /**
+   * Cooked value of each string whose raw content holds a backslash, keyed by
+   * the start of its string range. Only applied when parseState is "parsed".
+   */
+  cookedStrings?: readonly (readonly [start: number, value: string])[];
 }
 
 export function emptySignalSet(): SignalSet {
@@ -96,6 +101,10 @@ export function observeSignalSource(input: SignalSourceInput): {
   const rangeEndAt = stringRanges?.rangeEndAt ?? ((): number | null => null);
   const ipv6ContextAt =
     stringRanges?.ipv6ContextAt ?? ((): SignalEndpointContext => "unknown");
+  const cookedStrings =
+    input.parseState === "parsed" && input.cookedStrings !== undefined
+      ? cookedLookup(input.file, input.stringRanges ?? [], input.cookedStrings)
+      : [];
   const endpoints = detectEndpoints(
     input.file,
     source,
@@ -105,6 +114,7 @@ export function observeSignalSource(input: SignalSourceInput): {
     contextAt,
     rangeEndAt,
     ipv6ContextAt,
+    cookedStrings,
   );
   const obfuscationPatterns = detectObfuscationPatterns(
     input.file,
@@ -169,6 +179,7 @@ function detectEndpoints(
   contextAt: (start: number) => SignalEndpointContext,
   rangeEndAt: (start: number) => number | null,
   ipv6ContextAt: (start: number, end: number) => SignalEndpointContext,
+  cookedStrings: readonly (readonly [number, string])[],
 ): SignalEndpointObservation[] {
   const found: SignalEndpointObservation[] = [];
   // The regex is global, so it carries lastIndex between calls. Reset it and
@@ -223,34 +234,16 @@ function detectEndpoints(
       // that runs into a comment ("https://x\n" after a label) is not one
       // either.
       if (inComment(index, spanEnd)) continue;
-      let parsed: URL;
-      try {
-        parsed = new URL(value);
-      } catch {
-        continue;
-      }
-      const rawHost = parsed.hostname
-        .toLowerCase()
-        .replace(/^\[|\]$/gu, "")
-        .replace(/\.$/u, "");
-      const endpointType = endpointTypeFor(rawHost);
-      const host =
-        endpointType === "domain" ? publicStyleDomain(rawHost) : rawHost;
-      if (host === null) continue;
-      if (endpointType === null || !isExternalHost(host, endpointType))
-        continue;
-      found.push(
-        endpoint(
-          file,
-          host,
-          endpointType,
-          source,
-          starts,
-          index,
-          confidence,
-          context,
-        ),
+      const observation = urlEndpoint(
+        file,
+        value,
+        source,
+        starts,
+        index,
+        confidence,
+        context,
       );
+      if (observation !== null) found.push(observation);
     }
   }
 
@@ -278,7 +271,88 @@ function detectEndpoints(
       );
     }
   }
+
+  // ADR-026: cooked matches join the raw matches here, so the per-host
+  // aggregation below decides severity (ADR-024 strongest-context-wins)
+  // instead of a separate dedupe that could drop the stronger one.
+  for (const [start, value] of cookedStrings) {
+    const context = contextAt(start);
+    // The WHATWG URL parser removes ASCII tab, LF and CR from its input, so
+    // the runtime fetches the URL that remains. URL_LITERAL_RE would stop at
+    // them, so remove them before matching and keep the URL visible.
+    const cooked = value.replace(/[\t\n\r]/gu, "");
+    URL_LITERAL_RE.lastIndex = 0;
+    let stopCursor = 0;
+    for (
+      let match = URL_LITERAL_RE.exec(cooked);
+      match !== null;
+      match = URL_LITERAL_RE.exec(cooked)
+    ) {
+      const index = match.index;
+      const authority = match[0];
+      // The span rule and the delimiter are the raw scan's: a URL's path or
+      // query is not a second URL, and a control character after the
+      // authority is rejected instead of stripped.
+      if (stopCursor < index) stopCursor = index;
+      while (
+        stopCursor < cooked.length &&
+        !URL_STOP_RE.test(cooked.charAt(stopCursor))
+      )
+        stopCursor += 1;
+      const authorityEnd = index + authority.length;
+      const delimited =
+        authorityEnd < stopCursor
+          ? cooked.slice(index, authorityEnd + 1)
+          : authority;
+      URL_LITERAL_RE.lastIndex = stopCursor;
+      const observation = urlEndpoint(
+        file,
+        delimited,
+        source,
+        starts,
+        start,
+        confidence,
+        context,
+      );
+      if (observation !== null) found.push(observation);
+    }
+  }
   return found;
+}
+
+function urlEndpoint(
+  file: string,
+  value: string,
+  source: string,
+  starts: readonly number[],
+  index: number,
+  confidence: SignalEndpointObservation["confidence"],
+  context: SignalEndpointContext,
+): SignalEndpointObservation | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    return null;
+  }
+  const rawHost = parsed.hostname
+    .toLowerCase()
+    .replace(/^\[|\]$/gu, "")
+    .replace(/\.$/u, "");
+  const endpointType = endpointTypeFor(rawHost);
+  const host = endpointType === "domain" ? publicStyleDomain(rawHost) : rawHost;
+  if (host === null) return null;
+  if (endpointType === null || !isExternalHost(host, endpointType)) return null;
+  return endpoint(
+    file,
+    host,
+    endpointType,
+    source,
+    starts,
+    index,
+    confidence,
+    context,
+  );
 }
 
 function endpoint(
@@ -603,6 +677,38 @@ function ipv6GluedContext(
   const after = tokenEnd < range[1] ? source.charAt(tokenEnd) : "";
   if (after === "%") return false;
   return !isIpv6Separator(before) || !isIpv6Separator(after);
+}
+
+/**
+ * Validates the parser's cooked values against its string ranges, so a broken
+ * parser response fails loudly instead of hiding or moving an endpoint.
+ */
+function cookedLookup(
+  file: string,
+  ranges: readonly StringRange[],
+  cookedStrings: readonly (readonly [number, string])[],
+): readonly (readonly [number, string])[] {
+  const rangeByStart = new Map<number, StringRange>();
+  for (const range of ranges) rangeByStart.set(range[0], range);
+  const validated: (readonly [number, string])[] = [];
+  let previousStart = -1;
+  for (const [start, value] of cookedStrings) {
+    const range = rangeByStart.get(start);
+    if (
+      !Number.isSafeInteger(start) ||
+      typeof value !== "string" ||
+      range === undefined ||
+      start <= previousStart ||
+      value.length > range[1] - start
+    ) {
+      throw new RangeError(
+        `invalid parser cooked strings for ${JSON.stringify(file)}`,
+      );
+    }
+    validated.push([start, value]);
+    previousStart = start;
+  }
+  return validated;
 }
 
 /**

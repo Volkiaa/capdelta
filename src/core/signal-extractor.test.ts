@@ -255,6 +255,127 @@ describe("signal extractor", () => {
       },
     );
   });
+
+  describe("cooked string values (ADR-026)", () => {
+    const text = 'fetch("https://plain.test/x");';
+    const start = text.indexOf('"') + 1;
+    const end = text.lastIndexOf('"');
+    const ranges = [[start, end, false]] as const;
+    const observe = (
+      cookedStrings?: NonNullable<SignalSourceInput["cookedStrings"]>,
+    ) =>
+      observeSignalSource({
+        file: "index.js",
+        bytes: new TextEncoder().encode(text),
+        parseState: "parsed",
+        stringRanges: ranges,
+        ...(cookedStrings === undefined ? {} : { cookedStrings }),
+      });
+
+    it("adds no observation to a string without a backslash", () => {
+      const withoutCooked = observe();
+      const withEmptyCooked = observe([]);
+      expect(withEmptyCooked.endpoints).toEqual(withoutCooked.endpoints);
+      expect(withEmptyCooked.endpoints).toHaveLength(1);
+    });
+
+    it.each([
+      [
+        "a start that is not a string range start",
+        [[start + 1, "https://x"]],
+        ranges,
+      ],
+      [
+        "a value longer than its range",
+        [[start, "x".repeat(end - start + 1)]],
+        ranges,
+      ],
+      [
+        "entries that are not in ascending order",
+        [
+          [start, "https://a.test"],
+          [start, "https://b.test"],
+        ],
+        ranges,
+      ],
+    ] as const)("rejects %s loudly", (_label, cookedStrings, stringRanges) => {
+      expect(() =>
+        observeSignalSource({
+          file: "index.js",
+          bytes: new TextEncoder().encode(text),
+          parseState: "parsed",
+          stringRanges,
+          cookedStrings,
+        }),
+      ).toThrow(RangeError);
+    });
+
+    it("does not report a URL found inside a query in a cooked value", () => {
+      const raw = 'f("https:\\/\\/?x=https:\\/\\/evil.test");';
+      const rawStart = raw.indexOf('"') + 1;
+      const rawEnd = raw.lastIndexOf('"');
+
+      expect(
+        observeSignalSource({
+          file: "index.js",
+          bytes: new TextEncoder().encode(raw),
+          parseState: "parsed",
+          stringRanges: [[rawStart, rawEnd, false]],
+          cookedStrings: [[rawStart, "https://?x=https://evil.test"]],
+        }).endpoints,
+      ).toEqual([]);
+    });
+
+    it("rejects a cooked host followed by a control character", () => {
+      const raw = 'f("https:\\/\\/evil.test\\u0001?x");';
+      const rawStart = raw.indexOf('"') + 1;
+      const rawEnd = raw.lastIndexOf('"');
+
+      expect(
+        observeSignalSource({
+          file: "index.js",
+          bytes: new TextEncoder().encode(raw),
+          parseState: "parsed",
+          stringRanges: [[rawStart, rawEnd, false]],
+          cookedStrings: [[rawStart, "https://evil.test\u0001?x"]],
+        }).endpoints,
+      ).toEqual([]);
+    });
+
+    it("merges 4,000 escaped URLs for one host without quadratic work", () => {
+      const lineCount = 4_000;
+      const line = '"\\x20https://evil.test/x";';
+      const sourceText = Array.from({ length: lineCount }, () => line).join(
+        "\n",
+      );
+      const stringRanges: [number, number, boolean][] = [];
+      const cookedStrings: [number, string][] = [];
+      for (let index = 0; index < lineCount; index += 1) {
+        const lineStart = index * (line.length + 1);
+        const rangeStart = lineStart + 1;
+        const rangeEnd = lineStart + line.length - 1;
+        stringRanges.push([rangeStart, rangeEnd, false]);
+        cookedStrings.push([rangeStart, " https://evil.test/x"]);
+      }
+
+      const result = buildSignalSet([
+        observeSignalSource({
+          file: "index.js",
+          bytes: new TextEncoder().encode(sourceText),
+          parseState: "parsed",
+          stringRanges,
+          cookedStrings,
+        }),
+      ]);
+
+      expect(result.endpoints).toHaveLength(1);
+      expect(result.endpoints[0]).toMatchObject({
+        normalizedValue: "evil.test",
+        context: "literal",
+      });
+      expect(result.endpoints[0]?.evidence).toHaveLength(lineCount);
+    });
+  });
 });
 
 describe("signal aggregation", () => {

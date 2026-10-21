@@ -16,12 +16,13 @@ type LocatedNode = Node & { start: number };
 function analyze(request: ParserRequest): ParserResponse {
   try {
     const { ast, comments } = parseSource(request);
-    const resolver = new BindingResolver(ast);
+    const resolver = new BindingResolver(ast, request.source);
     return {
       ok: true,
       detections: detectCapabilities(resolver, request.source),
       comments,
       stringRanges: resolver.stringRanges,
+      cookedStrings: resolver.cookedStrings,
     };
   } catch (error: unknown) {
     const located = error as { loc?: { line?: unknown }; pos?: unknown };
@@ -335,19 +336,24 @@ class BindingResolver {
   readonly scopes = new Map<Node, Scope>();
   readonly visits: NodeVisit[] = [];
   readonly stringRanges: StringRange[] = [];
+  readonly cookedStrings: (readonly [start: number, value: string])[] = [];
 
-  constructor(ast: Node) {
+  constructor(ast: Node, source: string) {
     const aliases: AliasTask[] = [];
     fullAncestor(ast, (node, _state, ancestors) => {
       const scope = this.ensureScopes(ancestors);
       this.collectDeclaration(node, ancestors, scope);
       this.visits.push({ node, scope });
-      const range = stringContentRange(node);
-      if (range !== null) this.stringRanges.push(range);
+      const content = stringContent(node, source);
+      if (content !== null) {
+        this.stringRanges.push(content.range);
+        if (content.cooked !== null) this.cookedStrings.push(content.cooked);
+      }
       if (isAliasCandidate(node, ancestors)) aliases.push({ node, scope });
     });
 
     this.stringRanges.sort((left, right) => left[0] - right[0]);
+    this.cookedStrings.sort((left, right) => left[0] - right[0]);
     for (const alias of aliases) this.collectAlias(alias.node, alias.scope);
   }
 
@@ -708,25 +714,63 @@ function isDynamicModuleLoad(node: Node): boolean {
   );
 }
 
+interface StringContent {
+  range: StringRange;
+  /** Present only when the raw content holds a backslash (ADR-026). */
+  cooked: readonly [start: number, value: string] | null;
+}
+
 /**
  * A string Literal's start/end include its quotes, while acorn's
  * TemplateElement start/end already bound the raw content between the backtick
  * and the next `${` or backtick. A tagged template with an invalid escape has
  * no cooked value, so it cannot demote a URL.
  */
-function stringContentRange(node: Node): StringRange | null {
+function stringContent(node: Node, source: string): StringContent | null {
   const record = node as unknown as Record<string, unknown>;
-  if (node.type === "TemplateElement") {
-    const cooked = asRecord(record.value)?.cooked;
-    return [
-      node.start,
-      node.end,
-      typeof cooked === "string" && valueHasWords(cooked),
-    ];
+  const isTemplate = node.type === "TemplateElement";
+  const cooked = isTemplate ? asRecord(record.value)?.cooked : record.value;
+  if (isTemplate) {
+    return {
+      range: [
+        node.start,
+        node.end,
+        typeof cooked === "string" && valueHasWords(cooked),
+      ],
+      cooked:
+        typeof cooked === "string" &&
+        needsCookedValue(source, node.start, node.end)
+          ? [node.start, cooked]
+          : null,
+    };
   }
-  return node.type === "Literal" && typeof record.value === "string"
-    ? [node.start + 1, node.end - 1, valueHasWords(record.value)]
-    : null;
+  if (node.type !== "Literal" || typeof cooked !== "string") return null;
+  const start = node.start + 1;
+  const end = node.end - 1;
+  return {
+    range: [start, end, valueHasWords(cooked)],
+    cooked: needsCookedValue(source, start, end) ? [start, cooked] : null,
+  };
+}
+
+/**
+ * A backslash can encode a URL character, and a raw tab, LF or CR hides a URL
+ * from the literal scan even though the WHATWG URL parser removes it. A
+ * template literal can hold a real newline, so report these strings too.
+ */
+function needsCookedValue(source: string, start: number, end: number): boolean {
+  for (let index = start; index < end; index += 1) {
+    const character = source[index];
+    if (
+      character === "\\" ||
+      character === "\t" ||
+      character === "\n" ||
+      character === "\r"
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function isStringLiteral(value: unknown): boolean {

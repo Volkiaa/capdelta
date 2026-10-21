@@ -836,6 +836,10 @@ describe("endpoint context", () => {
     ["an escaped leading space", 'fetch("\\ https://evil.test/x");'],
     ["a hex escape for a leading space", 'fetch("\\x20 https://evil.test/x");'],
     [
+      "a glued hex escape for a leading space",
+      'fetch("\\x20https://evil.test/x");',
+    ],
+    [
       "a Unicode escape for a trailing space",
       'fetch("https://evil.test/x\\u{20}");',
     ],
@@ -1203,6 +1207,132 @@ describe("template element boundary (ADR-024)", () => {
         detail: "new external domain evil.test",
       }),
     ]);
+  });
+});
+
+describe("escaped string endpoint signals (ADR-026)", () => {
+  async function analyze(
+    files: Record<string, string>,
+    version = "2.0.0",
+  ): Promise<CapabilitySet> {
+    let result: CapabilitySet | undefined;
+    await withPackage(files, async (root) => {
+      const manifest = await extractNpmManifestCapabilities(
+        { root },
+        { ecosystem: "npm", name: "fixture", version },
+      );
+      if (manifest.status !== "analyzed")
+        throw new Error("manifest unavailable");
+      result = mergeJavaScriptCapabilityLayer(
+        manifest.set,
+        await extractNpmJavaScriptCapabilities({ root }, manifest.set),
+      );
+    });
+    if (result === undefined) throw new Error("analysis did not run");
+    return result;
+  }
+
+  async function endpointsOf(
+    files: Record<string, string>,
+  ): Promise<{ host: string; context: string }[]> {
+    const set = await analyze(files);
+    return (set.signals?.endpoints ?? []).map((item) => ({
+      host: item.normalizedValue,
+      context: item.context,
+    }));
+  }
+
+  it("reports a URL whose scheme follows a glued hex escape at HIGH", async () => {
+    const base = await analyze({ "index.js": "module.exports = 1;\n" });
+    const head = await analyze({
+      "index.js": 'module.exports = () => fetch("\\x20https://evil.test/x");\n',
+    });
+
+    expect(diffManifestCapabilities(base, head).signalFindings).toEqual([
+      expect.objectContaining({
+        kind: "new-external-endpoint",
+        severity: "HIGH",
+        detail: "new external domain evil.test",
+      }),
+    ]);
+  });
+
+  it("keeps HIGH when the raw scan sees the same host as embedded text", async () => {
+    const base = await analyze({ "index.js": "module.exports = 1;\n" });
+    const head = await analyze({
+      "index.js":
+        'const doc="See https://evil.test/x for details"; fetch("\\x20https://evil.test/x");\n',
+    });
+
+    expect(diffManifestCapabilities(base, head).signalFindings).toEqual([
+      expect.objectContaining({
+        kind: "new-external-endpoint",
+        severity: "HIGH",
+        detail: "new external domain evil.test",
+      }),
+    ]);
+  });
+
+  it.each([
+    ["a tab escape inside the scheme", 'fetch("ht\\ttps://evil.test/x");'],
+    ["a newline escape inside the host", 'fetch("https://evil\\n.test/x");'],
+    [
+      "a template literal with a real newline inside the host",
+      "fetch(`https://evil\n.test/x`);",
+    ],
+  ])(
+    "reports a URL that the URL parser sees after %s",
+    async (_label, source) => {
+      expect(await endpointsOf({ "index.js": source })).toEqual([
+        { host: "evil.test", context: "literal" },
+      ]);
+    },
+  );
+
+  it("reports the full host when an escape splits it", async () => {
+    expect(
+      await endpointsOf({
+        "index.js": 'fetch("https://evil\\x2etest/x");',
+      }),
+    ).toEqual([{ host: "evil.test", context: "literal" }]);
+  });
+
+  it("reports a cooked URL at HIGH when the raw text repeats it next to an escape", async () => {
+    const base = await analyze({ "index.js": "module.exports = 1;\n" });
+    const head = await analyze({
+      "index.js":
+        "const tag = p => fetch(p[1]); tag`See https://evil.test/${0}https://evil.test/\\n`;",
+    });
+
+    expect(diffManifestCapabilities(base, head).signalFindings).toEqual([
+      expect.objectContaining({
+        kind: "new-external-endpoint",
+        severity: "HIGH",
+        detail: "new external domain evil.test",
+      }),
+    ]);
+  });
+
+  it("keeps a host mentioned in text at embedded-text", async () => {
+    expect(
+      await endpointsOf({
+        "index.js": 'const u = "See\\x20https://docs.test/a for details";',
+      }),
+    ).toEqual([{ host: "docs.test", context: "embedded-text" }]);
+  });
+
+  it("does not report a host the old version already held in escaped form", async () => {
+    const base = await analyze({
+      "index.js": 'const u = "https://evil\\x2etest/x";\n',
+    });
+    const head = await analyze({
+      "index.js": 'const u = "https://evil.test/x";\n',
+    });
+
+    expect(base.signals?.endpoints.map((item) => item.normalizedValue)).toEqual(
+      ["evil.test"],
+    );
+    expect(diffManifestCapabilities(base, head).signalFindings).toEqual([]);
   });
 });
 
