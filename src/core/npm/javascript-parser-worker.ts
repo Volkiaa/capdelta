@@ -1,9 +1,9 @@
 import { parentPort } from "node:worker_threads";
-import { parse, type Node } from "acorn";
+import { type Node } from "acorn";
 import { fullAncestor } from "acorn-walk";
 import { transformSync } from "amaro";
+import { parseSource, stringContent } from "./javascript-parse.js";
 import type {
-  CommentRange,
   ParserDetection,
   ParserFailure,
   ParserReadyMessage,
@@ -11,7 +11,6 @@ import type {
   ParserResponse,
   StringRange,
 } from "./javascript-parser-protocol.js";
-import { valueHasWords } from "./url-value-words.js";
 
 type LocatedNode = Node & { start: number };
 
@@ -391,6 +390,8 @@ class BindingResolver {
       const scope = this.ensureScopes(ancestors);
       this.collectDeclaration(node, ancestors, scope);
       this.visits.push({ node, scope });
+      // Push one item at a time. Spreading an array sized by the input throws
+      // RangeError on a package with enough strings.
       const content = stringContent(node, source);
       if (content !== null) {
         this.stringRanges.push(content.range);
@@ -722,34 +723,6 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
-function parseSource(
-  source: string,
-  sourceType: ParserRequest["sourceType"],
-): {
-  ast: Node;
-  comments: CommentRange[];
-} {
-  const attempt = (next: "module" | "script") => {
-    const comments: CommentRange[] = [];
-    const ast = parse(source, {
-      ecmaVersion: "latest",
-      allowHashBang: true,
-      locations: true,
-      sourceType: next,
-      onComment: (_block, _text, start, end) => {
-        comments.push([start, end]);
-      },
-    });
-    return { ast, comments };
-  };
-  if (sourceType !== "either") return attempt(sourceType);
-  try {
-    return attempt("module");
-  } catch {
-    return attempt("script");
-  }
-}
-
 function isDynamicModuleLoad(node: Node): boolean {
   const record = node as unknown as Record<string, unknown>;
   if (node.type === "ImportExpression") return !isStringLiteral(record.source);
@@ -762,65 +735,6 @@ function isDynamicModuleLoad(node: Node): boolean {
     Array.isArray(args) &&
     !isStringLiteral(args[0])
   );
-}
-
-interface StringContent {
-  range: StringRange;
-  /** Present only when the raw content holds a backslash (ADR-026). */
-  cooked: readonly [start: number, value: string] | null;
-}
-
-/**
- * A string Literal's start/end include its quotes, while acorn's
- * TemplateElement start/end already bound the raw content between the backtick
- * and the next `${` or backtick. A tagged template with an invalid escape has
- * no cooked value, so it cannot demote a URL.
- */
-function stringContent(node: Node, source: string): StringContent | null {
-  const record = node as unknown as Record<string, unknown>;
-  const isTemplate = node.type === "TemplateElement";
-  const cooked = isTemplate ? asRecord(record.value)?.cooked : record.value;
-  if (isTemplate) {
-    return {
-      range: [
-        node.start,
-        node.end,
-        typeof cooked === "string" && valueHasWords(cooked),
-      ],
-      cooked:
-        typeof cooked === "string" &&
-        needsCookedValue(source, node.start, node.end)
-          ? [node.start, cooked]
-          : null,
-    };
-  }
-  if (node.type !== "Literal" || typeof cooked !== "string") return null;
-  const start = node.start + 1;
-  const end = node.end - 1;
-  return {
-    range: [start, end, valueHasWords(cooked)],
-    cooked: needsCookedValue(source, start, end) ? [start, cooked] : null,
-  };
-}
-
-/**
- * A backslash can encode a URL character, and a raw tab, LF or CR hides a URL
- * from the literal scan even though the WHATWG URL parser removes it. A
- * template literal can hold a real newline, so report these strings too.
- */
-function needsCookedValue(source: string, start: number, end: number): boolean {
-  for (let index = start; index < end; index += 1) {
-    const character = source[index];
-    if (
-      character === "\\" ||
-      character === "\t" ||
-      character === "\n" ||
-      character === "\r"
-    ) {
-      return true;
-    }
-  }
-  return false;
 }
 
 function isStringLiteral(value: unknown): boolean {

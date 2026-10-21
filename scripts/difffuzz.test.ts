@@ -1,4 +1,8 @@
 import { describe, expect, it } from "vitest";
+import {
+  collectStringContent,
+  parseSource,
+} from "../src/core/npm/javascript-parse.js";
 import * as signals from "../src/core/signal-extractor.js";
 import { fuzz, parseArguments, type SignalModule } from "./difffuzz.js";
 
@@ -23,6 +27,35 @@ describe("difffuzz", () => {
     const result = fuzz(signals, dropsLast, options);
     expect(result.differences).toBeGreaterThan(0);
     expect(result.examples.length).toBeGreaterThan(0);
+  });
+
+  it("feeds cooked string values to the extractor", () => {
+    const ignoresCooked: SignalModule = {
+      observeSignalSource: (input) =>
+        signals.observeSignalSource({
+          file: input.file,
+          bytes: input.bytes,
+          parseState: input.parseState,
+          ...(input.commentRanges === undefined
+            ? {}
+            : { commentRanges: input.commentRanges }),
+          ...(input.stringRanges === undefined
+            ? {}
+            : { stringRanges: input.stringRanges }),
+        }),
+      buildSignalSet: signals.buildSignalSet,
+    };
+    const result = fuzz(signals, ignoresCooked, { ...options, seed: 9 });
+    expect(result.differences).toBeGreaterThan(0);
+  });
+
+  it("reports a string range without its quotes", () => {
+    const text = 'f("https://a.test/");';
+    const { ast } = parseSource(text, "either");
+    const { stringRanges } = collectStringContent(ast, text);
+    expect(stringRanges.map(([start, end]) => text.slice(start, end))).toEqual([
+      "https://a.test/",
+    ]);
   });
 });
 
