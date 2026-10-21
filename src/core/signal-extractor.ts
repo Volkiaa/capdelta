@@ -27,7 +27,32 @@ const MAX_EVIDENCE_SNIPPET = 240;
 // Extra leading slashes are kept: "https:///evil.test" still reaches evil.test.
 const URL_STOP_RE = /[\s"'`<>\\]/u;
 const URL_LITERAL_RE = /\b(?:https?|wss?):\/\/\/*[^\s"'`<>\\/?#]*/gu;
-const IP_LITERAL_ROWS = [
+interface IpLiteralRow {
+  pattern: RegExp;
+  family: 4 | 6;
+  endpointType: SignalEndpointObservation["endpointType"];
+  lowercase: boolean;
+  /** Canonical dotted decimal for a non-canonical IPv4 form, or null. */
+  normalize?: (value: string) => string | null;
+}
+
+// inet_aton accepts a four-part host where a part is hex ("0x" plus hex
+// digits) or octal (a leading "0" plus digits), and leading zeros do not
+// change the value. One byte holds at most two significant hex digits or three
+// significant octal digits, so each form consumes any run of leading zeros
+// and at most that many significant digits. The significant group is optional
+// and starts non-zero, so every alternative consumes a different first
+// character and a long zero run cannot backtrack.
+const IPV4_HEX_PART = "0[xX]0*(?:[1-9a-fA-F][0-9a-fA-F]{0,1})?";
+const IPV4_OCTAL_PART = "0+(?:[1-7][0-7]{0,2})?";
+const IPV4_DECIMAL_PART = "[1-9][0-9]{0,2}";
+const IPV4_PART_SOURCE = `(?:${IPV4_HEX_PART}|${IPV4_OCTAL_PART}|${IPV4_DECIMAL_PART})`;
+const IPV4_ATON_RE = new RegExp(
+  `\\b${IPV4_PART_SOURCE}(?:\\.${IPV4_PART_SOURCE}){3}\\b`,
+  "gu",
+);
+
+const IP_LITERAL_ROWS: readonly IpLiteralRow[] = [
   {
     pattern: /\b(?:\d{1,3}\.){3}\d{1,3}\b/gu,
     family: 4,
@@ -40,7 +65,14 @@ const IP_LITERAL_ROWS = [
     endpointType: "ipv6",
     lowercase: true,
   },
-] as const;
+  {
+    pattern: IPV4_ATON_RE,
+    family: 4,
+    endpointType: "ipv4",
+    lowercase: false,
+    normalize: normalizeMixedIpv4,
+  },
+];
 const ARRAY_RE = /\x5b([^\x5b\x5d]{1,4096})\x5d/gu;
 const HEX_ELEMENT_RE = /^0x[0-9a-f]{1,2}$/iu;
 const CHARCODE_ELEMENT_RE = /^\d{1,3}$/u;
@@ -252,12 +284,14 @@ function detectEndpoints(
       const value = match[0];
       const index = match.index;
       if (inComment(index, index + value.length)) continue;
-      if (isIP(value) !== row.family) continue;
-      if (!isExternalHost(value, row.endpointType)) continue;
+      const normalized =
+        row.normalize === undefined ? value : row.normalize(value);
+      if (normalized === null || isIP(normalized) !== row.family) continue;
+      if (!isExternalHost(normalized, row.endpointType)) continue;
       found.push(
         endpoint(
           file,
-          row.lowercase ? value.toLowerCase() : value,
+          row.lowercase ? normalized.toLowerCase() : normalized,
           row.endpointType,
           source,
           starts,
@@ -771,6 +805,49 @@ function endpointTypeFor(
   if (family === 4) return "ipv4";
   if (family === 6) return "ipv6";
   return value.length === 0 ? null : "domain";
+}
+
+/**
+ * Converts a four-part dotted host that uses at least one inet_aton hex or
+ * octal part into dotted decimal. A canonical dotted decimal returns null, so
+ * the canonical row keeps reporting it unchanged.
+ */
+function normalizeMixedIpv4(value: string): string | null {
+  const parts = value.split(".");
+  if (parts.length !== 4) return null;
+  const octets: number[] = [];
+  let nonCanonical = false;
+  for (const part of parts) {
+    const octet = ipv4PartOctet(part);
+    if (octet === null) return null;
+    octets.push(octet);
+    if (isNonCanonicalIpv4Part(part)) nonCanonical = true;
+  }
+  return nonCanonical ? octets.join(".") : null;
+}
+
+function isNonCanonicalIpv4Part(part: string): boolean {
+  return (
+    part.startsWith("0x") ||
+    part.startsWith("0X") ||
+    (part.length > 1 && part.startsWith("0"))
+  );
+}
+
+function ipv4PartOctet(part: string): number | null {
+  let value: number;
+  if (part.startsWith("0x") || part.startsWith("0X")) {
+    value = Number.parseInt(part.slice(2), 16);
+  } else if (part.length > 1 && part.startsWith("0")) {
+    // A leading zero means octal in inet_aton; "0" alone is decimal zero.
+    if (!/^[0-7]+$/u.test(part.slice(1))) return null;
+    value = Number.parseInt(part.slice(1), 8);
+  } else {
+    value = Number.parseInt(part, 10);
+  }
+  return Number.isSafeInteger(value) && value >= 0 && value <= 255
+    ? value
+    : null;
 }
 
 function isExternalHost(

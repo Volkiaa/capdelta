@@ -267,6 +267,102 @@ describe("signal extractor", () => {
     );
   });
 
+  describe("hex and octal dotted IPv4 (ADR-031)", () => {
+    const hosts = (text: string) =>
+      buildSignalSet([source("index.js", text)])
+        .endpoints.filter((item) => item.endpointType === "ipv4")
+        .map((item) => item.normalizedValue);
+
+    it.each([
+      ["93.0xb8.216.34", "93.184.216.34"],
+      ["0135.0270.0330.042", "93.184.216.34"],
+      ["93.184.216.034", "93.184.216.28"],
+    ])("reports %s as %s", (text, expected) => {
+      expect(hosts(`connect(443, "${text}");`)).toEqual([expected]);
+    });
+
+    it.each([
+      [
+        "a four-digit octal part with leading zeros",
+        "93.184.216.0000034",
+        "93.184.216.28",
+      ],
+      [
+        "a long run of leading zeros in an octal part",
+        "93.184.216.00000000000000000042",
+        "93.184.216.34",
+      ],
+      [
+        "a long run of zeros in a hex part",
+        "0x0000005d.184.216.34",
+        "93.184.216.34",
+      ],
+      [
+        "leading zeros in a trailing hex part",
+        "93.184.216.0x00022",
+        "93.184.216.34",
+      ],
+    ])("reports leading zeros in %s as %s", (_label, text, expected) => {
+      expect(hosts(`connect(443, "${text}");`)).toEqual([expected]);
+    });
+
+    it("drops a private address written with a hex part", () => {
+      expect(hosts('connect(443, "10.0x0.0.1");')).toEqual([]);
+    });
+
+    it.each([
+      ["three parts", "1.2.3"],
+      ["a single decimal number", "1572395042"],
+      ["a single hex number", "0x5db8d822"],
+      ["three octal-looking parts", "01.02.03"],
+      ["a hex part with a non-hex digit", "0x1g.1.1.1"],
+      ["an octal part over one byte", "0400.1.1.1"],
+      ["an octal part over one byte with four digits", "93.184.216.0400"],
+      ["a hex part over one byte", "93.184.216.0x100"],
+    ])("drops %s", (_label, text) => {
+      expect(hosts(`connect(443, "${text}");`)).toEqual([]);
+    });
+
+    it("stays fast on a long run of zeros between dots", () => {
+      const text = `connect(443, "1.${"0".repeat(100_000)}.1.1");`;
+      const started = performance.now();
+      expect(hosts(text)).toEqual(["1.0.1.1"]);
+      expect(performance.now() - started).toBeLessThan(1_000);
+    });
+
+    it("keeps a canonical dotted decimal observation unchanged", () => {
+      expect(
+        buildSignalSet([source("index.js", 'connect(443, "93.184.216.34");')])
+          .endpoints,
+      ).toEqual([
+        expect.objectContaining({
+          endpointType: "ipv4",
+          normalizedValue: "93.184.216.34",
+          context: "unknown",
+          confidence: "literal",
+        }),
+      ]);
+    });
+
+    it("reports a URL with a hex part once with the canonical value", () => {
+      expect(hosts('fetch("http://93.0xb8.216.34/x");')).toEqual([
+        "93.184.216.34",
+      ]);
+    });
+
+    it("skips a non-canonical address inside a parser comment range", () => {
+      const text = '// connect(443, "93.0xb8.216.34")\n';
+      expect(
+        observeSignalSource({
+          file: "index.js",
+          bytes: new TextEncoder().encode(text),
+          parseState: "parsed",
+          commentRanges: [[0, text.length]],
+        }).endpoints,
+      ).toEqual([]);
+    });
+  });
+
   describe("cooked string values (ADR-026)", () => {
     const text = 'fetch("https://plain.test/x");';
     const start = text.indexOf('"') + 1;

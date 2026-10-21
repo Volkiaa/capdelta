@@ -15,12 +15,21 @@
       "expected": "plain-crypto-js gets a full new-package report with a CRITICAL registry postinstall hook and UNKNOWN in install-script code; the axios bump shows a LOW dependency addition cross-linked to that report; the default CRITICAL gate fails.",
       "scenarios": {
         "attack": {
-          "base": ["axios-1.14.0"],
-          "head": ["axios-1.14.1", "plain-crypto-js-4.2.1"]
+          "base": [
+            "axios-1.14.0"
+          ],
+          "head": [
+            "axios-1.14.1",
+            "plain-crypto-js-4.2.1"
+          ]
         },
         "control": {
-          "base": ["axios-1.14.0"],
-          "head": ["axios-1.14.2-reconstruction-control"]
+          "base": [
+            "axios-1.14.0"
+          ],
+          "head": [
+            "axios-1.14.2-reconstruction-control"
+          ]
         }
       }
     },
@@ -38,12 +47,20 @@
       "expected": "CRITICAL install-hook-change, install-code-execution for NET, ENV, and PROCESS in bundle.js, and secret-exfiltration; a parser-limit simulation still fails the gate on the hook alone.",
       "scenarios": {
         "attack": {
-          "base": ["tinycolor-4.1.0"],
-          "head": ["tinycolor-4.1.1"]
+          "base": [
+            "tinycolor-4.1.0"
+          ],
+          "head": [
+            "tinycolor-4.1.1"
+          ]
         },
         "control": {
-          "base": ["tinycolor-4.1.0"],
-          "head": ["tinycolor-4.2.0-reconstruction-control"]
+          "base": [
+            "tinycolor-4.1.0"
+          ],
+          "head": [
+            "tinycolor-4.2.0-reconstruction-control"
+          ]
         }
       }
     },
@@ -60,12 +77,20 @@
       "expected": "CRITICAL install-hook-change for the registry preinstall hook with package.json evidence; the default gate fails.",
       "scenarios": {
         "attack": {
-          "base": ["victim-1.0.0"],
-          "head": ["victim-1.0.1"]
+          "base": [
+            "victim-1.0.0"
+          ],
+          "head": [
+            "victim-1.0.1"
+          ]
         },
         "control": {
-          "base": ["victim-1.0.0"],
-          "head": ["victim-1.0.2-control"]
+          "base": [
+            "victim-1.0.0"
+          ],
+          "head": [
+            "victim-1.0.2-control"
+          ]
         }
       }
     },
@@ -82,8 +107,12 @@
       "expected": "Before ADR-013 the x/-rooted version was rejected as invalid-layout, so it was unavailable and passed the default gate. It must now be analyzed with a CRITICAL registry postinstall hook.",
       "scenarios": {
         "attack": {
-          "base": ["evasion-1.0.0"],
-          "head": ["evasion-1.0.1"]
+          "base": [
+            "evasion-1.0.0"
+          ],
+          "head": [
+            "evasion-1.0.1"
+          ]
         }
       }
     },
@@ -106,12 +135,20 @@
       },
       "scenarios": {
         "attack": {
-          "base": ["evasion-1.0.0"],
-          "head": ["evasion-1.0.1"]
+          "base": [
+            "evasion-1.0.0"
+          ],
+          "head": [
+            "evasion-1.0.1"
+          ]
         },
         "control": {
-          "base": ["evasion-1.0.0"],
-          "head": ["evasion-1.0.2-control"]
+          "base": [
+            "evasion-1.0.0"
+          ],
+          "head": [
+            "evasion-1.0.2-control"
+          ]
         }
       }
     },
@@ -134,8 +171,12 @@
       },
       "scenarios": {
         "attack": {
-          "base": ["victim-1.0.0"],
-          "head": ["victim-1.0.1"]
+          "base": [
+            "victim-1.0.0"
+          ],
+          "head": [
+            "victim-1.0.1"
+          ]
         }
       }
     },
@@ -143,7 +184,9 @@
       "name": "old-side-unanalyzable",
       "title": "Synthetic unanalyzable baseline (not a historical incident)",
       "date": "n/a: regression for ADR-023",
-      "sources": ["https://github.com/isaacs/node-tar/blob/main/src/unpack.ts"],
+      "sources": [
+        "https://github.com/isaacs/node-tar/blob/main/src/unpack.ts"
+      ],
       "kept": "The old tarball carries a symlink entry. capdelta rejects link entries before extraction, so the old side fails with link-entry and npm would have installed that version. The attack head adds a registry \"postinstall\": \"node setup.js\" in package.json, and setup.js is inert.",
       "omitted": "Everything else: the package is a minimal synthetic stand-in. The link target is never created, followed, or written, and setup.js is never executed.",
       "expected": "The old-side link-entry failure is CRITICAL but becomes a baseline failure. The attack head is analyzed as newly added, its registry postinstall hook gates CRITICAL, and the default gate fails. The control head has no install script and no capabilities, so it is analyzed, the gate passes, and the baseline failure stays visible.",
@@ -154,12 +197,20 @@
       },
       "scenarios": {
         "attack": {
-          "base": ["victim-1.0.0"],
-          "head": ["victim-1.0.1"]
+          "base": [
+            "victim-1.0.0"
+          ],
+          "head": [
+            "victim-1.0.1"
+          ]
         },
         "control": {
-          "base": ["victim-1.0.0"],
-          "head": ["victim-1.0.2-control"]
+          "base": [
+            "victim-1.0.0"
+          ],
+          "head": [
+            "victim-1.0.2-control"
+          ]
         }
       }
     },
@@ -175,8 +226,12 @@
       "expected": "Each template element is scanned on its own, so exfil.example.test is a HIGH new-external-endpoint. The URL that crosses the expression is kept at unknown, which leaves docs.example.test at HIGH too, and the default HIGH gate fails.",
       "scenarios": {
         "attack": {
-          "base": ["template-boundary-1.0.0"],
-          "head": ["template-boundary-1.0.1"]
+          "base": [
+            "template-boundary-1.0.0"
+          ],
+          "head": [
+            "template-boundary-1.0.1"
+          ]
         }
       }
     },
@@ -192,8 +247,12 @@
       "expected": "ADR-026 scans the string's cooked value and reports a HIGH new-external-endpoint for exfil.example.test. The unresolved fetch is reported as NET at HIGH too.",
       "scenarios": {
         "attack": {
-          "base": ["escaped-url-1.0.0"],
-          "head": ["escaped-url-1.0.1"]
+          "base": [
+            "escaped-url-1.0.0"
+          ],
+          "head": [
+            "escaped-url-1.0.1"
+          ]
         }
       }
     },
@@ -210,8 +269,12 @@
       "expected": "ADR-029 keeps underscore characters in non-TLD labels, so the bump reports a HIGH new-external-endpoint for a_b.exfil.example.test and the default HIGH gate fails.",
       "scenarios": {
         "attack": {
-          "base": ["underscore-label-1.0.0"],
-          "head": ["underscore-label-1.0.1"]
+          "base": [
+            "underscore-label-1.0.0"
+          ],
+          "head": [
+            "underscore-label-1.0.1"
+          ]
         }
       }
     },
@@ -228,8 +291,33 @@
       "expected": "The extractor analyzes an extensionless file whose hashbang names node, so exfil.example.test is a HIGH new-external-endpoint and the default HIGH gate fails.",
       "scenarios": {
         "attack": {
-          "base": ["file-kinds-1.0.0"],
-          "head": ["file-kinds-1.0.1"]
+          "base": [
+            "file-kinds-1.0.0"
+          ],
+          "head": [
+            "file-kinds-1.0.1"
+          ]
+        }
+      }
+    },
+    {
+      "name": "ipv4-octal-hex",
+      "title": "Synthetic hex-part IPv4 endpoint (not a historical incident)",
+      "date": "n/a: regression for ADR-031",
+      "sources": [
+        "https://man7.org/linux/man-pages/man3/inet_aton.3.html"
+      ],
+      "kept": "The 1.0.1 bump changes the host in require(\"net\").connect(443, ...) from 192.0.2.10 to 93.0xb8.216.34. The connect call and every other line stay the same, so only the endpoint signal changes.",
+      "omitted": "Everything else: the package is a minimal synthetic stand-in. run() is never called and neither address is contacted.",
+      "expected": "ADR-031 normalizes the hex part and reports one HIGH new-external-endpoint for 93.184.216.34. The unchanged connect keeps the NET capability from making the diff on its own.",
+      "scenarios": {
+        "attack": {
+          "base": [
+            "ipv4-octal-hex-1.0.0"
+          ],
+          "head": [
+            "ipv4-octal-hex-1.0.1"
+          ]
         }
       }
     }
