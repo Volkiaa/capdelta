@@ -198,6 +198,40 @@
       }
     },
     {
+      "name": "unparseable-escape",
+      "title": "Synthetic escaped endpoint in a file over the parser limit (not a historical incident)",
+      "date": "n/a: regression for ADR-036",
+      "sources": [
+        "https://tc39.es/ecma262/multipage/ecmascript-language-lexical-grammar.html#sec-literals-string-literals",
+        "https://nodejs.org/api/fs.html#filehandlereadfileoptions"
+      ],
+      "kept": "Both versions carry an index.js over the 2 MB parser limit. The committed source keeps a /* PAD */ marker that scripts/generate-golden-fixtures.mjs expands to a block comment when it packs the tarball. 1.0.0 fetches https://cdn.example.test/x; 1.0.1 fetches \"\\x20https://exfil.example.test/c\", whose raw text has no word boundary before the scheme.",
+      "omitted": "Everything else: the package is a minimal synthetic stand-in. run() is never called and the reserved .example.test hosts are never contacted.",
+      "expected": "The decoded scan of the unparseable file reports a HIGH new-external-endpoint for exfil.example.test, and the default HIGH gate fails.",
+      "padding": {
+        "unparseable-escape-1.0.0": [
+          {
+            "path": "package/index.js",
+            "marker": "/* PAD */",
+            "bytes": 2097153
+          }
+        ],
+        "unparseable-escape-1.0.1": [
+          {
+            "path": "package/index.js",
+            "marker": "/* PAD */",
+            "bytes": 2097153
+          }
+        ]
+      },
+      "scenarios": {
+        "attack": {
+          "base": ["unparseable-escape-1.0.0"],
+          "head": ["unparseable-escape-1.0.1"]
+        }
+      }
+    },
+    {
       "name": "underscore-label",
       "title": "Synthetic underscore-label endpoint (not a historical incident)",
       "date": "n/a: regression for ADR-029",

@@ -139,6 +139,7 @@ export function observeSignalSource(input: SignalSourceInput): {
       : [];
   const endpoints = detectEndpoints(
     input.file,
+    { text: source, sourceOffsetAt: sameOffset },
     source,
     starts,
     confidence,
@@ -147,7 +148,34 @@ export function observeSignalSource(input: SignalSourceInput): {
     rangeEndAt,
     ipv6ContextAt,
     cookedStrings,
+    "established",
   );
+  // A file the parser did not read has no cooked values, so the byte scan sees
+  // only the raw escape text. Decoding a copy finds the URL or address the
+  // runtime would hold without letting a broken parse hide it. ADR-037: this
+  // widened scan is additive, so a speculative old-side host cannot hide a new
+  // one. Append one by one: a 2 MB input can yield hundreds of thousands of
+  // observations, and argument spreading overflows the call stack.
+  if (input.parseState !== "parsed") {
+    const decoded = decodeJavaScriptEscapes(source);
+    if (decoded !== null) {
+      for (const observation of detectEndpoints(
+        input.file,
+        decoded,
+        source,
+        starts,
+        confidence,
+        (): boolean => false,
+        (): SignalEndpointContext => "unknown",
+        (): number | null => null,
+        (): SignalEndpointContext => "unknown",
+        [],
+        "additive",
+      )) {
+        endpoints.push(observation);
+      }
+    }
+  }
   const obfuscationPatterns = detectObfuscationPatterns(
     input.file,
     source,
@@ -205,8 +233,19 @@ export function buildSignalSet(
   return { sourceFiles, endpoints, obfuscationPatterns };
 }
 
+interface ScanText {
+  text: string;
+  /** Source offset of a character in `text`, for evidence and comments. */
+  sourceOffsetAt(index: number): number;
+}
+
+function sameOffset(index: number): number {
+  return index;
+}
+
 function detectEndpoints(
   file: string,
+  scan: ScanText,
   source: string,
   starts: readonly number[],
   confidence: SignalEndpointObservation["confidence"],
@@ -215,6 +254,7 @@ function detectEndpoints(
   rangeEndAt: (start: number) => number | null,
   ipv6ContextAt: (start: number, end: number) => SignalEndpointContext,
   cookedStrings: readonly (readonly [number, string])[],
+  provenance: SignalEndpointObservation["provenance"],
 ): SignalEndpointObservation[] {
   const found: SignalEndpointObservation[] = [];
   // The regex is global, so it carries lastIndex between calls. Reset it and
@@ -222,9 +262,9 @@ function detectEndpoints(
   URL_LITERAL_RE.lastIndex = 0;
   let stopCursor = 0;
   for (
-    let match = URL_LITERAL_RE.exec(source);
+    let match = URL_LITERAL_RE.exec(scan.text);
     match !== null;
-    match = URL_LITERAL_RE.exec(source)
+    match = URL_LITERAL_RE.exec(scan.text)
   ) {
     const index = match.index;
     const authority = match[0];
@@ -233,8 +273,8 @@ function detectEndpoints(
     // so finding every span's end stays linear in the source size.
     if (stopCursor < index) stopCursor = index;
     while (
-      stopCursor < source.length &&
-      !URL_STOP_RE.test(source.charAt(stopCursor))
+      stopCursor < scan.text.length &&
+      !URL_STOP_RE.test(scan.text.charAt(stopCursor))
     )
       stopCursor += 1;
     const lexicalEnd = stopCursor;
@@ -251,12 +291,15 @@ function detectEndpoints(
     const authorityEnd = index + authority.length;
     const delimited =
       authorityEnd < lexicalEnd
-        ? source.slice(index, authorityEnd + 1)
+        ? scan.text.slice(index, authorityEnd + 1)
         : authority;
     const candidates: [string, number, SignalEndpointContext][] = crosses
       ? [
           [
-            source.slice(index, Math.min(rangeEnd, index + delimited.length)),
+            scan.text.slice(
+              index,
+              Math.min(rangeEnd, index + delimited.length),
+            ),
             rangeEnd,
             contextAt(index),
           ],
@@ -268,25 +311,33 @@ function detectEndpoints(
       // Documentation links in comments are not runtime endpoints; a match
       // that runs into a comment ("https://x\n" after a label) is not one
       // either.
-      if (inComment(index, spanEnd)) continue;
+      if (inComment(scan.sourceOffsetAt(index), scan.sourceOffsetAt(spanEnd)))
+        continue;
       const observation = urlEndpoint(
         file,
         value,
         source,
         starts,
-        index,
+        scan.sourceOffsetAt(index),
         confidence,
         context,
+        provenance,
       );
       if (observation !== null) found.push(observation);
     }
   }
 
   for (const row of IP_LITERAL_ROWS) {
-    for (const match of source.matchAll(row.pattern)) {
+    for (const match of scan.text.matchAll(row.pattern)) {
       const value = match[0];
       const index = match.index;
-      if (inComment(index, index + value.length)) continue;
+      if (
+        inComment(
+          scan.sourceOffsetAt(index),
+          scan.sourceOffsetAt(index + value.length),
+        )
+      )
+        continue;
       const normalized =
         row.normalize === undefined ? value : row.normalize(value);
       if (normalized === null || isIP(normalized) !== row.family) continue;
@@ -298,12 +349,13 @@ function detectEndpoints(
           row.endpointType,
           source,
           starts,
-          index,
+          scan.sourceOffsetAt(index),
           confidence,
           // ADR-027 classifies bare IPv6 by its string; IPv4 keeps "unknown".
           row.family === 6
             ? ipv6ContextAt(index, index + value.length)
             : "unknown",
+          provenance,
         ),
       );
     }
@@ -350,11 +402,173 @@ function detectEndpoints(
         start,
         confidence,
         context,
+        provenance,
       );
       if (observation !== null) found.push(observation);
     }
   }
   return found;
+}
+
+const SIMPLE_ESCAPES: Readonly<Record<string, string>> = {
+  b: "\b",
+  f: "\f",
+  n: "\n",
+  r: "\r",
+  t: "\t",
+  v: "\v",
+};
+// An escape's replacement is never longer than the escape text, so a decoded
+// copy fits in a buffer the size of the source. The parallel offsets array
+// carries each decoded character's source position for evidence lines.
+const DECODE_CHUNK = 8_192;
+
+/**
+ * Replaces JavaScript escapes in a copy of the source. A malformed \x or \u
+ * escape is left as written, so it cannot invent characters the runtime never
+ * had. Every other backslash takes the single character after it or, for a
+ * legacy octal escape, the character that escape denotes.
+ */
+function decodeJavaScriptEscapes(source: string): ScanText | null {
+  if (!source.includes("\\")) return null;
+  const units = new Uint16Array(source.length);
+  const offsets = new Uint32Array(source.length);
+  let length = 0;
+  let index = 0;
+  while (index < source.length) {
+    if (source.charCodeAt(index) !== 0x5c) {
+      units[length] = source.charCodeAt(index);
+      offsets[length] = index;
+      length += 1;
+      index += 1;
+      continue;
+    }
+    const escaped = escapeAt(source, index);
+    if (escaped === null) {
+      // Keep the backslash itself; the characters after it are copied on the
+      // next iterations, so a malformed escape stays exactly as written.
+      units[length] = 0x5c;
+      offsets[length] = index;
+      length += 1;
+      index += 1;
+      continue;
+    }
+    const [value, next] = escaped;
+    for (let unit = 0; unit < value.length; unit += 1) {
+      units[length] = value.charCodeAt(unit);
+      offsets[length] = index;
+      length += 1;
+    }
+    index = next;
+  }
+  let text = "";
+  for (let start = 0; start < length; start += DECODE_CHUNK) {
+    text += String.fromCharCode(
+      ...units.subarray(start, Math.min(start + DECODE_CHUNK, length)),
+    );
+  }
+  return {
+    text,
+    sourceOffsetAt: (decodedIndex) => offsets[decodedIndex] ?? source.length,
+  };
+}
+
+function escapeAt(
+  source: string,
+  index: number,
+): readonly [value: string, next: number] | null {
+  const char = source.charAt(index + 1);
+  if (char === "") return null;
+  if (char === "\n") return ["", index + 2];
+  if (char === "\r") {
+    return ["", source.charAt(index + 2) === "\n" ? index + 3 : index + 2];
+  }
+  if (char === "\u2028" || char === "\u2029") return ["", index + 2];
+  if (char === "x") {
+    const code = twoHexDigitsAt(source, index + 2);
+    return code === null ? null : [String.fromCharCode(code), index + 4];
+  }
+  if (char === "u") {
+    return unicodeEscapeAt(source, index);
+  }
+  if (char >= "0" && char <= "7") {
+    return legacyOctalEscapeAt(source, index);
+  }
+  const simple = SIMPLE_ESCAPES[char];
+  if (simple !== undefined) return [simple, index + 2];
+  // An escaped non-escape character stands for itself (`\/` is `/`).
+  return [char, index + 2];
+}
+
+function twoHexDigitsAt(source: string, index: number): number | null {
+  const first = hexDigitAt(source, index);
+  const second = hexDigitAt(source, index + 1);
+  return first === null || second === null ? null : first * 16 + second;
+}
+
+function hexDigitAt(source: string, index: number): number | null {
+  const code = source.charCodeAt(index);
+  if (code >= 0x30 && code <= 0x39) return code - 0x30;
+  if (code >= 0x41 && code <= 0x46) return code - 0x41 + 10;
+  if (code >= 0x61 && code <= 0x66) return code - 0x61 + 10;
+  return null;
+}
+
+function unicodeEscapeAt(
+  source: string,
+  index: number,
+): readonly [value: string, next: number] | null {
+  if (source.charAt(index + 2) !== "{") {
+    const code = fourHexDigitsAt(source, index + 2);
+    return code === null ? null : [String.fromCharCode(code), index + 6];
+  }
+  let value = 0;
+  let digits = 0;
+  for (let cursor = index + 3; cursor < source.length; cursor += 1) {
+    const digit = hexDigitAt(source, cursor);
+    if (digit === null) {
+      if (source.charAt(cursor) !== "}" || digits === 0) return null;
+      return value <= 0x10ffff
+        ? [String.fromCodePoint(value), cursor + 1]
+        : null;
+    }
+    value = value * 16 + digit;
+    // Any significant digit past 0x10FFFF invalidates the escape. Stopping
+    // here keeps the scan linear even when the closing brace is missing.
+    if (value > 0x10ffff) return null;
+    digits += 1;
+  }
+  return null;
+}
+
+function fourHexDigitsAt(source: string, index: number): number | null {
+  let value = 0;
+  for (let offset = 0; offset < 4; offset += 1) {
+    const digit = hexDigitAt(source, index + offset);
+    if (digit === null) return null;
+    value = value * 16 + digit;
+  }
+  return value;
+}
+
+function legacyOctalEscapeAt(
+  source: string,
+  index: number,
+): readonly [value: string, next: number] {
+  let digits = source.charAt(index + 1);
+  const first = digits.charCodeAt(0) - 0x30;
+  const second = source.charAt(index + 2);
+  if (second >= "0" && second <= "7") {
+    digits += second;
+    // Only a leading 0-3 allows a third digit: \377 is 255, but \400 is
+    // \40 followed by "0", as in the ECMAScript LegacyOctalEscapeSequence.
+    const third = source.charAt(index + 3);
+    if (first <= 3 && third >= "0" && third <= "7") digits += third;
+  }
+  return [
+    String.fromCharCode(Number.parseInt(digits, 8)),
+    index + 1 + digits.length,
+  ];
 }
 
 function urlEndpoint(
@@ -365,6 +579,7 @@ function urlEndpoint(
   index: number,
   confidence: SignalEndpointObservation["confidence"],
   context: SignalEndpointContext,
+  provenance: SignalEndpointObservation["provenance"],
 ): SignalEndpointObservation | null {
   let parsed: URL;
   try {
@@ -389,6 +604,7 @@ function urlEndpoint(
     index,
     confidence,
     context,
+    provenance,
   );
 }
 
@@ -401,6 +617,7 @@ function endpoint(
   index: number,
   confidence: SignalEndpointObservation["confidence"],
   context: SignalEndpointContext,
+  provenance: SignalEndpointObservation["provenance"],
 ): SignalEndpointObservation {
   return {
     kind: "EXTERNAL_ENDPOINT",
@@ -408,7 +625,7 @@ function endpoint(
     normalizedValue: value,
     confidence,
     context,
-    provenance: "established",
+    provenance,
     evidence: [{ ...evidenceAt(source, starts, index), file }],
   };
 }

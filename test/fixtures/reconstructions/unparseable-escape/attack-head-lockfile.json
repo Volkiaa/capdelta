@@ -1,0 +1,17 @@
+{
+  "name": "reconstruction-project",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "name": "reconstruction-project",
+      "version": "1.0.0"
+    },
+    "node_modules/capdelta-fixture-unparseable-escape": {
+      "version": "1.0.1",
+      "resolved": "https://registry.npmjs.org/capdelta-fixture-unparseable-escape/-/capdelta-fixture-unparseable-escape-1.0.1.tgz",
+      "integrity": "sha512-oC5EqUrZYTORfcRpd5wuXVnOv44glAY37fKhZkEc5N/1dvIt6Jegh286tMcJmniBCgVFEGTwbjrGhy/hJr/FUQ=="
+    }
+  }
+}
