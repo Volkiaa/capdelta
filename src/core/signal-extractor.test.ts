@@ -417,6 +417,60 @@ describe("signal extractor", () => {
       ]);
     });
 
+    it.each([
+      [
+        "with a lowercase scheme",
+        'f("https://a.test b@evil.test/x");',
+        [
+          ["a.test", "established"],
+          ["evil.test", "additive"],
+        ],
+      ],
+      [
+        "with an uppercase scheme",
+        'f("HTTPS://a.test b@evil.test/x");',
+        [["evil.test", "additive"]],
+      ],
+    ])(
+      "tags only the widened host as additive %s",
+      (_label, text, expected) => {
+        const start = text.indexOf('"') + 1;
+        const end = text.lastIndexOf('"');
+        expect(
+          buildSignalSet([
+            observeSignalSource({
+              file: "index.js",
+              bytes: new TextEncoder().encode(text),
+              parseState: "parsed",
+              stringRanges: [[start, end, /\s/u.test(text.slice(start, end))]],
+            }),
+          ]).endpoints.map((item) => [item.normalizedValue, item.provenance]),
+        ).toEqual(expected);
+      },
+    );
+
+    it("keeps main's context on the established observation", () => {
+      const text = 'f("https://a.test b@evil.test/x");';
+      const start = text.indexOf('"') + 1;
+      const end = text.lastIndexOf('"');
+      expect(
+        observeSignalSource({
+          file: "index.js",
+          bytes: new TextEncoder().encode(text),
+          parseState: "parsed",
+          stringRanges: [[start, end, true]],
+        }).endpoints.map((item) => [
+          item.normalizedValue,
+          item.context,
+          item.provenance,
+        ]),
+      ).toEqual([
+        ["a.test", "embedded-text", "established"],
+        ["a.test", "literal", "additive"],
+        ["evil.test", "literal", "additive"],
+      ]);
+    });
+
     it.each(["HTTPS", "hTtPs", "HTTP", "WsS", "WS"])(
       "reports the runtime host for raw %s userinfo URLs",
       (scheme) => {

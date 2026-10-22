@@ -140,6 +140,9 @@ export function observeSignalSource(input: SignalSourceInput): {
       : undefined;
   const contextAt =
     stringRanges?.contextAt ?? ((): SignalEndpointContext => "unknown");
+  const establishedContextAt =
+    stringRanges?.establishedContextAt ??
+    ((): SignalEndpointContext => "unknown");
   const rangeEndAt = stringRanges?.rangeEndAt ?? ((): number | null => null);
   const ipv6ContextAt =
     stringRanges?.ipv6ContextAt ?? ((): SignalEndpointContext => "unknown");
@@ -153,6 +156,7 @@ export function observeSignalSource(input: SignalSourceInput): {
     confidence,
     inComment,
     contextAt,
+    establishedContextAt,
     rangeEndAt,
     ipv6ContextAt,
     userinfoUrlAt,
@@ -223,6 +227,7 @@ function detectEndpoints(
   confidence: SignalEndpointObservation["confidence"],
   inComment: (start: number, end: number) => boolean,
   contextAt: (start: number) => SignalEndpointContext,
+  establishedContextAt: (start: number) => SignalEndpointContext,
   rangeEndAt: (start: number) => number | null,
   ipv6ContextAt: (start: number, end: number) => SignalEndpointContext,
   userinfoUrlAt: (start: number) => string | null,
@@ -271,7 +276,12 @@ function detectEndpoints(
         authorityEnd < lexicalEnd
           ? source.slice(index, authorityEnd + 1)
           : authority;
-      const baseCandidates: [string, number, SignalEndpointContext][] =
+      const baseCandidates: [
+        string,
+        number,
+        SignalEndpointContext,
+        SignalEndpointObservation["provenance"],
+      ][] =
         pattern === URL_LITERAL_RE
           ? []
           : crosses
@@ -282,24 +292,59 @@ function detectEndpoints(
                     Math.min(rangeEnd, index + delimited.length),
                   ),
                   rangeEnd,
-                  contextAt(index),
+                  establishedContextAt(index),
+                  "established",
                 ],
-                [delimited, lexicalEnd, "unknown"],
+                [delimited, lexicalEnd, "unknown", "established"],
               ]
-            : [[delimited, lexicalEnd, contextAt(index)]];
+            : [
+                [
+                  delimited,
+                  lexicalEnd,
+                  establishedContextAt(index),
+                  "established",
+                ],
+              ];
       // The literal scan stops at whitespace and quotes, which the URL parser
       // accepts inside userinfo. When the whole string value is one URL, let the
       // parser read the host after the last "@" as the runtime fetch would.
       const userinfoUrl = isFirstContentAt(index) ? userinfoUrlAt(index) : null;
-      const candidates: [string, number, SignalEndpointContext][] =
+      // ADR-037: this branch's widened passes and whole-value userinfo host add
+      // findings main does not make, so they must never hide an established one.
+      // The widened context keeps its own observation too, so a main observation
+      // still carries the context main gave it.
+      const widenedContext = contextAt(index);
+      const additiveCopies: [
+        string,
+        number,
+        SignalEndpointContext,
+        SignalEndpointObservation["provenance"],
+      ][] =
+        userinfoUrl === null
+          ? []
+          : baseCandidates
+              .filter(([, , context]) => context !== widenedContext)
+              .map(([value, spanEnd]) => [
+                value,
+                spanEnd,
+                widenedContext,
+                "additive",
+              ]);
+      const candidates: [
+        string,
+        number,
+        SignalEndpointContext,
+        SignalEndpointObservation["provenance"],
+      ][] =
         userinfoUrl === null
           ? baseCandidates
           : [
               ...baseCandidates,
-              [userinfoUrl, rangeEnd ?? lexicalEnd, contextAt(index)],
+              ...additiveCopies,
+              [userinfoUrl, rangeEnd ?? lexicalEnd, widenedContext, "additive"],
             ];
       pattern.lastIndex = crosses ? rangeEnd : lexicalEnd;
-      for (const [value, spanEnd, context] of candidates) {
+      for (const [value, spanEnd, context, provenance] of candidates) {
         // Documentation links in comments are not runtime endpoints; a match
         // that runs into a comment ("https://x\n" after a label) is not one
         // either.
@@ -312,6 +357,7 @@ function detectEndpoints(
           index,
           confidence,
           context,
+          provenance,
         );
         if (observation !== null) found.push(observation);
       }
@@ -355,6 +401,7 @@ function detectEndpoints(
     confidence,
     cookedStrings,
     contextAt,
+    establishedContextAt,
     userinfoUrlAt,
   )) {
     found.push(observation);
@@ -369,11 +416,13 @@ function cookedEndpoints(
   confidence: SignalEndpointObservation["confidence"],
   cookedStrings: readonly (readonly [number, string])[],
   contextAt: (start: number) => SignalEndpointContext,
+  establishedContextAt: (start: number) => SignalEndpointContext,
   userinfoUrlAt: (start: number) => string | null,
 ): SignalEndpointObservation[] {
   const found: SignalEndpointObservation[] = [];
   for (const [start, value] of cookedStrings) {
-    const context = contextAt(start);
+    const widenedContext = contextAt(start);
+    const establishedContext = establishedContextAt(start);
     // The WHATWG URL parser removes ASCII tab, LF and CR from its input, so
     // the runtime fetches the URL that remains. URL_LITERAL_RE would stop at
     // them, so remove them before matching and keep the URL visible.
@@ -417,10 +466,30 @@ function cookedEndpoints(
                 starts,
                 start,
                 confidence,
-                context,
+                establishedContext,
+                "established",
               )
             : null;
         if (observation !== null) found.push(observation);
+        // ADR-037: the widened context keeps its own observation, so the
+        // established one still carries the context main gave it.
+        if (
+          observation !== null &&
+          userinfoUrl !== null &&
+          widenedContext !== establishedContext
+        ) {
+          const widened = urlEndpoint(
+            file,
+            delimited,
+            source,
+            starts,
+            start,
+            confidence,
+            widenedContext,
+            "additive",
+          );
+          if (widened !== null) found.push(widened);
+        }
         // The userinfo URL is an addition, never a replacement: the literal scan
         // still reports the host it saw, so no host main reports is lost.
         if (!userinfoUsed && userinfoUrl !== null && index === firstContent) {
@@ -432,7 +501,9 @@ function cookedEndpoints(
             starts,
             start,
             confidence,
-            context,
+            widenedContext,
+            // ADR-037: this branch's widened rule must never hide a main one.
+            "additive",
           );
           if (whole !== null) found.push(whole);
         }
@@ -450,6 +521,7 @@ function urlEndpoint(
   index: number,
   confidence: SignalEndpointObservation["confidence"],
   context: SignalEndpointContext,
+  provenance: SignalEndpointObservation["provenance"] = "established",
 ): SignalEndpointObservation | null {
   const found = endpointHost(value);
   if (found === null) return null;
@@ -462,6 +534,7 @@ function urlEndpoint(
     index,
     confidence,
     context,
+    provenance,
   );
 }
 
@@ -496,6 +569,7 @@ function endpoint(
   index: number,
   confidence: SignalEndpointObservation["confidence"],
   context: SignalEndpointContext,
+  provenance: SignalEndpointObservation["provenance"] = "established",
 ): SignalEndpointObservation {
   return {
     kind: "EXTERNAL_ENDPOINT",
@@ -503,7 +577,7 @@ function endpoint(
     normalizedValue: value,
     confidence,
     context,
-    provenance: "established",
+    provenance,
     evidence: [{ ...evidenceAt(source, starts, index), file }],
   };
 }
@@ -741,6 +815,7 @@ function stringRangeLookup(
   cookedByStart: ReadonlyMap<number, string>,
 ): {
   contextAt: (start: number) => SignalEndpointContext;
+  establishedContextAt: (start: number) => SignalEndpointContext;
   rangeEndAt: (start: number) => number | null;
   ipv6ContextAt: (start: number, end: number) => SignalEndpointContext;
   userinfoUrlAt: (start: number) => string | null;
@@ -765,6 +840,16 @@ function stringRangeLookup(
     firstContentByRange.set(start, firstContentOffset(source, start, end));
   }
   const contexts = new Map<number, SignalEndpointContext>();
+  const establishedContexts = new Map<number, SignalEndpointContext>();
+  const rawWordsByRange = new Map<number, boolean>();
+  const rawHoldsWords = (range: StringRange): boolean => {
+    let words = rawWordsByRange.get(range[0]);
+    if (words === undefined) {
+      words = /\s/u.test(wordsOf(source.slice(range[0], range[1]))) && range[2];
+      rawWordsByRange.set(range[0], words);
+    }
+    return words;
+  };
   const escapeByRange = new Map<number, boolean>();
   const userinfoUrls = new Map<number, string | null>();
   const userinfoUrlAt = (start: number): string | null => {
@@ -792,12 +877,22 @@ function stringRangeLookup(
         // Neither the raw form nor the value alone may demote a URL. A whole
         // URL's userinfo whitespace is not other text in the string.
         context =
-          /\s/u.test(wordsOf(source.slice(range[0], range[1]))) &&
-          range[2] &&
-          userinfoUrlAt(range[0]) === null
+          rawHoldsWords(range) && userinfoUrlAt(range[0]) === null
             ? "embedded-text"
             : "literal";
         contexts.set(range[0], context);
+      }
+      return context;
+    },
+    // ADR-037: main's own context, without this branch's whole-URL promotion,
+    // so an established observation keeps the context main gave it.
+    establishedContextAt: (start) => {
+      const range = containingStringRange(ranges, start);
+      if (range === undefined) return "unknown";
+      let context = establishedContexts.get(range[0]);
+      if (context === undefined) {
+        context = rawHoldsWords(range) ? "embedded-text" : "literal";
+        establishedContexts.set(range[0], context);
       }
       return context;
     },

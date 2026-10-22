@@ -115,3 +115,19 @@ handles only matches whose scheme contains uppercase letters and adds only
 the host of an accepted whole-value userinfo URL. Otherwise an
 uppercase URL could consume a lowercase URL in its path that main reports.
 The two passes retain the original scan's cursors and string boundaries.
+
+## Provenance (ADR-037)
+
+Every observation this branch's widened rule or added scan produces is tagged
+`provenance: "additive"`. That covers the host after a stop character in a
+parsed string's userinfo, the host the case-insensitive scheme pass adds, and
+the `literal` copy of an established host when the whole-value URL check
+promotes its context.
+
+The original lowercase raw scan, the cooked-value scan and the IP literal rows
+produce `"established"` observations with main's value, confidence and
+context. `diffSignals` ranks established above additive, so an old version that
+reports a host only from this branch's rule cannot hide a new version that
+fetches it. With main's observations unchanged, every bump this branch reports
+is also a bump main reports, plus the hosts this rule adds. The branch only
+adds findings.

@@ -8,7 +8,10 @@ import {
   ENTROPY_JUMP_MILLIBITS,
   HIGH_ENTROPY_MILLIBITS,
   MIN_ENTROPY_BYTES,
+  buildSignalSet,
+  observeSignalSource,
 } from "./signal-extractor.js";
+import { collectStringContent, parseSource } from "./npm/javascript-parse.js";
 import { diffSignals } from "./signal-differ.js";
 
 const evidence = [{ file: "index.js", line: 1, snippet: "signal" }] as const;
@@ -195,6 +198,86 @@ describe("signal differ", () => {
     );
 
     expect(result).toEqual([]);
+  });
+
+  describe("ADR-037: a widened old host never hides a new one", () => {
+    function setOf(file: string, text: string): SignalSet {
+      const { ast, comments } = parseSource(text, "either");
+      return buildSignalSet([
+        observeSignalSource({
+          file,
+          bytes: new TextEncoder().encode(text),
+          parseState: "parsed",
+          commentRanges: comments,
+          ...collectStringContent(ast, text),
+        }),
+      ]);
+    }
+
+    function addedHosts(
+      oldText: string,
+      newText: string,
+      file = "index.js",
+    ): string[] {
+      return diffSignals(setOf(file, oldText), setOf(file, newText))
+        .filter((finding) => finding.kind === "new-external-endpoint")
+        .map((finding) => finding.detail);
+    }
+
+    it.each([
+      ["a cooked escaped scheme", 'f("h\\u0074tps://a.test b@evil.test/x");'],
+      ["a cooked ignored newline", 'f("h\\nttps://a.test b@evil.test/x");'],
+      ["an uppercase scheme", 'f("HTTPS://a.test b@evil.test/x");'],
+      [
+        "a template element",
+        'const suffix = ".safe.test";\nf(`HTTPS://a b@evil.test${suffix}`);',
+      ],
+    ])(
+      "reports the new host after %s in the old version",
+      (_label, oldText) => {
+        expect(addedHosts(oldText, 'f("https://evil.test/x");')).toEqual([
+          "new external domain evil.test",
+        ]);
+      },
+    );
+
+    it.each([
+      [
+        "an underscored label",
+        'f("https://a_b.example.test/x");',
+        "a_b.example.test",
+      ],
+      ["a mixed hex/octal IPv4", 'f("https://0x08.010.8.8/x");', "8.8.8.8"],
+    ])(
+      "keeps main's old %s and still reports the new host",
+      (_label, oldText, oldHost) => {
+        const newText = `${oldText}\nf("https://evil.test/x");`;
+        expect(addedHosts(oldText, newText)).toEqual([
+          "new external domain evil.test",
+        ]);
+        expect(addedHosts(oldText, newText)).not.toContain(
+          `new external domain ${oldHost}`,
+        );
+      },
+    );
+
+    it("reports a new host in an .mts file that main already scans", () => {
+      expect(
+        addedHosts(
+          'f("https://a.example.test/x");',
+          'f("https://a.example.test/x");\nf("https://evil.test/x");',
+          "index.mts",
+        ),
+      ).toEqual(["new external domain evil.test"]);
+    });
+
+    it("reports the new host after 130,000 repeated cooked URLs", () => {
+      const repeated = "http://a.co ".repeat(130_000);
+      const oldText = `f("${repeated.replace(" ", "\\x20")}");`;
+      expect(
+        addedHosts(oldText, `${oldText}\nf("https://evil.test/x");`),
+      ).toEqual(["new external domain evil.test"]);
+    });
   });
 
   it("reports entropy jumps and aggregate unparseable-byte growth", () => {
