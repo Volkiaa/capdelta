@@ -886,3 +886,42 @@ describe("synthetic inet_aton IPv4 host (ADR-031)", () => {
     expect(evaluateSeverityGate(result.report, "HIGH").fail).toBe(true);
   });
 });
+
+describe("synthetic scheme forms (ADR-033)", () => {
+  it("reports the destination swap written with an upper-case scheme and backslashes", async () => {
+    const result = await runScenario("scheme-forms", "attack");
+    expectAllAnalyzed(result, 1);
+    const report = packageReport(
+      result.report,
+      "capdelta-fixture-scheme-forms",
+    );
+
+    expect(report.signalFindings).toEqual([
+      expect.objectContaining({
+        kind: "new-external-endpoint",
+        severity: "HIGH",
+        detail: "new external domain exfil.example.test",
+      }),
+    ]);
+    expect(evaluateSeverityGate(result.report, "HIGH").fail).toBe(true);
+  });
+});
+
+describe("synthetic authority separator regression (ADR-033)", () => {
+  it("reports a host hidden by main's prefix without counting the old path", async () => {
+    const result = await runScenario("scheme-authority", "attack");
+    expectAllAnalyzed(result, 1);
+    const report = packageReport(
+      result.report,
+      "capdelta-fixture-scheme-authority",
+    );
+    expect(report.signalFindings).toEqual([
+      expect.objectContaining({
+        kind: "new-external-endpoint",
+        severity: "HIGH",
+        detail: "new external domain exfil.example.test",
+      }),
+    ]);
+    expect(evaluateSeverityGate(result.report, "HIGH").fail).toBe(true);
+  });
+});

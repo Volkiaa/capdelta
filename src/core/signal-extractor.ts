@@ -27,6 +27,15 @@ const MAX_EVIDENCE_SNIPPET = 240;
 // Extra leading slashes are kept: "https:///evil.test" still reaches evil.test.
 const URL_STOP_RE = /[\s"'`<>\\]/u;
 const URL_LITERAL_RE = /\b(?:https?|wss?):\/\/\/*[^\s"'`<>\\/?#]*/gu;
+// The WHATWG URL parser reads these special schemes case-insensitively and
+// accepts any run of "/" or "\" after the ":" before the host. This separate
+// pattern adds those forms and never drives the scan above: a match is reported
+// only when URL_LITERAL_RE would not have handled the full authority, so it can
+// add a host but never shorten or suppress the one main reports.
+const SCHEME_FORM_RE = /\b(?:https?|wss?):[/\\]*[^\s"'`<>\\/?#]*/giu;
+// The same pattern as URL_LITERAL_RE, sticky, so asking whether main matches
+// here does not disturb the global scan's lastIndex.
+const URL_LITERAL_AT_RE = new RegExp(URL_LITERAL_RE.source, "yu");
 interface IpLiteralRow {
   pattern: RegExp;
   family: 4 | 6;
@@ -137,6 +146,7 @@ export function observeSignalSource(input: SignalSourceInput): {
     input.parseState === "parsed" && input.cookedStrings !== undefined
       ? cookedLookup(input.file, input.stringRanges ?? [], input.cookedStrings)
       : [];
+  const cookedStarts = new Set(cookedStrings.map(([start]) => start));
   const endpoints = detectEndpoints(
     input.file,
     source,
@@ -145,6 +155,8 @@ export function observeSignalSource(input: SignalSourceInput): {
     inComment,
     contextAt,
     rangeEndAt,
+    input.parseState === "parsed" ? input.stringRanges : undefined,
+    cookedStarts,
     ipv6ContextAt,
     cookedStrings,
   );
@@ -213,10 +225,47 @@ function detectEndpoints(
   inComment: (start: number, end: number) => boolean,
   contextAt: (start: number) => SignalEndpointContext,
   rangeEndAt: (start: number) => number | null,
+  stringRanges: readonly StringRange[] | undefined,
+  cookedStarts: ReadonlySet<number>,
   ipv6ContextAt: (start: number, end: number) => SignalEndpointContext,
   cookedStrings: readonly (readonly [number, string])[],
 ): SignalEndpointObservation[] {
   const found: SignalEndpointObservation[] = [];
+  // Adds the forms URL_LITERAL_RE cannot see. indexOf maps a local match offset
+  // to the offset in source, which is where evidence and context come from.
+  const collectSchemeForms = (
+    text: string,
+    indexOf: (localIndex: number) => number,
+    contextOf: (index: number) => SignalEndpointContext,
+    checkComment: boolean,
+    cookedRangeStart: number | null,
+  ): void => {
+    eachSchemeFormMatch(text, (localIndex, value) => {
+      const index = indexOf(localIndex);
+      if (checkComment && inComment(index, index + value.length)) return;
+      // A backslash between the scheme and the host is an escape in the raw
+      // source, so its runtime value can differ. When this string has a cooked
+      // value (ADR-026), the cooked scan reads the runtime text; reading the raw
+      // escape as a separator too could report a host the runtime cannot reach.
+      if (
+        cookedRangeStart !== null &&
+        cookedStarts.has(cookedRangeStart) &&
+        value.includes("\\")
+      ) {
+        return;
+      }
+      const observation = urlEndpoint(
+        file,
+        value,
+        source,
+        starts,
+        index,
+        confidence,
+        contextOf(index),
+      );
+      if (observation !== null) found.push(observation);
+    });
+  };
   // The regex is global, so it carries lastIndex between calls. Reset it and
   // move it explicitly when a match stops short of the regex's own end.
   URL_LITERAL_RE.lastIndex = 0;
@@ -279,6 +328,28 @@ function detectEndpoints(
         context,
       );
       if (observation !== null) found.push(observation);
+    }
+  }
+
+  // The additive scan reads one string or template element at a time, so a
+  // match cannot run into the next element and each character is read once.
+  if (stringRanges === undefined) {
+    collectSchemeForms(
+      source,
+      (localIndex) => localIndex,
+      contextAt,
+      true,
+      null,
+    );
+  } else {
+    for (const [start, end] of stringRanges) {
+      collectSchemeForms(
+        source.slice(start, end),
+        (localIndex) => start + localIndex,
+        contextAt,
+        true,
+        start,
+      );
     }
   }
 
@@ -353,8 +424,57 @@ function detectEndpoints(
       );
       if (observation !== null) found.push(observation);
     }
+    // A cooked value is one string or one template element, so this scan is
+    // bounded by the value's own length.
+    collectSchemeForms(
+      cooked,
+      () => start,
+      () => context,
+      false,
+      null,
+    );
   }
   return found;
+}
+
+/**
+ * Visits matches of the additive scheme-form scan. A match whose full authority
+ * URL_LITERAL_RE would also match is skipped: main already reports that host,
+ * and this scan may only add observations. A shorter prefix cannot decide the
+ * runtime host. Each call has its own lexical span and is bounded by
+ * one string or template element when ranges exist.
+ */
+function eachSchemeFormMatch(
+  text: string,
+  visit: (localIndex: number, value: string) => void,
+): void {
+  SCHEME_FORM_RE.lastIndex = 0;
+  for (
+    let match = SCHEME_FORM_RE.exec(text);
+    match !== null;
+    match = SCHEME_FORM_RE.exec(text)
+  ) {
+    URL_LITERAL_AT_RE.lastIndex = match.index;
+    const mainMatch = URL_LITERAL_AT_RE.exec(text);
+    const authorityEnd = match.index + match[0].length;
+    // A path or query cannot introduce a second runtime host. Start after the
+    // separators already consumed. Backslashes in paths and queries also belong
+    // to this URL, so they must not expose a false baseline host.
+    let lexicalEnd = authorityEnd;
+    while (
+      lexicalEnd < text.length &&
+      !/[\s"'`<>]/u.test(text.charAt(lexicalEnd))
+    )
+      lexicalEnd += 1;
+    SCHEME_FORM_RE.lastIndex = lexicalEnd;
+    if (mainMatch !== null && mainMatch[0].length === match[0].length) continue;
+    visit(
+      match.index,
+      authorityEnd < lexicalEnd
+        ? text.slice(match.index, authorityEnd + 1)
+        : match[0],
+    );
+  }
 }
 
 function urlEndpoint(

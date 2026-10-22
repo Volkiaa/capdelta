@@ -1109,6 +1109,20 @@ describe("endpoint context", () => {
     ).toEqual([{ host: "a.test", context: "literal" }]);
   });
 
+  it("classifies an upper-case scheme like the plain form", async () => {
+    expect(
+      await endpointsOf({ "index.js": 'fetch("HTTPS://a.test/x");' }),
+    ).toEqual([{ host: "a.test", context: "literal" }]);
+  });
+
+  it("classifies backslashes between the scheme and host as literal", async () => {
+    expect(
+      await endpointsOf({
+        "index.js": String.raw`fetch("HTTPS:\\\\a.test/x");`,
+      }),
+    ).toEqual([{ host: "a.test", context: "literal" }]);
+  });
+
   it("trims surrounding whitespace before comparing string content", async () => {
     expect(
       await endpointsOf({ "index.js": 'const u = "  https://a.test/x  ";' }),
