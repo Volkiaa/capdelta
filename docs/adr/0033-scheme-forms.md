@@ -54,6 +54,22 @@ could run to the end of the file, making repeated template elements quadratic.
    scheme and backslash separators and expects a HIGH
    `new-external-endpoint` for the new host.
 
+## Provenance (ADR-037)
+
+Every observation `collectSchemeForms` produces is `provenance: "additive"`.
+The raw and cooked loops over `URL_LITERAL_RE`, the IP literal rows and the
+obfuscation scan keep `"established"`, so main's observations are unchanged in
+value, context and confidence. `eachSchemeFormMatch` skips a match whose whole
+authority main already handles, so a host main reports keeps its established
+observation. A host only the wider pattern finds is additive.
+
+The branch therefore only adds findings. If the old version holds a host only
+in one of these forms, its additive observation does not hide a new side that
+calls the host directly, which main reports as established. When both sides
+hold the host only in a widened form, both observations are additive and the
+old one still suppresses the new one, so a package that keeps the host across a
+bump gets no repeated finding.
+
 ## Alternatives rejected
 
 - **Widen the main regex.** It changes the span and cursor of every main match,
@@ -75,9 +91,10 @@ could run to the end of the file, making repeated template elements quadratic.
   reconstructions keep their `gateSeverity`.
 - A host main already reports keeps its observation. A form main cannot match
   adds a host with the same string context and confidence rules.
-- A host the old version already held only in one of these forms is now found
-  on both sides, so the diff no longer reports it as new. That is accurate: the
-  baseline already reached the host.
+- When both versions hold a host only in one of these forms, the diff no longer
+  reports it as new. That is accurate: the baseline already reached the host.
+  If only the old side holds the form and the new side calls the host directly,
+  ADR-037 reports it (see above).
 - Assembled URLs (`"ht" + "tps://host"`) remain out of scope, as ADR-024 and
   ADR-026 already record.
 

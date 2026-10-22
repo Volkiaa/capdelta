@@ -5,6 +5,7 @@ import {
   buildSignalSet,
   observeSignalSource,
 } from "./signal-extractor.js";
+import { diffSignals } from "./signal-differ.js";
 
 function source(
   file: string,
@@ -549,6 +550,7 @@ describe("signal extractor", () => {
             normalizedValue: "exfil.example.test",
             confidence: "literal",
             context: "literal",
+            provenance: "additive",
           }),
         ]);
       },
@@ -563,6 +565,7 @@ describe("signal extractor", () => {
           endpointType: "domain",
           normalizedValue: "exfil.example.test",
           confidence: "byte-scan-candidate",
+          provenance: "additive",
         }),
       ]);
     });
@@ -729,6 +732,132 @@ describe("signal extractor", () => {
       expect(large.hosts).toEqual([]);
       expect(large.cpu).toBeLessThan(100);
       expect(large.cpu).toBeLessThan(small.cpu * 3 + 10);
+    });
+
+    describe("ADR-037 review pairs", () => {
+      // The old side is the review's baseline, the new side the head that calls
+      // the host directly. Main reaches the host on the new side, so an old
+      // observation the widened rule alone produced must not hide it.
+      const parsedSet = (
+        text: string,
+        ranges: [number, number, boolean][],
+        cooked: [number, string][] = [],
+      ) =>
+        buildSignalSet([
+          observeSignalSource({
+            file: "index.js",
+            bytes: new TextEncoder().encode(text),
+            parseState: "parsed",
+            stringRanges: ranges,
+            ...(cooked.length === 0 ? {} : { cookedStrings: cooked }),
+          }),
+        ]);
+
+      const decodeEscape = (next: string): string => {
+        if (next === "n") return "\n";
+        if (next === "t") return "\t";
+        if (next === "r") return "\r";
+        return next;
+      };
+
+      const quotedSet = (text: string) => {
+        const start = text.indexOf('"') + 1;
+        const end = text.lastIndexOf('"');
+        const body = text.slice(start, end);
+        const cooked = body.includes("\\")
+          ? body.replace(/\\(.)/gu, (_match, next: string) =>
+              decodeEscape(next),
+            )
+          : null;
+        return parsedSet(
+          text,
+          [[start, end, false]],
+          cooked === null ? [] : [[start, cooked]],
+        );
+      };
+
+      const newHosts = (oldText: string, newText: string): string[] =>
+        diffSignals(quotedSet(oldText), quotedSet(newText))
+          .filter((finding) => finding.kind === "new-external-endpoint")
+          .map((finding) => finding.detail);
+
+      it("reports the host reached after escaped separators (cr/f1-r2.md:419)", () => {
+        const oldText = String.raw`fetch("https://\\evil.test/x");`;
+        const oldEndpoints = quotedSet(oldText).endpoints;
+
+        expect(oldEndpoints).toEqual([
+          expect.objectContaining({
+            normalizedValue: "evil.test",
+            provenance: "additive",
+          }),
+        ]);
+        expect(newHosts(oldText, 'fetch("https://evil.test");')).toEqual([
+          "new external domain evil.test",
+        ]);
+      });
+
+      it("reports the host when the old path holds a nested scheme (cr/f1-r2.md:414)", () => {
+        expect(
+          newHosts(
+            'fetch("https://cdn.test/HTTPS://evil.test");',
+            'fetch("https://evil.test");',
+          ),
+        ).toEqual(["new external domain evil.test"]);
+      });
+
+      it("reports the host after a backslash in the old path (cr/f1c.md:462)", () => {
+        expect(
+          newHosts(
+            String.raw`fetch("https://cdn.example.test\\HTTPS://evil.example.test");`,
+            'fetch("https://evil.example.test");',
+          ),
+        ).toEqual(["new external domain evil.example.test"]);
+      });
+
+      it("reports the host after a quote in the old path (cr/f1d.md:463)", () => {
+        const oldText = String.raw`fetch("https://cdn.example.test/'HTTPS://exfil.example.test");`;
+
+        expect(
+          quotedSet(oldText).endpoints.map((endpoint) => [
+            endpoint.normalizedValue,
+            endpoint.provenance,
+          ]),
+        ).toEqual([
+          ["cdn.example.test", "established"],
+          ["exfil.example.test", "additive"],
+        ]);
+        expect(
+          newHosts(oldText, 'fetch("https://exfil.example.test");'),
+        ).toEqual(["new external domain exfil.example.test"]);
+      });
+
+      it("reports the host after an old template expression (cr/f1d.md:342)", () => {
+        const oldText =
+          'fetch(`https://cdn.example.test/${""}HTTPS://exfil.example.test`);';
+        const firstStart = oldText.indexOf("`") + 1;
+        const firstEnd = oldText.indexOf("${");
+        const secondStart = oldText.indexOf("}", firstEnd) + 1;
+        const secondEnd = oldText.lastIndexOf("`");
+        const oldSet = parsedSet(oldText, [
+          [firstStart, firstEnd, false],
+          [secondStart, secondEnd, false],
+        ]);
+
+        expect(
+          oldSet.endpoints.map((endpoint) => [
+            endpoint.normalizedValue,
+            endpoint.provenance,
+          ]),
+        ).toEqual([
+          ["cdn.example.test", "established"],
+          ["exfil.example.test", "additive"],
+        ]);
+        expect(
+          diffSignals(oldSet, quotedSet('fetch("https://exfil.example.test");'))
+            .filter((finding) => finding.kind === "new-external-endpoint")
+            .map((finding) => finding.detail),
+        ).toEqual(["new external domain exfil.example.test"]);
+      });
     });
   });
 });

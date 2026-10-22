@@ -262,6 +262,7 @@ function detectEndpoints(
         index,
         confidence,
         contextOf(index),
+        "additive",
       );
       if (observation !== null) found.push(observation);
     });
@@ -485,6 +486,7 @@ function urlEndpoint(
   index: number,
   confidence: SignalEndpointObservation["confidence"],
   context: SignalEndpointContext,
+  provenance: SignalEndpointObservation["provenance"] = "established",
 ): SignalEndpointObservation | null {
   let parsed: URL;
   try {
@@ -509,6 +511,7 @@ function urlEndpoint(
     index,
     confidence,
     context,
+    provenance,
   );
 }
 
@@ -521,6 +524,7 @@ function endpoint(
   index: number,
   confidence: SignalEndpointObservation["confidence"],
   context: SignalEndpointContext,
+  provenance: SignalEndpointObservation["provenance"] = "established",
 ): SignalEndpointObservation {
   return {
     kind: "EXTERNAL_ENDPOINT",
@@ -528,7 +532,7 @@ function endpoint(
     normalizedValue: value,
     confidence,
     context,
-    provenance: "established",
+    provenance,
     evidence: [{ ...evidenceAt(source, starts, index), file }],
   };
 }
