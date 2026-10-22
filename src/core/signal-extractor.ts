@@ -26,7 +26,8 @@ const MAX_EVIDENCE_SNIPPET = 240;
 // a template element boundary costs one authority, never the rest of the file.
 // Extra leading slashes are kept: "https:///evil.test" still reaches evil.test.
 const URL_STOP_RE = /[\s"'`<>\\]/u;
-const URL_LITERAL_RE = /\b(?:https?|wss?):\/\/\/*[^\s"'`<>\\/?#]*/gu;
+const URL_LITERAL_RE = /\b(?:https?|wss?):\/\/\/*[^\s"'`<>\\/?#]*/giu;
+const LEGACY_URL_LITERAL_RE = new RegExp(URL_LITERAL_RE.source, "gu");
 interface IpLiteralRow {
   pattern: RegExp;
   family: 4 | 6;
@@ -124,19 +125,30 @@ export function observeSignalSource(input: SignalSourceInput): {
       : (): boolean => false;
   // Unknown is a security rule: a file the parser cannot read must never get a
   // URL demoted, so an attacker cannot gain by breaking the parse.
-  const stringRanges =
-    input.parseState === "parsed" && input.stringRanges !== undefined
-      ? stringRangeLookup(input.file, input.stringRanges, source)
-      : undefined;
-  const contextAt =
-    stringRanges?.contextAt ?? ((): SignalEndpointContext => "unknown");
-  const rangeEndAt = stringRanges?.rangeEndAt ?? ((): number | null => null);
-  const ipv6ContextAt =
-    stringRanges?.ipv6ContextAt ?? ((): SignalEndpointContext => "unknown");
   const cookedStrings =
     input.parseState === "parsed" && input.cookedStrings !== undefined
       ? cookedLookup(input.file, input.stringRanges ?? [], input.cookedStrings)
       : [];
+  const stringRanges =
+    input.parseState === "parsed" && input.stringRanges !== undefined
+      ? stringRangeLookup(
+          input.file,
+          input.stringRanges,
+          source,
+          new Map(cookedStrings),
+        )
+      : undefined;
+  const contextAt =
+    stringRanges?.contextAt ?? ((): SignalEndpointContext => "unknown");
+  const establishedContextAt =
+    stringRanges?.establishedContextAt ??
+    ((): SignalEndpointContext => "unknown");
+  const rangeEndAt = stringRanges?.rangeEndAt ?? ((): number | null => null);
+  const ipv6ContextAt =
+    stringRanges?.ipv6ContextAt ?? ((): SignalEndpointContext => "unknown");
+  const userinfoUrlAt =
+    stringRanges?.userinfoUrlAt ?? ((): string | null => null);
+  const isFirstContentAt = stringRanges?.isFirstContentAt ?? (() => false);
   const endpoints = detectEndpoints(
     input.file,
     source,
@@ -144,8 +156,11 @@ export function observeSignalSource(input: SignalSourceInput): {
     confidence,
     inComment,
     contextAt,
+    establishedContextAt,
     rangeEndAt,
     ipv6ContextAt,
+    userinfoUrlAt,
+    isFirstContentAt,
     cookedStrings,
   );
   const obfuscationPatterns = detectObfuscationPatterns(
@@ -212,73 +227,140 @@ function detectEndpoints(
   confidence: SignalEndpointObservation["confidence"],
   inComment: (start: number, end: number) => boolean,
   contextAt: (start: number) => SignalEndpointContext,
+  establishedContextAt: (start: number) => SignalEndpointContext,
   rangeEndAt: (start: number) => number | null,
   ipv6ContextAt: (start: number, end: number) => SignalEndpointContext,
+  userinfoUrlAt: (start: number) => string | null,
+  isFirstContentAt: (start: number) => boolean,
   cookedStrings: readonly (readonly [number, string])[],
 ): SignalEndpointObservation[] {
   const found: SignalEndpointObservation[] = [];
   // The regex is global, so it carries lastIndex between calls. Reset it and
   // move it explicitly when a match stops short of the regex's own end.
-  URL_LITERAL_RE.lastIndex = 0;
-  let stopCursor = 0;
-  for (
-    let match = URL_LITERAL_RE.exec(source);
-    match !== null;
-    match = URL_LITERAL_RE.exec(source)
-  ) {
-    const index = match.index;
-    const authority = match[0];
-    // The URL's lexical span is what #150's boundary rule and the comment check
-    // judge; only its authority is parsed. The stop cursor moves forward only,
-    // so finding every span's end stays linear in the source size.
-    if (stopCursor < index) stopCursor = index;
-    while (
-      stopCursor < source.length &&
-      !URL_STOP_RE.test(source.charAt(stopCursor))
-    )
-      stopCursor += 1;
-    const lexicalEnd = stopCursor;
-    const rangeEnd = rangeEndAt(index);
-    // A template element ends at `${`, which a URL span does not stop at. An
-    // uncut span would take the next element's text into this element's
-    // context and could swallow the next element's URL, so the cut part keeps
-    // this element's context and scanning resumes at the element's end. The
-    // whole span is kept as "unknown" too, because the runtime string can
-    // still join across the expression (`https://a.test${x}@evil.test/`).
-    const crosses = rangeEnd !== null && lexicalEnd > rangeEnd;
-    // The parser sees the delimiter after the authority too, so a trailing
-    // control character is rejected as on a full URL, never stripped.
-    const authorityEnd = index + authority.length;
-    const delimited =
-      authorityEnd < lexicalEnd
-        ? source.slice(index, authorityEnd + 1)
-        : authority;
-    const candidates: [string, number, SignalEndpointContext][] = crosses
-      ? [
-          [
-            source.slice(index, Math.min(rangeEnd, index + delimited.length)),
-            rangeEnd,
-            contextAt(index),
-          ],
-          [delimited, lexicalEnd, "unknown"],
-        ]
-      : [[delimited, lexicalEnd, contextAt(index)]];
-    URL_LITERAL_RE.lastIndex = crosses ? rangeEnd : lexicalEnd;
-    for (const [value, spanEnd, context] of candidates) {
-      // Documentation links in comments are not runtime endpoints; a match
-      // that runs into a comment ("https://x\n" after a label) is not one
-      // either.
-      if (inComment(index, spanEnd)) continue;
-      const observation = urlEndpoint(
-        file,
-        value,
-        source,
-        starts,
-        index,
-        confidence,
-        context,
-      );
-      if (observation !== null) found.push(observation);
+  // Keep the original pass independent: an uppercase URL's path can contain
+  // a lowercase URL that main reports. The added pass must not consume it,
+  // and may add only the whole runtime URL host, never truncated userinfo.
+  for (const pattern of [LEGACY_URL_LITERAL_RE, URL_LITERAL_RE]) {
+    pattern.lastIndex = 0;
+    let stopCursor = 0;
+    for (
+      let match = pattern.exec(source);
+      match !== null;
+      match = pattern.exec(source)
+    ) {
+      if (pattern === URL_LITERAL_RE && /^[a-z]+:/u.test(match[0])) continue;
+      const index = match.index;
+      const authority = match[0];
+      // The URL's lexical span is what #150's boundary rule and the comment check
+      // judge; only its authority is parsed. The stop cursor moves forward only,
+      // so finding every span's end stays linear in the source size.
+      if (stopCursor < index) stopCursor = index;
+      while (
+        stopCursor < source.length &&
+        !URL_STOP_RE.test(source.charAt(stopCursor))
+      )
+        stopCursor += 1;
+      const lexicalEnd = stopCursor;
+      const rangeEnd = rangeEndAt(index);
+      // A template element ends at `${`, which a URL span does not stop at. An
+      // uncut span would take the next element's text into this element's
+      // context and could swallow the next element's URL, so the cut part keeps
+      // this element's context and scanning resumes at the element's end. The
+      // whole span is kept as "unknown" too, because the runtime string can
+      // still join across the expression (`https://a.test${x}@evil.test/`).
+      const crosses = rangeEnd !== null && lexicalEnd > rangeEnd;
+      // The parser sees the delimiter after the authority too, so a trailing
+      // control character is rejected as on a full URL, never stripped.
+      const authorityEnd = index + authority.length;
+      const delimited =
+        authorityEnd < lexicalEnd
+          ? source.slice(index, authorityEnd + 1)
+          : authority;
+      const baseCandidates: [
+        string,
+        number,
+        SignalEndpointContext,
+        SignalEndpointObservation["provenance"],
+      ][] =
+        pattern === URL_LITERAL_RE
+          ? []
+          : crosses
+            ? [
+                [
+                  source.slice(
+                    index,
+                    Math.min(rangeEnd, index + delimited.length),
+                  ),
+                  rangeEnd,
+                  establishedContextAt(index),
+                  "established",
+                ],
+                [delimited, lexicalEnd, "unknown", "established"],
+              ]
+            : [
+                [
+                  delimited,
+                  lexicalEnd,
+                  establishedContextAt(index),
+                  "established",
+                ],
+              ];
+      // The literal scan stops at whitespace and quotes, which the URL parser
+      // accepts inside userinfo. When the whole string value is one URL, let the
+      // parser read the host after the last "@" as the runtime fetch would.
+      const userinfoUrl = isFirstContentAt(index) ? userinfoUrlAt(index) : null;
+      // ADR-037: this branch's widened passes and whole-value userinfo host add
+      // findings main does not make, so they must never hide an established one.
+      // The widened context keeps its own observation too, so a main observation
+      // still carries the context main gave it.
+      const widenedContext = contextAt(index);
+      const additiveCopies: [
+        string,
+        number,
+        SignalEndpointContext,
+        SignalEndpointObservation["provenance"],
+      ][] =
+        userinfoUrl === null
+          ? []
+          : baseCandidates
+              .filter(([, , context]) => context !== widenedContext)
+              .map(([value, spanEnd]) => [
+                value,
+                spanEnd,
+                widenedContext,
+                "additive",
+              ]);
+      const candidates: [
+        string,
+        number,
+        SignalEndpointContext,
+        SignalEndpointObservation["provenance"],
+      ][] =
+        userinfoUrl === null
+          ? baseCandidates
+          : [
+              ...baseCandidates,
+              ...additiveCopies,
+              [userinfoUrl, rangeEnd ?? lexicalEnd, widenedContext, "additive"],
+            ];
+      pattern.lastIndex = crosses ? rangeEnd : lexicalEnd;
+      for (const [value, spanEnd, context, provenance] of candidates) {
+        // Documentation links in comments are not runtime endpoints; a match
+        // that runs into a comment ("https://x\n" after a label) is not one
+        // either.
+        if (inComment(index, spanEnd)) continue;
+        const observation = urlEndpoint(
+          file,
+          value,
+          source,
+          starts,
+          index,
+          confidence,
+          context,
+          provenance,
+        );
+        if (observation !== null) found.push(observation);
+      }
     }
   }
 
@@ -312,46 +394,120 @@ function detectEndpoints(
   // ADR-026: cooked matches join the raw matches here, so the per-host
   // aggregation below decides severity (ADR-024 strongest-context-wins)
   // instead of a separate dedupe that could drop the stronger one.
+  for (const observation of cookedEndpoints(
+    file,
+    source,
+    starts,
+    confidence,
+    cookedStrings,
+    contextAt,
+    establishedContextAt,
+    userinfoUrlAt,
+  )) {
+    found.push(observation);
+  }
+  return found;
+}
+
+function cookedEndpoints(
+  file: string,
+  source: string,
+  starts: readonly number[],
+  confidence: SignalEndpointObservation["confidence"],
+  cookedStrings: readonly (readonly [number, string])[],
+  contextAt: (start: number) => SignalEndpointContext,
+  establishedContextAt: (start: number) => SignalEndpointContext,
+  userinfoUrlAt: (start: number) => string | null,
+): SignalEndpointObservation[] {
+  const found: SignalEndpointObservation[] = [];
   for (const [start, value] of cookedStrings) {
-    const context = contextAt(start);
+    const widenedContext = contextAt(start);
+    const establishedContext = establishedContextAt(start);
     // The WHATWG URL parser removes ASCII tab, LF and CR from its input, so
     // the runtime fetches the URL that remains. URL_LITERAL_RE would stop at
     // them, so remove them before matching and keep the URL visible.
     const cooked = value.replace(/[\t\n\r]/gu, "");
-    URL_LITERAL_RE.lastIndex = 0;
-    let stopCursor = 0;
-    for (
-      let match = URL_LITERAL_RE.exec(cooked);
-      match !== null;
-      match = URL_LITERAL_RE.exec(cooked)
-    ) {
-      const index = match.index;
-      const authority = match[0];
-      // The span rule and the delimiter are the raw scan's: a URL's path or
-      // query is not a second URL, and a control character after the
-      // authority is rejected instead of stripped.
-      if (stopCursor < index) stopCursor = index;
-      while (
-        stopCursor < cooked.length &&
-        !URL_STOP_RE.test(cooked.charAt(stopCursor))
-      )
-        stopCursor += 1;
-      const authorityEnd = index + authority.length;
-      const delimited =
-        authorityEnd < stopCursor
-          ? cooked.slice(index, authorityEnd + 1)
-          : authority;
-      URL_LITERAL_RE.lastIndex = stopCursor;
-      const observation = urlEndpoint(
-        file,
-        delimited,
-        source,
-        starts,
-        start,
-        confidence,
-        context,
-      );
-      if (observation !== null) found.push(observation);
+    const userinfoUrl = userinfoUrlAt(start);
+    const firstContent = firstContentOffset(cooked, 0, cooked.length);
+    // Preserve every lowercase match before adding case-insensitive matches.
+    for (const pattern of [LEGACY_URL_LITERAL_RE, URL_LITERAL_RE]) {
+      let userinfoUsed = false;
+      pattern.lastIndex = 0;
+      let stopCursor = 0;
+      for (
+        let match = pattern.exec(cooked);
+        match !== null;
+        match = pattern.exec(cooked)
+      ) {
+        if (pattern === URL_LITERAL_RE && /^[a-z]+:/u.test(match[0])) continue;
+        const index = match.index;
+        const authority = match[0];
+        // The span rule and the delimiter are the raw scan's: a URL's path or
+        // query is not a second URL, and a control character after the
+        // authority is rejected instead of stripped.
+        if (stopCursor < index) stopCursor = index;
+        while (
+          stopCursor < cooked.length &&
+          !URL_STOP_RE.test(cooked.charAt(stopCursor))
+        )
+          stopCursor += 1;
+        const authorityEnd = index + authority.length;
+        const delimited =
+          authorityEnd < stopCursor
+            ? cooked.slice(index, authorityEnd + 1)
+            : authority;
+        pattern.lastIndex = stopCursor;
+        const observation =
+          pattern === LEGACY_URL_LITERAL_RE
+            ? urlEndpoint(
+                file,
+                delimited,
+                source,
+                starts,
+                start,
+                confidence,
+                establishedContext,
+                "established",
+              )
+            : null;
+        if (observation !== null) found.push(observation);
+        // ADR-037: the widened context keeps its own observation, so the
+        // established one still carries the context main gave it.
+        if (
+          observation !== null &&
+          userinfoUrl !== null &&
+          widenedContext !== establishedContext
+        ) {
+          const widened = urlEndpoint(
+            file,
+            delimited,
+            source,
+            starts,
+            start,
+            confidence,
+            widenedContext,
+            "additive",
+          );
+          if (widened !== null) found.push(widened);
+        }
+        // The userinfo URL is an addition, never a replacement: the literal scan
+        // still reports the host it saw, so no host main reports is lost.
+        if (!userinfoUsed && userinfoUrl !== null && index === firstContent) {
+          userinfoUsed = true;
+          const whole = urlEndpoint(
+            file,
+            userinfoUrl,
+            source,
+            starts,
+            start,
+            confidence,
+            widenedContext,
+            // ADR-037: this branch's widened rule must never hide a main one.
+            "additive",
+          );
+          if (whole !== null) found.push(whole);
+        }
+      }
     }
   }
   return found;
@@ -365,7 +521,28 @@ function urlEndpoint(
   index: number,
   confidence: SignalEndpointObservation["confidence"],
   context: SignalEndpointContext,
+  provenance: SignalEndpointObservation["provenance"] = "established",
 ): SignalEndpointObservation | null {
+  const found = endpointHost(value);
+  if (found === null) return null;
+  return endpoint(
+    file,
+    found.host,
+    found.endpointType,
+    source,
+    starts,
+    index,
+    confidence,
+    context,
+    provenance,
+  );
+}
+
+/** The external host a URL value resolves to, after normalization. */
+function endpointHost(value: string): {
+  host: string;
+  endpointType: NonNullable<SignalEndpointObservation["endpointType"]>;
+} | null {
   let parsed: URL;
   try {
     parsed = new URL(value);
@@ -380,16 +557,7 @@ function urlEndpoint(
   const host = endpointType === "domain" ? publicStyleDomain(rawHost) : rawHost;
   if (host === null) return null;
   if (endpointType === null || !isExternalHost(host, endpointType)) return null;
-  return endpoint(
-    file,
-    host,
-    endpointType,
-    source,
-    starts,
-    index,
-    confidence,
-    context,
-  );
+  return { host, endpointType };
 }
 
 function endpoint(
@@ -401,6 +569,7 @@ function endpoint(
   index: number,
   confidence: SignalEndpointObservation["confidence"],
   context: SignalEndpointContext,
+  provenance: SignalEndpointObservation["provenance"] = "established",
 ): SignalEndpointObservation {
   return {
     kind: "EXTERNAL_ENDPOINT",
@@ -408,7 +577,7 @@ function endpoint(
     normalizedValue: value,
     confidence,
     context,
-    provenance: "established",
+    provenance,
     evidence: [{ ...evidenceAt(source, starts, index), file }],
   };
 }
@@ -601,16 +770,59 @@ function wordsOf(raw: string): string {
   return raw.replace(/\\(?:\r\n|[\n\r\u2028\u2029])|[\t\n\r]/gu, "").trim();
 }
 
+function firstContentOffset(text: string, start: number, end: number): number {
+  let offset = start;
+  while (offset < end && text.charCodeAt(offset) <= 0x20) offset += 1;
+  return offset;
+}
+
+// A URL's authority ends at "/", "?", "#" or "\", so these characters can sit
+// in the userinfo. The literal scan stops at all of them plus whitespace.
+const USERINFO_STOP_RE = /[\s"'`<>]/u;
+
+/**
+ * Returns a string's runtime value when it is one URL the WHATWG parser
+ * accepts and its userinfo holds a character the literal scan stops at.
+ * Reporting the parser's host then finds the destination behind
+ * `https://cdn example@exfil.example.test/`.
+ */
+function userinfoUrlValue(value: string): string | null {
+  // WHATWG strips only C0 controls and space at the edges. JavaScript trim
+  // also strips Unicode whitespace and could invent a host for an invalid URL.
+  const normalized = value.replace(/[\t\n\r]/gu, "");
+  const start = firstContentOffset(normalized, 0, normalized.length);
+  let end = normalized.length;
+  while (end > start && normalized.charCodeAt(end - 1) <= 0x20) end -= 1;
+  const trimmed = normalized.slice(start, end);
+  const scheme = /^(?:https?|wss?):\/\/\/*/iu.exec(trimmed);
+  if (scheme === null) return null;
+  let authorityEnd = scheme[0].length;
+  while (
+    authorityEnd < trimmed.length &&
+    !"/?#\\".includes(trimmed.charAt(authorityEnd))
+  )
+    authorityEnd += 1;
+  const authority = trimmed.slice(scheme[0].length, authorityEnd);
+  const at = authority.lastIndexOf("@");
+  if (at < 0 || !USERINFO_STOP_RE.test(authority.slice(0, at))) return null;
+  return endpointHost(trimmed) === null ? null : trimmed;
+}
+
 function stringRangeLookup(
   file: string,
   ranges: readonly StringRange[],
   source: string,
+  cookedByStart: ReadonlyMap<number, string>,
 ): {
   contextAt: (start: number) => SignalEndpointContext;
+  establishedContextAt: (start: number) => SignalEndpointContext;
   rangeEndAt: (start: number) => number | null;
   ipv6ContextAt: (start: number, end: number) => SignalEndpointContext;
+  userinfoUrlAt: (start: number) => string | null;
+  isFirstContentAt: (start: number) => boolean;
 } {
   let previousEnd = 0;
+  const firstContentByRange = new Map<number, number>();
   for (const [start, end, valueWords] of ranges) {
     if (
       !Number.isSafeInteger(start) ||
@@ -625,9 +837,35 @@ function stringRangeLookup(
       );
     }
     previousEnd = end;
+    firstContentByRange.set(start, firstContentOffset(source, start, end));
   }
   const contexts = new Map<number, SignalEndpointContext>();
+  const establishedContexts = new Map<number, SignalEndpointContext>();
+  const rawWordsByRange = new Map<number, boolean>();
+  const rawHoldsWords = (range: StringRange): boolean => {
+    let words = rawWordsByRange.get(range[0]);
+    if (words === undefined) {
+      words = /\s/u.test(wordsOf(source.slice(range[0], range[1]))) && range[2];
+      rawWordsByRange.set(range[0], words);
+    }
+    return words;
+  };
   const escapeByRange = new Map<number, boolean>();
+  const userinfoUrls = new Map<number, string | null>();
+  const userinfoUrlAt = (start: number): string | null => {
+    const range = containingStringRange(ranges, start);
+    if (range === undefined) return null;
+    // One parse per string: it reads the whole value, so doing it per URL
+    // made many URLs in one string quadratic.
+    let value = userinfoUrls.get(range[0]);
+    if (value === undefined) {
+      const runtime =
+        cookedByStart.get(range[0]) ?? source.slice(range[0], range[1]);
+      value = userinfoUrlValue(runtime);
+      userinfoUrls.set(range[0], value);
+    }
+    return value;
+  };
   return {
     contextAt: (start) => {
       const range = containingStringRange(ranges, start);
@@ -636,16 +874,34 @@ function stringRangeLookup(
       // per URL made many URLs in one string quadratic.
       let context = contexts.get(range[0]);
       if (context === undefined) {
-        // Neither the raw form nor the value alone may demote a URL.
+        // Neither the raw form nor the value alone may demote a URL. A whole
+        // URL's userinfo whitespace is not other text in the string.
         context =
-          /\s/u.test(wordsOf(source.slice(range[0], range[1]))) && range[2]
+          rawHoldsWords(range) && userinfoUrlAt(range[0]) === null
             ? "embedded-text"
             : "literal";
         contexts.set(range[0], context);
       }
       return context;
     },
+    // ADR-037: main's own context, without this branch's whole-URL promotion,
+    // so an established observation keeps the context main gave it.
+    establishedContextAt: (start) => {
+      const range = containingStringRange(ranges, start);
+      if (range === undefined) return "unknown";
+      let context = establishedContexts.get(range[0]);
+      if (context === undefined) {
+        context = rawHoldsWords(range) ? "embedded-text" : "literal";
+        establishedContexts.set(range[0], context);
+      }
+      return context;
+    },
     rangeEndAt: (start) => containingStringRange(ranges, start)?.[1] ?? null,
+    userinfoUrlAt,
+    isFirstContentAt: (start) => {
+      const range = containingStringRange(ranges, start);
+      return range !== undefined && firstContentByRange.get(range[0]) === start;
+    },
     ipv6ContextAt: (start, end) => {
       const range = containingStringRange(ranges, start);
       if (range === undefined || end > range[1]) return "unknown";

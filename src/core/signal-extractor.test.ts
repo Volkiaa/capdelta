@@ -379,6 +379,300 @@ describe("signal extractor", () => {
     });
   });
 
+  describe("endpoint URLs whose userinfo holds a stop character", () => {
+    const endpointsOf = (value: string) => {
+      const text = `f("${value}");`;
+      const content = text.indexOf('"') + 1;
+      return buildSignalSet([
+        observeSignalSource({
+          file: "index.js",
+          bytes: new TextEncoder().encode(text),
+          parseState: "parsed",
+          stringRanges: [
+            [content, text.lastIndexOf('"'), /\s/u.test(value.trim())],
+          ],
+        }),
+      ]).endpoints.map((item) => ({
+        host: item.normalizedValue,
+        context: item.context,
+      }));
+    };
+
+    it.each([
+      ["a space", "https://a b@exfil.example.test/x"],
+      ["an apostrophe", "https://a'b@exfil.example.test/x"],
+      ["a less-than sign", "https://a<b@exfil.example.test/x"],
+      ["a greater-than sign", "https://a>b@exfil.example.test/x"],
+      ["a backtick", "https://a`b@exfil.example.test/x"],
+    ])("reports the host after userinfo containing %s", (_label, value) => {
+      expect(endpointsOf(value)).toEqual([
+        { host: "exfil.example.test", context: "literal" },
+      ]);
+    });
+
+    it("keeps the host main reports before the userinfo host", () => {
+      expect(endpointsOf("https://a.test b@evil.test/x")).toEqual([
+        { host: "a.test", context: "literal" },
+        { host: "evil.test", context: "literal" },
+      ]);
+    });
+
+    it.each([
+      [
+        "with a lowercase scheme",
+        'f("https://a.test b@evil.test/x");',
+        [
+          ["a.test", "established"],
+          ["evil.test", "additive"],
+        ],
+      ],
+      [
+        "with an uppercase scheme",
+        'f("HTTPS://a.test b@evil.test/x");',
+        [["evil.test", "additive"]],
+      ],
+    ])(
+      "tags only the widened host as additive %s",
+      (_label, text, expected) => {
+        const start = text.indexOf('"') + 1;
+        const end = text.lastIndexOf('"');
+        expect(
+          buildSignalSet([
+            observeSignalSource({
+              file: "index.js",
+              bytes: new TextEncoder().encode(text),
+              parseState: "parsed",
+              stringRanges: [[start, end, /\s/u.test(text.slice(start, end))]],
+            }),
+          ]).endpoints.map((item) => [item.normalizedValue, item.provenance]),
+        ).toEqual(expected);
+      },
+    );
+
+    it("keeps main's context on the established observation", () => {
+      const text = 'f("https://a.test b@evil.test/x");';
+      const start = text.indexOf('"') + 1;
+      const end = text.lastIndexOf('"');
+      expect(
+        observeSignalSource({
+          file: "index.js",
+          bytes: new TextEncoder().encode(text),
+          parseState: "parsed",
+          stringRanges: [[start, end, true]],
+        }).endpoints.map((item) => [
+          item.normalizedValue,
+          item.context,
+          item.provenance,
+        ]),
+      ).toEqual([
+        ["a.test", "embedded-text", "established"],
+        ["a.test", "literal", "additive"],
+        ["evil.test", "literal", "additive"],
+      ]);
+    });
+
+    it.each(["HTTPS", "hTtPs", "HTTP", "WsS", "WS"])(
+      "reports the runtime host for raw %s userinfo URLs",
+      (scheme) => {
+        expect(endpointsOf(`${scheme}://a.test b@evil.test/x`)).toEqual([
+          { host: "evil.test", context: "literal" },
+        ]);
+      },
+    );
+
+    it.each([
+      "see HTTPS://a.test b@evil.test/x",
+      "HTTPS://a.test b@evil.test\u00a0",
+      "HTTPS://a.test/x b@evil.test",
+    ])("does not invent a host from uppercase text %j", (value) => {
+      expect(endpointsOf(value)).toEqual([]);
+    });
+
+    it("keeps the lowercase URL inside an uppercase URL path", () => {
+      expect(endpointsOf("HTTPS://outer.test/https://inner.test/x")).toEqual([
+        { host: "inner.test", context: "literal" },
+      ]);
+    });
+
+    it("keeps prose around a URL embedded and at its current host", () => {
+      expect(
+        endpointsOf("https://a.example.test/x see b@c.example.test"),
+      ).toEqual([{ host: "a.example.test", context: "embedded-text" }]);
+    });
+
+    it("does not report a userinfo URL written in a comment", () => {
+      const comment = "// https://a b@exfil.example.test/x";
+      const text = `${comment}\nf("https://api.example.test/x");`;
+      expect(
+        buildSignalSet([
+          observeSignalSource({
+            file: "index.js",
+            bytes: new TextEncoder().encode(text),
+            parseState: "parsed",
+            commentRanges: [[0, comment.length]],
+          }),
+        ]).endpoints.map((item) => item.normalizedValue),
+      ).toEqual(["api.example.test"]);
+    });
+
+    it("reports no partial host when a template element ends at an expression", () => {
+      const text = "f(`https://a b@${x}`);";
+      const content = text.indexOf("`") + 1;
+      expect(
+        buildSignalSet([
+          observeSignalSource({
+            file: "index.js",
+            bytes: new TextEncoder().encode(text),
+            parseState: "parsed",
+            stringRanges: [[content, text.indexOf("${"), true]],
+          }),
+        ]).endpoints,
+      ).toEqual([]);
+    });
+
+    it("reports the host after a userinfo space written as an escape", () => {
+      const raw = 'f("https://a\\x20b@exfil.example.test/x");';
+      const start = raw.indexOf('"') + 1;
+      const end = raw.lastIndexOf('"');
+      expect(
+        buildSignalSet([
+          observeSignalSource({
+            file: "index.js",
+            bytes: new TextEncoder().encode(raw),
+            parseState: "parsed",
+            stringRanges: [[start, end, true]],
+            cookedStrings: [[start, "https://a b@exfil.example.test/x"]],
+          }),
+        ]).endpoints.map((item) => ({
+          host: item.normalizedValue,
+          context: item.context,
+        })),
+      ).toEqual([{ host: "exfil.example.test", context: "literal" }]);
+    });
+
+    describe("cooked values whose userinfo hides a host", () => {
+      const endpointsOfCooked = (raw: string, cooked: string) => {
+        const start = raw.indexOf('"') + 1;
+        const end = raw.lastIndexOf('"');
+        return buildSignalSet([
+          observeSignalSource({
+            file: "index.js",
+            bytes: new TextEncoder().encode(raw),
+            parseState: "parsed",
+            stringRanges: [[start, end, /\s/u.test(cooked)]],
+            cookedStrings: [[start, cooked]],
+          }),
+        ]).endpoints.map((item) => ({
+          host: item.normalizedValue,
+          context: item.context,
+        }));
+      };
+
+      it("keeps the host main finds when the scheme is escaped", () => {
+        // The literal scan cannot see "h\u0074tps", so a.test is only in the
+        // cooked scan. Reporting the userinfo host instead would drop it.
+        expect(
+          endpointsOfCooked(
+            'f("h\\u0074tps://a.test b@evil.test/x");',
+            "https://a.test b@evil.test/x",
+          ),
+        ).toEqual([
+          { host: "a.test", context: "literal" },
+          { host: "evil.test", context: "literal" },
+        ]);
+      });
+
+      it.each(["HTTPS", "hTtPs", "HTTP", "WsS", "WS"])(
+        "reports the runtime host for cooked %s userinfo URLs",
+        (scheme) => {
+          expect(
+            endpointsOfCooked(
+              `f("\\u${scheme.charCodeAt(0).toString(16).padStart(4, "0")}${scheme.slice(1)}://a.test\\x20b@evil.test/x");`,
+              `${scheme}://a.test b@evil.test/x`,
+            ),
+          ).toEqual([{ host: "evil.test", context: "literal" }]);
+        },
+      );
+
+      it.each([
+        "see HTTPS://a.test b@evil.test/x",
+        "HTTPS://a.test b@evil.test\u00a0",
+        "HTTPS://a.test/x b@evil.test",
+      ])("does not invent a cooked host from uppercase text %j", (value) => {
+        expect(
+          endpointsOfCooked(`f(${JSON.stringify(value)});`, value),
+        ).toEqual([]);
+      });
+
+      it("keeps a cooked lowercase URL inside an uppercase URL path", () => {
+        expect(
+          endpointsOfCooked(
+            'f("HTTPS://outer.test/https://inner.test/\\x78");',
+            "HTTPS://outer.test/https://inner.test/x",
+          ),
+        ).toEqual([{ host: "inner.test", context: "literal" }]);
+      });
+
+      it.each(["\n", "\t", "\r"])(
+        "adds the runtime host when the scheme contains %j",
+        (ignored) => {
+          expect(
+            endpointsOfCooked(
+              `f(${JSON.stringify(`h${ignored}ttps://a.example.test b@evil.example.test/x`)});`,
+              `h${ignored}ttps://a.example.test b@evil.example.test/x`,
+            ),
+          ).toEqual([
+            { host: "a.example.test", context: "literal" },
+            { host: "evil.example.test", context: "literal" },
+          ]);
+        },
+      );
+
+      it.each(["\u00a0", "\u2028"])(
+        "does not invent a runtime host by trimming Unicode whitespace %j",
+        (suffix) => {
+          const cooked = `https://a.example.test b@evil.example.test${suffix}`;
+          expect(
+            endpointsOfCooked(`f(${JSON.stringify(cooked)});`, cooked),
+          ).toEqual([{ host: "a.example.test", context: "embedded-text" }]);
+        },
+      );
+
+      it("appends input-sized cooked observations without argument spreading", () => {
+        const cooked = "http://a.co ".repeat(130_000);
+        const raw = `f("${cooked.replace(" ", "\\x20")}");`;
+        expect(endpointsOfCooked(raw, cooked)).toEqual([
+          { host: "a.co", context: "embedded-text" },
+        ]);
+      });
+
+      it("keeps every host a cooked value reports around the userinfo URL", () => {
+        expect(
+          endpointsOfCooked(
+            'f("h\\u0074tps://a.test b@evil.test/x https://c.test/y");',
+            "https://a.test b@evil.test/x https://c.test/y",
+          ),
+        ).toEqual([
+          { host: "a.test", context: "literal" },
+          { host: "c.test", context: "literal" },
+          { host: "evil.test", context: "literal" },
+        ]);
+      });
+
+      it("keeps the host both scans find when the space is escaped", () => {
+        expect(
+          endpointsOfCooked(
+            'f("https://a.test\\x20b@evil.test/x");',
+            "https://a.test b@evil.test/x",
+          ),
+        ).toEqual([
+          { host: "a.test", context: "literal" },
+          { host: "evil.test", context: "literal" },
+        ]);
+      });
+    });
+  });
+
   describe("cooked string values (ADR-026)", () => {
     const text = 'fetch("https://plain.test/x");';
     const start = text.indexOf('"') + 1;

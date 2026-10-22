@@ -247,6 +247,54 @@
           "head": ["ipv4-octal-hex-1.0.1"]
         }
       }
+    },
+    {
+      "name": "userinfo-space",
+      "title": "Synthetic userinfo stop-character evasion (not a historical incident)",
+      "date": "n/a: regression for ADR-034",
+      "sources": ["https://url.spec.whatwg.org/#authority-state"],
+      "kept": "Version 1.0.0 fetches https://cdn.example.test/x. The 1.0.1 bump fetches https://cdn example@exfil.example.test/c. The URL literal scan stops at the space, so it saw only the host cdn, which is not public style, and reported no destination change.",
+      "omitted": "Everything else: the package is a minimal synthetic stand-in. run() is never called and the reserved .example.test hosts are never contacted.",
+      "expected": "The URL parser puts the host after the last @, so the new version adds a HIGH new-external-endpoint for exfil.example.test, and the default HIGH gate fails.",
+      "scenarios": {
+        "attack": {
+          "base": ["userinfo-space-1.0.0"],
+          "head": ["userinfo-space-1.0.1"]
+        }
+      }
+    },
+    {
+      "name": "userinfo-escaped-scheme",
+      "title": "Synthetic escaped-scheme userinfo endpoint (not a historical incident)",
+      "date": "n/a: regression for ADR-034",
+      "sources": [
+        "https://url.spec.whatwg.org/#authority-state",
+        "https://tc39.es/ecma262/multipage/ecmascript-language-lexical-grammar.html#sec-literals-string-literals"
+      ],
+      "kept": "Version 1.0.0 fetches https://cdn.example.test/x. The 1.0.1 bump fetches h\\u0074tps://a.test b@evil.test/x. The literal scan cannot see the scheme because an escape spells it, so only the cooked scan sees a.test, and that scan stops at the userinfo space before evil.test.",
+      "omitted": "Everything else: the package is a minimal synthetic stand-in. run() is never called and the reserved .example.test hosts are never contacted.",
+      "expected": "The cooked scan keeps a.test and adds the host after the userinfo, evil.test. Both are HIGH new-external-endpoint findings and the default HIGH gate fails.",
+      "scenarios": {
+        "attack": {
+          "base": ["userinfo-escaped-scheme-1.0.0"],
+          "head": ["userinfo-escaped-scheme-1.0.1"]
+        }
+      }
+    },
+    {
+      "name": "userinfo-ignored-scheme",
+      "title": "Synthetic ignored scheme character with userinfo",
+      "date": "n/a: regression for ADR-034",
+      "sources": [],
+      "kept": "The unchanged fetch changes its destination from cdn.example.test to a URL with an escaped LF inside its scheme and a space in userinfo.",
+      "omitted": "All package behavior except an inert uncalled function. No fixture code runs and no host is contacted.",
+      "expected": "The ignored LF leaves a valid runtime URL. Keep a.example.test and add evil.example.test as HIGH endpoints.",
+      "scenarios": {
+        "attack": {
+          "base": ["userinfo-ignored-scheme-1.0.0"],
+          "head": ["userinfo-ignored-scheme-1.0.1"]
+        }
+      }
     }
   ]
 }

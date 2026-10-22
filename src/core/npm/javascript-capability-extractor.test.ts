@@ -1109,6 +1109,60 @@ describe("endpoint context", () => {
     ).toEqual([{ host: "a.test", context: "literal" }]);
   });
 
+  it("classifies a whole-string URL by the host after its userinfo", async () => {
+    expect(
+      await endpointsOf({
+        "index.js": 'fetch("https://cdn example@exfil.example.test/c");',
+      }),
+    ).toEqual([{ host: "exfil.example.test", context: "literal" }]);
+  });
+
+  it("adds the userinfo host to the host the string literal reports", async () => {
+    expect(
+      await endpointsOf({
+        "index.js": 'fetch("https://a.test b@evil.test/x");',
+      }),
+    ).toEqual([
+      { host: "a.test", context: "literal" },
+      { host: "evil.test", context: "literal" },
+    ]);
+  });
+
+  it("adds the userinfo host to the host a template element reports", async () => {
+    expect(
+      await endpointsOf({
+        "index.js": "fetch(`https://a.test b@evil.test/x`);",
+      }),
+    ).toEqual([
+      { host: "a.test", context: "literal" },
+      { host: "evil.test", context: "literal" },
+    ]);
+  });
+
+  it("keeps the host a cooked literal reports when its scheme is escaped", async () => {
+    // The literal scan stops at "h\u0074tps", so a.test is only in the cooked
+    // value. Reporting the userinfo host instead would drop it.
+    expect(
+      await endpointsOf({
+        "index.js": 'fetch("h\\u0074tps://a.test b@evil.test/x");',
+      }),
+    ).toEqual([
+      { host: "a.test", context: "literal" },
+      { host: "evil.test", context: "literal" },
+    ]);
+  });
+
+  it("keeps the host a cooked template element reports when its scheme is escaped", async () => {
+    expect(
+      await endpointsOf({
+        "index.js": "fetch(`h\\u0074tps://a.test b@evil.test/x`);",
+      }),
+    ).toEqual([
+      { host: "a.test", context: "literal" },
+      { host: "evil.test", context: "literal" },
+    ]);
+  });
+
   it("trims surrounding whitespace before comparing string content", async () => {
     expect(
       await endpointsOf({ "index.js": 'const u = "  https://a.test/x  ";' }),

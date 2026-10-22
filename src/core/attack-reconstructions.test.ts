@@ -886,3 +886,72 @@ describe("synthetic inet_aton IPv4 host (ADR-031)", () => {
     expect(evaluateSeverityGate(result.report, "HIGH").fail).toBe(true);
   });
 });
+
+describe("synthetic userinfo-space endpoint (ADR-034)", () => {
+  it("reports the host after a userinfo space as a new HIGH endpoint", async () => {
+    const result = await runScenario("userinfo-space", "attack");
+    expectAllAnalyzed(result, 1);
+    const report = packageReport(
+      result.report,
+      "capdelta-fixture-userinfo-space",
+    );
+
+    expect(report.signalFindings).toEqual([
+      expect.objectContaining({
+        kind: "new-external-endpoint",
+        severity: "HIGH",
+        detail: "new external domain exfil.example.test",
+      }),
+    ]);
+    expect(evaluateSeverityGate(result.report, "HIGH").fail).toBe(true);
+  });
+});
+
+describe("synthetic userinfo-escaped-scheme endpoint (ADR-034)", () => {
+  it("keeps the cooked host and adds the host after the userinfo", async () => {
+    const result = await runScenario("userinfo-escaped-scheme", "attack");
+    expectAllAnalyzed(result, 1);
+    const report = packageReport(
+      result.report,
+      "capdelta-fixture-userinfo-escaped-scheme",
+    );
+
+    expect(report.signalFindings).toEqual([
+      expect.objectContaining({
+        kind: "new-external-endpoint",
+        severity: "HIGH",
+        detail: "new external domain a.test",
+      }),
+      expect.objectContaining({
+        kind: "new-external-endpoint",
+        severity: "HIGH",
+        detail: "new external domain evil.test",
+      }),
+    ]);
+    expect(evaluateSeverityGate(result.report, "HIGH").fail).toBe(true);
+  });
+});
+
+describe("synthetic userinfo with an ignored scheme character (ADR-034)", () => {
+  it("keeps the scanned host and adds the runtime host at HIGH", async () => {
+    const result = await runScenario("userinfo-ignored-scheme", "attack");
+    expectAllAnalyzed(result, 1);
+    const report = packageReport(
+      result.report,
+      "capdelta-fixture-userinfo-ignored-scheme",
+    );
+    expect(report.signalFindings).toEqual([
+      expect.objectContaining({
+        kind: "new-external-endpoint",
+        severity: "HIGH",
+        detail: "new external domain a.example.test",
+      }),
+      expect.objectContaining({
+        kind: "new-external-endpoint",
+        severity: "HIGH",
+        detail: "new external domain evil.example.test",
+      }),
+    ]);
+    expect(evaluateSeverityGate(result.report, "HIGH").fail).toBe(true);
+  });
+});
