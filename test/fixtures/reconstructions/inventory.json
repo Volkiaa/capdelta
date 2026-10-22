@@ -247,6 +247,23 @@
           "head": ["ipv4-octal-hex-1.0.1"]
         }
       }
+    },
+    {
+      "name": "escaped-ip",
+      "title": "Synthetic escaped-string IP endpoint (not a historical incident)",
+      "date": "n/a: regression for ADR-032",
+      "sources": [
+        "https://tc39.es/ecma262/multipage/ecmascript-language-lexical-grammar.html#sec-literals-string-literals"
+      ],
+      "kept": "The 1.0.0 baseline connects to the private 10.0.0.1, which isExternalHost ignores. The 1.0.1 bump connects to 93.184.216\\x2e34, whose raw source hides the last dot from the IPv4 row.",
+      "omitted": "Everything else: the package is a minimal synthetic stand-in. run() is never called and the reserved documentation address is never contacted.",
+      "expected": "The IP rows now scan the string's cooked value, so the runtime address is a HIGH new-external-endpoint for ipv4 93.184.216.34. The unresolved connect is reported as NET too.",
+      "scenarios": {
+        "attack": {
+          "base": ["escaped-ip-1.0.0"],
+          "head": ["escaped-ip-1.0.1"]
+        }
+      }
     }
   ]
 }

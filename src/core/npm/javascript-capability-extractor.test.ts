@@ -15,6 +15,7 @@ import { diffManifestCapabilities } from "../capability-differ.js";
 import {
   CAPABILITY_SET_SCHEMA_VERSION,
   type CapabilitySet,
+  type SignalEndpointObservation,
 } from "../contract/capability-set.js";
 import { diffSignals } from "../signal-differ.js";
 import { emptySignalSet } from "../signal-extractor.js";
@@ -1421,6 +1422,100 @@ describe("bare IPv6 context (ADR-027)", () => {
         kind: "new-external-endpoint",
         severity: "HIGH",
         detail: "new external ipv4 1.2.3.4",
+      }),
+    ]);
+  });
+});
+
+describe("bare IP literals in cooked strings", () => {
+  async function findingsOf(files: Record<string, string>) {
+    let findings: ReturnType<typeof diffSignals> = [];
+    await withPackage(files, async (root) => {
+      const result = await extractNpmJavaScriptCapabilities(
+        { root },
+        manifestSet,
+      );
+      findings = diffSignals(null, result.signals ?? emptySignalSet()).filter(
+        (finding) => finding.kind === "new-external-endpoint",
+      );
+    });
+    return findings;
+  }
+
+  async function endpointsOf(files: Record<string, string>) {
+    let endpoints: readonly SignalEndpointObservation[] = [];
+    await withPackage(files, async (root) => {
+      const result = await extractNpmJavaScriptCapabilities(
+        { root },
+        manifestSet,
+      );
+      endpoints = (result.signals ?? emptySignalSet()).endpoints;
+    });
+    return endpoints;
+  }
+
+  it.each([
+    [
+      "a hex-escaped dot in an IPv4 address",
+      'require("net").connect(443, "93.184.216\\x2e34");',
+      "new external ipv4 93.184.216.34",
+    ],
+    [
+      "a unicode-escaped dot in an IPv4 address",
+      'require("net").connect(443, "93.184\\u002e216.34");',
+      "new external ipv4 93.184.216.34",
+    ],
+    [
+      "hex-escaped colons in an IPv6 address",
+      'require("net").connect(443, "2606\\x3a4700\\x3a\\x3a1111");',
+      "new external ipv6 2606:4700::1111",
+    ],
+    [
+      "a line continuation inside an IPv4 address",
+      'require("net").connect(443, "93.184.216.\\\n34");',
+      "new external ipv4 93.184.216.34",
+    ],
+  ])("reports an endpoint hidden by %s", async (_label, source, detail) => {
+    expect(await findingsOf({ "index.js": source })).toEqual([
+      expect.objectContaining({
+        kind: "new-external-endpoint",
+        severity: "HIGH",
+        detail,
+      }),
+    ]);
+  });
+
+  it("does not report a private address hidden by an escape", async () => {
+    expect(
+      await findingsOf({
+        "index.js": 'require("net").connect(443, "10.0.0\\x2e1");',
+      }),
+    ).toEqual([]);
+  });
+
+  it("reports one endpoint when the address also appears in the raw text", async () => {
+    const endpoints = await endpointsOf({
+      "index.js": 'const host = "93.184.216.34\\n";',
+    });
+
+    expect(endpoints).toHaveLength(1);
+    expect(endpoints[0]).toMatchObject({
+      endpointType: "ipv4",
+      normalizedValue: "93.184.216.34",
+    });
+    expect(endpoints[0]?.evidence).toHaveLength(1);
+  });
+
+  it("keeps ADR-027 context for an IPv6 address glued after cooking", async () => {
+    expect(
+      await findingsOf({
+        "index.js": 'const host = "x2606\\x3a4700\\x3a\\x3a1111y";',
+      }),
+    ).toEqual([
+      expect.objectContaining({
+        kind: "new-external-endpoint",
+        severity: "LOW",
+        detail: "new external ipv6 2606:4700::1111 (inside a longer string)",
       }),
     ]);
   });

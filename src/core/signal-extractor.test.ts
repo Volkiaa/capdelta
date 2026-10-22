@@ -499,6 +499,42 @@ describe("signal extractor", () => {
       expect(result.endpoints[0]?.evidence).toHaveLength(lineCount);
     });
   });
+
+  describe("unbounded match lists", () => {
+    // Review round 1: a string below the default size limit held enough
+    // matches to overflow the argument limit of `found.push(...matches)`.
+    const repeated = "8.8.8.8 ".repeat(130_000);
+    it.each([
+      ["the raw scan", `f("${repeated}");`, undefined],
+      ["the cooked scan", `f("${repeated}\\x2e");`, `${repeated}.`],
+    ] as const)(
+      "reports 8.8.8.8 through %s in one 1 MB string",
+      (_label, text, cooked) => {
+        const start = text.indexOf('"') + 1;
+        const end = text.lastIndexOf('"');
+
+        const result = buildSignalSet([
+          observeSignalSource({
+            file: "index.js",
+            bytes: new TextEncoder().encode(text),
+            parseState: "parsed",
+            stringRanges: [[start, end, true]],
+            ...(cooked === undefined
+              ? {}
+              : { cookedStrings: [[start, cooked]] }),
+          }),
+        ]);
+
+        expect(result.endpoints).toContainEqual(
+          expect.objectContaining({
+            endpointType: "ipv4",
+            normalizedValue: "8.8.8.8",
+            context: "unknown",
+          }),
+        );
+      },
+    );
+  });
 });
 
 describe("signal aggregation", () => {
