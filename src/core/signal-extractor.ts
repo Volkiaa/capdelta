@@ -264,16 +264,22 @@ function detectEndpoints(
         ? source.slice(index, authorityEnd + 1)
         : authority;
     const context = contextAt(index);
-    const candidates: [string, number, SignalEndpointContext][] = crosses
+    const candidates: [
+      string,
+      number,
+      SignalEndpointContext,
+      SignalEndpointObservation["provenance"],
+    ][] = crosses
       ? [
           [
             source.slice(index, Math.min(rangeEnd, index + delimited.length)),
             rangeEnd,
             context,
+            "established",
           ],
-          [delimited, lexicalEnd, "unknown"],
+          [delimited, lexicalEnd, "unknown", "established"],
         ]
-      : [[delimited, lexicalEnd, context]];
+      : [[delimited, lexicalEnd, context, "established"]];
     candidates.push(
       ...extendedUrlCandidates(
         source,
@@ -289,6 +295,7 @@ function detectEndpoints(
       value: string,
       spanEnd: number,
       context: SignalEndpointContext,
+      provenance: SignalEndpointObservation["provenance"],
     ): void => {
       // Documentation links in comments are not runtime endpoints; a match
       // that runs into a comment ("https://x\n" after a label) is not one
@@ -302,11 +309,12 @@ function detectEndpoints(
         index,
         confidence,
         context,
+        provenance,
       );
       if (observation !== null) found.push(observation);
     };
-    for (const [value, spanEnd, candidateContext] of candidates) {
-      emit(value, spanEnd, candidateContext);
+    for (const [value, spanEnd, candidateContext, provenance] of candidates) {
+      emit(value, spanEnd, candidateContext, provenance);
     }
   }
 
@@ -370,7 +378,10 @@ function detectEndpoints(
           ? cooked.slice(index, authorityEnd + 1)
           : authority;
       URL_LITERAL_RE.lastIndex = stopCursor;
-      const emit = (candidate: string): void => {
+      const emit = (
+        candidate: string,
+        provenance: SignalEndpointObservation["provenance"],
+      ): void => {
         const observation = urlEndpoint(
           file,
           candidate,
@@ -379,11 +390,12 @@ function detectEndpoints(
           start,
           confidence,
           context,
+          provenance,
         );
         if (observation !== null) found.push(observation);
       };
-      emit(delimited);
-      for (const [value] of extendedUrlCandidates(
+      emit(delimited, "established");
+      for (const [value, , , provenance] of extendedUrlCandidates(
         cooked,
         index,
         authority,
@@ -391,7 +403,7 @@ function detectEndpoints(
         null,
         context,
       )) {
-        emit(value);
+        emit(value, provenance);
       }
     }
   }
@@ -402,7 +414,8 @@ function detectEndpoints(
  * The longer spans a U+FEFF opens. The regex stops at a U+FEFF, but the URL
  * parser drops it from a host, so the text after it can still be part of the
  * authority. A template element boundary cuts the span the same way the raw
- * scan cuts a match that runs into `${`.
+ * scan cuts a match that runs into `${`. Every span here is additive
+ * (ADR-037): main's rules never walk past the U+FEFF.
  */
 function extendedUrlCandidates(
   text: string,
@@ -411,7 +424,7 @@ function extendedUrlCandidates(
   authorityEnd: number,
   rangeEnd: number | null,
   context: SignalEndpointContext,
-): [string, number, SignalEndpointContext][] {
+): [string, number, SignalEndpointContext, "additive"][] {
   const continuation = continueAuthority(text, authorityEnd);
   if (continuation === "") return [];
   const extended = authority + continuation;
@@ -421,11 +434,11 @@ function extendedUrlCandidates(
     : extended;
   if (rangeEnd !== null && extendedEnd > rangeEnd) {
     return [
-      [text.slice(index, rangeEnd), rangeEnd, context],
-      [delimited, extendedEnd, "unknown"],
+      [text.slice(index, rangeEnd), rangeEnd, context, "additive"],
+      [delimited, extendedEnd, "unknown", "additive"],
     ];
   }
-  return [[delimited, extendedEnd, context]];
+  return [[delimited, extendedEnd, context, "additive"]];
 }
 
 /**
@@ -448,6 +461,7 @@ function urlEndpoint(
   index: number,
   confidence: SignalEndpointObservation["confidence"],
   context: SignalEndpointContext,
+  provenance: SignalEndpointObservation["provenance"],
 ): SignalEndpointObservation | null {
   let parsed: URL;
   try {
@@ -472,6 +486,7 @@ function urlEndpoint(
     index,
     confidence,
     context,
+    provenance,
   );
 }
 
@@ -484,6 +499,7 @@ function endpoint(
   index: number,
   confidence: SignalEndpointObservation["confidence"],
   context: SignalEndpointContext,
+  provenance: SignalEndpointObservation["provenance"] = "established",
 ): SignalEndpointObservation {
   return {
     kind: "EXTERNAL_ENDPOINT",
@@ -491,7 +507,7 @@ function endpoint(
     normalizedValue: value,
     confidence,
     context,
-    provenance: "established",
+    provenance,
     evidence: [{ ...evidenceAt(source, starts, index), file }],
   };
 }

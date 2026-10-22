@@ -57,3 +57,22 @@ never drop or shorten one. The `feff-host` reconstruction proves the HIGH
 finding end to end. A U+FEFF after a complete host still yields the same
 hostname, because the parser drops it there too. Revisit if the held-out
 corpus shows real packages fetching hosts that contain U+FEFF.
+
+## Provenance (ADR-037)
+
+The spans that `extendedUrlCandidates` emits are additive. Each one walks past
+a U+FEFF, which main's rules never do: the extended authority, and the cut span
+a template element boundary leaves. The raw match and the cooked delimited
+match stay established. When a widened span reaches the same host as one of
+those, `buildSignalSet` merges the observations by key and keeps established.
+
+`buildSignalSet` merges an additive observation with an established one for
+the same key to established. `diffSignals` then lets an old-side endpoint hide
+a new-side one only when the old side ranks at least as high, so an
+additive-only old host never hides an established new one.
+
+This branch now only adds findings. For any key main reports as a new endpoint
+in a bump, the new side has it as established and the old side has it at most
+as additive, so this branch reports it too. A host that both sides reach only
+through the widened rule stays suppressed on both sides, so the change adds no
+repeated noise.
