@@ -292,6 +292,8 @@ function detectEndpoints(
       evidenceIndex: (index) => index,
       excluded: inComment,
       ipv6Context: (start, end) => ipv6ContextAt(start, end),
+      // ADR-037: main already scans the raw source with these rows.
+      provenance: "established",
     },
     found,
   );
@@ -358,6 +360,9 @@ function detectEndpoints(
           ipv6GluedIn(value, 0, value.length, index, end)
             ? "embedded-text"
             : "unknown",
+        // ADR-037: main does not scan cooked values with the IP rows, so every
+        // address this scan finds may be invisible to main.
+        provenance: "additive",
       },
       found,
     );
@@ -374,6 +379,8 @@ interface IpLiteralScan {
   excluded: (start: number, end: number) => boolean;
   /** ADR-027 context for an IPv6 match. */
   ipv6Context: (start: number, end: number) => SignalEndpointContext;
+  /** ADR-037: main's raw scan is established; the cooked scan is additive. */
+  provenance: SignalEndpointObservation["provenance"];
 }
 
 /**
@@ -416,6 +423,7 @@ function ipLiteralEndpoints(
           row.family === 6
             ? scan.ipv6Context(index, index + value.length)
             : "unknown",
+          scan.provenance,
         ),
       );
     }
@@ -454,6 +462,7 @@ function urlEndpoint(
     index,
     confidence,
     context,
+    "established",
   );
 }
 
@@ -466,6 +475,7 @@ function endpoint(
   index: number,
   confidence: SignalEndpointObservation["confidence"],
   context: SignalEndpointContext,
+  provenance: SignalEndpointObservation["provenance"],
 ): SignalEndpointObservation {
   return {
     kind: "EXTERNAL_ENDPOINT",
@@ -473,7 +483,7 @@ function endpoint(
     normalizedValue: value,
     confidence,
     context,
-    provenance: "established",
+    provenance,
     evidence: [{ ...evidenceAt(source, starts, index), file }],
   };
 }

@@ -46,6 +46,21 @@ The work stays linear. `cookedLookup` rejects a cooked value longer than its
 raw range, so the cooked scans read at most one source length in total. The
 glue scan around a match is bounded by `MAX_IPV6_ADDRESS_LENGTH`.
 
+## Provenance (ADR-037)
+
+ADR-037 separates observations main's rules make from observations a widened
+rule adds. The branch's new rule, the IP rows over a cooked value, tags every
+observation it produces `provenance: "additive"`. The raw IP scan and both
+URL scans (raw and cooked, ADR-026) keep `"established"`, so their value,
+context and confidence stay exactly as main reports them.
+
+Without the tag, an escaped address in the old version would count as an
+established old endpoint and hide the new version's real use of the same
+address. With it, the old additive observation cannot suppress the new
+established one, and `buildSignalSet` still merges a host that both scans see
+to established. Because the established observations equal main's, the branch
+only adds findings.
+
 ## Alternatives rejected
 
 - **Copy the row loop into the cooked scan.** Two copies of the family,

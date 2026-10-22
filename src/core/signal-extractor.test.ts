@@ -5,6 +5,7 @@ import {
   buildSignalSet,
   observeSignalSource,
 } from "./signal-extractor.js";
+import { diffSignals } from "./signal-differ.js";
 
 function source(
   file: string,
@@ -534,6 +535,39 @@ describe("signal extractor", () => {
         );
       },
     );
+  });
+
+  describe("provenance (ADR-037)", () => {
+    it("reports a new host that the old version only reaches through an escape", () => {
+      const oldText = 'const unused = "93.184.216\\x2e34";';
+      const start = oldText.indexOf('"') + 1;
+      const end = oldText.lastIndexOf('"');
+      const oldSet = buildSignalSet([
+        observeSignalSource({
+          file: "index.js",
+          bytes: new TextEncoder().encode(oldText),
+          parseState: "parsed",
+          stringRanges: [[start, end, false]],
+          cookedStrings: [[start, "93.184.216.34"]],
+        }),
+      ]);
+      const newSet = buildSignalSet([
+        source("index.js", 'require("net").connect(443, "93.184.216.34");'),
+      ]);
+
+      expect(oldSet.endpoints).toContainEqual(
+        expect.objectContaining({
+          normalizedValue: "93.184.216.34",
+          provenance: "additive",
+        }),
+      );
+      expect(diffSignals(oldSet, newSet)).toContainEqual(
+        expect.objectContaining({
+          kind: "new-external-endpoint",
+          detail: "new external ipv4 93.184.216.34",
+        }),
+      );
+    });
   });
 });
 
