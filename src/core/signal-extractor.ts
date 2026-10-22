@@ -184,6 +184,9 @@ export function buildSignalSet(
         (context, next) => strongestContext(context, next.context),
         group[0].context,
       ),
+      provenance: group.some(({ provenance }) => provenance === "established")
+        ? "established"
+        : "additive",
       evidence: mergeEvidence(group.map(({ evidence }) => evidence)),
     }),
   );
@@ -405,6 +408,7 @@ function endpoint(
     normalizedValue: value,
     confidence,
     context,
+    provenance: "established",
     evidence: [{ ...evidenceAt(source, starts, index), file }],
   };
 }

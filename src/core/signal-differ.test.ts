@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type {
   SignalEndpointContext,
+  SignalEndpointObservation,
   SignalSet,
 } from "./contract/capability-set.js";
 import {
@@ -21,13 +22,18 @@ function set(overrides: Partial<SignalSet> = {}): SignalSet {
   };
 }
 
-function endpointWith(context: SignalEndpointContext, value: string) {
+function endpointWith(
+  context: SignalEndpointContext,
+  value: string,
+  provenance: SignalEndpointObservation["provenance"] = "established",
+) {
   return {
     kind: "EXTERNAL_ENDPOINT" as const,
     endpointType: "domain" as const,
     normalizedValue: value,
     confidence: "literal" as const,
     context,
+    provenance,
     evidence,
   };
 }
@@ -40,6 +46,7 @@ describe("signal differ", () => {
       normalizedValue: "new.example.com",
       confidence: "literal" as const,
       context: "literal" as const,
+      provenance: "established" as const,
       evidence,
     };
     const pattern = {
@@ -131,6 +138,63 @@ describe("signal differ", () => {
         set({ endpoints: [endpoint] }),
       ),
     ).toEqual([]);
+  });
+
+  it("reports an established host that the old side only has as additive", () => {
+    const result = diffSignals(
+      set({
+        endpoints: [endpointWith("literal", "api.example.test", "additive")],
+      }),
+      set({
+        endpoints: [endpointWith("literal", "api.example.test", "established")],
+      }),
+    );
+
+    expect(result).toEqual([
+      expect.objectContaining({
+        kind: "new-external-endpoint",
+        detail: "new external domain api.example.test",
+      }),
+    ]);
+  });
+
+  it("does not report an additive host that the old side has as established", () => {
+    const result = diffSignals(
+      set({
+        endpoints: [endpointWith("literal", "api.example.test", "established")],
+      }),
+      set({
+        endpoints: [endpointWith("literal", "api.example.test", "additive")],
+      }),
+    );
+
+    expect(result).toEqual([]);
+  });
+
+  it("does not report an additive host that the old side also only has as additive", () => {
+    const result = diffSignals(
+      set({
+        endpoints: [endpointWith("literal", "api.example.test", "additive")],
+      }),
+      set({
+        endpoints: [endpointWith("literal", "api.example.test", "additive")],
+      }),
+    );
+
+    expect(result).toEqual([]);
+  });
+
+  it("does not report an established host that the old side also has as established", () => {
+    const result = diffSignals(
+      set({
+        endpoints: [endpointWith("literal", "api.example.test", "established")],
+      }),
+      set({
+        endpoints: [endpointWith("literal", "api.example.test", "established")],
+      }),
+    );
+
+    expect(result).toEqual([]);
   });
 
   it("reports entropy jumps and aggregate unparseable-byte growth", () => {

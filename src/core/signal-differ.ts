@@ -36,7 +36,12 @@ export function diffSignals(
   oldSet: SignalSet | null,
   newSet: SignalSet,
 ): SignalFinding[] {
-  const oldEndpoints = new Set((oldSet?.endpoints ?? []).map(endpointKey));
+  const oldEndpoints = new Map(
+    (oldSet?.endpoints ?? []).map((endpoint) => [
+      endpointKey(endpoint),
+      endpoint.provenance,
+    ]),
+  );
   const oldPatterns = new Map(
     (oldSet?.obfuscationPatterns ?? []).map((pattern) => [
       patternKey(pattern),
@@ -49,7 +54,13 @@ export function diffSignals(
   const findings: SignalFinding[] = [];
 
   for (const endpoint of newSet.endpoints) {
-    if (oldEndpoints.has(endpointKey(endpoint))) continue;
+    if (
+      suppressesEndpoint(
+        oldEndpoints.get(endpointKey(endpoint)),
+        endpoint.provenance,
+      )
+    )
+      continue;
     findings.push(endpointFinding(endpoint));
   }
 
@@ -145,6 +156,22 @@ function unparseableBytes(set: SignalSet): number {
 
 function endpointKey(endpoint: SignalEndpointObservation): string {
   return JSON.stringify([endpoint.endpointType, endpoint.normalizedValue]);
+}
+
+function provenanceRank(
+  provenance: SignalEndpointObservation["provenance"],
+): number {
+  return provenance === "established" ? 2 : 1;
+}
+
+/** ADR-037: an additive-only old endpoint never hides an established new one. */
+function suppressesEndpoint(
+  previous: SignalEndpointObservation["provenance"] | undefined,
+  next: SignalEndpointObservation["provenance"],
+): boolean {
+  return (
+    previous !== undefined && provenanceRank(previous) >= provenanceRank(next)
+  );
 }
 
 /**

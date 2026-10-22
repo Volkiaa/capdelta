@@ -118,6 +118,8 @@ export interface SignalEndpointObservation {
   normalizedValue: string;
   confidence: "literal" | "byte-scan-candidate";
   context: SignalEndpointContext;
+  /** ADR-037: "established" for main's rules, "additive" for a widened rule. */
+  provenance: "established" | "additive";
   evidence: EvidenceList;
 }
 

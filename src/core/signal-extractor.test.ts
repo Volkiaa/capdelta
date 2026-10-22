@@ -82,6 +82,22 @@ describe("signal extractor", () => {
     expect(ipv6[0]?.evidence.map((item) => item.line)).toEqual([1, 2]);
   });
 
+  it("merges an established and an additive observation of one host to established", () => {
+    const observed = source("index.js", "fetch('https://api.example.test');");
+    const endpoint = observed.endpoints[0];
+    if (endpoint === undefined) throw new Error("no endpoint observed");
+    const additive = {
+      ...observed,
+      file: { ...observed.file, file: "widened.js" },
+      endpoints: [{ ...endpoint, provenance: "additive" as const }],
+    };
+
+    const result = buildSignalSet([additive, observed]);
+
+    expect(result.endpoints).toHaveLength(1);
+    expect(result.endpoints[0]?.provenance).toBe("established");
+  });
+
   it("records entropy and detects both bounded obfuscation array shapes", () => {
     const hex = Array.from(
       { length: MIN_OBFUSCATION_ARRAY_ELEMENTS },
