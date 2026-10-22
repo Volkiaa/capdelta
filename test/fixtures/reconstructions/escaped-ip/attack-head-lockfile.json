@@ -1,0 +1,17 @@
+{
+  "name": "reconstruction-project",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "name": "reconstruction-project",
+      "version": "1.0.0"
+    },
+    "node_modules/capdelta-fixture-escaped-ip": {
+      "version": "1.0.1",
+      "resolved": "https://registry.npmjs.org/capdelta-fixture-escaped-ip/-/capdelta-fixture-escaped-ip-1.0.1.tgz",
+      "integrity": "sha512-ggDItePyLTovpUe02e00sN9myllN0HzzX/IKU93UgqQ9ua+pwcjHdVTWUWpTJ9dOdo+aclV/iSlbAoZ9Sekk6A=="
+    }
+  }
+}

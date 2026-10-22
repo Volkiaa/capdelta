@@ -886,3 +886,20 @@ describe("synthetic inet_aton IPv4 host (ADR-031)", () => {
     expect(evaluateSeverityGate(result.report, "HIGH").fail).toBe(true);
   });
 });
+
+describe("synthetic escaped-string IP endpoint (ADR-032)", () => {
+  it("reports the address hidden behind a hex escape as a new HIGH endpoint", async () => {
+    const result = await runScenario("escaped-ip", "attack");
+    expectAllAnalyzed(result, 1);
+    const report = packageReport(result.report, "capdelta-fixture-escaped-ip");
+
+    expect(report.signalFindings).toEqual([
+      expect.objectContaining({
+        kind: "new-external-endpoint",
+        severity: "HIGH",
+        detail: "new external ipv4 93.184.216.34",
+      }),
+    ]);
+    expect(evaluateSeverityGate(result.report, "HIGH").fail).toBe(true);
+  });
+});

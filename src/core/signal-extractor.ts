@@ -282,32 +282,21 @@ function detectEndpoints(
     }
   }
 
-  for (const row of IP_LITERAL_ROWS) {
-    for (const match of source.matchAll(row.pattern)) {
-      const value = match[0];
-      const index = match.index;
-      if (inComment(index, index + value.length)) continue;
-      const normalized =
-        row.normalize === undefined ? value : row.normalize(value);
-      if (normalized === null || isIP(normalized) !== row.family) continue;
-      if (!isExternalHost(normalized, row.endpointType)) continue;
-      found.push(
-        endpoint(
-          file,
-          row.lowercase ? normalized.toLowerCase() : normalized,
-          row.endpointType,
-          source,
-          starts,
-          index,
-          confidence,
-          // ADR-027 classifies bare IPv6 by its string; IPv4 keeps "unknown".
-          row.family === 6
-            ? ipv6ContextAt(index, index + value.length)
-            : "unknown",
-        ),
-      );
-    }
-  }
+  ipLiteralEndpoints(
+    file,
+    source,
+    starts,
+    confidence,
+    {
+      text: source,
+      evidenceIndex: (index) => index,
+      excluded: inComment,
+      ipv6Context: (start, end) => ipv6ContextAt(start, end),
+      // ADR-037: main already scans the raw source with these rows.
+      provenance: "established",
+    },
+    found,
+  );
 
   // ADR-026: cooked matches join the raw matches here, so the per-host
   // aggregation below decides severity (ADR-024 strongest-context-wins)
@@ -353,8 +342,92 @@ function detectEndpoints(
       );
       if (observation !== null) found.push(observation);
     }
+    // The IP rows scan the same cooked value, so an escape cannot hide a bare
+    // address either. A cooked value never comes from a comment, so no match
+    // is excluded here.
+    ipLiteralEndpoints(
+      file,
+      source,
+      starts,
+      confidence,
+      {
+        text: value,
+        evidenceIndex: () => start,
+        excluded: () => false,
+        // ADR-027 judges glue against the text that runs, which is the cooked
+        // value, not the raw source with its escapes.
+        ipv6Context: (index, end) =>
+          ipv6GluedIn(value, 0, value.length, index, end)
+            ? "embedded-text"
+            : "unknown",
+        // ADR-037: main does not scan cooked values with the IP rows, so every
+        // address this scan finds may be invisible to main.
+        provenance: "additive",
+      },
+      found,
+    );
   }
   return found;
+}
+
+interface IpLiteralScan {
+  /** The raw source, or one string's cooked value. */
+  text: string;
+  /** Offset in the source used for the observation's evidence. */
+  evidenceIndex: (matchIndex: number) => number;
+  /** True when the match must be skipped; only the raw scan skips comments. */
+  excluded: (start: number, end: number) => boolean;
+  /** ADR-027 context for an IPv6 match. */
+  ipv6Context: (start: number, end: number) => SignalEndpointContext;
+  /** ADR-037: main's raw scan is established; the cooked scan is additive. */
+  provenance: SignalEndpointObservation["provenance"];
+}
+
+/**
+ * Runs the shared IP literal rows over one text. The raw scan and each cooked
+ * string's scan differ only in where a match is reported and how an IPv6
+ * context is decided.
+ *
+ * Appends to the caller's accumulator one match at a time. A spread argument
+ * (`found.push(...matches)`) fails with "Maximum call stack size exceeded"
+ * when a valid source holds enough matches, which would suppress every
+ * observation from the file.
+ */
+function ipLiteralEndpoints(
+  file: string,
+  source: string,
+  starts: readonly number[],
+  confidence: SignalEndpointObservation["confidence"],
+  scan: IpLiteralScan,
+  found: SignalEndpointObservation[],
+): void {
+  for (const row of IP_LITERAL_ROWS) {
+    for (const match of scan.text.matchAll(row.pattern)) {
+      const value = match[0];
+      const index = match.index;
+      if (scan.excluded(index, index + value.length)) continue;
+      const normalized =
+        row.normalize === undefined ? value : row.normalize(value);
+      if (normalized === null || isIP(normalized) !== row.family) continue;
+      if (!isExternalHost(normalized, row.endpointType)) continue;
+      found.push(
+        endpoint(
+          file,
+          row.lowercase ? normalized.toLowerCase() : normalized,
+          row.endpointType,
+          source,
+          starts,
+          scan.evidenceIndex(index),
+          confidence,
+          // ADR-027 classifies bare IPv6 by its string; IPv4 keeps "unknown".
+          row.family === 6
+            ? scan.ipv6Context(index, index + value.length)
+            : "unknown",
+          scan.provenance,
+        ),
+      );
+    }
+  }
 }
 
 function urlEndpoint(
@@ -389,6 +462,7 @@ function urlEndpoint(
     index,
     confidence,
     context,
+    "established",
   );
 }
 
@@ -401,6 +475,7 @@ function endpoint(
   index: number,
   confidence: SignalEndpointObservation["confidence"],
   context: SignalEndpointContext,
+  provenance: SignalEndpointObservation["provenance"],
 ): SignalEndpointObservation {
   return {
     kind: "EXTERNAL_ENDPOINT",
@@ -408,7 +483,7 @@ function endpoint(
     normalizedValue: value,
     confidence,
     context,
-    provenance: "established",
+    provenance,
     evidence: [{ ...evidenceAt(source, starts, index), file }],
   };
 }
@@ -706,26 +781,41 @@ function ipv6GluedContext(
   end: number,
   source: string,
 ): boolean {
+  return ipv6GluedIn(source, range[0], range[1], start, end);
+}
+
+/**
+ * ADR-027's glue rule over `text`, bounded by the container that holds the
+ * match. The raw scan bounds it to the string's range; the cooked scan passes
+ * the cooked value with the whole value as the container.
+ */
+function ipv6GluedIn(
+  text: string,
+  containerStart: number,
+  containerEnd: number,
+  start: number,
+  end: number,
+): boolean {
   // The pattern can stop inside an address Node accepts, before a dotted IPv4
   // tail or a zone ID, so judge the whole token, never the match alone.
   let tokenStart = start;
   let tokenEnd = end;
   while (
-    tokenStart > range[0] &&
+    tokenStart > containerStart &&
     tokenEnd - tokenStart <= MAX_IPV6_ADDRESS_LENGTH &&
-    IPV6_TOKEN_CHAR_RE.test(source.charAt(tokenStart - 1))
+    IPV6_TOKEN_CHAR_RE.test(text.charAt(tokenStart - 1))
   )
     tokenStart -= 1;
   while (
-    tokenEnd < range[1] &&
+    tokenEnd < containerEnd &&
     tokenEnd - tokenStart <= MAX_IPV6_ADDRESS_LENGTH &&
-    IPV6_TOKEN_CHAR_RE.test(source.charAt(tokenEnd))
+    IPV6_TOKEN_CHAR_RE.test(text.charAt(tokenEnd))
   )
     tokenEnd += 1;
   if (tokenEnd - tokenStart > MAX_IPV6_ADDRESS_LENGTH) return false;
-  if (isIP(source.slice(tokenStart, tokenEnd)) !== 6) return false;
-  const before = tokenStart > range[0] ? source.charAt(tokenStart - 1) : "";
-  const after = tokenEnd < range[1] ? source.charAt(tokenEnd) : "";
+  if (isIP(text.slice(tokenStart, tokenEnd)) !== 6) return false;
+  const before = tokenStart > containerStart ? text.charAt(tokenStart - 1) : "";
+  const after = tokenEnd < containerEnd ? text.charAt(tokenEnd) : "";
   if (after === "%") return false;
   return !isIpv6Separator(before) || !isIpv6Separator(after);
 }

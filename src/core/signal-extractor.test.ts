@@ -5,6 +5,7 @@ import {
   buildSignalSet,
   observeSignalSource,
 } from "./signal-extractor.js";
+import { diffSignals } from "./signal-differ.js";
 
 function source(
   file: string,
@@ -497,6 +498,75 @@ describe("signal extractor", () => {
         context: "literal",
       });
       expect(result.endpoints[0]?.evidence).toHaveLength(lineCount);
+    });
+  });
+
+  describe("unbounded match lists", () => {
+    // Review round 1: a string below the default size limit held enough
+    // matches to overflow the argument limit of `found.push(...matches)`.
+    const repeated = "8.8.8.8 ".repeat(130_000);
+    it.each([
+      ["the raw scan", `f("${repeated}");`, undefined],
+      ["the cooked scan", `f("${repeated}\\x2e");`, `${repeated}.`],
+    ] as const)(
+      "reports 8.8.8.8 through %s in one 1 MB string",
+      (_label, text, cooked) => {
+        const start = text.indexOf('"') + 1;
+        const end = text.lastIndexOf('"');
+
+        const result = buildSignalSet([
+          observeSignalSource({
+            file: "index.js",
+            bytes: new TextEncoder().encode(text),
+            parseState: "parsed",
+            stringRanges: [[start, end, true]],
+            ...(cooked === undefined
+              ? {}
+              : { cookedStrings: [[start, cooked]] }),
+          }),
+        ]);
+
+        expect(result.endpoints).toContainEqual(
+          expect.objectContaining({
+            endpointType: "ipv4",
+            normalizedValue: "8.8.8.8",
+            context: "unknown",
+          }),
+        );
+      },
+    );
+  });
+
+  describe("provenance (ADR-037)", () => {
+    it("reports a new host that the old version only reaches through an escape", () => {
+      const oldText = 'const unused = "93.184.216\\x2e34";';
+      const start = oldText.indexOf('"') + 1;
+      const end = oldText.lastIndexOf('"');
+      const oldSet = buildSignalSet([
+        observeSignalSource({
+          file: "index.js",
+          bytes: new TextEncoder().encode(oldText),
+          parseState: "parsed",
+          stringRanges: [[start, end, false]],
+          cookedStrings: [[start, "93.184.216.34"]],
+        }),
+      ]);
+      const newSet = buildSignalSet([
+        source("index.js", 'require("net").connect(443, "93.184.216.34");'),
+      ]);
+
+      expect(oldSet.endpoints).toContainEqual(
+        expect.objectContaining({
+          normalizedValue: "93.184.216.34",
+          provenance: "additive",
+        }),
+      );
+      expect(diffSignals(oldSet, newSet)).toContainEqual(
+        expect.objectContaining({
+          kind: "new-external-endpoint",
+          detail: "new external ipv4 93.184.216.34",
+        }),
+      );
     });
   });
 });
