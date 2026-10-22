@@ -41,6 +41,22 @@ a copy of the text and scan that copy with the same URL and IP rows.
    file holds no backslash.
 6. **Parsed files are not decoded.** They already carry cooked values.
 
+## Provenance (ADR-037)
+
+Every observation the decoded scan produces carries `provenance: "additive"`.
+The byte scan and cooked string matching keep `"established"`, because main's
+rules already produce those observations with the same value, context and
+confidence. `buildSignalSet` merges a host seen by both to established, so a
+host main reports stays established on this branch.
+
+An old-side additive host never hides a new-side established one
+(`src/core/signal-differ.ts:167`). This matters because the decoded scan also
+reads comments and padding. An old unparseable file can mention
+`https://exfil.example.test` only in a comment, while the new version really
+fetches that host, and the fetch is still reported. Tagging the widened
+observations additive means this branch only adds findings to main's on any
+bump.
+
 ## Alternatives rejected
 
 - **Parse the file anyway.** That removes the 2 MB limit and the timeout that

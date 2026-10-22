@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { diffSignals } from "./signal-differ.js";
 import {
   MIN_OBFUSCATION_ARRAY_ELEMENTS,
   type SignalSourceInput,
@@ -502,6 +503,70 @@ describe("signal extractor", () => {
 
       expect(performance.now() - started).toBeLessThan(3_000);
     });
+  });
+
+  describe("provenance of widened observations (ADR-037)", () => {
+    const rejected = (file: string, text: string) =>
+      observeSignalSource({
+        file,
+        bytes: new TextEncoder().encode(text),
+        parseState: "unparseable",
+      });
+
+    it("tags a decoded-only endpoint additive", () => {
+      const result = buildSignalSet([
+        source(
+          "index.js",
+          'fetch("https:\\/\\/exfil.example.test");',
+          "unparseable",
+        ),
+      ]);
+
+      expect(result.endpoints).toEqual([
+        expect.objectContaining({
+          normalizedValue: "exfil.example.test",
+          provenance: "additive",
+        }),
+      ]);
+    });
+
+    it("reports a new host when a padded old file only mentions it behind an escape", () => {
+      const padded =
+        "/* https:\\/\\/exfil.example.test */" + " ".repeat(2 * 1024 * 1024);
+      const oldSet = buildSignalSet([rejected("old.js", padded)]);
+      const newSet = buildSignalSet([
+        source("new.js", 'fetch("https://exfil.example.test/x");'),
+      ]);
+
+      expect(oldSet.endpoints[0]?.provenance).toBe("additive");
+      expect(diffSignals(oldSet, newSet)).toContainEqual(
+        expect.objectContaining({
+          kind: "new-external-endpoint",
+          detail: "new external domain exfil.example.test",
+        }),
+      );
+    });
+
+    it("appends a large rejected file's decoded observations without argument spreading", () => {
+      const text = "::2 ".repeat(524_287) + "\\x20";
+
+      expect(() => buildSignalSet([rejected("old.js", text)])).not.toThrow();
+    }, 20_000);
+
+    it("reports a new host when the old side is a large rejected file", () => {
+      const text = "::2 ".repeat(524_287) + "\\x20";
+      const oldSet = buildSignalSet([rejected("old.js", text)]);
+      const newSet = buildSignalSet([
+        source("new.js", 'fetch("https://exfil.example.test/x");'),
+      ]);
+
+      expect(diffSignals(oldSet, newSet)).toContainEqual(
+        expect.objectContaining({
+          kind: "new-external-endpoint",
+          detail: "new external domain exfil.example.test",
+        }),
+      );
+    }, 20_000);
   });
 
   describe("cooked string values (ADR-026)", () => {

@@ -148,27 +148,32 @@ export function observeSignalSource(input: SignalSourceInput): {
     rangeEndAt,
     ipv6ContextAt,
     cookedStrings,
+    "established",
   );
   // A file the parser did not read has no cooked values, so the byte scan sees
   // only the raw escape text. Decoding a copy finds the URL or address the
-  // runtime would hold without letting a broken parse hide it.
+  // runtime would hold without letting a broken parse hide it. ADR-037: this
+  // widened scan is additive, so a speculative old-side host cannot hide a new
+  // one. Append one by one: a 2 MB input can yield hundreds of thousands of
+  // observations, and argument spreading overflows the call stack.
   if (input.parseState !== "parsed") {
     const decoded = decodeJavaScriptEscapes(source);
     if (decoded !== null) {
-      endpoints.push(
-        ...detectEndpoints(
-          input.file,
-          decoded,
-          source,
-          starts,
-          confidence,
-          (): boolean => false,
-          (): SignalEndpointContext => "unknown",
-          (): number | null => null,
-          (): SignalEndpointContext => "unknown",
-          [],
-        ),
-      );
+      for (const observation of detectEndpoints(
+        input.file,
+        decoded,
+        source,
+        starts,
+        confidence,
+        (): boolean => false,
+        (): SignalEndpointContext => "unknown",
+        (): number | null => null,
+        (): SignalEndpointContext => "unknown",
+        [],
+        "additive",
+      )) {
+        endpoints.push(observation);
+      }
     }
   }
   const obfuscationPatterns = detectObfuscationPatterns(
@@ -249,6 +254,7 @@ function detectEndpoints(
   rangeEndAt: (start: number) => number | null,
   ipv6ContextAt: (start: number, end: number) => SignalEndpointContext,
   cookedStrings: readonly (readonly [number, string])[],
+  provenance: SignalEndpointObservation["provenance"],
 ): SignalEndpointObservation[] {
   const found: SignalEndpointObservation[] = [];
   // The regex is global, so it carries lastIndex between calls. Reset it and
@@ -315,6 +321,7 @@ function detectEndpoints(
         scan.sourceOffsetAt(index),
         confidence,
         context,
+        provenance,
       );
       if (observation !== null) found.push(observation);
     }
@@ -348,6 +355,7 @@ function detectEndpoints(
           row.family === 6
             ? ipv6ContextAt(index, index + value.length)
             : "unknown",
+          provenance,
         ),
       );
     }
@@ -394,6 +402,7 @@ function detectEndpoints(
         start,
         confidence,
         context,
+        provenance,
       );
       if (observation !== null) found.push(observation);
     }
@@ -570,6 +579,7 @@ function urlEndpoint(
   index: number,
   confidence: SignalEndpointObservation["confidence"],
   context: SignalEndpointContext,
+  provenance: SignalEndpointObservation["provenance"],
 ): SignalEndpointObservation | null {
   let parsed: URL;
   try {
@@ -594,6 +604,7 @@ function urlEndpoint(
     index,
     confidence,
     context,
+    provenance,
   );
 }
 
@@ -606,6 +617,7 @@ function endpoint(
   index: number,
   confidence: SignalEndpointObservation["confidence"],
   context: SignalEndpointContext,
+  provenance: SignalEndpointObservation["provenance"],
 ): SignalEndpointObservation {
   return {
     kind: "EXTERNAL_ENDPOINT",
@@ -613,7 +625,7 @@ function endpoint(
     normalizedValue: value,
     confidence,
     context,
-    provenance: "established",
+    provenance,
     evidence: [{ ...evidenceAt(source, starts, index), file }],
   };
 }
