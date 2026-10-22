@@ -28,6 +28,7 @@ import {
   type JsonRunReport,
 } from "./reporter.js";
 import { evaluateSeverityGate } from "./run-severity.js";
+import { expandPadding } from "../../scripts/generate-golden-fixtures.mjs";
 
 // PLAN §7.4
 
@@ -39,6 +40,7 @@ interface Incident {
   name: string;
   scenarios: Record<string, { base: string[]; head: string[] }>;
   entryLinks?: Record<string, Record<string, string>>;
+  padding?: Record<string, { path: string; marker: string; bytes: number }[]>;
 }
 
 const INVENTORY = JSON.parse(
@@ -226,6 +228,18 @@ describe("reconstruction fixtures", () => {
         );
         return;
       }
+      const padding =
+        INVENTORY.incidents.find((incident) => incident.name === name)
+          ?.padding?.[id] ?? [];
+      const expanded = new Map<string, Buffer>();
+      for (const item of padding) {
+        const target = join(packageRoot, item.path);
+        const content = await readFile(target, "utf8");
+        expanded.set(
+          relative(sourceRoot, target),
+          Buffer.from(expandPadding(content, item.marker, item.bytes), "utf8"),
+        );
+      }
       const extraction = await extractVerifiedTarball({
         integrity: "sha512-inert-reconstruction",
         bytes: await readFile(`${packageRoot}.tgz`),
@@ -237,9 +251,10 @@ describe("reconstruction fixtures", () => {
         const files = await listFiles(sourceRoot);
         expect(await listFiles(extraction.root)).toEqual(files);
         for (const file of files) {
-          expect(await readFile(join(extraction.root, file))).toEqual(
-            await readFile(join(sourceRoot, file)),
-          );
+          const actual = await readFile(join(extraction.root, file));
+          const expected =
+            expanded.get(file) ?? (await readFile(join(sourceRoot, file)));
+          expect(actual.equals(expected)).toBe(true);
         }
       } finally {
         await extraction.cleanup();
@@ -818,6 +833,26 @@ describe("synthetic escaped-string endpoint (ADR-026)", () => {
     const result = await runScenario("escaped-url", "attack");
     expectAllAnalyzed(result, 1);
     const report = packageReport(result.report, "capdelta-fixture-escaped-url");
+
+    expect(report.signalFindings).toEqual([
+      expect.objectContaining({
+        kind: "new-external-endpoint",
+        severity: "HIGH",
+        detail: "new external domain exfil.example.test",
+      }),
+    ]);
+    expect(evaluateSeverityGate(result.report, "HIGH").fail).toBe(true);
+  });
+});
+
+describe("synthetic escaped endpoint over the parser limit", () => {
+  it("reports the host hidden behind an escape in an unparseable file as a new HIGH endpoint", async () => {
+    const result = await runScenario("unparseable-escape", "attack");
+    expectAllAnalyzed(result, 1, { complete: false });
+    const report = packageReport(
+      result.report,
+      "capdelta-fixture-unparseable-escape",
+    );
 
     expect(report.signalFindings).toEqual([
       expect.objectContaining({

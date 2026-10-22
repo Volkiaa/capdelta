@@ -10,7 +10,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL, URL } from "node:url";
 import { gzipSync, gunzipSync } from "node:zlib";
 import * as tar from "tar";
@@ -93,7 +93,12 @@ async function main() {
     for (const id of ids) {
       const sourceRoot = join(incidentRoot, "packages", id);
       const tarball = join(incidentRoot, "packages", `${id}.tgz`);
-      await packTree(sourceRoot, tarball, incident.entryLinks?.[id]);
+      await packTree(
+        sourceRoot,
+        tarball,
+        incident.entryLinks?.[id],
+        paddingFor(incident, id),
+      );
       const entryModes = incident.entryModes?.[id];
       if (entryModes !== undefined) {
         for (const [path, declared] of Object.entries(entryModes)) {
@@ -161,10 +166,14 @@ async function main() {
   }
 }
 
-async function packTree(sourceRoot, tarball, entryLinks = {}) {
+function paddingFor(incident, id) {
+  return incident.padding?.[id];
+}
+
+async function packTree(sourceRoot, tarball, entryLinks = {}, padding = []) {
   const files = (await topLevelRoots(sourceRoot)).flatMap((items) => items);
   const links = Object.entries(entryLinks);
-  if (links.length === 0) {
+  if (links.length === 0 && padding.length === 0) {
     await tar.c(
       {
         cwd: sourceRoot,
@@ -178,12 +187,18 @@ async function packTree(sourceRoot, tarball, entryLinks = {}) {
     return;
   }
   // Stage the declared links in a scratch copy so the source tree stays
-  // regular-file-only and no symlink is followed or kept.
+  // regular-file-only and no symlink is followed or kept. Padding is expanded
+  // only in the staging copy, so the committed fixture keeps the marker.
   validateEntryLinks(links);
   const work = await mkdtemp(join(tmpdir(), "capdelta-pack-"));
   try {
     const staging = join(work, "source");
     await cp(sourceRoot, staging, { recursive: true });
+    for (const item of padding) {
+      const target = stagedPath(staging, item.path);
+      const content = await readFile(target, "utf8");
+      await writeFile(target, expandPadding(content, item.marker, item.bytes));
+    }
     for (const [path, target] of links) {
       await assertRealDirectories(staging, path);
       await symlink(target, join(staging, path));
@@ -201,6 +216,64 @@ async function packTree(sourceRoot, tarball, entryLinks = {}) {
   } finally {
     await rm(work, { recursive: true, force: true });
   }
+}
+
+const PADDING_BLOCK = paddingBlock(12_288);
+
+/**
+ * Replaces one marker with a block comment large enough for the file to reach
+ * `minimumBytes`. The body repeats a varied block: a constant run compresses
+ * about 1000:1, which the extractor's decompression-ratio cap rejects as a zip
+ * bomb. Twelve KiB keeps the ratio near 85 while the tarball stays under 100 KB.
+ */
+export function expandPadding(content, marker, minimumBytes) {
+  if (typeof marker !== "string" || marker.length === 0) {
+    throw new Error("fixture padding marker must be a non-empty string");
+  }
+  if (!Number.isSafeInteger(minimumBytes) || minimumBytes <= 0) {
+    throw new Error(
+      `fixture padding bytes must be a positive safe integer, got ${String(minimumBytes)}`,
+    );
+  }
+  const at = content.indexOf(marker);
+  if (at === -1 || content.indexOf(marker, at + marker.length) !== -1) {
+    throw new Error(
+      `fixture padding marker ${JSON.stringify(marker)} must occur exactly once`,
+    );
+  }
+  const before = content.slice(0, at);
+  const after = content.slice(at + marker.length);
+  const bodyBytes = Math.max(
+    0,
+    minimumBytes - before.length - after.length - 4,
+  );
+  const body = PADDING_BLOCK.repeat(
+    Math.ceil(bodyBytes / PADDING_BLOCK.length),
+  );
+  return `${before}/*${body.slice(0, bodyBytes)}*/${after}`;
+}
+
+function paddingBlock(length) {
+  const alphabet =
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let state = 0x9e3779b9;
+  let block = "";
+  for (let index = 0; index < length; index += 1) {
+    state = (Math.imul(state, 1_664_525) + 1_013_904_223) >>> 0;
+    block += alphabet.charAt(state % alphabet.length);
+  }
+  return block;
+}
+
+function stagedPath(staging, path) {
+  if (typeof path !== "string" || path.length === 0) {
+    throw new Error("fixture padding path must be a non-empty string");
+  }
+  const target = resolve(staging, path);
+  if (!target.startsWith(`${resolve(staging)}${sep}`)) {
+    throw new Error(`fixture padding path escapes the source tree: ${path}`);
+  }
+  return target;
 }
 
 const LINK_PATH_SEGMENT = /^[A-Za-z0-9_-][A-Za-z0-9._-]*$/u;

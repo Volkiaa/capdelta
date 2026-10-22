@@ -6,6 +6,7 @@ import { gzipSync } from "node:zlib";
 import * as tar from "tar";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  expandPadding,
   rewriteAsciiUstarEntryModes,
   validateEntryLinks,
 } from "./generate-golden-fixtures.mjs";
@@ -96,6 +97,27 @@ describe("rewriteAsciiUstarEntryModes", () => {
       onentry: (entry) => modes.set(entry.path, entry.mode),
     });
     expect(modes.get("pkg/index.js") & 0o777).toBe(0o600);
+  });
+});
+
+describe("expandPadding", () => {
+  it("replaces the marker with a block comment at the requested size", () => {
+    const content = "const x = 1;\n/* PAD */\n";
+    const expanded = expandPadding(content, "/* PAD */", 4_096);
+
+    expect(expanded.startsWith("const x = 1;\n/*")).toBe(true);
+    expect(expanded.endsWith("*/\n")).toBe(true);
+    expect(expanded).not.toContain("PAD");
+    expect(expanded.length).toBeGreaterThanOrEqual(4_096);
+  });
+
+  it("rejects a marker that is absent or repeated", () => {
+    expect(() => expandPadding("no marker", "/* PAD */", 10)).toThrow(
+      /exactly once/u,
+    );
+    expect(() => expandPadding("/* PAD *//* PAD */", "/* PAD */", 10)).toThrow(
+      /exactly once/u,
+    );
   });
 });
 
