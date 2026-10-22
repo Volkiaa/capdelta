@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto";
-import { lstat, readFile } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import {
   parseTree,
@@ -25,6 +24,10 @@ import { NamedError } from "../named-error.js";
 import { errorName, isAbortSignal } from "../guards.js";
 import { compareText } from "../compare.js";
 import { lineIndexAt, lineStarts } from "../line-index.js";
+import {
+  readRegularFile,
+  type ReadRegularFileResult,
+} from "../read-regular-file.js";
 import type { ExtractedTarball } from "./safe-extractor.js";
 
 const MANIFEST_FILE = "package.json";
@@ -265,47 +268,11 @@ async function readManifest(
   maxManifestBytes: number,
   signal: AbortSignal | undefined,
 ): Promise<ManifestReadResult> {
+  const initialStop = readStopped(signal);
+  if (initialStop !== null) return initialStop;
+  let read: ReadRegularFileResult;
   try {
-    const initialStop = readStopped(signal);
-    if (initialStop !== null) return initialStop;
-    const metadata = await lstat(path);
-    const metadataStop = readStopped(signal);
-    if (metadataStop !== null) return metadataStop;
-    if (!metadata.isFile()) {
-      return readFailure(
-        "manifest-not-regular",
-        "package.json is not a regular file",
-      );
-    }
-    if (metadata.size > maxManifestBytes) {
-      return readFailure(
-        "manifest-too-large",
-        `package.json exceeds ${String(maxManifestBytes)} bytes`,
-      );
-    }
-    const bytes = await readFile(
-      path,
-      signal === undefined ? undefined : { signal },
-    );
-    const readStop = readStopped(signal);
-    if (readStop !== null) return readStop;
-    if (bytes.byteLength > maxManifestBytes) {
-      return readFailure(
-        "manifest-too-large",
-        `package.json exceeds ${String(maxManifestBytes)} bytes`,
-      );
-    }
-    try {
-      return {
-        ok: true,
-        text: new TextDecoder("utf-8", { fatal: true }).decode(bytes),
-      };
-    } catch (error: unknown) {
-      return readFailure(
-        "manifest-invalid-json",
-        `package.json is not valid UTF-8: ${errorName(error)}`,
-      );
-    }
+    read = await readRegularFile(path, maxManifestBytes, signal);
   } catch (error: unknown) {
     const caughtStop = readStopped(signal);
     if (caughtStop !== null) return caughtStop;
@@ -315,6 +282,31 @@ async function readManifest(
     return readFailure(
       "manifest-unreadable",
       `package.json could not be read: ${errorName(error)}`,
+    );
+  }
+  const readStop = readStopped(signal);
+  if (readStop !== null) return readStop;
+  if (read.kind === "not-regular") {
+    return readFailure(
+      "manifest-not-regular",
+      "package.json is not a regular file",
+    );
+  }
+  if (read.kind === "too-large") {
+    return readFailure(
+      "manifest-too-large",
+      `package.json exceeds ${String(maxManifestBytes)} bytes`,
+    );
+  }
+  try {
+    return {
+      ok: true,
+      text: new TextDecoder("utf-8", { fatal: true }).decode(read.bytes),
+    };
+  } catch (error: unknown) {
+    return readFailure(
+      "manifest-invalid-json",
+      `package.json is not valid UTF-8: ${errorName(error)}`,
     );
   }
 }
