@@ -93,34 +93,43 @@ async function readVerified(
   }
   if (opened.size > maxBytes) return { kind: "too-large" };
 
-  const bytes = await readBounded(handle, maxBytes, signal);
+  const bytes = await readBounded(handle, opened.size, maxBytes, signal);
   if (bytes === null) return { kind: "too-large" };
   return { kind: "ok", bytes };
 }
 
-// Returns null once more than maxBytes have arrived. Every allocation is at
-// most maxBytes + 1 bytes, so a file that grows after stat cannot exhaust
-// memory.
+// Returns null once more than maxBytes have arrived. Bytes land in one buffer
+// that starts at the stat size and doubles, capped at maxBytes + 1, so a file
+// that grows after stat, even by tiny writes, cannot exhaust memory.
 async function readBounded(
   handle: FileHandle,
+  expectedBytes: number,
   maxBytes: number,
   signal: AbortSignal | undefined,
 ): Promise<Buffer | null> {
-  const chunks: Buffer[] = [];
+  const limit = maxBytes + 1;
+  let buffer = Buffer.allocUnsafe(
+    Math.min(Math.max(expectedBytes + 1, READ_CHUNK_BYTES), limit),
+  );
   let total = 0;
   for (;;) {
     if (signal?.aborted === true) throw signal.reason;
-    const capacity = maxBytes + 1 - total;
-    const chunk = Buffer.allocUnsafe(Math.min(READ_CHUNK_BYTES, capacity));
-    const { bytesRead } = await handle.read(chunk, 0, chunk.byteLength, null);
+    if (total === buffer.byteLength) {
+      const grown = Buffer.allocUnsafe(Math.min(buffer.byteLength * 2, limit));
+      buffer.copy(grown, 0, 0, total);
+      buffer = grown;
+    }
+    const { bytesRead } = await handle.read(
+      buffer,
+      total,
+      buffer.byteLength - total,
+      null,
+    );
     if (bytesRead === 0) break;
-    chunks.push(chunk.subarray(0, bytesRead));
     total += bytesRead;
     if (total > maxBytes) return null;
   }
-  if (chunks.length === 0) return Buffer.alloc(0);
-  if (chunks.length === 1 && chunks[0] !== undefined) return chunks[0];
-  return Buffer.concat(chunks, total);
+  return buffer.subarray(0, total);
 }
 
 async function openRegularCandidate(path: string): Promise<FileHandle | null> {
