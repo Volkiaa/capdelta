@@ -9,15 +9,10 @@ cares most about.
 
 ## Reporting a vulnerability
 
-GitHub Private Vulnerability Reporting is the intended disclosure channel, but
-it is not enabled yet. Until the **Report a vulnerability** button appears on
-this repository's Security tab, open a detail-free issue asking the maintainer
-for a private contact channel. Do not include vulnerability details, suspected
-affected code, proof-of-concept input, or exploitability claims in that issue.
-
-Once enabled, submit the complete report through
-[GitHub Private Vulnerability Reporting](../../security/advisories/new). Do not
-open an ordinary public issue or pull request containing security details.
+Report a vulnerability privately through GitHub Private Vulnerability
+Reporting at <https://github.com/Volkiaa/capdelta/security/advisories/new>, or
+with the **Report a vulnerability** button on the repository's Security tab.
+Do not open a public issue or pull request containing security details.
 
 Include the affected commit or version, impact, reproduction steps, and any
 suggested mitigation. Inert proof-of-concept inputs are preferred; never submit
