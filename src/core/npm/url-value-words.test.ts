@@ -9,6 +9,8 @@ describe("valueHasWords", () => {
     ["an internal carriage return", "https://a.test/x\ry"],
     ["an internal line feed", "https://a.test/x\ny"],
     ["a trailing no-break space", "https://a.test/x\u00a0"],
+    ["a U+FEFF inside the host", "https://exfil\uFEFF.example.test/x"],
+    ["a trailing U+FEFF", "https://a.test/x\uFEFF"],
   ])("returns false for %s", (_label, value) => {
     expect(valueHasWords(value)).toBe(false);
   });

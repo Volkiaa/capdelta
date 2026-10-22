@@ -4,10 +4,13 @@ import type {
   SignalEndpointObservation,
   SignalSet,
 } from "./contract/capability-set.js";
+import { collectStringContent, parseSource } from "./npm/javascript-parse.js";
 import {
   ENTROPY_JUMP_MILLIBITS,
   HIGH_ENTROPY_MILLIBITS,
   MIN_ENTROPY_BYTES,
+  buildSignalSet,
+  observeSignalSource,
 } from "./signal-extractor.js";
 import { diffSignals } from "./signal-differ.js";
 
@@ -242,5 +245,48 @@ describe("signal differ", () => {
     expect(
       diffSignals(set({ sourceFiles: [file] }), set({ sourceFiles: [file] })),
     ).toEqual([]);
+  });
+});
+
+describe("review pairs (ADR-037)", () => {
+  const FEFF = "\uFEFF";
+
+  function parsedSet(text: string): SignalSet {
+    const { ast } = parseSource(text, "either");
+    return buildSignalSet([
+      observeSignalSource({
+        file: "index.js",
+        bytes: new TextEncoder().encode(text),
+        parseState: "parsed",
+        ...collectStringContent(ast, text),
+      }),
+    ]);
+  }
+
+  it("reports the new host that the old side only reaches through a widened U+FEFF authority", () => {
+    // cr/f5.md: the old code reads exfil.example.testa, and the continuation
+    // also records exfil.example.test by stopping at the escape's backslash.
+    // Neither path runs in the new version. Tagging both additive keeps them
+    // from hiding the new version's established use of exfil.example.test.
+    const oldSet = parsedSet(
+      `fetch("https://exfil${FEFF}.example.test\\u0061/x");`,
+    );
+    const newSet = parsedSet('fetch("https://exfil.example.test/x");');
+
+    expect(
+      oldSet.endpoints.map((endpoint) => [
+        endpoint.normalizedValue,
+        endpoint.provenance,
+      ]),
+    ).toEqual([
+      ["exfil.example.test", "additive"],
+      ["exfil.example.testa", "additive"],
+    ]);
+    expect(diffSignals(oldSet, newSet)).toEqual([
+      expect.objectContaining({
+        kind: "new-external-endpoint",
+        detail: "new external domain exfil.example.test",
+      }),
+    ]);
   });
 });

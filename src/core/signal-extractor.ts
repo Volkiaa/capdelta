@@ -27,6 +27,16 @@ const MAX_EVIDENCE_SNIPPET = 240;
 // Extra leading slashes are kept: "https:///evil.test" still reaches evil.test.
 const URL_STOP_RE = /[\s"'`<>\\]/u;
 const URL_LITERAL_RE = /\b(?:https?|wss?):\/\/\/*[^\s"'`<>\\/?#]*/gu;
+// JavaScript's \s matches U+FEFF, but the WHATWG URL parser drops U+FEFF from
+// a host (UTS-46), so it must not end the authority. URL_LITERAL_RE still
+// stops there, so every observation main reports is kept; this continuation
+// adds the host that runs past it. The lookahead leaves a U+FEFF that starts
+// another URL at the boundary, so "https://a.test\uFEFFhttps://b.test/" keeps
+// a.test instead of becoming a.testhttps and still finds b.test.
+const URL_CONTINUATION_RE = new RegExp(
+  `(?:(?!\\uFEFF(?:https?|wss?):\\/\\/)(?:\\uFEFF|[^\\s"'\`<>\\\\/?#]))*`,
+  "uy",
+);
 interface IpLiteralRow {
   pattern: RegExp;
   family: 4 | 6;
@@ -239,6 +249,9 @@ function detectEndpoints(
       stopCursor += 1;
     const lexicalEnd = stopCursor;
     const rangeEnd = rangeEndAt(index);
+    // The parser sees the delimiter after the authority too, so a trailing
+    // control character is rejected as on a full URL, never stripped.
+    const authorityEnd = index + authority.length;
     // A template element ends at `${`, which a URL span does not stop at. An
     // uncut span would take the next element's text into this element's
     // context and could swallow the next element's URL, so the cut part keeps
@@ -246,29 +259,48 @@ function detectEndpoints(
     // whole span is kept as "unknown" too, because the runtime string can
     // still join across the expression (`https://a.test${x}@evil.test/`).
     const crosses = rangeEnd !== null && lexicalEnd > rangeEnd;
-    // The parser sees the delimiter after the authority too, so a trailing
-    // control character is rejected as on a full URL, never stripped.
-    const authorityEnd = index + authority.length;
     const delimited =
       authorityEnd < lexicalEnd
         ? source.slice(index, authorityEnd + 1)
         : authority;
-    const candidates: [string, number, SignalEndpointContext][] = crosses
+    const context = contextAt(index);
+    const candidates: [
+      string,
+      number,
+      SignalEndpointContext,
+      SignalEndpointObservation["provenance"],
+    ][] = crosses
       ? [
           [
             source.slice(index, Math.min(rangeEnd, index + delimited.length)),
             rangeEnd,
-            contextAt(index),
+            context,
+            "established",
           ],
-          [delimited, lexicalEnd, "unknown"],
+          [delimited, lexicalEnd, "unknown", "established"],
         ]
-      : [[delimited, lexicalEnd, contextAt(index)]];
+      : [[delimited, lexicalEnd, context, "established"]];
+    candidates.push(
+      ...extendedUrlCandidates(
+        source,
+        index,
+        authority,
+        authorityEnd,
+        rangeEnd,
+        context,
+      ),
+    );
     URL_LITERAL_RE.lastIndex = crosses ? rangeEnd : lexicalEnd;
-    for (const [value, spanEnd, context] of candidates) {
+    const emit = (
+      value: string,
+      spanEnd: number,
+      context: SignalEndpointContext,
+      provenance: SignalEndpointObservation["provenance"],
+    ): void => {
       // Documentation links in comments are not runtime endpoints; a match
       // that runs into a comment ("https://x\n" after a label) is not one
       // either.
-      if (inComment(index, spanEnd)) continue;
+      if (inComment(index, spanEnd)) return;
       const observation = urlEndpoint(
         file,
         value,
@@ -277,8 +309,12 @@ function detectEndpoints(
         index,
         confidence,
         context,
+        provenance,
       );
       if (observation !== null) found.push(observation);
+    };
+    for (const [value, spanEnd, candidateContext, provenance] of candidates) {
+      emit(value, spanEnd, candidateContext, provenance);
     }
   }
 
@@ -342,19 +378,79 @@ function detectEndpoints(
           ? cooked.slice(index, authorityEnd + 1)
           : authority;
       URL_LITERAL_RE.lastIndex = stopCursor;
-      const observation = urlEndpoint(
-        file,
-        delimited,
-        source,
-        starts,
-        start,
-        confidence,
+      const emit = (
+        candidate: string,
+        provenance: SignalEndpointObservation["provenance"],
+      ): void => {
+        const observation = urlEndpoint(
+          file,
+          candidate,
+          source,
+          starts,
+          start,
+          confidence,
+          context,
+          provenance,
+        );
+        if (observation !== null) found.push(observation);
+      };
+      emit(delimited, "established");
+      for (const [value, , , provenance] of extendedUrlCandidates(
+        cooked,
+        index,
+        authority,
+        authorityEnd,
+        null,
         context,
-      );
-      if (observation !== null) found.push(observation);
+      )) {
+        emit(value, provenance);
+      }
     }
   }
   return found;
+}
+
+/**
+ * The longer spans a U+FEFF opens. The regex stops at a U+FEFF, but the URL
+ * parser drops it from a host, so the text after it can still be part of the
+ * authority. A template element boundary cuts the span the same way the raw
+ * scan cuts a match that runs into `${`. Every span here is additive
+ * (ADR-037): main's rules never walk past the U+FEFF.
+ */
+function extendedUrlCandidates(
+  text: string,
+  index: number,
+  authority: string,
+  authorityEnd: number,
+  rangeEnd: number | null,
+  context: SignalEndpointContext,
+): [string, number, SignalEndpointContext, "additive"][] {
+  const continuation = continueAuthority(text, authorityEnd);
+  if (continuation === "") return [];
+  const extended = authority + continuation;
+  const extendedEnd = index + extended.length;
+  const delimited = /[/?#]/u.test(text.charAt(extendedEnd))
+    ? text.slice(index, extendedEnd + 1)
+    : extended;
+  if (rangeEnd !== null && extendedEnd > rangeEnd) {
+    return [
+      [text.slice(index, rangeEnd), rangeEnd, context, "additive"],
+      [delimited, extendedEnd, "unknown", "additive"],
+    ];
+  }
+  return [[delimited, extendedEnd, context, "additive"]];
+}
+
+/**
+ * Extends an authority past a U+FEFF, which URL_LITERAL_RE stops at although
+ * the URL parser keeps the text on both sides of it in the host. Returns ""
+ * when the authority does not end at U+FEFF, and also when the U+FEFF starts
+ * another URL so the existing boundary keeps that URL visible.
+ */
+function continueAuthority(source: string, authorityEnd: number): string {
+  if (source.charAt(authorityEnd) !== "\uFEFF") return "";
+  URL_CONTINUATION_RE.lastIndex = authorityEnd;
+  return URL_CONTINUATION_RE.exec(source)?.[0] ?? "";
 }
 
 function urlEndpoint(
@@ -365,6 +461,7 @@ function urlEndpoint(
   index: number,
   confidence: SignalEndpointObservation["confidence"],
   context: SignalEndpointContext,
+  provenance: SignalEndpointObservation["provenance"],
 ): SignalEndpointObservation | null {
   let parsed: URL;
   try {
@@ -389,6 +486,7 @@ function urlEndpoint(
     index,
     confidence,
     context,
+    provenance,
   );
 }
 
@@ -401,6 +499,7 @@ function endpoint(
   index: number,
   confidence: SignalEndpointObservation["confidence"],
   context: SignalEndpointContext,
+  provenance: SignalEndpointObservation["provenance"] = "established",
 ): SignalEndpointObservation {
   return {
     kind: "EXTERNAL_ENDPOINT",
@@ -408,7 +507,7 @@ function endpoint(
     normalizedValue: value,
     confidence,
     context,
-    provenance: "established",
+    provenance,
     evidence: [{ ...evidenceAt(source, starts, index), file }],
   };
 }
@@ -589,6 +688,11 @@ function strongestContext(
     : left;
 }
 
+// U+FEFF is the one \s character that a WHATWG host drops, so it does not
+// separate words in a URL. Demoting a host that holds only U+FEFF as a
+// separator would report a literal URL at LOW.
+const WORD_SEPARATOR_RE = /[^\S\uFEFF]/u;
+
 /**
  * A match that starts inside a range is "embedded-text" only when the raw
  * content between the quotes and the string's runtime value both hold
@@ -638,7 +742,8 @@ function stringRangeLookup(
       if (context === undefined) {
         // Neither the raw form nor the value alone may demote a URL.
         context =
-          /\s/u.test(wordsOf(source.slice(range[0], range[1]))) && range[2]
+          WORD_SEPARATOR_RE.test(wordsOf(source.slice(range[0], range[1]))) &&
+          range[2]
             ? "embedded-text"
             : "literal";
         contexts.set(range[0], context);

@@ -1,0 +1,17 @@
+{
+  "name": "reconstruction-project",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "name": "reconstruction-project",
+      "version": "1.0.0"
+    },
+    "node_modules/capdelta-fixture-feff-host": {
+      "version": "1.0.0",
+      "resolved": "https://registry.npmjs.org/capdelta-fixture-feff-host/-/capdelta-fixture-feff-host-1.0.0.tgz",
+      "integrity": "sha512-2p96mFkcq9tS9uAyOTj9kQwOIxB2TcLUz8i6WSggM6XqSBC+8YnRGf/d7TDLg7w4p1eymYj9uvN8dIK1U0rYzQ=="
+    }
+  }
+}

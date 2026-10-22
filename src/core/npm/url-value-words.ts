@@ -1,3 +1,7 @@
+// JavaScript's \s matches U+FEFF, but the WHATWG URL parser drops it from a
+// host (UTS-46), so it does not separate words in a URL.
+const WORD_SEPARATOR_RE = /[^\S\uFEFF]/u;
+
 /**
  * Reports whether a string's runtime value holds whitespace after the WHATWG
  * URL parser's input normalization. Every step only removes characters, so it
@@ -14,5 +18,5 @@ export function valueHasWords(value: string): boolean {
     .replaceAll("\n", "")
     .replaceAll("\r", "")
     .trim();
-  return /\s/u.test(stripped);
+  return WORD_SEPARATOR_RE.test(stripped);
 }

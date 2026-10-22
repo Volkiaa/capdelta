@@ -830,6 +830,23 @@ describe("synthetic escaped-string endpoint (ADR-026)", () => {
   });
 });
 
+describe("synthetic U+FEFF host endpoint (ADR-035)", () => {
+  it("reports the host with an internal U+FEFF as a new HIGH endpoint", async () => {
+    const result = await runScenario("feff-host", "attack");
+    expectAllAnalyzed(result, 1);
+    const report = packageReport(result.report, "capdelta-fixture-feff-host");
+
+    expect(report.signalFindings).toEqual([
+      expect.objectContaining({
+        kind: "new-external-endpoint",
+        severity: "HIGH",
+        detail: "new external domain exfil.example.test",
+      }),
+    ]);
+    expect(evaluateSeverityGate(result.report, "HIGH").fail).toBe(true);
+  });
+});
+
 describe("synthetic underscore-label endpoint (ADR-029)", () => {
   it("reports a host with an underscore in a label as a new HIGH endpoint", async () => {
     const result = await runScenario("underscore-label", "attack");
