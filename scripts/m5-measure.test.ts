@@ -59,6 +59,7 @@ function endpoint(
     normalizedValue: host,
     confidence: "literal",
     context,
+    provenance: "established",
     evidence: [evidence],
   };
 }
