@@ -1,6 +1,6 @@
 # ADR-037: An endpoint seen only by a widened rule never hides an established finding
 
-- **Status:** Proposed
+- **Status:** Accepted (agent, 2026-10-22, Tier 1 under CLAUDE.md "Autonomy")
 - **Date:** 2026-10-22
 - **Plan reference:** PLAN §4.4, CLAUDE.md "Autonomy"
 
@@ -54,6 +54,24 @@ cannot show that it opens no new evasion.
   established. Retagging them is a separate decision.
 - The field is part of the exported `SignalSet` type (`src/index.ts`). Code
   that builds a `SignalSet` by hand must set it.
+
+## Evidence
+
+- Full verification passes: 928 tests, with no golden fixture or
+  reconstruction expectation changed.
+- `npm run difffuzz -- --base origin/main` and `--narrow`: 0 differences in
+  500,000 samples each.
+- The orchestrator's drop check (`.scratch/evasion/dropfuzz.ts`, gitignored)
+  also diffs consecutive samples as old and new versions. It reports 0 drops,
+  0 pair suppressions and 0 mismatches between main's observations and this
+  branch's established ones, in both modes. The same pair check finds 4
+  suppressions on the unmerged F7 branch, which is the old-side problem this
+  ADR addresses.
+- `/verify-capdelta` replay of the 20 recorded drives matches main
+  (`run5-main154`).
+- Held-out corpus (`scripts/m5-measure.ts run`): 0 default-gate failures, no
+  change from main.
+- Codex security review: APPROVE.
 
 ## Revert
 
