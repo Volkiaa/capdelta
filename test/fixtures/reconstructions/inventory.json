@@ -247,6 +247,24 @@
           "head": ["ipv4-octal-hex-1.0.1"]
         }
       }
+    },
+    {
+      "name": "feff-host",
+      "title": "Synthetic U+FEFF host endpoint (not a historical incident)",
+      "date": "n/a: regression for ADR-035",
+      "sources": [
+        "https://url.spec.whatwg.org/#host-parsing",
+        "https://www.unicode.org/reports/tr46/"
+      ],
+      "kept": "The 1.0.1 bump changes the fetched URL from https://cdn.example.test/x to https://exfil\\uFEFF.example.test/c, written with a \\uFEFF escape, so the raw source holds no U+FEFF. The URL parser drops U+FEFF from the host, so the runtime host is exfil.example.test.",
+      "omitted": "Everything else: the package is a minimal synthetic stand-in. run() is never called and the reserved .example.test hosts are never contacted.",
+      "expected": "ADR-035 keeps U+FEFF inside the authority in the raw and cooked scans, and the URL parser drops it from the host, so the bump reports a HIGH new-external-endpoint for exfil.example.test and the default HIGH gate fails.",
+      "scenarios": {
+        "attack": {
+          "base": ["feff-host-1.0.0"],
+          "head": ["feff-host-1.0.1"]
+        }
+      }
     }
   ]
 }

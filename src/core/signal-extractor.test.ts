@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { collectStringContent, parseSource } from "./npm/javascript-parse.js";
 import {
   MIN_OBFUSCATION_ARRAY_ELEMENTS,
   type SignalSourceInput,
@@ -16,6 +17,16 @@ function source(
     file,
     bytes: new TextEncoder().encode(text),
     parseState,
+  });
+}
+
+function parsedSource(file: string, text: string) {
+  const { ast } = parseSource(text, "either");
+  return observeSignalSource({
+    file,
+    bytes: new TextEncoder().encode(text),
+    parseState: "parsed",
+    ...collectStringContent(ast, text),
   });
 }
 
@@ -497,6 +508,74 @@ describe("signal extractor", () => {
         context: "literal",
       });
       expect(result.endpoints[0]?.evidence).toHaveLength(lineCount);
+    });
+  });
+
+  describe("a U+FEFF inside a host (ADR-035)", () => {
+    const FEFF = "\uFEFF";
+    const endpoints = (text: string) =>
+      buildSignalSet([parsedSource("index.js", text)]).endpoints;
+
+    it("keeps a raw U+FEFF inside the authority", () => {
+      expect(
+        endpoints(`fetch("https://exfil${FEFF}.example.test/x");`),
+      ).toEqual([
+        expect.objectContaining({
+          normalizedValue: "exfil.example.test",
+          context: "literal",
+        }),
+      ]);
+    });
+
+    it("keeps a U+FEFF that an escape cooks into the authority", () => {
+      expect(
+        endpoints('fetch("https://exfil\\uFEFF.example.test/x");'),
+      ).toEqual([
+        expect.objectContaining({
+          normalizedValue: "exfil.example.test",
+          context: "literal",
+        }),
+      ]);
+    });
+
+    it("keeps a host that a U+FEFF follows", () => {
+      expect(endpoints(`fetch("https://a.example.test${FEFF}/x");`)).toEqual([
+        expect.objectContaining({
+          normalizedValue: "a.example.test",
+          context: "literal",
+        }),
+      ]);
+    });
+
+    it("keeps the host main reports when more label text follows a U+FEFF", () => {
+      expect(
+        endpoints(`fetch("https://a.example.test${FEFF}b.example.test/x");`),
+      ).toEqual([
+        expect.objectContaining({ normalizedValue: "a.example.test" }),
+        expect.objectContaining({
+          normalizedValue: "a.example.testb.example.test",
+        }),
+      ]);
+    });
+
+    it("still reports both URLs when a U+FEFF precedes the second scheme", () => {
+      expect(
+        endpoints(
+          `fetch("https://a.example.test${FEFF}https://b.example.test/x");`,
+        ),
+      ).toEqual([
+        expect.objectContaining({ normalizedValue: "a.example.test" }),
+        expect.objectContaining({ normalizedValue: "b.example.test" }),
+      ]);
+    });
+
+    it("keeps an ordinary prose URL at embedded-text", () => {
+      expect(endpoints('fetch("see https://a.example.test now");')).toEqual([
+        expect.objectContaining({
+          normalizedValue: "a.example.test",
+          context: "embedded-text",
+        }),
+      ]);
     });
   });
 });
