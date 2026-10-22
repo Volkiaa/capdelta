@@ -11,6 +11,7 @@ import {
 import { diffNpmLockfiles } from "../core/npm/lockfile-differ.js";
 import {
   readRegularFile,
+  readRegularFileOperation,
   type ReadRegularFileResult,
 } from "../core/read-regular-file.js";
 import {
@@ -236,12 +237,11 @@ async function readHeadLockfile(
   try {
     read = await readRegularFile(path, maxBytes);
   } catch (error: unknown) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      throw new CliOperationalError(`cannot inspect head ${LOCKFILE_NAME}`, {
-        cause: error,
-      });
-    }
-    throw new CliOperationalError(`cannot read head ${LOCKFILE_NAME}`, {
+    const message =
+      readRegularFileOperation(error) === "inspect"
+        ? `cannot inspect head ${LOCKFILE_NAME}`
+        : `cannot read head ${LOCKFILE_NAME}`;
+    throw new CliOperationalError(message, {
       cause: error,
     });
   }
