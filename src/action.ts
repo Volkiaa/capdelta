@@ -1,7 +1,7 @@
 import * as core from "@actions/core";
 import artifact from "@actions/artifact";
 import * as github from "@actions/github";
-import { lstat, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -21,6 +21,7 @@ import type {
   GitHubContentsRequest,
 } from "./action/base-lockfile-retriever.js";
 import { isRecord } from "./core/guards.js";
+import { readRegularFile } from "./core/read-regular-file.js";
 
 const MAX_LOCKFILE_BYTES = 50 * 1024 * 1024;
 const MAX_ERROR_CHARACTERS = 500;
@@ -167,22 +168,16 @@ async function readHeadLockfile(path: string): Promise<string> {
   if (fromRoot.startsWith("..") || isAbsolute(fromRoot)) {
     throw new Error("head lockfile path escapes the checkout");
   }
-  const metadata = await lstat(file);
-  if (!metadata.isFile() || metadata.isSymbolicLink()) {
+  const read = await readRegularFile(file, MAX_LOCKFILE_BYTES);
+  if (read.kind === "not-regular") {
     throw new Error("head lockfile must be a regular file, not a symlink");
   }
-  if (metadata.size > MAX_LOCKFILE_BYTES) {
+  if (read.kind === "too-large") {
     throw new Error(
       `head lockfile exceeds the ${String(MAX_LOCKFILE_BYTES)} byte limit`,
     );
   }
-  const bytes = await readFile(file);
-  if (bytes.byteLength > MAX_LOCKFILE_BYTES) {
-    throw new Error(
-      `head lockfile exceeds the ${String(MAX_LOCKFILE_BYTES)} byte limit`,
-    );
-  }
-  return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  return new TextDecoder("utf-8", { fatal: true }).decode(read.bytes);
 }
 
 async function uploadJson(name: string, contents: string) {

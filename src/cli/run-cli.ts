@@ -1,4 +1,3 @@
-import { lstat, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import {
   analyzeChangedPackages,
@@ -10,6 +9,11 @@ import {
   parseCapdeltaConfig,
 } from "../core/capdelta-config.js";
 import { diffNpmLockfiles } from "../core/npm/lockfile-differ.js";
+import {
+  readRegularFile,
+  readRegularFileOperation,
+  type ReadRegularFileResult,
+} from "../core/read-regular-file.js";
 import {
   buildRunReport,
   formatJsonRunReport,
@@ -229,39 +233,29 @@ async function readHeadLockfile(
   maxBytes: number,
 ): Promise<string> {
   const path = resolve(cwd, LOCKFILE_NAME);
-  let metadata;
+  let read: ReadRegularFileResult;
   try {
-    metadata = await lstat(path);
+    read = await readRegularFile(path, maxBytes);
   } catch (error: unknown) {
-    throw new CliOperationalError(`cannot inspect head ${LOCKFILE_NAME}`, {
+    const message =
+      readRegularFileOperation(error) === "inspect"
+        ? `cannot inspect head ${LOCKFILE_NAME}`
+        : `cannot read head ${LOCKFILE_NAME}`;
+    throw new CliOperationalError(message, {
       cause: error,
     });
   }
-  if (!metadata.isFile() || metadata.isSymbolicLink()) {
+  if (read.kind === "not-regular") {
     throw new CliOperationalError(
       `head ${LOCKFILE_NAME} must be a regular file, not a symlink`,
     );
   }
-  if (metadata.size > maxBytes) {
+  if (read.kind === "too-large") {
     throw new CliOperationalError(
       `head ${LOCKFILE_NAME} exceeds the ${String(maxBytes)} byte limit`,
     );
   }
-
-  let bytes: Buffer;
-  try {
-    bytes = await readFile(path);
-  } catch (error: unknown) {
-    throw new CliOperationalError(`cannot read head ${LOCKFILE_NAME}`, {
-      cause: error,
-    });
-  }
-  if (bytes.length > maxBytes) {
-    throw new CliOperationalError(
-      `head ${LOCKFILE_NAME} exceeds the ${String(maxBytes)} byte limit`,
-    );
-  }
-  return decodeUtf8(bytes, `head ${LOCKFILE_NAME}`);
+  return decodeUtf8(read.bytes, `head ${LOCKFILE_NAME}`);
 }
 
 function parseLockfile(text: string, side: "base" | "head"): unknown {
