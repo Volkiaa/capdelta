@@ -234,6 +234,9 @@ function versionProblem(version: string): string | null {
   if (version.length > MAX_VERSION_CHARS) {
     return `version key ${label} exceeds ${String(MAX_VERSION_CHARS)} characters`;
   }
+  if (!isWellFormed(version)) {
+    return `version key ${label} is not well-formed Unicode`;
+  }
   if (!STRICT_SEMVER.test(version)) {
     return `version key ${label} is not strict semver`;
   }
@@ -497,11 +500,19 @@ function nameProblem(name: string): string | null {
     return `package name exceeds ${String(MAX_PACKAGE_NAME_CHARS)} characters`;
   }
   if (name.includes("..")) return "package name contains '..'";
+  // A lone surrogate passes every other check but makes encodeURIComponent
+  // throw a URIError, which would abort the whole change-feed page.
+  if (!isWellFormed(name)) return "package name is not well-formed Unicode";
   if (hasControlCharacters(name)) {
     return "package name contains control characters";
   }
   if (/\s/u.test(name)) return "package name contains whitespace";
   return null;
+}
+
+/** ES2023's lib predates `String.prototype.isWellFormed`, which Node 22 ships. */
+function isWellFormed(value: string): boolean {
+  return (value as string & { isWellFormed(): boolean }).isWellFormed();
 }
 
 function hasControlCharacters(value: string): boolean {

@@ -106,6 +106,43 @@ describe("collectReleases", () => {
     ).toHaveLength(2);
   });
 
+  it("skips an id with a lone surrogate between two valid packages", async () => {
+    const alpha = packument("alpha", [
+      { version: "1.0.0", publishedAt: "2024-01-01T00:00:00.000Z" },
+    ]);
+    const beta = packument("beta", [
+      { version: "2.0.0", publishedAt: "2024-02-01T00:00:00.000Z" },
+    ]);
+    const { fetchImpl } = routedFetch(
+      new Map([
+        [
+          `${CHANGES}?since=10&limit=100`,
+          jsonResponse({
+            results: [
+              { seq: 11, id: "alpha" },
+              { seq: 12, id: "\ud800" },
+              { seq: 13, id: "beta" },
+            ],
+            last_seq: 13,
+          }),
+        ],
+        [`${REGISTRY}/alpha`, jsonResponse(alpha)],
+        [`${REGISTRY}/beta`, jsonResponse(beta)],
+      ]),
+    );
+
+    const result = await collectReleases("10", { fetchImpl });
+
+    expect(result.candidates.map((item) => item.name)).toEqual([
+      "alpha",
+      "beta",
+    ]);
+    expect(result.skipped).toHaveLength(1);
+    expect(result.skipped[0]?.name).toBe("<invalid-name>");
+    expect(result.skipped[0]?.reason).toMatch(/not well-formed Unicode/u);
+    expect(result.skipped[0]?.reason).toContain("\\ud800");
+  });
+
   it("passes the caller's since and limit to the change feed", async () => {
     const { fetchImpl, requested } = routedFetch(
       new Map([
@@ -355,6 +392,7 @@ describe("candidatesForPackage", () => {
       "../escape",
       "has space",
       "line\nbreak",
+      "\ud800",
       "",
     ];
 
@@ -441,6 +479,7 @@ describe("candidatesForPackage", () => {
     const doc = packument("keys", [
       { version: "", publishedAt: "2024-01-01T00:00:00.000Z" },
       { version: "../../escape", publishedAt: "2024-02-01T00:00:00.000Z" },
+      { version: "\ud800", publishedAt: "2024-02-15T00:00:00.000Z" },
       { version: "1.0.0", publishedAt: "2024-03-01T00:00:00.000Z" },
       {
         version: "2.0.0-rc.1+build.5",
@@ -459,11 +498,13 @@ describe("candidatesForPackage", () => {
       "1.0.0",
       "2.0.0-rc.1+build.5",
     ]);
-    expect(skipped).toHaveLength(2);
+    expect(skipped).toHaveLength(3);
     expect(skipped.every((item) => item.name === "keys")).toBe(true);
     const reasons = skipped.map((item) => item.reason).join("\n");
     expect(reasons).toMatch(/is empty/u);
+    expect(reasons).toMatch(/not well-formed Unicode/u);
     expect(reasons).toContain(JSON.stringify("../../escape"));
+    expect(reasons).toContain("\\ud800");
   });
 
   it("asks for the full packument, refuses redirects and bounds the request", async () => {
