@@ -13,7 +13,8 @@
     }
   },
   "bin": {
-    "capdelta": "dist/cli.js"
+    "capdelta": "dist/cli.js",
+    "capdelta-platform": "dist/platform-cli.js"
   },
   "files": [
     "dist/",
