@@ -5,6 +5,7 @@ import {
   readFile,
   readdir,
   rm,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -202,6 +203,78 @@ describe("JsonStore.get with a damaged file", () => {
 
     await expect(store.list("reports")).resolves.toEqual(["kept"]);
     await expect(store.get("reports", "kept")).resolves.toEqual({ count: 1 });
+  });
+});
+
+describe("JsonStore symlink defenses", () => {
+  it("rejects a symlinked kind directory without touching its target", async () => {
+    const outside = join(base, "outside");
+    await mkdir(outside, { recursive: true });
+    await mkdir(root, { recursive: true });
+    await symlink(outside, join(root, "reports"), "dir");
+
+    await expect(
+      store.put("reports", "key-1", { count: 1 }),
+    ).rejects.toBeInstanceOf(JsonStoreError);
+    await expect(
+      store.putIfAbsent("reports", "key-1", { count: 1 }),
+    ).rejects.toBeInstanceOf(JsonStoreError);
+    await expect(store.get("reports", "key-1")).rejects.toBeInstanceOf(
+      JsonStoreError,
+    );
+    await expect(store.list("reports")).rejects.toBeInstanceOf(JsonStoreError);
+    await expect(store.delete("reports", "key-1")).rejects.toBeInstanceOf(
+      JsonStoreError,
+    );
+
+    await expect(readdir(outside)).resolves.toEqual([]);
+  });
+
+  it("rejects a file at the kind path for every operation", async () => {
+    await mkdir(root, { recursive: true });
+    await writeFile(join(root, "reports"), "occupied");
+
+    await expect(
+      store.put("reports", "key-1", { count: 1 }),
+    ).rejects.toBeInstanceOf(JsonStoreError);
+    await expect(store.get("reports", "key-1")).rejects.toBeInstanceOf(
+      JsonStoreError,
+    );
+    await expect(store.list("reports")).rejects.toBeInstanceOf(JsonStoreError);
+    await expect(store.delete("reports", "key-1")).rejects.toBeInstanceOf(
+      JsonStoreError,
+    );
+  });
+
+  it("throws instead of following a symlinked record", async () => {
+    const outside = join(base, "outside");
+    await mkdir(outside, { recursive: true });
+    const target = join(outside, "secret.json");
+    await writeFile(target, '{"secret":true}\n');
+    await mkdir(join(root, "reports"), { recursive: true });
+    await symlink(target, join(root, "reports", "key-1.json"), "file");
+
+    await expect(store.get("reports", "key-1")).rejects.toBeInstanceOf(
+      JsonStoreError,
+    );
+  });
+
+  it("skips symlinked records when listing", async () => {
+    await store.put("reports", "kept", { count: 1 });
+    const target = join(base, "outside.json");
+    await writeFile(target, '{"outside":true}\n');
+    await symlink(target, join(root, "reports", "linked.json"), "file");
+
+    await expect(store.list("reports")).resolves.toEqual(["kept"]);
+  });
+
+  it("still reads and writes a real kind directory", async () => {
+    await store.put("reports", "key-1", { count: 1 });
+
+    await expect(store.get("reports", "key-1")).resolves.toEqual({ count: 1 });
+    await expect(store.list("reports")).resolves.toEqual(["key-1"]);
+    await store.delete("reports", "key-1");
+    await expect(store.get("reports", "key-1")).resolves.toBeNull();
   });
 });
 

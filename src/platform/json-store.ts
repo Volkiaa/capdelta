@@ -1,10 +1,10 @@
 import { createHash, randomBytes } from "node:crypto";
-import type { Dirent } from "node:fs";
+import { constants, type Dirent, type Stats } from "node:fs";
 import {
   link,
+  lstat,
   mkdir,
   open,
-  readFile,
   readdir,
   rename,
   unlink,
@@ -36,19 +36,57 @@ export class JsonStore {
    * Returns null when the key does not exist. `unknown` already includes null,
    * so the union in the ticket's sketch adds nothing.
    * @throws JsonStoreCorruptError when the file is not valid JSON.
+   * @throws JsonStoreError when the kind path or the record is not a real
+   *   directory or file, so a symlink cannot redirect the read.
    */
   async get(kind: string, key: string): Promise<unknown> {
     requireKind(kind);
     requireKey(key);
+    await this.inspectKindDirectory(kind, key);
     const recordPath = this.pathFor(kind, key);
 
-    let text: string;
+    let handle: FileHandle;
     try {
-      text = await readFile(recordPath, "utf8");
+      handle = await open(
+        recordPath,
+        constants.O_RDONLY | constants.O_NOFOLLOW,
+      );
     } catch (error) {
       if (hasCode(error, "ENOENT")) return null;
       throw wrap("read", kind, key, error);
     }
+
+    let text = "";
+    let failure: JsonStoreError | undefined;
+    try {
+      const stats = await handle.stat();
+      if (!stats.isFile()) {
+        throw new JsonStoreError(
+          `cannot read kind "${kind}" key "${key}": it is not a regular file`,
+        );
+      }
+      text = await handle.readFile("utf8");
+    } catch (error) {
+      failure =
+        error instanceof JsonStoreError
+          ? error
+          : wrap("read", kind, key, error);
+    }
+
+    try {
+      await handle.close();
+    } catch (error) {
+      const closeFailure = wrap("close the record for", kind, key, error);
+      failure =
+        failure === undefined
+          ? closeFailure
+          : new JsonStoreError(
+              `${failure.message}; closing it also failed: ${closeFailure.message}`,
+              { cause: new AggregateError([failure, closeFailure]) },
+            );
+    }
+
+    if (failure !== undefined) throw failure;
 
     try {
       return JSON.parse(text) as unknown;
@@ -105,6 +143,7 @@ export class JsonStore {
   /** Keys of one kind in sorted order. An absent kind directory lists as empty. */
   async list(kind: string): Promise<string[]> {
     requireKind(kind);
+    await this.inspectKindDirectory(kind, undefined);
 
     let entries: Dirent[];
     try {
@@ -115,7 +154,10 @@ export class JsonStore {
     }
 
     return entries
-      .filter((entry) => entry.isFile() && entry.name.endsWith(RECORD_SUFFIX))
+      .filter((entry) => {
+        // isFile() is false for symlinks, sockets, and directories.
+        return entry.isFile() && entry.name.endsWith(RECORD_SUFFIX);
+      })
       .map((entry) => entry.name.slice(0, -RECORD_SUFFIX.length))
       .sort();
   }
@@ -124,6 +166,7 @@ export class JsonStore {
   async delete(kind: string, key: string): Promise<void> {
     requireKind(kind);
     requireKey(key);
+    await this.inspectKindDirectory(kind, key);
 
     try {
       await unlink(this.pathFor(kind, key));
@@ -131,6 +174,56 @@ export class JsonStore {
       if (hasCode(error, "ENOENT")) return;
       throw wrap("delete", kind, key, error);
     }
+  }
+
+  /**
+   * Rejects a kind path that exists but is not a real directory. A symlink
+   * here would redirect every operation outside the store.
+   * @returns whether the kind path exists as a real directory.
+   */
+  private async inspectKindDirectory(
+    kind: string,
+    key: string | undefined,
+  ): Promise<boolean> {
+    let stats: Stats;
+    try {
+      stats = await lstat(join(this.root, kind));
+    } catch (error) {
+      if (hasCode(error, "ENOENT")) return false;
+      throw wrap("inspect the directory for", kind, key, error);
+    }
+    if (!stats.isDirectory()) {
+      throw new JsonStoreError(
+        `cannot use the directory for ${describe(kind, key)}: it exists but is not a real directory (a symlink or a file)`,
+      );
+    }
+    return true;
+  }
+
+  /** Creates the root and the kind directory without following a kind symlink. */
+  private async ensureKindDirectory(
+    kind: string,
+    key: string,
+  ): Promise<string> {
+    try {
+      await mkdir(this.root, { recursive: true });
+    } catch (error) {
+      throw wrap("create the root directory for", kind, key, error);
+    }
+
+    if (!(await this.inspectKindDirectory(kind, key))) {
+      try {
+        await mkdir(join(this.root, kind));
+      } catch (error) {
+        if (!hasCode(error, "EEXIST")) {
+          throw wrap("create the directory for", kind, key, error);
+        }
+        // Another writer may have won the mkdir race; it must still be a
+        // real directory, not a symlink that appeared in between.
+        await this.inspectKindDirectory(kind, key);
+      }
+    }
+    return join(this.root, kind);
   }
 
   private pathFor(kind: string, key: string): string {
@@ -142,12 +235,7 @@ export class JsonStore {
     key: string,
     content: string,
   ): Promise<string> {
-    const directory = join(this.root, kind);
-    try {
-      await mkdir(directory, { recursive: true });
-    } catch (error) {
-      throw wrap("create the directory for", kind, key, error);
-    }
+    const directory = await this.ensureKindDirectory(kind, key);
 
     const tempPath = join(
       directory,
@@ -252,17 +340,20 @@ async function removeTemp(
   }
 }
 
+function describe(kind: string, key: string | undefined): string {
+  return key === undefined ? `kind "${kind}"` : `kind "${kind}" key "${key}"`;
+}
+
 function wrap(
   action: string,
   kind: string,
   key: string | undefined,
   error: unknown,
 ): JsonStoreError {
-  const target =
-    key === undefined ? `kind "${kind}"` : `kind "${kind}" key "${key}"`;
-  return new JsonStoreError(`cannot ${action} ${target}: ${detail(error)}`, {
-    cause: error,
-  });
+  return new JsonStoreError(
+    `cannot ${action} ${describe(kind, key)}: ${detail(error)}`,
+    { cause: error },
+  );
 }
 
 function detail(error: unknown): string {
