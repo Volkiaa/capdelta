@@ -7,6 +7,12 @@ import type { CapabilityAnalysisRun } from "../core/capability-analysis-pipeline
 import type { ChangedPackage } from "../core/contract/lockfile-diff.js";
 import { buildRunReport } from "../core/report-builder.js";
 import { createApiServer, listenApi } from "./api.js";
+import {
+  createFinding,
+  type IntelFinding,
+  type NewFindingInput,
+} from "./intel/finding.js";
+import { FindingStore } from "./intel/finding-store.js";
 import { JobQueue, type JobRecord } from "./job-queue.js";
 import { JsonStore, encodeKey } from "./json-store.js";
 import type { ReleaseCandidate } from "./release-candidate.js";
@@ -16,9 +22,12 @@ import {
   type ReleaseRecord,
 } from "./release-store.js";
 
+const FINDING_TIME = new Date("2026-10-01T00:00:00.000Z");
+
 let base: string;
 let json: JsonStore;
 let releases: ReleaseStore;
+let findings: FindingStore;
 let queue: JobQueue;
 let server: Server | undefined;
 let origin: string;
@@ -28,6 +37,7 @@ beforeEach(async () => {
   base = await mkdtemp(join(tmpdir(), "capdelta-api-"));
   json = new JsonStore({ root: join(base, "root") });
   releases = new ReleaseStore(json);
+  findings = new FindingStore(json);
   queue = new JobQueue(json);
 });
 
@@ -47,6 +57,7 @@ async function start(): Promise<void> {
   errors = [];
   server = createApiServer({
     releases,
+    findings,
     queue,
     onError: (error) => {
       errors.push(error);
@@ -142,6 +153,74 @@ async function claimOne(): Promise<JobRecord> {
   const job = await queue.claim();
   if (job === null) throw new Error("expected a pending job");
   return job;
+}
+
+function baseFinding(overrides: Partial<NewFindingInput> = {}): IntelFinding {
+  return createFinding(
+    {
+      ecosystem: "npm",
+      name: "alpha",
+      version: "2.0.0",
+      digest: "sha512-alpha",
+      analyzerVersion: "test-analyzer",
+      ruleKey: "capability:NET:added",
+      summary: "adds network access",
+      severity: "HIGH",
+      confidence: "medium",
+      evidence: [
+        { file: "index.js", line: 1, excerpt: 'fetch("https://example.test")' },
+      ],
+      ...overrides,
+    },
+    FINDING_TIME,
+  );
+}
+
+async function seedFinding(
+  overrides: Partial<NewFindingInput> = {},
+): Promise<IntelFinding> {
+  const finding = baseFinding(overrides);
+  await findings.putIfAbsent(finding);
+  return finding;
+}
+
+async function confirm(id: string): Promise<IntelFinding> {
+  await findings.transition(
+    id,
+    { to: "under-review", actor: "alice", reason: "triage" },
+    FINDING_TIME,
+  );
+  return findings.transition(
+    id,
+    {
+      to: "confirmed-malicious",
+      actor: "alice",
+      reason: "reviewed the evidence",
+      validation: {
+        reviewer: "alice",
+        method: "manual review",
+        evidenceRefs: [0],
+      },
+    },
+    FINDING_TIME,
+  );
+}
+
+function retract(id: string): Promise<IntelFinding> {
+  return findings.transition(
+    id,
+    { to: "retracted", actor: "alice", reason: "false positive" },
+    FINDING_TIME,
+  );
+}
+
+interface FeedBody {
+  entries: { sequence: number; finding: IntelFinding }[];
+  lastSequence: number;
+}
+
+interface FindingsBody {
+  findings: IntelFinding[];
 }
 
 interface JobsResponse {
@@ -394,5 +473,198 @@ describe("GET /healthz", () => {
       "application/json; charset=utf-8",
     );
     await expect(response.text()).resolves.toBe("");
+  });
+});
+
+describe("GET /v1/findings", () => {
+  it("returns the findings stored for a package and version", async () => {
+    await start();
+    const finding = await seedFinding();
+    await seedFinding({ version: "1.0.0", digest: "sha512-old" });
+    await seedFinding({ name: "beta", digest: "sha512-beta" });
+
+    const response = await get(
+      "/v1/findings?ecosystem=npm&name=alpha&version=2.0.0",
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      findings: [finding],
+    });
+  });
+
+  it("returns the findings stored for a digest", async () => {
+    await start();
+    const digest = "sha512-abc/def+ghi==";
+    const finding = await seedFinding({ digest });
+    await seedFinding({ digest: "sha512-other" });
+
+    const response = await get(
+      `/v1/findings?ecosystem=npm&digest=${encodeURIComponent(digest)}`,
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      findings: [finding],
+    });
+  });
+
+  it("returns an empty list when nothing matches", async () => {
+    await start();
+
+    const response = await get("/v1/findings?ecosystem=npm&name=absent");
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ findings: [] });
+  });
+
+  it("shows a suspected finding with its verdict", async () => {
+    await start();
+    await seedFinding();
+
+    const response = await get("/v1/findings?ecosystem=npm&name=alpha");
+    const body = (await response.json()) as FindingsBody;
+
+    expect(body.findings).toHaveLength(1);
+    expect(body.findings[0]?.verdict).toBe("suspected");
+  });
+
+  it("rejects an ecosystem other than npm", async () => {
+    await start();
+
+    const response = await get("/v1/findings?ecosystem=pypi&name=alpha");
+
+    expect(response.status).toBe(400);
+  });
+
+  it("rejects a request without a name or digest", async () => {
+    await start();
+
+    const response = await get("/v1/findings?ecosystem=npm");
+
+    expect(response.status).toBe(400);
+  });
+
+  it("returns one finding by id and not found for an unused id", async () => {
+    await start();
+    const finding = await seedFinding();
+
+    const response = await get(`/v1/findings/${finding.id}`);
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual(finding);
+
+    const absent = await get("/v1/findings/CDI-00000000000000000000");
+    expect(absent.status).toBe(404);
+  });
+
+  it("rejects a malformed finding id", async () => {
+    await start();
+
+    const response = await get("/v1/findings/CDI-not-hex");
+
+    expect(response.status).toBe(400);
+  });
+});
+
+describe("GET /v1/feed", () => {
+  it("hides a suspected finding and shows its confirmation and retraction", async () => {
+    await start();
+    const finding = await seedFinding();
+
+    const suspected = (await (await get("/v1/feed")).json()) as FeedBody;
+    expect(suspected).toEqual({ entries: [], lastSequence: 0 });
+
+    await confirm(finding.id);
+    const confirmed = (await (await get("/v1/feed")).json()) as FeedBody;
+    expect(confirmed.entries).toHaveLength(1);
+    expect(confirmed.entries[0]?.sequence).toBe(1);
+    expect(confirmed.entries[0]?.finding.verdict).toBe("confirmed-malicious");
+    expect(confirmed.lastSequence).toBe(1);
+
+    await retract(finding.id);
+    const retracted = (await (await get("/v1/feed")).json()) as FeedBody;
+    expect(retracted.entries).toHaveLength(1);
+    expect(retracted.entries[0]?.sequence).toBe(2);
+    expect(retracted.entries[0]?.finding.verdict).toBe("retracted");
+    expect(retracted.lastSequence).toBe(2);
+  });
+
+  it("honors since and limit", async () => {
+    await start();
+    const first = await seedFinding();
+    const second = await seedFinding({
+      name: "beta",
+      digest: "sha512-beta",
+    });
+    await confirm(first.id);
+    await confirm(second.id);
+
+    const page = (await (
+      await get("/v1/feed?since=0&limit=1")
+    ).json()) as FeedBody;
+    expect(page.entries).toHaveLength(1);
+    expect(page.entries[0]?.sequence).toBe(1);
+    expect(page.lastSequence).toBe(1);
+
+    const next = (await (
+      await get(`/v1/feed?since=${String(page.lastSequence)}&limit=1`)
+    ).json()) as FeedBody;
+    expect(next.entries).toHaveLength(1);
+    expect(next.entries[0]?.sequence).toBe(2);
+    expect(next.lastSequence).toBe(2);
+  });
+
+  it("rejects a negative since or a limit above the maximum", async () => {
+    await start();
+
+    expect((await get("/v1/feed?since=-1")).status).toBe(400);
+    expect((await get("/v1/feed?since=abc")).status).toBe(400);
+    expect((await get("/v1/feed?limit=-1")).status).toBe(400);
+    expect((await get("/v1/feed?limit=501")).status).toBe(400);
+  });
+});
+
+describe("GET /v1/osv/<id>", () => {
+  it("returns not found for a suspected finding", async () => {
+    await start();
+    const finding = await seedFinding();
+
+    const response = await get(`/v1/osv/${finding.id}`);
+
+    expect(response.status).toBe(404);
+  });
+
+  it("returns the OSV record after confirmation and on retraction", async () => {
+    await start();
+    const finding = await seedFinding();
+    const confirmed = await confirm(finding.id);
+
+    const response = await get(`/v1/osv/${finding.id}`);
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      schema_version: string;
+      id: string;
+      modified: string;
+      published: string;
+      withdrawn?: string;
+    };
+    expect(body).toMatchObject({
+      schema_version: "1.6.0",
+      id: finding.id,
+      modified: confirmed.updatedAt,
+      published: finding.createdAt,
+    });
+
+    const retracted = await retract(finding.id);
+    const after = await get(`/v1/osv/${finding.id}`);
+    expect(after.status).toBe(200);
+    const afterBody = (await after.json()) as { withdrawn?: string };
+    expect(afterBody.withdrawn).toBe(retracted.updatedAt);
+  });
+
+  it("rejects a malformed id", async () => {
+    await start();
+
+    expect((await get("/v1/osv/CDI-nope")).status).toBe(400);
   });
 });

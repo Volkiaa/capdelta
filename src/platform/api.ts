@@ -10,11 +10,14 @@ import {
   MAX_VALUE_CHARS,
   truncate,
 } from "../core/report-builder.js";
+import type { FindingStore } from "./intel/finding-store.js";
+import { toOsv } from "./intel/osv.js";
 import type { JobQueue } from "./job-queue.js";
 import type { ReleaseRecord, ReleaseStore } from "./release-store.js";
 
 export interface ApiDeps {
   releases: ReleaseStore;
+  findings: FindingStore;
   queue: JobQueue;
   onError?: (error: unknown) => void;
 }
@@ -26,6 +29,10 @@ const MAX_URL_CHARS = 2048;
 const MAX_NAME_OR_VERSION_CHARS = 214;
 const MAX_FAILED_JOBS = 100;
 const MAX_HEADERS_COUNT = 50;
+const MAX_QUERY_FINDINGS = 200;
+const DEFAULT_FEED_LIMIT = 100;
+const MAX_FEED_LIMIT = 500;
+const FINDING_ID_PATTERN = /^CDI-[0-9a-f]{20}$/u;
 const REQUEST_TIMEOUT_MS = 10_000;
 const HEADERS_TIMEOUT_MS = 5_000;
 const CONTROL_CHARACTER = /\p{Cc}/u;
@@ -114,24 +121,33 @@ async function route(deps: ApiDeps, rawUrl: string): Promise<Reply> {
   if (rawUrl.length > MAX_URL_CHARS) {
     return { status: 414, body: { error: "url too long" } };
   }
-  const segments = decodePath(rawUrl);
-  if (segments === null) {
+  const target = parseTarget(rawUrl);
+  if (target === null) {
     return { status: 400, body: { error: "bad request" } };
   }
-  const [root, section, ...rest] = segments;
+  const [root, section, ...rest] = target.segments;
   if (root !== "") return notFound();
   if (section === "healthz" && rest.length === 0) {
     return { status: 200, body: { ok: true } };
   }
-  if (section === "v1") return routeV1(deps, rest);
+  if (section === "v1") return routeV1(deps, rest, target.query);
   return notFound();
 }
 
-async function routeV1(deps: ApiDeps, segments: string[]): Promise<Reply> {
+async function routeV1(
+  deps: ApiDeps,
+  segments: string[],
+  query: URLSearchParams,
+): Promise<Reply> {
   const [resource, ...rest] = segments;
   if (resource === "releases") return releasesByVersion(deps.releases, rest);
   if (resource === "artifacts") return artifactsByDigest(deps.releases, rest);
   if (resource === "jobs") return jobsSummary(deps.queue, rest);
+  if (resource === "findings") {
+    return findingsRoute(deps.findings, rest, query);
+  }
+  if (resource === "feed") return feedRoute(deps.findings, rest, query);
+  if (resource === "osv") return osvRoute(deps.findings, rest);
   return notFound();
 }
 
@@ -195,6 +211,106 @@ async function jobsSummary(
   return { status: 200, body: { counts, failed } };
 }
 
+async function findingsRoute(
+  store: FindingStore,
+  segments: string[],
+  query: URLSearchParams,
+): Promise<Reply> {
+  if (segments.length === 0) return findingsQuery(store, query);
+  const [id] = segments;
+  if (segments.length !== 1 || id === undefined) return notFound();
+  if (!FINDING_ID_PATTERN.test(id)) return badRequest();
+  const finding = await store.get(id);
+  if (finding === null) return notFound();
+  return { status: 200, body: finding };
+}
+
+async function findingsQuery(
+  store: FindingStore,
+  query: URLSearchParams,
+): Promise<Reply> {
+  if (query.get("ecosystem") !== "npm") return badRequest();
+  const name = selector(query.get("name"));
+  const digest = selector(query.get("digest"));
+  const version = selector(query.get("version"));
+  if (name === false || digest === false || version === false) {
+    return badRequest();
+  }
+
+  if (name !== null) {
+    if (digest !== null) return badRequest();
+    const matches = await store.findByPackage(name, version ?? undefined);
+    return {
+      status: 200,
+      body: { findings: matches.slice(0, MAX_QUERY_FINDINGS) },
+    };
+  }
+  if (digest !== null) {
+    if (version !== null) return badRequest();
+    const matches = await store.findByDigest(digest);
+    return {
+      status: 200,
+      body: { findings: matches.slice(0, MAX_QUERY_FINDINGS) },
+    };
+  }
+  return badRequest();
+}
+
+async function feedRoute(
+  store: FindingStore,
+  segments: string[],
+  query: URLSearchParams,
+): Promise<Reply> {
+  if (segments.length !== 0) return notFound();
+  const since = count(query.get("since"), 0);
+  const limit = count(query.get("limit"), DEFAULT_FEED_LIMIT);
+  if (since === null || limit === null || limit > MAX_FEED_LIMIT) {
+    return badRequest();
+  }
+  // An empty page tells the caller to retry later without moving the cursor.
+  if (limit === 0) {
+    return { status: 200, body: { entries: [], lastSequence: since } };
+  }
+  return { status: 200, body: await store.feedSince(since, limit) };
+}
+
+async function osvRoute(
+  store: FindingStore,
+  segments: string[],
+): Promise<Reply> {
+  const [id] = segments;
+  if (segments.length !== 1 || id === undefined) return notFound();
+  if (!FINDING_ID_PATTERN.test(id)) return badRequest();
+  const finding = await store.get(id);
+  if (finding === null) return notFound();
+  if (
+    finding.verdict !== "confirmed-malicious" &&
+    finding.verdict !== "retracted"
+  ) {
+    return notFound();
+  }
+  return { status: 200, body: toOsv(finding) };
+}
+
+/** null for an absent selector, false for one that cannot be a package or digest. */
+function selector(value: string | null): string | null | false {
+  if (value === null) return null;
+  if (value.length === 0 || !isBoundedIdentity(value)) return false;
+  return value;
+}
+
+/** The fallback for an absent count, or null for anything but a non-negative integer. */
+function count(value: string | null, fallback: number): number | null {
+  if (value === null) return fallback;
+  if (!/^\d+$/u.test(value)) return null;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) ? parsed : null;
+}
+
+function badRequest(): Reply {
+  return { status: 400, body: { error: "bad request" } };
+}
+
 function releaseList(records: ReleaseRecord[]): Reply {
   if (records.length === 0) return notFound();
   return { status: 200, body: { releases: records } };
@@ -207,10 +323,16 @@ function isBoundedIdentity(value: string): boolean {
   );
 }
 
+interface ParsedTarget {
+  segments: string[];
+  query: URLSearchParams;
+}
+
 /** Splits the request target, then decodes each segment so `%2F` stays inside one. */
-function decodePath(rawUrl: string): string[] | null {
+function parseTarget(rawUrl: string): ParsedTarget | null {
   const queryAt = rawUrl.indexOf("?");
   const path = queryAt === -1 ? rawUrl : rawUrl.slice(0, queryAt);
+  const queryText = queryAt === -1 ? "" : rawUrl.slice(queryAt + 1);
   const decoded: string[] = [];
   for (const segment of path.split("/")) {
     try {
@@ -220,7 +342,7 @@ function decodePath(rawUrl: string): string[] | null {
       throw error;
     }
   }
-  return decoded;
+  return { segments: decoded, query: new URLSearchParams(queryText) };
 }
 
 function notFound(): Reply {

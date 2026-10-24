@@ -9,6 +9,8 @@ import {
   truncate,
 } from "../core/report-builder.js";
 import { analyzeRelease } from "./analyze-release.js";
+import { FindingStore } from "./intel/finding-store.js";
+import { publishFindings } from "./intel/publish.js";
 import { JobQueue } from "./job-queue.js";
 import { JsonStore } from "./json-store.js";
 import {
@@ -36,6 +38,7 @@ export interface ServiceConfig {
 export interface ServiceHandles {
   store: JsonStore;
   releases: ReleaseStore;
+  findings: FindingStore;
   queue: JobQueue;
 }
 
@@ -50,6 +53,7 @@ export function openService(config: ServiceConfig): ServiceHandles {
   return {
     store,
     releases: new ReleaseStore(store),
+    findings: new FindingStore(store),
     queue: new JobQueue(store, config.now),
   };
 }
@@ -176,6 +180,13 @@ async function analyzeCandidate(
       : { analyzeOptions: config.analyzeOptions }),
     ...(config.now === undefined ? {} : { now: config.now }),
   });
+  // An existing record still backfills findings written before this step
+  // existed; the finding id makes a repeat publish a no-op.
+  await publishFindings(
+    result.record,
+    handles.findings,
+    config.now ?? (() => new Date()),
+  );
   emit(
     config,
     `analyzed ${identity(candidate.name, candidate.version)}${result.created ? "" : " (record already present)"}`,
