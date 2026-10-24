@@ -1,8 +1,17 @@
 import type { Server } from "node:http";
+import { readFile } from "node:fs/promises";
 import { setTimeout as delay } from "node:timers/promises";
 import { parseArgs, type ParseArgsConfig } from "node:util";
 import { MAX_VALUE_CHARS, truncate } from "../core/report-builder.js";
 import { createApiServer, listenApi } from "./api.js";
+import {
+  generateToken,
+  hashToken,
+  parseReviewersFile,
+  ReviewersError,
+  validateReviewerName,
+  type Reviewers,
+} from "./intel/reviewers.js";
 import type { CollectorOptions } from "./registry-collector.js";
 import { analyzeOne, monitorOnce, openService } from "./service.js";
 
@@ -22,8 +31,12 @@ const USAGE = [
   "      Run one monitor cycle, or repeat every interval until stopped.",
   "  analyze --data <dir> --package <name> --version <version> [--registry <url>]",
   "      Analyze one release now, without the change feed.",
-  "  serve --data <dir> [--port <port>] [--host <host>]",
-  "      Serve stored releases and jobs over HTTP.",
+  "  serve --data <dir> [--port <port>] [--host <host>] [--reviewers <file>]",
+  "      Serve stored releases and jobs over HTTP. With --reviewers, also",
+  "      accept reviewer-authenticated transitions.",
+  "  reviewer-token --name <name>",
+  "      Print a new reviewer token and the reviewers-file entry for it. The",
+  "      token is shown once; the command writes no file.",
   "",
   "Options:",
   "  --help  Print this help.",
@@ -44,6 +57,7 @@ export async function runPlatformCli(
   if (command === "monitor") return runMonitor(rest, io);
   if (command === "analyze") return runAnalyze(rest, io);
   if (command === "serve") return runServe(rest, io);
+  if (command === "reviewer-token") return runReviewerToken(rest, io);
   if (command === undefined) return usageError(io, "no command given");
   return usageError(
     io,
@@ -142,6 +156,7 @@ async function runServe(args: string[], io: PlatformCliIo): Promise<number> {
     data: { type: "string" },
     port: { type: "string" },
     host: { type: "string" },
+    reviewers: { type: "string" },
   });
   if (!parsed.ok) return usageError(io, parsed.message);
   const data = requireData(parsed.values, "serve");
@@ -151,11 +166,24 @@ async function runServe(args: string[], io: PlatformCliIo): Promise<number> {
     return usageError(io, "--port must be an integer between 0 and 65535");
   }
   const host = parsed.values.host ?? DEFAULT_HOST;
+
+  let reviewers: Reviewers | undefined;
+  if (parsed.values.reviewers !== undefined) {
+    try {
+      reviewers = parseReviewersFile(
+        await readFile(parsed.values.reviewers, "utf8"),
+      );
+    } catch (error) {
+      return failure(io, error);
+    }
+  }
+
   const handles = openService({ dataDir: data.data, collector: {} });
   const server = createApiServer({
     releases: handles.releases,
     findings: handles.findings,
     queue: handles.queue,
+    ...(reviewers === undefined ? {} : { reviewers }),
   });
 
   try {
@@ -174,6 +202,29 @@ async function runServe(args: string[], io: PlatformCliIo): Promise<number> {
   } catch (error) {
     return failure(io, error);
   }
+}
+
+function runReviewerToken(args: string[], io: PlatformCliIo): number {
+  const parsed = parse(args, { name: { type: "string" } });
+  if (!parsed.ok) return usageError(io, parsed.message);
+  const raw = parsed.values.name;
+  if (raw === undefined) {
+    return usageError(io, "reviewer-token requires --name <name>");
+  }
+
+  let name: string;
+  try {
+    name = validateReviewerName(raw);
+  } catch (error) {
+    if (error instanceof ReviewersError) return usageError(io, error.message);
+    throw error;
+  }
+
+  const token = generateToken();
+  io.stdout(
+    `${token}\n${JSON.stringify(hashToken(token))}: ${JSON.stringify(name)}\n`,
+  );
+  return 0;
 }
 
 interface ParseOk {

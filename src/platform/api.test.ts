@@ -13,6 +13,11 @@ import {
   type NewFindingInput,
 } from "./intel/finding.js";
 import { FindingStore } from "./intel/finding-store.js";
+import {
+  createReviewers,
+  hashToken,
+  type Reviewers,
+} from "./intel/reviewers.js";
 import { JobQueue, type JobRecord } from "./job-queue.js";
 import { JsonStore, encodeKey } from "./json-store.js";
 import type { ReleaseCandidate } from "./release-candidate.js";
@@ -53,12 +58,13 @@ afterEach(async () => {
   await rm(base, { recursive: true, force: true });
 });
 
-async function start(): Promise<void> {
+async function start(reviewers?: Reviewers): Promise<void> {
   errors = [];
   server = createApiServer({
     releases,
     findings,
     queue,
+    ...(reviewers === undefined ? {} : { reviewers }),
     onError: (error) => {
       errors.push(error);
     },
@@ -212,6 +218,51 @@ function retract(id: string): Promise<IntelFinding> {
     { to: "retracted", actor: "alice", reason: "false positive" },
     FINDING_TIME,
   );
+}
+
+const ALICE_TOKEN = "alice-token";
+const BOB_TOKEN = "bob-token";
+
+function reviewersConfig(): Reviewers {
+  return createReviewers({
+    [hashToken(ALICE_TOKEN)]: "alice",
+    [hashToken(BOB_TOKEN)]: "bob",
+  });
+}
+
+function transitionRequest(
+  id: string,
+  body: string,
+  options: { authorization?: string; contentType?: string | null } = {},
+): Promise<Response> {
+  const headers: Record<string, string> = {};
+  const contentType =
+    options.contentType === undefined
+      ? "application/json"
+      : options.contentType;
+  if (contentType !== null) headers["content-type"] = contentType;
+  if (options.authorization !== undefined) {
+    headers.authorization = options.authorization;
+  }
+  return get(`/v1/findings/${id}/transitions`, {
+    method: "POST",
+    headers,
+    body,
+  });
+}
+
+function bearer(token: string): { authorization: string } {
+  return { authorization: `Bearer ${token}` };
+}
+
+async function findingBody(response: Response): Promise<IntelFinding> {
+  const body = (await response.json()) as { finding: IntelFinding };
+  return body.finding;
+}
+
+async function errorBody(response: Response): Promise<string> {
+  const body = (await response.json()) as { error: string };
+  return body.error;
 }
 
 interface FeedBody {
@@ -666,5 +717,314 @@ describe("GET /v1/osv/<id>", () => {
     await start();
 
     expect((await get("/v1/osv/CDI-nope")).status).toBe(400);
+  });
+});
+
+describe("POST /v1/findings/<id>/transitions", () => {
+  const triage = JSON.stringify({ to: "under-review", reason: "triage" });
+
+  it("does not exist without a reviewers file", async () => {
+    await start();
+    const finding = await seedFinding();
+
+    const response = await transitionRequest(
+      finding.id,
+      triage,
+      bearer(ALICE_TOKEN),
+    );
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toEqual({ error: "not found" });
+  });
+
+  it("still rejects a POST to another path with 405", async () => {
+    await start(reviewersConfig());
+
+    const response = await get("/v1/jobs", { method: "POST" });
+
+    expect(response.status).toBe(405);
+    expect(response.headers.get("allow")).toBe("GET, HEAD");
+  });
+
+  it("answers 401 for a missing header, a wrong scheme or an unknown token", async () => {
+    await start(reviewersConfig());
+    const finding = await seedFinding();
+    const attempts: { authorization?: string }[] = [
+      {},
+      { authorization: "Basic abc" },
+      bearer("wrong-token"),
+      { authorization: "Bearer" },
+    ];
+
+    for (const options of attempts) {
+      const response = await transitionRequest(finding.id, triage, options);
+
+      expect(response.status).toBe(401);
+      expect(response.headers.get("www-authenticate")).toBe("Bearer");
+      await expect(response.json()).resolves.toEqual({ error: "unauthorized" });
+    }
+  });
+
+  it("moves a finding to under-review and records the reviewer from the token", async () => {
+    await start(reviewersConfig());
+    const finding = await seedFinding();
+
+    const response = await transitionRequest(
+      finding.id,
+      triage,
+      bearer(ALICE_TOKEN),
+    );
+
+    expect(response.status).toBe(200);
+    const updated = await findingBody(response);
+    expect(updated.verdict).toBe("under-review");
+    expect(updated.revision).toBe(2);
+    expect(updated.history).toHaveLength(1);
+    expect(updated.history[0]).toMatchObject({
+      actor: "alice",
+      from: "suspected",
+      to: "under-review",
+      reason: "triage",
+    });
+    expect(updated.history[0]?.at).toEqual(expect.any(String));
+    await expect(findings.get(finding.id)).resolves.toMatchObject({
+      verdict: "under-review",
+    });
+  });
+
+  it("rejects a confirmation without a validation", async () => {
+    await start(reviewersConfig());
+    const finding = await seedFinding();
+    await findings.transition(
+      finding.id,
+      { to: "under-review", actor: "alice", reason: "triage" },
+      FINDING_TIME,
+    );
+
+    const response = await transitionRequest(
+      finding.id,
+      JSON.stringify({ to: "confirmed-malicious", reason: "reviewed" }),
+      bearer(ALICE_TOKEN),
+    );
+
+    expect(response.status).toBe(409);
+    expect(await errorBody(response)).toContain("requires a validation");
+  });
+
+  it("confirms with a validation whose reviewer comes from the token", async () => {
+    await start(reviewersConfig());
+    const finding = await seedFinding();
+    await findings.transition(
+      finding.id,
+      { to: "under-review", actor: "alice", reason: "triage" },
+      FINDING_TIME,
+    );
+
+    const response = await transitionRequest(
+      finding.id,
+      JSON.stringify({
+        to: "confirmed-malicious",
+        reason: "reviewed the evidence",
+        validation: { method: "manual review", evidenceRefs: [0] },
+      }),
+      bearer(ALICE_TOKEN),
+    );
+
+    expect(response.status).toBe(200);
+    const updated = await findingBody(response);
+    expect(updated.verdict).toBe("confirmed-malicious");
+    expect(updated.history.at(-1)?.validation).toEqual({
+      reviewer: "alice",
+      method: "manual review",
+      evidenceRefs: [0],
+    });
+  });
+
+  it("rejects a body that names its own actor or validation reviewer", async () => {
+    await start(reviewersConfig());
+    const finding = await seedFinding();
+    const attempts: { payload: unknown; field: string }[] = [
+      {
+        payload: { to: "under-review", reason: "triage", actor: "bob" },
+        field: "actor",
+      },
+      {
+        payload: {
+          to: "confirmed-malicious",
+          reason: "reviewed",
+          validation: {
+            reviewer: "bob",
+            method: "manual review",
+            evidenceRefs: [0],
+          },
+        },
+        field: "validation.reviewer",
+      },
+    ];
+
+    for (const { payload, field } of attempts) {
+      const response = await transitionRequest(
+        finding.id,
+        JSON.stringify(payload),
+        bearer(ALICE_TOKEN),
+      );
+
+      expect(response.status).toBe(400);
+      expect(await errorBody(response)).toContain(field);
+    }
+    await expect(findings.get(finding.id)).resolves.toMatchObject({
+      verdict: "suspected",
+      revision: 1,
+    });
+  });
+
+  it("records the token's reviewer when two reviewers send the same body", async () => {
+    await start(reviewersConfig());
+    const first = await seedFinding();
+    const second = await seedFinding({ name: "beta", digest: "sha512-beta" });
+
+    const alice = await transitionRequest(
+      first.id,
+      triage,
+      bearer(ALICE_TOKEN),
+    );
+    const bob = await transitionRequest(second.id, triage, bearer(BOB_TOKEN));
+
+    expect((await findingBody(alice)).history[0]?.actor).toBe("alice");
+    expect((await findingBody(bob)).history[0]?.actor).toBe("bob");
+  });
+
+  it("rejects an illegal transition with 409", async () => {
+    await start(reviewersConfig());
+    const finding = await seedFinding();
+
+    const response = await transitionRequest(
+      finding.id,
+      JSON.stringify({ to: "retracted", reason: "skip ahead" }),
+      bearer(ALICE_TOKEN),
+    );
+
+    expect(response.status).toBe(409);
+    expect(await errorBody(response)).toContain(
+      "cannot move from suspected to retracted",
+    );
+  });
+
+  it("returns 404 for an unknown finding and 400 for a malformed id", async () => {
+    await start(reviewersConfig());
+
+    const absent = await transitionRequest(
+      `CDI-${"0".repeat(20)}`,
+      triage,
+      bearer(ALICE_TOKEN),
+    );
+    expect(absent.status).toBe(404);
+    await expect(absent.json()).resolves.toEqual({ error: "not found" });
+
+    const malformed = await transitionRequest(
+      "CDI-nope",
+      triage,
+      bearer(ALICE_TOKEN),
+    );
+    expect(malformed.status).toBe(400);
+  });
+
+  it("rejects a body over 16 KiB with 413", async () => {
+    await start(reviewersConfig());
+    const finding = await seedFinding();
+    const payload = JSON.stringify({
+      to: "under-review",
+      reason: "a".repeat(17 * 1024),
+    });
+
+    const response = await transitionRequest(
+      finding.id,
+      payload,
+      bearer(ALICE_TOKEN),
+    );
+
+    expect(response.status).toBe(413);
+  });
+
+  it("rejects a missing or non-JSON content type with 400", async () => {
+    await start(reviewersConfig());
+    const finding = await seedFinding();
+
+    for (const contentType of [
+      null,
+      "text/plain",
+      "application/x-www-form-urlencoded",
+    ]) {
+      const response = await transitionRequest(finding.id, triage, {
+        ...bearer(ALICE_TOKEN),
+        contentType,
+      });
+
+      expect(response.status).toBe(400);
+    }
+  });
+
+  it("rejects a body that is not a JSON object or breaks the field rules", async () => {
+    await start(reviewersConfig());
+    const finding = await seedFinding();
+    const payloads = [
+      "{",
+      "[]",
+      JSON.stringify({ reason: "triage" }),
+      JSON.stringify({ to: "exploded", reason: "triage" }),
+      JSON.stringify({ to: "under-review" }),
+      JSON.stringify({ to: "under-review", reason: 7 }),
+      JSON.stringify({
+        to: "under-review",
+        reason: "triage",
+        validation: { method: "manual" },
+      }),
+      JSON.stringify({
+        to: "under-review",
+        reason: "triage",
+        validation: { method: "manual", evidenceRefs: ["0"] },
+      }),
+    ];
+
+    for (const payload of payloads) {
+      const response = await transitionRequest(
+        finding.id,
+        payload,
+        bearer(ALICE_TOKEN),
+      );
+
+      expect(response.status).toBe(400);
+    }
+  });
+
+  it("never puts the token in a response, a 500 body or the error hook", async () => {
+    await start(reviewersConfig());
+    const finding = await seedFinding();
+    const success = await transitionRequest(
+      finding.id,
+      triage,
+      bearer(ALICE_TOKEN),
+    );
+    const unauthorized = await transitionRequest(
+      finding.id,
+      triage,
+      bearer("wrong-token"),
+    );
+
+    expect(await success.text()).not.toContain(ALICE_TOKEN);
+    expect(await unauthorized.text()).not.toContain("wrong-token");
+
+    const corrupt = baseFinding({ name: "beta", digest: "sha512-beta" });
+    await json.put("finding", corrupt.id, "not-a-record");
+    const failure = await transitionRequest(
+      corrupt.id,
+      triage,
+      bearer(ALICE_TOKEN),
+    );
+
+    expect(failure.status).toBe(500);
+    expect(await failure.text()).not.toContain(ALICE_TOKEN);
+    expect(errors).toHaveLength(1);
+    expect(JSON.stringify(errors)).not.toContain(ALICE_TOKEN);
   });
 });

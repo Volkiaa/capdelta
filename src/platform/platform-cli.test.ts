@@ -1,7 +1,8 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createReviewers, hashToken } from "./intel/reviewers.js";
 import { runPlatformCli, type PlatformCliIo } from "./platform-cli.js";
 
 const REGISTRY = "https://registry.npmjs.org";
@@ -152,5 +153,79 @@ describe("runPlatformCli", () => {
 
     expect(code).toBe(0);
     expect(stdout.join("")).toMatch(/^listening on 127\.0\.0\.1:\d+\n$/u);
+  });
+
+  it("serves with a valid reviewers file", async () => {
+    const file = join(base, "reviewers.json");
+    await writeFile(
+      file,
+      JSON.stringify({ [hashToken("alice-token")]: "alice" }),
+      "utf8",
+    );
+    const controller = new AbortController();
+    const stdout: string[] = [];
+
+    const code = await runPlatformCli(
+      ["serve", "--data", dataDir, "--port", "0", "--reviewers", file],
+      {
+        stdout: (value) => {
+          stdout.push(value);
+          controller.abort();
+        },
+        stderr: () => undefined,
+        signal: controller.signal,
+      },
+    );
+
+    expect(code).toBe(0);
+    expect(stdout.join("")).toMatch(/^listening on 127\.0\.0\.1:\d+\n$/u);
+  });
+
+  it("refuses to serve with a bad reviewers file", async () => {
+    const file = join(base, "reviewers.json");
+    await writeFile(file, "{", "utf8");
+    const { io, stdout, stderr } = capture();
+
+    const code = await runPlatformCli(
+      ["serve", "--data", dataDir, "--port", "0", "--reviewers", file],
+      io,
+    );
+
+    expect(code).toBe(1);
+    expect(stdout).toEqual([]);
+    expect(stderr).toHaveLength(1);
+    expect(stderr[0]).toMatch(/^error: /u);
+  });
+
+  it("prints a reviewer token and the entry that authenticates it", async () => {
+    const { io, stdout, stderr } = capture();
+
+    const code = await runPlatformCli(
+      ["reviewer-token", "--name", "alice"],
+      io,
+    );
+
+    expect(code).toBe(0);
+    expect(stderr).toEqual([]);
+    const lines = stdout.join("").split("\n");
+    expect(lines).toHaveLength(3);
+    const [token, entry] = lines;
+    expect(token).toMatch(/^cdr_[A-Za-z0-9_-]{43}$/u);
+    if (token === undefined) throw new Error("expected a token");
+    expect(entry).toBe(`${JSON.stringify(hashToken(token))}: "alice"`);
+    expect(
+      createReviewers({ [hashToken(token)]: "alice" }).authenticate(token),
+    ).toBe("alice");
+  });
+
+  it("rejects a reviewer name the file parser would reject", async () => {
+    for (const name of ["analyzer", "   ", "a".repeat(161)]) {
+      const { io, stdout } = capture();
+
+      const code = await runPlatformCli(["reviewer-token", "--name", name], io);
+
+      expect(code).toBe(2);
+      expect(stdout).toEqual([]);
+    }
   });
 });
