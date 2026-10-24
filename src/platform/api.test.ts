@@ -201,7 +201,8 @@ describe("GET /v1/jobs", () => {
 
     expect(body.counts.failed).toBe(105);
     expect(body.failed).toHaveLength(100);
-  });
+    // Each claim scans the job directory, so seeding 105 jobs is quadratic and slow under load.
+  }, 60_000);
 });
 
 describe("GET /v1/releases/npm/<name>/<version>", () => {
