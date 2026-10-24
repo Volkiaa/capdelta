@@ -47,13 +47,18 @@ const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_PACKUMENT_BYTES = 20 * 1024 * 1024;
 const DEFAULT_LIMIT = 100;
 const MAX_PACKAGE_NAME_CHARS = 214;
+const MAX_VERSION_CHARS = 128;
 const MAX_URL_CHARS = 2048;
+/** A rejected name has no identity; the truncated text belongs in the reason. */
+const INVALID_NAME_IDENTITY = "<invalid-name>";
+/** npm accepts semver only; a packument key is never a path or a free-form label. */
+const STRICT_SEMVER = /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$/u;
 /** A `_changes` page holds ids only; 1 MiB fits any allowed page size. */
 const MAX_CHANGE_FEED_BYTES = 1024 * 1024;
 
 interface ResolvedOptions {
   registryUrl: string;
-  registryHost: string;
+  registryOrigin: string;
   changesUrl: URL;
   fetchImpl: typeof fetch;
   timeoutMs: number;
@@ -106,12 +111,19 @@ export async function candidatesForPackage(
   onlyVersions?: ReadonlySet<string>,
 ): Promise<CandidatesResult> {
   const resolved = resolveOptions(options);
-  const displayName = truncate(name, MAX_IDENTITY_CHARS);
   const problem = nameProblem(name);
   if (problem !== null) {
     return {
       candidates: [],
-      skipped: [{ name: displayName, reason: problem }],
+      skipped: [
+        {
+          name: INVALID_NAME_IDENTITY,
+          reason: truncate(
+            `${problem}: ${JSON.stringify(truncate(name, MAX_IDENTITY_CHARS))}`,
+            MAX_VALUE_CHARS,
+          ),
+        },
+      ],
     };
   }
   const url = `${resolved.registryUrl}/${encodePackageName(name)}`;
@@ -120,7 +132,7 @@ export async function candidatesForPackage(
     packument = await fetchJson(
       url,
       resolved,
-      `packument for ${displayName}`,
+      `packument for ${truncate(name, MAX_IDENTITY_CHARS)}`,
       resolved.maxPackumentBytes,
     );
   } catch (error: unknown) {
@@ -130,7 +142,7 @@ export async function candidatesForPackage(
         candidates: [],
         skipped: [
           {
-            name: displayName,
+            name,
             reason: truncate(error.message, MAX_VALUE_CHARS),
           },
         ],
@@ -138,11 +150,11 @@ export async function candidatesForPackage(
     }
     throw error;
   }
-  return readPackument(displayName, packument, resolved, onlyVersions);
+  return readPackument(name, packument, resolved, onlyVersions);
 }
 
 function readPackument(
-  displayName: string,
+  name: string,
   packument: unknown,
   resolved: ResolvedOptions,
   onlyVersions: ReadonlySet<string> | undefined,
@@ -150,7 +162,7 @@ function readPackument(
   const skipped: CollectorSkipped[] = [];
   const skip = (reason: string): void => {
     skipped.push({
-      name: displayName,
+      name,
       reason: truncate(reason, MAX_VALUE_CHARS),
     });
   };
@@ -171,11 +183,16 @@ function readPackument(
 
   const entries: VersionEntry[] = [];
   for (const version of Object.keys(versions)) {
+    const invalid = versionProblem(version);
+    if (invalid !== null) {
+      skip(invalid);
+      continue;
+    }
     const parsed = parseVersion(
       version,
       versions[version],
       times[version],
-      resolved.registryHost,
+      resolved.registryOrigin,
     );
     if ("reason" in parsed) skip(parsed.reason);
     else entries.push(parsed.entry);
@@ -198,8 +215,8 @@ function readPackument(
     }
     candidates.push({
       ecosystem: "npm",
-      name: displayName,
-      version: truncate(entry.version, MAX_IDENTITY_CHARS),
+      name,
+      version: entry.version,
       digest: entry.digest,
       tarballUrl: entry.tarballUrl,
       previous: previous === null ? null : artifact(previous),
@@ -211,11 +228,23 @@ function readPackument(
 
 type ParsedVersion = { entry: VersionEntry } | { reason: string };
 
+function versionProblem(version: string): string | null {
+  const label = JSON.stringify(truncate(version, MAX_IDENTITY_CHARS));
+  if (version.length === 0) return `version key ${label} is empty`;
+  if (version.length > MAX_VERSION_CHARS) {
+    return `version key ${label} exceeds ${String(MAX_VERSION_CHARS)} characters`;
+  }
+  if (!STRICT_SEMVER.test(version)) {
+    return `version key ${label} is not strict semver`;
+  }
+  return null;
+}
+
 function parseVersion(
   version: string,
   value: unknown,
   publishedAt: unknown,
-  registryHost: string,
+  registryOrigin: string,
 ): ParsedVersion {
   const label = truncate(version, MAX_IDENTITY_CHARS);
   const fail = (detail: string): ParsedVersion => ({
@@ -244,8 +273,11 @@ function parseVersion(
   if (parsedTarball === null) {
     return fail("an invalid dist.tarball");
   }
-  if (parsedTarball.host !== registryHost) {
-    return fail("a dist.tarball on another host");
+  if (parsedTarball.username !== "" || parsedTarball.password !== "") {
+    return fail("a dist.tarball with credentials");
+  }
+  if (parsedTarball.origin !== registryOrigin) {
+    return fail("a dist.tarball on another origin");
   }
   if (typeof publishedAt !== "string") {
     return fail("no publish time");
@@ -267,7 +299,7 @@ function parseVersion(
 
 function artifact(entry: VersionEntry): ReleaseArtifact {
   return {
-    version: truncate(entry.version, MAX_IDENTITY_CHARS),
+    version: entry.version,
     digest: entry.digest,
     tarballUrl: entry.tarballUrl,
   };
@@ -409,7 +441,7 @@ function resolveOptions(options: CollectorOptions): ResolvedOptions {
   requirePositiveInteger(limit, "limit");
   return {
     registryUrl: registry.href.replace(/\/+$/u, ""),
-    registryHost: registry.host,
+    registryOrigin: registry.origin,
     changesUrl: changes,
     fetchImpl: options.fetchImpl ?? fetch,
     timeoutMs,

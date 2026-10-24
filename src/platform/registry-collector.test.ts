@@ -181,7 +181,7 @@ describe("candidatesForPackage", () => {
     });
   });
 
-  it("reports missing integrity, sha1-only integrity and a foreign tarball host", async () => {
+  it("reports missing integrity, sha1-only integrity and a foreign tarball origin", async () => {
     const doc = packument("mixed", [
       { version: "1.0.0", publishedAt: "2024-01-01T00:00:00.000Z" },
       {
@@ -217,7 +217,50 @@ describe("candidatesForPackage", () => {
     ]);
     expect(skipped[0]?.reason).toMatch(/integrity/u);
     expect(skipped[1]?.reason).toMatch(/sha512/u);
-    expect(skipped[2]?.reason).toMatch(/host/u);
+    expect(skipped[2]?.reason).toMatch(/origin/u);
+  });
+
+  it("rejects a tarball whose protocol differs from the registry", async () => {
+    const doc = packument("downgrade", [
+      {
+        version: "1.0.0",
+        publishedAt: "2024-01-01T00:00:00.000Z",
+        tarball: "http://registry.npmjs.org/downgrade/-/1.0.0.tgz",
+      },
+    ]);
+    const { fetchImpl } = routedFetch(
+      new Map([[`${REGISTRY}/downgrade`, jsonResponse(doc)]]),
+    );
+
+    const { candidates, skipped } = await candidatesForPackage("downgrade", {
+      fetchImpl,
+    });
+
+    expect(candidates).toEqual([]);
+    expect(skipped).toHaveLength(1);
+    expect(skipped[0]?.reason).toMatch(/origin/u);
+  });
+
+  it("rejects a tarball URL that carries credentials", async () => {
+    const doc = packument("credentialed", [
+      {
+        version: "1.0.0",
+        publishedAt: "2024-01-01T00:00:00.000Z",
+        tarball:
+          "https://user:secret@registry.npmjs.org/credentialed/-/1.0.0.tgz",
+      },
+    ]);
+    const { fetchImpl } = routedFetch(
+      new Map([[`${REGISTRY}/credentialed`, jsonResponse(doc)]]),
+    );
+
+    const { candidates, skipped } = await candidatesForPackage("credentialed", {
+      fetchImpl,
+    });
+
+    expect(candidates).toEqual([]);
+    expect(skipped).toHaveLength(1);
+    expect(skipped[0]?.reason).toMatch(/credentials/u);
   });
 
   it("reports an oversized packument while other packages still collect", async () => {
@@ -333,6 +376,94 @@ describe("candidatesForPackage", () => {
     });
     expect(attempted).toBe(1);
     expect(longest.skipped[0]?.reason).toMatch(/request failed/u);
+  });
+
+  it("reports a 300-character name in the reason, not as an identity", async () => {
+    const name = "a".repeat(300);
+    const fetchImpl: typeof fetch = () => {
+      throw new Error("the collector must not request an invalid name");
+    };
+
+    const { candidates, skipped } = await candidatesForPackage(name, {
+      fetchImpl,
+    });
+
+    expect(candidates).toEqual([]);
+    expect(skipped).toHaveLength(1);
+    expect(skipped[0]?.name).toBe("<invalid-name>");
+    expect(skipped[0]?.reason).toMatch(/exceeds 214 characters/u);
+    expect(skipped[0]?.reason).toContain("a".repeat(100));
+    expect(skipped[0]?.reason).not.toContain(name);
+  });
+
+  it("keeps two long names that share a 200-character prefix distinct", async () => {
+    const prefix = "a".repeat(160);
+    const first = `${prefix}${"b".repeat(40)}`;
+    const second = `${prefix}${"c".repeat(40)}`;
+    const { fetchImpl } = routedFetch(
+      new Map([
+        [
+          `${CHANGES}?since=0&limit=100`,
+          jsonResponse({
+            results: [
+              { seq: 1, id: first },
+              { seq: 2, id: second },
+            ],
+            last_seq: 2,
+          }),
+        ],
+        [
+          `${REGISTRY}/${first}`,
+          jsonResponse(
+            packument(first, [
+              { version: "1.0.0", publishedAt: "2024-01-01T00:00:00.000Z" },
+            ]),
+          ),
+        ],
+        [
+          `${REGISTRY}/${second}`,
+          jsonResponse(
+            packument(second, [
+              { version: "1.0.0", publishedAt: "2024-01-01T00:00:00.000Z" },
+            ]),
+          ),
+        ],
+      ]),
+    );
+
+    const { candidates } = await collectReleases("0", { fetchImpl });
+
+    expect(candidates.map((item) => item.name)).toEqual([first, second]);
+    expect(new Set(candidates.map((item) => item.name)).size).toBe(2);
+  });
+
+  it("rejects invalid version keys and keeps valid versions verbatim", async () => {
+    const doc = packument("keys", [
+      { version: "", publishedAt: "2024-01-01T00:00:00.000Z" },
+      { version: "../../escape", publishedAt: "2024-02-01T00:00:00.000Z" },
+      { version: "1.0.0", publishedAt: "2024-03-01T00:00:00.000Z" },
+      {
+        version: "2.0.0-rc.1+build.5",
+        publishedAt: "2024-04-01T00:00:00.000Z",
+      },
+    ]);
+    const { fetchImpl } = routedFetch(
+      new Map([[`${REGISTRY}/keys`, jsonResponse(doc)]]),
+    );
+
+    const { candidates, skipped } = await candidatesForPackage("keys", {
+      fetchImpl,
+    });
+
+    expect(candidates.map((item) => item.version)).toEqual([
+      "1.0.0",
+      "2.0.0-rc.1+build.5",
+    ]);
+    expect(skipped).toHaveLength(2);
+    expect(skipped.every((item) => item.name === "keys")).toBe(true);
+    const reasons = skipped.map((item) => item.reason).join("\n");
+    expect(reasons).toMatch(/is empty/u);
+    expect(reasons).toContain(JSON.stringify("../../escape"));
   });
 
   it("asks for the full packument, refuses redirects and bounds the request", async () => {
