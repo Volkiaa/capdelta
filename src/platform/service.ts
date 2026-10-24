@@ -106,6 +106,7 @@ export async function analyzeOne(
   version: string,
 ): Promise<{ done: number; failed: number }> {
   const handles = openService(config);
+  await handles.queue.recover();
   const { candidates, skipped } = await candidatesForPackage(
     name,
     config.collector,
