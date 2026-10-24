@@ -40,6 +40,7 @@ async function main(): Promise<void> {
         configPath: core.getInput("config-path"),
         baseRef: core.getInput("base-ref"),
         strict: core.getBooleanInput("strict"),
+        intelUrl: core.getInput("intel-url"),
       },
       context,
       {

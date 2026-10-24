@@ -10,6 +10,12 @@ import {
 } from "../core/capdelta-config.js";
 import { diffNpmLockfiles } from "../core/npm/lockfile-differ.js";
 import {
+  IntelClientConfigurationError,
+  lookupIntel,
+  validateIntelUrl,
+} from "../core/intel-client.js";
+import { intelMatches } from "../core/intel-match.js";
+import {
   readRegularFile,
   readRegularFileOperation,
   type ReadRegularFileResult,
@@ -81,11 +87,14 @@ export async function executeCli(
     if (args.base === null) {
       throw new CliUsageError("--base <ref> is required");
     }
+    const intelUrl =
+      args.intelUrl === null ? null : validateIntelUrl(args.intelUrl).href;
     const analysis = await analyzeCheckout(
       args.base,
       args.format,
       args.configPath ?? ".capdelta.yml",
       args.configPath === null,
+      intelUrl,
       runtime,
     );
     // Unchanged lockfile: the PLAN §2 fast path has nothing to gate.
@@ -115,8 +124,19 @@ export async function executeCli(
     }
     return gate.fail || operationalFailure ? 1 : 0;
   } catch (error: unknown) {
-    const exitCode = error instanceof CliUsageError ? USAGE_ERROR_EXIT_CODE : 1;
-    runtime.stderr(`capdelta: ${terminalSafeError(error)}\n`);
+    // A service URL the operator typed is a usage error, not a check result.
+    const exitCode =
+      error instanceof CliUsageError ||
+      error instanceof IntelClientConfigurationError
+        ? USAGE_ERROR_EXIT_CODE
+        : 1;
+    runtime.stderr(
+      `capdelta: ${
+        error instanceof IntelClientConfigurationError
+          ? terminalSafeText(error.message)
+          : terminalSafeError(error)
+      }\n`,
+    );
     if (error instanceof CliUsageError) runtime.stderr(`\n${CLI_HELP}`);
     return exitCode;
   }
@@ -127,6 +147,7 @@ async function analyzeCheckout(
   format: "text" | "json",
   configPath: string,
   allowMissingConfig: boolean,
+  intelUrl: string | null,
   runtime: CliRuntime,
 ): Promise<{ run: CapabilityAnalysisRun; report: JsonRunReport } | null> {
   const maxLockfileBytes = resolveMaxLockfileBytes(runtime.maxLockfileBytes);
@@ -147,6 +168,22 @@ async function analyzeCheckout(
     allowMissingConfig,
   );
   const lockfileDiff = diffNpmLockfiles(oldLockfile, headLockfile);
+  if (intelUrl !== null) {
+    // The feed URL is a CLI argument only. Reading it from .capdelta.yml would
+    // let a pull request point the check at a feed that never matches (ADR-015).
+    const intel = await lookupIntel(lockfileDiff.changed, {
+      baseUrl: intelUrl,
+      ...(runtime.fetchImpl === undefined
+        ? {}
+        : { fetchImpl: runtime.fetchImpl }),
+    });
+    for (const warning of intel.warnings) {
+      runtime.stderr(`capdelta: warning: ${terminalSafeText(warning)}\n`);
+    }
+    lockfileDiff.findings.push(
+      ...intelMatches(lockfileDiff.changed, intel.findings),
+    );
+  }
   const analyze = runtime.analyze ?? analyzeChangedPackages;
   const analysis = await analyze(lockfileDiff, {
     fetcher: {

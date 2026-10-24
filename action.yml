@@ -27,6 +27,10 @@ inputs:
     description: Optional base Git ref override
     required: false
     default: ""
+  intel-url:
+    description: Optional shared intelligence feed URL for reviewer-confirmed malicious artifacts (https, or http on loopback)
+    required: false
+    default: ""
 
 outputs:
   status:

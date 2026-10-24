@@ -5,6 +5,12 @@ import {
 } from "../core/capability-analysis-pipeline.js";
 import { NamedError } from "../core/named-error.js";
 import { diffNpmLockfiles } from "../core/npm/lockfile-differ.js";
+import {
+  IntelClientConfigurationError,
+  lookupIntel,
+  validateIntelUrl,
+} from "../core/intel-client.js";
+import { intelMatches } from "../core/intel-match.js";
 import { isNormalizedRelativePosixPath } from "../core/repository-path.js";
 import {
   emptyCapdeltaConfig,
@@ -16,6 +22,7 @@ import {
   renderJsonRunReport,
   type JsonRunReport,
 } from "../core/reporter.js";
+import type { LockfileFinding } from "../core/contract/lockfile-diff.js";
 import { renderSarifReport } from "../core/sarif-reporter.js";
 import {
   publishStickyComment,
@@ -45,6 +52,7 @@ export interface ActionInputs {
   configPath: string;
   baseRef: string;
   strict?: boolean;
+  intelUrl?: string;
 }
 
 export interface ActionContext {
@@ -83,6 +91,8 @@ export interface ActionAdapters {
   addJobSummary(markdown: string): Promise<void>;
   warn(message: string): void;
   setOutput(name: string, value: string): void;
+  /** Test seam: the intelligence lookup shares the Action's fetch boundary. */
+  fetchImpl?: typeof fetch;
 }
 
 export type ActionOutcome =
@@ -181,11 +191,24 @@ export async function runAction(
   const oldLockfile =
     base.status === "missing" ? null : parseLockfile(base.text, "base");
   const headLockfile = parseLockfile(headText, "head");
-  const analysis = await withContext("analyze changed packages", () =>
+  const intel = await lookupConfiguredIntel(
+    inputs.intelUrl,
+    oldLockfile,
+    headLockfile,
+    adapters,
+  );
+  const analyzed = await withContext("analyze changed packages", () =>
     inputs.configPath.length === 0
       ? adapters.analyze(oldLockfile, headLockfile)
       : adapters.analyze(oldLockfile, headLockfile, config),
   );
+  const analysis: CapabilityAnalysisRun =
+    intel.findings.length === 0
+      ? analyzed
+      : {
+          ...analyzed,
+          lockfileFindings: [...analyzed.lockfileFindings, ...intel.findings],
+        };
   const json = renderJsonRunReport(analysis);
   const sarif = renderSarifReport(analysis, {
     lockfilePath: inputs.lockfilePath,
@@ -275,6 +298,30 @@ export async function runAction(
 
 const MAX_CONFIG_BYTES = 256 * 1024;
 
+async function lookupConfiguredIntel(
+  intelUrl: string | undefined,
+  oldLockfile: unknown,
+  headLockfile: unknown,
+  adapters: ActionAdapters,
+): Promise<{ findings: LockfileFinding[] }> {
+  if (intelUrl === undefined || intelUrl.length === 0) return { findings: [] };
+  // The feed URL is an Action input only. Reading it from .capdelta.yml would
+  // let a pull request point the check at a feed that never matches (ADR-015).
+  const diff = diffNpmLockfiles(oldLockfile, headLockfile);
+  const lookup = await withContext("look up intelligence findings", () =>
+    lookupIntel(diff.changed, {
+      baseUrl: intelUrl,
+      ...(adapters.fetchImpl === undefined
+        ? {}
+        : { fetchImpl: adapters.fetchImpl }),
+    }),
+  );
+  for (const warning of lookup.warnings) {
+    adapters.warn(`capdelta: ${warning}`);
+  }
+  return { findings: intelMatches(diff.changed, lookup.findings) };
+}
+
 /**
  * Policy comes from the same immutable base commit as the base lockfile,
  * never from the PR checkout: otherwise a PR could add an exception that
@@ -330,6 +377,18 @@ function validateInputs(inputs: ActionInputs, context: ActionContext): void {
     throw new ActionRunnerConfigurationError(
       "config-path must be a normalized relative POSIX path",
     );
+  }
+  if (inputs.intelUrl !== undefined && inputs.intelUrl.length > 0) {
+    try {
+      validateIntelUrl(inputs.intelUrl);
+    } catch (error: unknown) {
+      if (error instanceof IntelClientConfigurationError) {
+        throw new ActionRunnerConfigurationError(error.message, {
+          cause: error,
+        });
+      }
+      throw error;
+    }
   }
   if (
     context.owner.length === 0 ||
