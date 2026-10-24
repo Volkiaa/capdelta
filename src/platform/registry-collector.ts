@@ -8,6 +8,8 @@ import {
 import type { ReleaseArtifact, ReleaseCandidate } from "./release-candidate.js";
 
 /** A registry read failed in a way the caller must see: the cursor stays put. */
+const MAX_SKIPPED_PER_PACKAGE = 100;
+
 export class CollectorError extends NamedError {}
 
 export interface CollectorOptions {
@@ -95,8 +97,18 @@ export async function collectReleases(
   const skipped: CollectorSkipped[] = [];
   for (const name of feed.ids) {
     const result = await candidatesForPackage(name, options);
-    candidates.push(...result.candidates);
-    skipped.push(...result.skipped);
+    // Loops, not spread: a packument with 100k versions would overflow the call stack.
+    for (const candidate of result.candidates) candidates.push(candidate);
+    for (const entry of result.skipped.slice(0, MAX_SKIPPED_PER_PACKAGE)) {
+      skipped.push(entry);
+    }
+    const dropped = result.skipped.length - MAX_SKIPPED_PER_PACKAGE;
+    if (dropped > 0) {
+      skipped.push({
+        name: truncate(name, MAX_IDENTITY_CHARS),
+        reason: `${String(dropped)} more skipped entries for this package not listed`,
+      });
+    }
   }
   return {
     candidates,

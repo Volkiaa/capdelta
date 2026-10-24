@@ -591,6 +591,32 @@ describe("collectReleases failure accounting", () => {
     expect(result.skipped[0]?.reason).toMatch(/HTTP 500/u);
   });
 
+  it("survives a packument with 150000 invalid version keys", async () => {
+    const versions: Record<string, unknown> = {};
+    for (let index = 0; index < 150_000; index += 1) {
+      versions[`bad-${String(index)}`] = {};
+    }
+    const { fetchImpl } = routedFetch(
+      new Map([
+        [
+          `${CHANGES}?since=3&limit=100`,
+          jsonResponse({ results: [{ seq: 4, id: "huge" }], last_seq: 4 }),
+        ],
+        [
+          `${REGISTRY}/huge`,
+          jsonResponse({ name: "huge", versions, time: {} }),
+        ],
+      ]),
+    );
+
+    const result = await collectReleases("3", { fetchImpl });
+
+    expect(result.nextSince).toBe("4");
+    expect(result.candidates).toEqual([]);
+    expect(result.skipped.length).toBeLessThanOrEqual(101);
+    expect(result.skipped.at(-1)?.reason).toMatch(/more skipped entries/u);
+  });
+
   it("throws CollectorError for a change feed that is not the expected JSON", async () => {
     const { fetchImpl } = routedFetch(
       new Map([[`${CHANGES}?since=0&limit=100`, new Response("not json")]]),
