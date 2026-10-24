@@ -80,14 +80,16 @@ Status: pre-release. The existing v0.1 release, security guarantees, and validat
 
 **Success criteria:**
 
-- [ ] A public API can retrieve findings by ecosystem, package, version and artifact digest.
-- [ ] Every published finding has a stable ID, evidence, classification and analyzer version.
-- [ ] Suspicious behavior cannot automatically become a confirmed-malicious verdict.
-- [ ] Confirmed-malicious verdicts require an explicit validation step.
-- [ ] Corrections and retractions propagate to consumers.
-- [ ] Two independent repositories consuming the same affected package receive consistent intelligence.
-- [ ] CLI and Action continue functioning when the intelligence API is unavailable.
-- [ ] The backend can be deployed locally using documented setup instructions.
+- [x] A public API can retrieve findings by ecosystem, package, version and artifact digest. (`src/platform/intel-e2e.test.ts` scenarios 1 and 6, `src/platform/api.test.ts`)
+- [x] Every published finding has a stable ID, evidence, classification and analyzer version. (`src/platform/intel/finding.test.ts`, `src/platform/intel/publish.test.ts`)
+- [x] Suspicious behavior cannot automatically become a confirmed-malicious verdict. (`src/platform/intel-e2e.test.ts` scenario 1, `src/platform/intel/finding.test.ts`)
+- [x] Confirmed-malicious verdicts require an explicit validation step. (`src/platform/intel-e2e.test.ts` scenario 2, `src/platform/intel/finding.test.ts`)
+- [x] Corrections and retractions propagate to consumers. (`src/platform/intel-e2e.test.ts` scenario 4, `src/platform/intel/finding-store.test.ts`)
+- [x] Two independent repositories consuming the same affected package receive consistent intelligence. (`src/platform/intel-e2e.test.ts` scenario 3)
+- [x] CLI and Action continue functioning when the intelligence API is unavailable. (`src/platform/intel-e2e.test.ts` scenario 5, `src/action/run-action.test.ts`)
+- [x] The backend can be deployed locally using documented setup instructions. (`docs/platform.md`, `src/platform/platform-cli.test.ts`)
+
+`src/platform/intel-e2e.test.ts` runs one service and two independent repositories through confirmation, retraction, an outage and a wrong-digest finding. It needs no network beyond `127.0.0.1`.
 
 **Deliverable:** A self-hostable threat intelligence service with API and CI integration.
 
@@ -162,16 +164,16 @@ Maintain ecosystem-neutral contracts so PyPI, Cargo, Go and other ecosystems can
 
 The **first threat intelligence MVP is complete after Phases 1–3**, when all of the following are demonstrated:
 
-- [ ] New npm releases are automatically discovered and analyzed without project lockfiles.
-- [ ] Package capabilities and changes are stored with evidence and artifact identities.
-- [ ] Suspicious changes can be investigated through an API.
-- [ ] Findings have explicit severity, confidence and verdict states.
-- [ ] A validated malicious package can be published to a shared feed.
-- [ ] The CapDelta Action can consume that feed and block a confirmed-malicious dependency.
-- [ ] Two different repositories can benefit from the same intelligence finding.
-- [ ] The entire system can be self-hosted using documented instructions.
-- [ ] End-to-end tests cover ingestion, analysis, publication, consumption, corrections and service outages.
-- [ ] Detection quality, false positives and analysis failures are measured and documented.
+- [x] New npm releases are automatically discovered and analyzed without project lockfiles. (`src/platform/e2e.test.ts`)
+- [x] Package capabilities and changes are stored with evidence and artifact identities. (`src/platform/e2e.test.ts`, `src/platform/intel/publish.test.ts`)
+- [x] Suspicious changes can be investigated through an API. (`src/platform/intel-e2e.test.ts` scenario 1, `src/platform/api.test.ts`)
+- [x] Findings have explicit severity, confidence and verdict states. (`src/platform/intel/finding.test.ts`)
+- [x] A validated malicious package can be published to a shared feed. (`src/platform/intel-e2e.test.ts` scenario 3, `src/platform/intel/finding-store.test.ts`)
+- [x] The CapDelta Action can consume that feed and block a confirmed-malicious dependency. (`src/action/run-action.test.ts`)
+- [x] Two different repositories can benefit from the same intelligence finding. (`src/platform/intel-e2e.test.ts` scenario 3)
+- [x] The entire system can be self-hosted using documented instructions. (`docs/platform.md`, `src/platform/platform-cli.test.ts`)
+- [x] End-to-end tests cover ingestion, analysis, publication, consumption, corrections and service outages. (`src/platform/e2e.test.ts`, `src/platform/intel-e2e.test.ts`)
+- [x] Detection quality, false positives and analysis failures are measured and documented. (`docs/eval/2026-10-24/README.md`, `docs/fp-corpus-2026-07-29.md`)
 
 **Dynamic analysis and pre-CVE discovery are post-MVP capabilities, not prerequisites for the first release.**
 
