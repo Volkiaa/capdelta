@@ -999,3 +999,36 @@ the blog stayed parked.
 - A strip failure is not always unsupported syntax. karma's `config.tpl.ts` is a template that fails as a syntax error,
   so the diagnostic says "type stripping rejected" instead of naming a cause.
 - Pin a new dependency to the version the platform already vendors when there is one. amaro 1.2.2 was one day old.
+
+## 2026-10-24 to 25: v2 platform, phases 1 to 3
+
+An orchestrated run (DeepSeek workers, Codex security reviews) built the v2
+platform from `docs/v2-roadmap.md`. ADR-038 to ADR-041 and PRs #169 to #190.
+
+### 1. What shipped
+
+- Phase 1: `src/platform/` store, collector, queue, analyzer, API, service and
+  CLI, with an end-to-end test and `docs/platform.md`.
+- Phase 2: reconstruction proofs, reviewed baselines, evaluation tooling and the
+  `docs/eval/2026-10-24/` corpus.
+- Phase 3: finding model and review API, feed and OSV, CLI and Action
+  consumption, and an end-to-end test over two repositories.
+
+### 2. Measured
+
+- Held-out corpus before and after the consumer change: 45 pairs, 0 gate
+  failures, every row identical.
+- Evaluation: 222 benign transitions, 2 false positives; 2 real malicious
+  releases of 25 targeted; 13 of 14 synthetic detected at HIGH or CRITICAL, 6
+  of 14 at the default gate.
+- Live registry: 136 real releases analyzed in one monitor cycle, 0 failed.
+
+### 3. Lessons
+
+- Codex round counts dropped once each prompt stated what blocks and what does
+  not. The real defects it found were an unbounded spread into `push` (twice),
+  a direct insert of a confirmed finding, and a feed that hid a retraction.
+- A fake that is more permissive than the real service hides bugs. The test
+  registry now rejects what the live feed rejects.
+- Flaky timing tests came from running several workers at once. Heavy tests
+  carry a 60 s timeout.
