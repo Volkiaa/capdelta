@@ -29,7 +29,7 @@ import { evaluateSeverityGate } from "../src/core/run-severity.js";
 import { changedPackage, recentVersions } from "./fp-check.js";
 
 const BUMPS_PER_PACKAGE = 3;
-const MAX_ATTEMPTS = 3;
+export const MAX_ATTEMPTS = 3;
 const MAX_CONTEXT_SNIPPET_CHARS = 200;
 const TRANSIENT_FETCH_KINDS = new Set(["network-error", "timeout"]);
 
@@ -156,7 +156,7 @@ async function select(out: string, packages: readonly string[]): Promise<void> {
   await writeFile(out, `${JSON.stringify(corpus, null, 2)}\n`, "utf8");
 }
 
-async function analyzeOnce(pair: ChangedPackage): Promise<Attempt> {
+export async function analyzeOnce(pair: ChangedPackage): Promise<Attempt> {
   const startedAt = new Date().toISOString();
   const run = await analyzeChangedPackages({
     changed: [pair],
