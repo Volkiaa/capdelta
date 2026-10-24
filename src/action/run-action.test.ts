@@ -20,6 +20,36 @@ import {
 const SHA = "a".repeat(40);
 const EMPTY_LOCKFILE = JSON.stringify({ lockfileVersion: 3, packages: {} });
 
+const OLD_LOCKFILE = JSON.stringify({
+  name: "fixture",
+  version: "1.0.0",
+  lockfileVersion: 3,
+  requires: true,
+  packages: {
+    "": { name: "fixture", version: "1.0.0" },
+    "node_modules/bad": {
+      version: "1.0.0",
+      resolved: "https://registry.npmjs.org/bad/-/bad-1.0.0.tgz",
+      integrity: "sha512-old",
+    },
+  },
+});
+const NEW_LOCKFILE = JSON.stringify({
+  name: "fixture",
+  version: "1.0.0",
+  lockfileVersion: 3,
+  requires: true,
+  packages: {
+    "": { name: "fixture", version: "1.0.0" },
+    "node_modules/bad": {
+      version: "1.1.0",
+      resolved: "https://registry.npmjs.org/bad/-/bad-1.1.0.tgz",
+      integrity: "sha512-bad",
+    },
+  },
+});
+const INTEL_ID = "CDI-0123456789abcdef0123";
+
 function emptyRun(firstRun = false): CapabilityAnalysisRun {
   return {
     firstRun,
@@ -89,7 +119,7 @@ const context: ActionContext = {
   actor: "contributor",
 };
 
-function adapters(run = emptyRun()) {
+function adapters(run = emptyRun(), fetchImpl?: typeof fetch) {
   const listChangedFiles = vi
     .fn<ActionAdapters["listChangedFiles"]>()
     .mockResolvedValue(["package-lock.json"]);
@@ -143,6 +173,7 @@ function adapters(run = emptyRun()) {
     addJobSummary,
     warn,
     setOutput,
+    ...(fetchImpl === undefined ? {} : { fetchImpl }),
   };
 }
 
@@ -807,5 +838,135 @@ describe("runAction", () => {
     await expect(runAction(inputs, context, runtime)).rejects.toThrow(
       "failed to upload JSON report artifact",
     );
+  });
+
+  describe("intel-url", () => {
+    function withChangedLockfiles(runtime: ReturnType<typeof adapters>) {
+      runtime.contents.getContent.mockResolvedValue({
+        status: 200,
+        data: {
+          type: "file",
+          size: Buffer.byteLength(OLD_LOCKFILE),
+          encoding: "base64",
+          content: Buffer.from(OLD_LOCKFILE).toString("base64"),
+        },
+      });
+      runtime.readHeadLockfile.mockResolvedValue(NEW_LOCKFILE);
+      return runtime;
+    }
+
+    function intelFetch(verdict: string): typeof fetch {
+      return (input) => {
+        const url = input instanceof Request ? input.url : input.toString();
+        if (!url.startsWith("https://intel.example/")) {
+          throw new Error(`unexpected fetch for ${url}`);
+        }
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              findings: [
+                {
+                  id: INTEL_ID,
+                  ecosystem: "npm",
+                  name: "bad",
+                  version: "1.1.0",
+                  digest: "sha512-bad",
+                  verdict,
+                },
+              ],
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          ),
+        );
+      };
+    }
+
+    it("adds a confirmed feed match as CRITICAL and renders it in the comment", async () => {
+      const runtime = withChangedLockfiles(
+        adapters(emptyRun(), intelFetch("confirmed-malicious")),
+      );
+
+      const outcome = await runAction(
+        { ...inputs, intelUrl: "https://intel.example" },
+        context,
+        runtime,
+      );
+
+      expect(outcome).toMatchObject({
+        status: "analyzed",
+        gate: { fail: true, highest: "CRITICAL" },
+      });
+      const json = runtime.uploadJson.mock.calls[0]?.[1];
+      expect(json).toContain("intel-confirmed-malicious");
+      expect(json).toContain(INTEL_ID);
+      const body = runtime.comments.createComment.mock.calls[0]?.[0].body;
+      expect(body).toContain("intel&#45;confirmed&#45;malicious");
+      expect(body).toContain("CDI&#45;0123456789abcdef0123");
+      expect(runtime.warn).not.toHaveBeenCalled();
+    });
+
+    it.each(["retracted", "suspected"])(
+      "a %s verdict leaves the report and gate unchanged",
+      async (verdict) => {
+        const baseline = withChangedLockfiles(adapters());
+        const baselineOutcome = await runAction(inputs, context, baseline);
+
+        const withFeed = withChangedLockfiles(
+          adapters(emptyRun(), intelFetch(verdict)),
+        );
+        const outcome = await runAction(
+          { ...inputs, intelUrl: "https://intel.example" },
+          context,
+          withFeed,
+        );
+
+        expect(withFeed.uploadJson.mock.calls[0]?.[1]).toBe(
+          baseline.uploadJson.mock.calls[0]?.[1],
+        );
+        expect(outcome.status === "analyzed" ? outcome.gate : null).toEqual(
+          baselineOutcome.status === "analyzed" ? baselineOutcome.gate : null,
+        );
+        expect(withFeed.warn).not.toHaveBeenCalled();
+      },
+    );
+
+    it("warns for an unreachable service and keeps local analysis", async () => {
+      const baseline = withChangedLockfiles(adapters());
+      const baselineOutcome = await runAction(inputs, context, baseline);
+
+      const unreachable: typeof fetch = () =>
+        Promise.reject(new TypeError("fetch failed"));
+      const withFeed = withChangedLockfiles(adapters(emptyRun(), unreachable));
+      const outcome = await runAction(
+        { ...inputs, intelUrl: "https://intel.example" },
+        context,
+        withFeed,
+      );
+
+      expect(withFeed.uploadJson.mock.calls[0]?.[1]).toBe(
+        baseline.uploadJson.mock.calls[0]?.[1],
+      );
+      expect(withFeed.warn).toHaveBeenCalledWith(
+        "capdelta: intelligence service unavailable (network-error); continuing with local analysis only",
+      );
+      expect(outcome.status === "analyzed" ? outcome.gate : null).toEqual(
+        baselineOutcome.status === "analyzed" ? baselineOutcome.gate : null,
+      );
+    });
+
+    it("rejects an invalid service URL before analysis", async () => {
+      const runtime = withChangedLockfiles(adapters());
+
+      await expect(
+        runAction(
+          { ...inputs, intelUrl: "http://example.com" },
+          context,
+          runtime,
+        ),
+      ).rejects.toThrow("intel URL must use https");
+
+      expect(runtime.listChangedFiles).not.toHaveBeenCalled();
+      expect(runtime.analyze).not.toHaveBeenCalled();
+    });
   });
 });

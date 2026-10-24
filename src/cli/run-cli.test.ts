@@ -182,6 +182,54 @@ function goldenFetch(oldBytes: Uint8Array, newBytes: Uint8Array): typeof fetch {
   };
 }
 
+const INTEL_BASE_URL = "https://intel.example";
+
+interface CapturedIntelRequest {
+  url: string;
+  init: RequestInit | undefined;
+}
+
+function withIntelService(
+  registry: typeof fetch,
+  respond: () => Promise<Response>,
+  captured: CapturedIntelRequest[] = [],
+): typeof fetch {
+  return (input, init) => {
+    const url = input instanceof Request ? input.url : input.toString();
+    if (!url.startsWith(`${INTEL_BASE_URL}/`)) return registry(input, init);
+    captured.push({ url, init });
+    return respond();
+  };
+}
+
+function intelBody(
+  verdict: string,
+  digest: string,
+  name = "golden-fixture",
+): string {
+  return JSON.stringify({
+    findings: [
+      {
+        id: "CDI-0123456789abcdef0123",
+        ecosystem: "npm",
+        name,
+        version: "2.0.0",
+        digest,
+        verdict,
+      },
+    ],
+  });
+}
+
+function jsonResponse(body: string): Promise<Response> {
+  return Promise.resolve(
+    new Response(body, {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    }),
+  );
+}
+
 async function runInProcess(
   cwd: string,
   argv: readonly string[],
@@ -1129,5 +1177,125 @@ describe("capdelta CLI", () => {
     expect(result.stderr).toContain(
       "--fail-on must be CRITICAL, HIGH, MEDIUM, LOW, INFO, or none",
     );
+  });
+
+  describe("--intel-url", () => {
+    it("reports a confirmed malicious artifact as CRITICAL and fails the gate", async () => {
+      const { oldBytes, newBytes } = await goldenBytes();
+      const newIntegrity = sri(newBytes);
+      await withBump(
+        lockfileWithGolden("1.0.0", sri(oldBytes)),
+        lockfileWithGolden("2.0.0", newIntegrity),
+        async (cwd) => {
+          const captured: CapturedIntelRequest[] = [];
+          const fetchImpl = withIntelService(
+            goldenFetch(oldBytes, newBytes),
+            () => jsonResponse(intelBody("confirmed-malicious", newIntegrity)),
+            captured,
+          );
+          const result = await runInProcess(
+            cwd,
+            ["--base", "HEAD", "--intel-url", INTEL_BASE_URL],
+            fetchImpl,
+          );
+
+          expect(result.exitCode).toBe(1);
+          expect(result.stdout).toContain(
+            "[CRITICAL] [intel-confirmed-malicious]",
+          );
+          expect(result.stdout).toContain(
+            'intel ID "CDI-0123456789abcdef0123"',
+          );
+          expect(result.stderr).toContain(
+            "finding(s) at or above CRITICAL (highest: CRITICAL)",
+          );
+          expect(captured).toHaveLength(1);
+          const request = captured[0];
+          expect(request).toBeDefined();
+          if (request === undefined) return;
+          const url = new URL(request.url);
+          expect([...url.searchParams.keys()]).toEqual(["ecosystem", "digest"]);
+          expect(url.searchParams.get("digest")).toBe(newIntegrity);
+          expect(request.init?.headers).toBeUndefined();
+        },
+      );
+    });
+
+    it.each(["retracted", "suspected"])(
+      "a %s verdict leaves the report and exit code unchanged",
+      async (verdict) => {
+        const { oldBytes, newBytes } = await goldenBytes();
+        const newIntegrity = sri(newBytes);
+        await withBump(
+          lockfileWithGolden("1.0.0", sri(oldBytes)),
+          lockfileWithGolden("2.0.0", newIntegrity),
+          async (cwd) => {
+            const baseline = await runInProcess(
+              cwd,
+              ["--base", "HEAD"],
+              goldenFetch(oldBytes, newBytes),
+            );
+            const withFeed = await runInProcess(
+              cwd,
+              ["--base", "HEAD", "--intel-url", INTEL_BASE_URL],
+              withIntelService(goldenFetch(oldBytes, newBytes), () =>
+                jsonResponse(intelBody(verdict, newIntegrity)),
+              ),
+            );
+
+            expect(withFeed.stdout).toBe(baseline.stdout);
+            expect(withFeed.stderr).toBe(baseline.stderr);
+            expect(withFeed.exitCode).toBe(baseline.exitCode);
+          },
+        );
+      },
+    );
+
+    it("warns for an unreachable service and keeps local analysis", async () => {
+      const { oldBytes, newBytes } = await goldenBytes();
+      await withBump(
+        lockfileWithGolden("1.0.0", sri(oldBytes)),
+        lockfileWithGolden("2.0.0", sri(newBytes)),
+        async (cwd) => {
+          const baseline = await runInProcess(
+            cwd,
+            ["--base", "HEAD"],
+            goldenFetch(oldBytes, newBytes),
+          );
+          const unreachable = await runInProcess(
+            cwd,
+            ["--base", "HEAD", "--intel-url", INTEL_BASE_URL],
+            withIntelService(goldenFetch(oldBytes, newBytes), () =>
+              Promise.reject(new TypeError("fetch failed")),
+            ),
+          );
+
+          expect(unreachable.stdout).toBe(baseline.stdout);
+          expect(unreachable.stderr).toBe(
+            `capdelta: warning: intelligence service unavailable (network-error); continuing with local analysis only\n${baseline.stderr}`,
+          );
+          expect(unreachable.exitCode).toBe(baseline.exitCode);
+        },
+      );
+    });
+
+    it("rejects an invalid service URL with exit 64 before analysis", async () => {
+      const cwd = await createRepository(emptyLockfile("intel-url-bad"));
+      try {
+        const result = await runInProcess(cwd, [
+          "--base",
+          "HEAD",
+          "--intel-url",
+          "http://example.com",
+        ]);
+        expect(result.exitCode).toBe(64);
+        expect(result.stdout).toBe("");
+        expect(result.stderr).toBe(
+          "capdelta: intel URL must use https, or http only on localhost, 127.0.0.1 or [::1]\n",
+        );
+      } finally {
+        await rm(cwd, { recursive: true, force: true });
+      }
+    });
   });
 });

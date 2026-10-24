@@ -16,7 +16,7 @@ export const STRICT_ANALYSIS_EXIT_CODE = 2;
 export const DEFAULT_FAIL_ON: FailOn = "CRITICAL";
 
 export const CLI_HELP = [
-  "Usage: capdelta --base <ref> [--format text|json] [--config path] [--fail-on severity] [--strict]",
+  "Usage: capdelta --base <ref> [--format text|json] [--config path] [--fail-on severity] [--strict] [--intel-url url]",
   "",
   "Compare the checkout's package-lock.json with a Git base revision.",
   "",
@@ -25,6 +25,9 @@ export const CLI_HELP = [
   "  --format text|json    Report format (default: text)",
   "  --config <path>       Allowlist config, read from the base commit",
   "                        (relative to cwd; default: .capdelta.yml)",
+  "  --intel-url <url>     Query a shared intelligence feed for artifacts",
+  "                        reviewers confirmed malicious (https, or http on",
+  "                        localhost, 127.0.0.1, [::1])",
   "  --fail-on <severity>  Exit 1 at or above CRITICAL, HIGH, MEDIUM, LOW, INFO,",
   "                        or never with none (default: CRITICAL)",
   "  --strict              Exit 2 when any content is unanalyzed; takes",
@@ -40,6 +43,7 @@ export interface CliArguments {
   configPath: string | null;
   failOn: FailOn;
   strict: boolean;
+  intelUrl: string | null;
 }
 
 export function parseCliArguments(argv: readonly string[]): CliArguments {
@@ -50,6 +54,7 @@ export function parseCliArguments(argv: readonly string[]): CliArguments {
   let configPath: string | null = null;
   let failOn: FailOn | null = null;
   let strict = false;
+  let intelUrl: string | null = null;
 
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
@@ -98,6 +103,14 @@ export function parseCliArguments(argv: readonly string[]): CliArguments {
       strict = true;
       continue;
     }
+    if (argument === "--intel-url") {
+      if (intelUrl !== null) {
+        throw new CliUsageError("--intel-url may only be provided once");
+      }
+      intelUrl = readFlagValue(argv, index, "--intel-url", "a URL");
+      index += 1;
+      continue;
+    }
     throw new CliUsageError(`unknown argument ${JSON.stringify(argument)}`);
   }
 
@@ -108,6 +121,7 @@ export function parseCliArguments(argv: readonly string[]): CliArguments {
     configPath,
     failOn: failOn ?? DEFAULT_FAIL_ON,
     strict,
+    intelUrl,
   };
 }
 

@@ -794,6 +794,25 @@ describe("renderActionComment", () => {
     expect(body).toContain("Showing 1 of 1 findings");
   });
 
+  it("renders an intel-confirmed-malicious row through the lockfile path", () => {
+    const intelId = "CDI-0123456789abcdef0123";
+    const report = lockfileReport([
+      lockfileFinding({
+        kind: "intel-confirmed-malicious",
+        path: `intel:${intelId}`,
+        intelId,
+        severity: "CRITICAL",
+      }),
+    ]);
+
+    const body = renderActionComment(report);
+
+    expect(body).toContain("| CRITICAL |");
+    expect(body).toContain("intel&#45;confirmed&#45;malicious");
+    expect(body).toContain("intel&#58;CDI&#45;0123456789abcdef0123");
+    expect(body).toContain("### What these mean");
+  });
+
   it("counts lockfile findings toward the row cap and the Showing line", () => {
     const report = adversarialReport();
     report.summary = {

@@ -11,6 +11,7 @@ describe("CLI options", () => {
       configPath: null,
       failOn: "CRITICAL",
       strict: false,
+      intelUrl: null,
     });
     expect(
       parseCliArguments(["--format", "json", "--base", "origin/main"]),
@@ -21,7 +22,19 @@ describe("CLI options", () => {
       configPath: null,
       failOn: "CRITICAL",
       strict: false,
+      intelUrl: null,
     });
+  });
+
+  it("parses an intelligence feed URL", () => {
+    expect(
+      parseCliArguments([
+        "--base",
+        "main",
+        "--intel-url",
+        "https://intel.example",
+      ]),
+    ).toMatchObject({ intelUrl: "https://intel.example" });
   });
 
   it("parses a case-insensitive --fail-on threshold", () => {
@@ -41,6 +54,7 @@ describe("CLI options", () => {
       configPath: null,
       failOn: "CRITICAL",
       strict: false,
+      intelUrl: null,
     });
     expect(CLI_HELP).toContain("Usage: capdelta --base <ref>");
   });
@@ -76,6 +90,16 @@ describe("CLI options", () => {
     {
       argv: ["--fail-on", "HIGH", "--fail-on", "LOW"],
       message: "--fail-on may only be provided once",
+    },
+    { argv: ["--intel-url"], message: "--intel-url requires a URL" },
+    {
+      argv: [
+        "--intel-url",
+        "https://one.example",
+        "--intel-url",
+        "https://two.example",
+      ],
+      message: "--intel-url may only be provided once",
     },
   ])("rejects invalid usage: $message", ({ argv, message }) => {
     expect(() => parseCliArguments(argv)).toThrow(new CliUsageError(message));
