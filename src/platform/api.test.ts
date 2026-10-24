@@ -13,7 +13,6 @@ import {
   type NewFindingInput,
 } from "./intel/finding.js";
 import { FindingStore } from "./intel/finding-store.js";
-import { toOsv } from "./intel/osv.js";
 import { JobQueue, type JobRecord } from "./job-queue.js";
 import { JsonStore, encodeKey } from "./json-store.js";
 import type { ReleaseCandidate } from "./release-candidate.js";
@@ -642,13 +641,25 @@ describe("GET /v1/osv/<id>", () => {
 
     const response = await get(`/v1/osv/${finding.id}`);
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual(toOsv(confirmed));
+    const body = (await response.json()) as {
+      schema_version: string;
+      id: string;
+      modified: string;
+      published: string;
+      withdrawn?: string;
+    };
+    expect(body).toMatchObject({
+      schema_version: "1.6.0",
+      id: finding.id,
+      modified: confirmed.updatedAt,
+      published: finding.createdAt,
+    });
 
     const retracted = await retract(finding.id);
     const after = await get(`/v1/osv/${finding.id}`);
     expect(after.status).toBe(200);
-    const body = (await after.json()) as { withdrawn?: string };
-    expect(body.withdrawn).toBe(retracted.updatedAt);
+    const afterBody = (await after.json()) as { withdrawn?: string };
+    expect(afterBody.withdrawn).toBe(retracted.updatedAt);
   });
 
   it("rejects a malformed id", async () => {

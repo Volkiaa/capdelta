@@ -185,7 +185,8 @@ describe("publishFindings", () => {
     const counts = await publishFindings(record, findings, () => NOW);
 
     expect(counts).toEqual({ created: 4, existing: 0 });
-    await expect(ruleKeys(record)).resolves.toEqual([
+    const keys = await ruleKeys(record);
+    expect(keys.map((key) => key.replace(/:[0-9a-f]{8}$/u, ""))).toEqual([
       "capability:NET:added",
       "capability:PROCESS:added",
       "shape:secret-exfiltration",
@@ -203,6 +204,19 @@ describe("publishFindings", () => {
         analyzerVersion: "test-analyzer",
       });
     }
+  });
+
+  it("keeps two findings of one kind in one release apart", async () => {
+    const first = signalFinding("new-external-endpoint", "HIGH");
+    const second = {
+      ...signalFinding("new-external-endpoint", "HIGH"),
+      detail: "a second host appeared",
+    };
+    const record = makeRecord(report({ signalFindings: [first, second] }));
+
+    const counts = await publishFindings(record, findings, () => NOW);
+
+    expect(counts).toEqual({ created: 2, existing: 0 });
   });
 
   it("keeps ids stable and reports existing findings on a repeat publish", async () => {

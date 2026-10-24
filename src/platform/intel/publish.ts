@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { NamedError } from "../../core/named-error.js";
 import type {
   JsonReport,
@@ -117,19 +118,30 @@ function pendingFindings(report: JsonReport): PendingFinding[] {
   return pending;
 }
 
+/** Two findings of one kind in one release (two hosts) must not share an id. */
+function discriminated(base: string, summary: string): string {
+  const hash = createHash("sha256").update(summary, "utf8").digest("hex");
+  return `${base}:${hash.slice(0, 8)}`;
+}
+
 function capabilityPending(finding: JsonReportFinding): PendingFinding {
+  const summary = capabilitySummary(finding);
   return {
-    ruleKey: `capability:${finding.capability.kind}:${finding.change}`,
-    summary: capabilitySummary(finding),
+    ruleKey: discriminated(
+      `capability:${finding.capability.kind}:${finding.change}`,
+      summary,
+    ),
+    summary,
     severity: finding.severity,
     evidence: finding.capability.evidence,
   };
 }
 
 function signalPending(finding: JsonReportSignalFinding): PendingFinding {
+  const summary = nonEmpty(finding.detail, `signal ${finding.kind}`);
   return {
-    ruleKey: `signal:${finding.kind}`,
-    summary: nonEmpty(finding.detail, `signal ${finding.kind}`),
+    ruleKey: discriminated(`signal:${finding.kind}`, summary),
+    summary,
     severity: finding.severity,
     evidence: finding.evidence,
   };
