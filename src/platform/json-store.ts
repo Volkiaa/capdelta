@@ -10,7 +10,7 @@ import {
   unlink,
   type FileHandle,
 } from "node:fs/promises";
-import { join } from "node:path";
+import { resolve, sep } from "node:path";
 import { NamedError } from "../core/named-error.js";
 import { MAX_IDENTITY_CHARS, truncate } from "../core/report-builder.js";
 
@@ -154,7 +154,7 @@ export class JsonStore {
 
     let entries: Dirent[];
     try {
-      entries = await readdir(join(this.root, kind), { withFileTypes: true });
+      entries = await readdir(this.contain(kind), { withFileTypes: true });
     } catch (error) {
       if (hasCode(error, "ENOENT")) return [];
       throw wrap("list", kind, undefined, error);
@@ -194,7 +194,7 @@ export class JsonStore {
   ): Promise<boolean> {
     let stats: Stats;
     try {
-      stats = await lstat(join(this.root, kind));
+      stats = await lstat(this.contain(kind));
     } catch (error) {
       if (hasCode(error, "ENOENT")) return false;
       throw wrap("inspect the directory for", kind, key, error);
@@ -220,7 +220,7 @@ export class JsonStore {
 
     if (!(await this.inspectKindDirectory(kind, key))) {
       try {
-        await mkdir(join(this.root, kind));
+        await mkdir(this.contain(kind));
       } catch (error) {
         if (!hasCode(error, "EEXIST")) {
           throw wrap("create the directory for", kind, key, error);
@@ -230,11 +230,21 @@ export class JsonStore {
         await this.inspectKindDirectory(kind, key);
       }
     }
-    return join(this.root, kind);
+    return this.contain(kind);
+  }
+
+  /** Resolves under the root and refuses any path that leaves it, after the kind and key checks. */
+  private contain(...segments: string[]): string {
+    const root = resolve(this.root);
+    const full = resolve(root, ...segments);
+    if (full !== root && !full.startsWith(`${root}${sep}`)) {
+      throw new JsonStoreError("a store path resolved outside the store root");
+    }
+    return full;
   }
 
   private pathFor(kind: string, key: string): string {
-    return join(this.root, kind, `${key}${RECORD_SUFFIX}`);
+    return this.contain(kind, `${key}${RECORD_SUFFIX}`);
   }
 
   private async writeTemp(
@@ -242,10 +252,10 @@ export class JsonStore {
     key: string,
     content: string,
   ): Promise<string> {
-    const directory = await this.ensureKindDirectory(kind, key);
+    await this.ensureKindDirectory(kind, key);
 
-    const tempPath = join(
-      directory,
+    const tempPath = this.contain(
+      kind,
       `.${key}.${randomBytes(8).toString("hex")}.tmp`,
     );
     let handle: FileHandle;
