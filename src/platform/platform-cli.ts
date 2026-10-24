@@ -154,6 +154,7 @@ async function runServe(args: string[], io: PlatformCliIo): Promise<number> {
   const handles = openService({ dataDir: data.data, collector: {} });
   const server = createApiServer({
     releases: handles.releases,
+    findings: handles.findings,
     queue: handles.queue,
   });
 

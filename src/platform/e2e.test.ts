@@ -75,6 +75,7 @@ async function startApi(): Promise<void> {
   const handles = openService({ dataDir, collector: {} });
   server = createApiServer({
     releases: handles.releases,
+    findings: handles.findings,
     queue: handles.queue,
   });
   const address = await listenApi(server, 0);
@@ -323,5 +324,36 @@ describe("platform end to end", () => {
     const { status, body } = await releasesAt("brand-new", "1.0.0");
     expect(status).toBe(200);
     expect(onlyRelease(body.releases).previousVersion).toBeNull();
+  });
+
+  it("publishes findings for the new release and a replay creates none", async () => {
+    const registry = createFakeRegistry();
+    const service = serviceConfig(registry);
+    const first = await monitorOnce(service);
+    registry.publish("intel", "1.0.0");
+    registry.publish("intel", "1.1.0", {
+      scripts: { postinstall: "node index.js" },
+      indexJs: 'fetch("https://example.com");\n',
+    });
+
+    await monitorOnce(service);
+
+    const handles = openService(service);
+    const published = await handles.findings.findByPackage("intel", "1.1.0");
+    expect(published.length).toBeGreaterThan(0);
+    expect(published.every((finding) => finding.verdict === "suspected")).toBe(
+      true,
+    );
+
+    const jobs = await handles.queue.list();
+    for (const job of jobs) await handles.store.delete("job", job.id);
+    await handles.store.put("cursor", "npm-changes", { since: first.cursor });
+
+    const replay = await monitorOnce(service);
+
+    expect(replay).toMatchObject({ enqueued: 2, done: 2, failed: 0 });
+    await expect(
+      handles.findings.findByPackage("intel", "1.1.0"),
+    ).resolves.toHaveLength(published.length);
   });
 });
