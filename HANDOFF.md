@@ -1,7 +1,60 @@
 # HANDOFF
 
 Start here, then read CLAUDE.md. `docs/SESSIONS.md` has the history and
-docs/PLAN.md (rev. 3) is the spec. Last updated 2026-10-21 (evening).
+docs/PLAN.md (rev. 3) is the spec. Last updated 2026-10-25.
+
+## v2 platform, phases 1 to 3 (2026-10-24 to 25)
+
+The v2 service is on main and works end to end. `docs/v2-roadmap.md` is the
+goal, `docs/platform.md` is the operator guide, ADR-038 to ADR-041 are the
+design. Merged: #169 to #190.
+
+- **Phase 1.** `src/platform/` has the file store, npm collector, job queue,
+  `analyzeRelease`, read API and the `capdelta-platform` CLI (`monitor`,
+  `analyze`, `serve`, `reviewer-token`). Proven on the live registry: `monitor`
+  bootstrapped from `update_seq`, then analyzed 136 real releases with 0
+  failures.
+- **Phase 2.** Reconstructions prove a new host with existing `NET` and a new
+  sensitive read with existing `FS_READ` (#179). Reviewed baselines and a
+  slow-roll test are in #180 (ADR-040). The evaluation is in
+  `docs/eval/2026-10-24/`: 222 benign transitions, 2 false positives (0.9%),
+  incomplete 10.9%.
+- **Phase 3.** Findings keep severity, confidence and verdict apart (ADR-039).
+  Only a reviewer token plus a validation reaches `confirmed-malicious`. The
+  feed, OSV records and query routes exist. `--intel-url` and the Action input
+  `intel-url` add a CRITICAL finding for a confirmed match (ADR-041, Tier 2,
+  stricter only, held-out unchanged).
+
+**Not met.** The roadmap asks for 25 real malicious releases. Only 2 are still
+on the registry (faker 6.6.6, node-ipc 11.0.0). The roadmap line is unticked
+and says why. Real recall is 0 of 2, and the default gate fires on 6 of 14
+synthetic reconstructions. Nothing was tuned on the held-out entries.
+
+**Decide first.**
+
+1. The overnight drafts #161, #163 to #166 (ADR-032 to ADR-036) are still open
+   and `main`'s old HANDOFF decision list below still applies to them. They
+   predate this work.
+2. Phase 4 (sandboxed dynamic analysis) and phase 5 are not started. The
+   roadmap marks them post-MVP.
+3. The platform has no TLS and no rate limiting by design. Put a reverse proxy
+   in front before exposing it beyond localhost.
+
+**Known gaps worth a ticket.** The lockfile differ accepts only
+`registry.npmjs.org` (`src/core/npm/lockfile-differ.ts:28`), so mirrors are
+skipped as private. A feed event queues the 3 newest versions of a package.
+`JobQueue.claim` scans the whole job directory. The analyzer cannot yet
+analyze a new package's dependency tree, which is why `node-ipc` 11.0.0 is
+missed.
+
+**Lessons.** Run the built tool on the real service before calling it done:
+the live feed rejected `since=now`, which a fake registry had accepted, and
+the first `serve` exited at once because the entry never passed a signal.
+CodeQL gates PRs: path-building code needs a resolve-and-startsWith check it
+recognizes, not only a regex. Codex blocks on theory unless the prompt states
+the blocking bar, so each review prompt names it.
+
+## Earlier state
 
 ## Where main stands
 
