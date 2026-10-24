@@ -38,6 +38,7 @@
     "check:deps": "node scripts/check-dep-budget.mjs",
     "fp-check": "tsx scripts/fp-check.ts",
     "eval": "tsx scripts/eval-corpus.ts",
+    "eval:build": "tsx scripts/eval-build-corpus.ts",
     "difffuzz": "tsx scripts/difffuzz.ts"
   },
   "devDependencies": {
