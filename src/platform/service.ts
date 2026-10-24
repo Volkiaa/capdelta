@@ -16,6 +16,7 @@ import { JsonStore } from "./json-store.js";
 import {
   candidatesForPackage,
   collectReleases,
+  currentFeedSequence,
   type CollectorOptions,
   type CollectorSkipped,
 } from "./registry-collector.js";
@@ -45,7 +46,6 @@ export interface ServiceHandles {
 const CURSOR_KIND = "cursor";
 const CURSOR_KEY = "npm-changes";
 /** The npm change feed reads this as the current sequence number. */
-const FIRST_SINCE = "now";
 const CONTROL_CHARACTER = /\p{Cc}/u;
 
 export function openService(config: ServiceConfig): ServiceHandles {
@@ -73,7 +73,21 @@ export async function monitorOnce(config: ServiceConfig): Promise<{
   const handles = openService(config);
   await handles.queue.recover();
 
-  const since = await readCursor(handles.store);
+  const stored = await readCursor(handles.store);
+  if (stored === null) {
+    // First cycle: start at the database's current sequence, queue no history.
+    const cursor = await currentFeedSequence(config.collector);
+    await handles.store.put(CURSOR_KIND, CURSOR_KEY, { since: cursor });
+    const drained = await drain(config, handles);
+    return {
+      enqueued: 0,
+      skipped: 0,
+      done: drained.done,
+      failed: drained.failed,
+      cursor,
+    };
+  }
+  const since = stored;
   const collected = await collectReleases(since, config.collector);
   reportSkipped(config, collected.skipped);
   const cursor = collected.nextSince;
@@ -130,9 +144,9 @@ export async function analyzeOne(
   return { done: drained.done, failed: drained.failed };
 }
 
-async function readCursor(store: JsonStore): Promise<string> {
+async function readCursor(store: JsonStore): Promise<string | null> {
   const value = await store.get(CURSOR_KIND, CURSOR_KEY);
-  if (value === null) return FIRST_SINCE;
+  if (value === null) return null;
   if (!isRecord(value) || !isUsableCursor(value.since)) {
     throw new ServiceError(
       `invalid cursor record for "${CURSOR_KEY}": expected { since: string } with a bounded, non-empty since`,
