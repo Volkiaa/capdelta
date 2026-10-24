@@ -1,0 +1,3954 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-10-24T00:00:00.000Z",
+  "splitRule": "held out when sha256(salt + id) is below 0.3 with salt capdelta-eval-2026-10-24",
+  "entries": [
+    {
+      "id": "benign:m5:got:15.0.6->15.0.7",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "got",
+        "oldVersion": "15.0.6",
+        "newVersion": "15.0.7",
+        "oldIntegrity": "sha512-6DEiZOte0BMR/QUFlk7CTBtcLpnJx/gAGnmApWtnHvM2i+LssgCaC3Kl3x+SZ/laTbYlmcaabylkwS0t97Y4BA==",
+        "newIntegrity": "sha512-HA4XUhL2xk0/sA4l3zRyOzfqPtDEiVYpzDae56WLX2aHZYF6v6hjTnuDvURIdznSTPFYW1JUdlREhZjGAF9LCQ==",
+        "oldResolvedUrl": "https://registry.npmjs.org/got/-/got-15.0.6.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/got/-/got-15.0.7.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:m5:got:15.0.7->15.1.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "got",
+        "oldVersion": "15.0.7",
+        "newVersion": "15.1.0",
+        "oldIntegrity": "sha512-HA4XUhL2xk0/sA4l3zRyOzfqPtDEiVYpzDae56WLX2aHZYF6v6hjTnuDvURIdznSTPFYW1JUdlREhZjGAF9LCQ==",
+        "newIntegrity": "sha512-DG+DAAkRtno+oDr/GBsliAkhN9+zczOPM5qXk3efDZY3qvyRnZU+NwQlb/IOY6cSnxxTR9z3aHCcShJyjb0hJA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/got/-/got-15.0.7.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/got/-/got-15.1.0.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:got:15.1.0->16.0.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "got",
+        "oldVersion": "15.1.0",
+        "newVersion": "16.0.0",
+        "oldIntegrity": "sha512-DG+DAAkRtno+oDr/GBsliAkhN9+zczOPM5qXk3efDZY3qvyRnZU+NwQlb/IOY6cSnxxTR9z3aHCcShJyjb0hJA==",
+        "newIntegrity": "sha512-UtzSUebtRHHAUaNB/X37X1LQgHvdSrgXUIWGUBDhLu05CYtUr9svjeN6wmG333nzdJASFUjXMOuRBjZLf8oF1w==",
+        "oldResolvedUrl": "https://registry.npmjs.org/got/-/got-15.1.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/got/-/got-16.0.0.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:undici:8.10.2->8.11.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "undici",
+        "oldVersion": "8.10.2",
+        "newVersion": "8.11.0",
+        "oldIntegrity": "sha512-/y4/bH9YNU5hi9NIrpOuvGXFcxrj3CMrV+/AYpowAYTpHn8gX/XPFjNy766FPoYY0miQhdW977JFWKGNhBdwyQ==",
+        "newIntegrity": "sha512-AdzuGcAkzhbha3GgCSoUBx2P0quwym6qdFNCQz/fDGZc8w9XJ741wHUbt2kTmfPz+ZIOMkySFkiY7RXmiDDC8w==",
+        "oldResolvedUrl": "https://registry.npmjs.org/undici/-/undici-8.10.2.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/undici/-/undici-8.11.0.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:m5:undici:8.11.0->8.11.1",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "undici",
+        "oldVersion": "8.11.0",
+        "newVersion": "8.11.1",
+        "oldIntegrity": "sha512-AdzuGcAkzhbha3GgCSoUBx2P0quwym6qdFNCQz/fDGZc8w9XJ741wHUbt2kTmfPz+ZIOMkySFkiY7RXmiDDC8w==",
+        "newIntegrity": "sha512-TlM6uPTfw1uM14VFCB/VRq6JGtxY8+aA7vhqB9uH1vGsi/Db7ZjcagIV/wSsICKB+CxXjqtMzdW+QfYE8Ceulg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/undici/-/undici-8.11.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/undici/-/undici-8.11.1.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:undici:8.11.1->8.11.2",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "undici",
+        "oldVersion": "8.11.1",
+        "newVersion": "8.11.2",
+        "oldIntegrity": "sha512-TlM6uPTfw1uM14VFCB/VRq6JGtxY8+aA7vhqB9uH1vGsi/Db7ZjcagIV/wSsICKB+CxXjqtMzdW+QfYE8Ceulg==",
+        "newIntegrity": "sha512-u4UB2/IrKdU6lFxumHmmo1a3fCQO5tzQllRorfoRS63txhrB7xTpSn1PftwC4qEHkOaqP95fCWW4lJzwErwzhQ==",
+        "oldResolvedUrl": "https://registry.npmjs.org/undici/-/undici-8.11.1.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/undici/-/undici-8.11.2.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:m5:ws:8.21.1->8.21.2",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "ws",
+        "oldVersion": "8.21.1",
+        "newVersion": "8.21.2",
+        "oldIntegrity": "sha512-+0NTnW77fFN/DjQi6k/Sq/Yvk4Sgajw7urW8V+asjXnRgDs9gyGkdb7EzgfhA4goXsRIZKE28fzIXBHEzhuiWw==",
+        "newIntegrity": "sha512-54dMVAo4WIe6SKy3vBgN+9bJZqqQ8IMRevAkOLQALhi49qkkQDQfWdAZ8KQlXiEabw88ARXXdUrlvtbKQX+aKw==",
+        "oldResolvedUrl": "https://registry.npmjs.org/ws/-/ws-8.21.1.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/ws/-/ws-8.21.2.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:ws:8.21.2->8.21.3",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "ws",
+        "oldVersion": "8.21.2",
+        "newVersion": "8.21.3",
+        "oldIntegrity": "sha512-54dMVAo4WIe6SKy3vBgN+9bJZqqQ8IMRevAkOLQALhi49qkkQDQfWdAZ8KQlXiEabw88ARXXdUrlvtbKQX+aKw==",
+        "newIntegrity": "sha512-201TZ/kPWxoPr/OKWjquZR1SWKXcvxdH+e1xrx89b3YbmzLMFCLfnaG1HFIgWzJOEWZ7MvpK++odZufgYR50Rw==",
+        "oldResolvedUrl": "https://registry.npmjs.org/ws/-/ws-8.21.2.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/ws/-/ws-8.21.3.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:m5:ws:8.21.3->8.22.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "ws",
+        "oldVersion": "8.21.3",
+        "newVersion": "8.22.0",
+        "oldIntegrity": "sha512-201TZ/kPWxoPr/OKWjquZR1SWKXcvxdH+e1xrx89b3YbmzLMFCLfnaG1HFIgWzJOEWZ7MvpK++odZufgYR50Rw==",
+        "newIntegrity": "sha512-Ydggc987+RO0AnWtZ/7Wq9FtNvcrL1b/RO0ud9mWjUPgDrsAAwQSF51sm2hm1XofbU/4jkpGEsLFsZZxU+1DOg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/ws/-/ws-8.21.3.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/ws/-/ws-8.22.0.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:socket.io:4.8.1->4.8.2",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "socket.io",
+        "oldVersion": "4.8.1",
+        "newVersion": "4.8.2",
+        "oldIntegrity": "sha512-oZ7iUCxph8WYRHHcjBEc9unw3adt5CmSNlppj/5Q4k2RIrhl8Z5yY2Xr4j9zj0+wzVZ0bxmYoGSzKJnRl6A4yg==",
+        "newIntegrity": "sha512-wMAICvNHJNtnd3Jq97xROyRyFjMQ2G8QsVF6V+K6+6lztP3GaTcIaos+6E7+8jD/NoY++/vCvU9AI+bvRBNXVw==",
+        "oldResolvedUrl": "https://registry.npmjs.org/socket.io/-/socket.io-4.8.1.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/socket.io/-/socket.io-4.8.2.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:socket.io:4.8.2->4.8.3",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "socket.io",
+        "oldVersion": "4.8.2",
+        "newVersion": "4.8.3",
+        "oldIntegrity": "sha512-wMAICvNHJNtnd3Jq97xROyRyFjMQ2G8QsVF6V+K6+6lztP3GaTcIaos+6E7+8jD/NoY++/vCvU9AI+bvRBNXVw==",
+        "newIntegrity": "sha512-2Dd78bqzzjE6KPkD5fHZmDAKRNe3J15q+YHDrIsy9WEkqttc7GY+kT9OBLSMaPbQaEd0x1BjcmtMtXkfpc+T5A==",
+        "oldResolvedUrl": "https://registry.npmjs.org/socket.io/-/socket.io-4.8.2.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/socket.io/-/socket.io-4.8.3.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:socket.io:4.8.3->4.8.4",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "socket.io",
+        "oldVersion": "4.8.3",
+        "newVersion": "4.8.4",
+        "oldIntegrity": "sha512-2Dd78bqzzjE6KPkD5fHZmDAKRNe3J15q+YHDrIsy9WEkqttc7GY+kT9OBLSMaPbQaEd0x1BjcmtMtXkfpc+T5A==",
+        "newIntegrity": "sha512-9ZV9zg8vN8hO3Y25DhR7nUkJ1VDnBhq5O/JrXhFT9s6+F0gqytSASTHVfCFc2mJXaTfARroErplXlzFWwETZqQ==",
+        "oldResolvedUrl": "https://registry.npmjs.org/socket.io/-/socket.io-4.8.3.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/socket.io/-/socket.io-4.8.4.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:superagent:10.2.3->10.3.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "superagent",
+        "oldVersion": "10.2.3",
+        "newVersion": "10.3.0",
+        "oldIntegrity": "sha512-y/hkYGeXAj7wUMjxRbB21g/l6aAEituGXM9Rwl4o20+SX3e8YOSV6BxFXl+dL3Uk0mjSL3kCbNkwURm8/gEDig==",
+        "newIntegrity": "sha512-B+4Ik7ROgVKrQsXTV0Jwp2u+PXYLSlqtDAhYnkkD+zn3yg8s/zjA2MeGayPoY/KICrbitwneDHrjSotxKL+0XQ==",
+        "oldResolvedUrl": "https://registry.npmjs.org/superagent/-/superagent-10.2.3.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/superagent/-/superagent-10.3.0.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:m5:superagent:10.3.0->10.4.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "superagent",
+        "oldVersion": "10.3.0",
+        "newVersion": "10.4.0",
+        "oldIntegrity": "sha512-B+4Ik7ROgVKrQsXTV0Jwp2u+PXYLSlqtDAhYnkkD+zn3yg8s/zjA2MeGayPoY/KICrbitwneDHrjSotxKL+0XQ==",
+        "newIntegrity": "sha512-QmE27Y9G7MvQR2B7S5q16IySUiZoNhhzxiU2YETs/NtfKrd5UaS5+yXzq4Doa4qDwQ36Wo6nQN3TW9Y7Wb4aew==",
+        "oldResolvedUrl": "https://registry.npmjs.org/superagent/-/superagent-10.3.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/superagent/-/superagent-10.4.0.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:superagent:10.4.0->10.4.1",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "superagent",
+        "oldVersion": "10.4.0",
+        "newVersion": "10.4.1",
+        "oldIntegrity": "sha512-QmE27Y9G7MvQR2B7S5q16IySUiZoNhhzxiU2YETs/NtfKrd5UaS5+yXzq4Doa4qDwQ36Wo6nQN3TW9Y7Wb4aew==",
+        "newIntegrity": "sha512-PVMkMrhKrSTtFhUU8jiWuGh/gyRMKiyCTCmm0+qVzRNxlfntmRKJkDhlEXN62x3HIb33sQ4kmL8lcSdccWAchQ==",
+        "oldResolvedUrl": "https://registry.npmjs.org/superagent/-/superagent-10.4.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/superagent/-/superagent-10.4.1.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:fastify:5.12.2->5.12.3",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "fastify",
+        "oldVersion": "5.12.2",
+        "newVersion": "5.12.3",
+        "oldIntegrity": "sha512-npAgfhAigNiLOhCZEg7uFWThMrYoiDX/7/VyzicXSrVSXz6K/KYekW+QpOk7WOnZER0U7MmjvoDHV6qO5x4wKg==",
+        "newIntegrity": "sha512-reZ8wce5VNCcufIt9AVtzZa3L4u1j8esikn7OEgHWLVpRpL5R7Y2+Xzj70OUkv5zDfzUAxXZT6cu4Rt0zr3EKA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/fastify/-/fastify-5.12.2.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/fastify/-/fastify-5.12.3.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:fastify:5.12.3->5.12.4",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "fastify",
+        "oldVersion": "5.12.3",
+        "newVersion": "5.12.4",
+        "oldIntegrity": "sha512-reZ8wce5VNCcufIt9AVtzZa3L4u1j8esikn7OEgHWLVpRpL5R7Y2+Xzj70OUkv5zDfzUAxXZT6cu4Rt0zr3EKA==",
+        "newIntegrity": "sha512-zATD676fP6tBMsn+jQ7Q5/cO/Qo+149TXH0dUqUKel+1/hcZxwIbnflqtPa9EjlrvpY8eCZcL3M1UYrMc31Y7g==",
+        "oldResolvedUrl": "https://registry.npmjs.org/fastify/-/fastify-5.12.3.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/fastify/-/fastify-5.12.4.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:fastify:5.12.4->5.12.5",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "fastify",
+        "oldVersion": "5.12.4",
+        "newVersion": "5.12.5",
+        "oldIntegrity": "sha512-zATD676fP6tBMsn+jQ7Q5/cO/Qo+149TXH0dUqUKel+1/hcZxwIbnflqtPa9EjlrvpY8eCZcL3M1UYrMc31Y7g==",
+        "newIntegrity": "sha512-OB2k1dlxs5/NAABqeKV2FUHkSD2BbENsCak8yULVcymn3fHIPDVa9TI3SDnJSWYSllZmSYuZXy2gTnsT+Sut1A==",
+        "oldResolvedUrl": "https://registry.npmjs.org/fastify/-/fastify-5.12.4.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/fastify/-/fastify-5.12.5.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:koa:3.1.1->3.1.2",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "koa",
+        "oldVersion": "3.1.1",
+        "newVersion": "3.1.2",
+        "oldIntegrity": "sha512-KDDuvpfqSK0ZKEO2gCPedNjl5wYpfj+HNiuVRlbhd1A88S3M0ySkdf2V/EJ4NWt5dwh5PXCdcenrKK2IQJAxsg==",
+        "newIntegrity": "sha512-2LOQnFKu3m0VxpE+5sb5+BRTSKrXmNxGgxVRiKwD9s5KQB1zID/FRXhtzeV7RT1L2GVpdEEAfVuclFOMGl1ikA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/koa/-/koa-3.1.1.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/koa/-/koa-3.1.2.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:koa:3.1.2->3.2.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "koa",
+        "oldVersion": "3.1.2",
+        "newVersion": "3.2.0",
+        "oldIntegrity": "sha512-2LOQnFKu3m0VxpE+5sb5+BRTSKrXmNxGgxVRiKwD9s5KQB1zID/FRXhtzeV7RT1L2GVpdEEAfVuclFOMGl1ikA==",
+        "newIntegrity": "sha512-TrM4/tnNY7uJ1aW55sIIa+dqBvc4V14WRIAlGcWat9wV5pRS9Wr5Zk2ZTjQP1jtfIHDoHiSbPuV08P0fUZo2pg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/koa/-/koa-3.1.2.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/koa/-/koa-3.2.0.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:koa:3.2.0->3.2.1",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "koa",
+        "oldVersion": "3.2.0",
+        "newVersion": "3.2.1",
+        "oldIntegrity": "sha512-TrM4/tnNY7uJ1aW55sIIa+dqBvc4V14WRIAlGcWat9wV5pRS9Wr5Zk2ZTjQP1jtfIHDoHiSbPuV08P0fUZo2pg==",
+        "newIntegrity": "sha512-e7IpWJrnanNUroVK2taAgMxoEZvHLXdQiNjeExSu/DEIWm83jaKGBgb7tLmu2rMYpA027qFB3iLR/k3AVpFRnA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/koa/-/koa-3.2.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/koa/-/koa-3.2.1.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:hono:4.13.10->4.13.11",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "hono",
+        "oldVersion": "4.13.10",
+        "newVersion": "4.13.11",
+        "oldIntegrity": "sha512-dQuLsa5oO+47QVMVMaaD9cIv8ctmVtK1iRvwWngkfloFJMeFeuoUFDswIqZGxmGX3hrRzREgEArjkK9OgsQEhA==",
+        "newIntegrity": "sha512-/SMX/RQNJn7oNmFwH6DtwDqcrzZU2otm1FD6OJe2cWF6cfy/F8hq0XVBv7xW3FTJshRQwuBnXHDq2kNsdZnshg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/hono/-/hono-4.13.10.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/hono/-/hono-4.13.11.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:m5:hono:4.13.11->4.13.12",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "hono",
+        "oldVersion": "4.13.11",
+        "newVersion": "4.13.12",
+        "oldIntegrity": "sha512-/SMX/RQNJn7oNmFwH6DtwDqcrzZU2otm1FD6OJe2cWF6cfy/F8hq0XVBv7xW3FTJshRQwuBnXHDq2kNsdZnshg==",
+        "newIntegrity": "sha512-6E2QDAc9Ick9Sq77ZrGS/dk2WUYni91aufTw6LJKpV7w8kW5/GxVUc650FOADOmlwg3K+f7Pun6XlV+pYmW6gw==",
+        "oldResolvedUrl": "https://registry.npmjs.org/hono/-/hono-4.13.11.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/hono/-/hono-4.13.12.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:hono:4.13.12->4.13.13",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "hono",
+        "oldVersion": "4.13.12",
+        "newVersion": "4.13.13",
+        "oldIntegrity": "sha512-6E2QDAc9Ick9Sq77ZrGS/dk2WUYni91aufTw6LJKpV7w8kW5/GxVUc650FOADOmlwg3K+f7Pun6XlV+pYmW6gw==",
+        "newIntegrity": "sha512-CQ46U0ZkAGmbT/4UxdzzGJpacP2IeKgY4a5/tOI9AABbpOMfK739wfDXmv1usCk+3RkKj1hQy4/fjhiwa2xlrA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/hono/-/hono-4.13.12.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/hono/-/hono-4.13.13.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:vue:3.5.40->3.5.41",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "vue",
+        "oldVersion": "3.5.40",
+        "newVersion": "3.5.41",
+        "oldIntegrity": "sha512-+8PJ4SJXdn/cHGImF4CKdxlWHIN5Dkt7DoufRREM6h6uVCx2m7QxgcEQmmzyOK8A9mcafg7sFbJFYsdFVubTig==",
+        "newIntegrity": "sha512-2laE0p+aK+/AOPG/XL/WepOs/GlK755LJ1XECi9kDUrz1FKNw8rb2Xzlw9JS1rqEV55nb0ttsKxVlTCcd+R5cg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/vue/-/vue-3.5.40.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/vue/-/vue-3.5.41.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:m5:vue:3.5.41->3.5.42",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "vue",
+        "oldVersion": "3.5.41",
+        "newVersion": "3.5.42",
+        "oldIntegrity": "sha512-2laE0p+aK+/AOPG/XL/WepOs/GlK755LJ1XECi9kDUrz1FKNw8rb2Xzlw9JS1rqEV55nb0ttsKxVlTCcd+R5cg==",
+        "newIntegrity": "sha512-4RyHQTbQvOPs3MfvUO1Sg0YRrKNnA0mAVtvpd12Tg1fKDN7OHBUl1IqSn8zGJjK9nI3NkNp8cgTpVrSZC5TTcA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/vue/-/vue-3.5.41.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/vue/-/vue-3.5.42.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:vue:3.5.42->3.5.43",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "vue",
+        "oldVersion": "3.5.42",
+        "newVersion": "3.5.43",
+        "oldIntegrity": "sha512-4RyHQTbQvOPs3MfvUO1Sg0YRrKNnA0mAVtvpd12Tg1fKDN7OHBUl1IqSn8zGJjK9nI3NkNp8cgTpVrSZC5TTcA==",
+        "newIntegrity": "sha512-o5qZoksdnjIKvW1srZ3ab7pcDNYAerBjRe54D0LBLfRdCYFrSgBHVXokMas35czQc0//lmx4/tuY4ZNQ+Rf2Ng==",
+        "oldResolvedUrl": "https://registry.npmjs.org/vue/-/vue-3.5.42.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/vue/-/vue-3.5.43.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:m5:svelte:5.56.10->5.57.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "svelte",
+        "oldVersion": "5.56.10",
+        "newVersion": "5.57.0",
+        "oldIntegrity": "sha512-Lcxbj8I/KAbpY+VjtY4ENQBV0dDCipfGAhqb51XQZ67CIQqXgsv/8dPkbILaj4Fb6/b6JAEM/PIVbILXgDQy2g==",
+        "newIntegrity": "sha512-NdbDn7fl4be1ViUG0oq/lvG6OZy3oENolV2ONjiqqsfVoeAfzaQAKUcEX3MrQod/Bebv1PgwET9rfXhgn9s4Kg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/svelte/-/svelte-5.56.10.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/svelte/-/svelte-5.57.0.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:svelte:5.57.0->5.57.1",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "svelte",
+        "oldVersion": "5.57.0",
+        "newVersion": "5.57.1",
+        "oldIntegrity": "sha512-NdbDn7fl4be1ViUG0oq/lvG6OZy3oENolV2ONjiqqsfVoeAfzaQAKUcEX3MrQod/Bebv1PgwET9rfXhgn9s4Kg==",
+        "newIntegrity": "sha512-Uqj49lWKB+iSSnneuwiYYJ7MZgkB+eXr0LXBhv4uDuAkXqnWmq65Sxflfvp0Lc6MdKjMUxGaeOKWJqz5SNiVIA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/svelte/-/svelte-5.57.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/svelte/-/svelte-5.57.1.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:svelte:5.57.1->5.57.2",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "svelte",
+        "oldVersion": "5.57.1",
+        "newVersion": "5.57.2",
+        "oldIntegrity": "sha512-Uqj49lWKB+iSSnneuwiYYJ7MZgkB+eXr0LXBhv4uDuAkXqnWmq65Sxflfvp0Lc6MdKjMUxGaeOKWJqz5SNiVIA==",
+        "newIntegrity": "sha512-1YiPCAXT0Ct6g1vOMmSLa0Nsc3QRMvtDF32ihgglGVrugIuIK38RyDiFNXVDhtQ81TJjSO57NdMw6DyYLqSGDQ==",
+        "oldResolvedUrl": "https://registry.npmjs.org/svelte/-/svelte-5.57.1.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/svelte/-/svelte-5.57.2.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:rollup:4.64.2->4.64.3",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "rollup",
+        "oldVersion": "4.64.2",
+        "newVersion": "4.64.3",
+        "oldIntegrity": "sha512-RxXm0XVVV1hFI3dYe12ruaOgsYQ725lUcUWeMSQqkF9tTxVErY+fy2Ets6vWhItL9MZMSNZGbvZFc7rH/VHp2Q==",
+        "newIntegrity": "sha512-iIMWbptLYsZdGTJMH8ngApXdsCatE6bCMv2eqGIfGE1++kwh7TCWBdWKK0FKC0yx++196vGK5VdagzRXSLMa8A==",
+        "oldResolvedUrl": "https://registry.npmjs.org/rollup/-/rollup-4.64.2.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/rollup/-/rollup-4.64.3.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:rollup:4.64.3->4.64.4",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "rollup",
+        "oldVersion": "4.64.3",
+        "newVersion": "4.64.4",
+        "oldIntegrity": "sha512-iIMWbptLYsZdGTJMH8ngApXdsCatE6bCMv2eqGIfGE1++kwh7TCWBdWKK0FKC0yx++196vGK5VdagzRXSLMa8A==",
+        "newIntegrity": "sha512-1DTowQbct6FOZTjZoYrZ8BwsjIwsB89HxwOn2pWPEyEKWWvKI8OrpTgmicB3fUbQzhlooCQRIn6JLUPhE0CZUA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/rollup/-/rollup-4.64.3.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/rollup/-/rollup-4.64.4.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:rollup:4.64.4->4.64.5",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "rollup",
+        "oldVersion": "4.64.4",
+        "newVersion": "4.64.5",
+        "oldIntegrity": "sha512-1DTowQbct6FOZTjZoYrZ8BwsjIwsB89HxwOn2pWPEyEKWWvKI8OrpTgmicB3fUbQzhlooCQRIn6JLUPhE0CZUA==",
+        "newIntegrity": "sha512-EAP5ZHcz2ijbgCWwPkpI7zh6bfsri2Ez5FtCy2dCp1k62duXzfG7DLGGh7RU2QQXWwavT+u4qpvDF/TWOiiGTw==",
+        "oldResolvedUrl": "https://registry.npmjs.org/rollup/-/rollup-4.64.4.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/rollup/-/rollup-4.64.5.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:m5:webpack:5.110.2->5.110.3",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "webpack",
+        "oldVersion": "5.110.2",
+        "newVersion": "5.110.3",
+        "oldIntegrity": "sha512-TciLrfM7zgEjqGdY851HkirDsSPQgTFsWQpl9oHqMAMYsHhEC0bKjscvjpnz+pzx10hLC8qISApGrsnrCP4UtQ==",
+        "newIntegrity": "sha512-GuizBzRvo9YPpyoNMf3ag7AzxbaW85qrRSqTha345KyJbAFPt3/cMzBM0h+RWg7SK/7DdzRLINP3LvQ0hvr4hg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/webpack/-/webpack-5.110.2.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/webpack/-/webpack-5.110.3.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:webpack:5.110.3->5.111.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "webpack",
+        "oldVersion": "5.110.3",
+        "newVersion": "5.111.0",
+        "oldIntegrity": "sha512-GuizBzRvo9YPpyoNMf3ag7AzxbaW85qrRSqTha345KyJbAFPt3/cMzBM0h+RWg7SK/7DdzRLINP3LvQ0hvr4hg==",
+        "newIntegrity": "sha512-A2R74kfE6b3eLKS91iZiol03Ebx7avmJJBOyiP+4LePW9NNeNJGQkKeSQos4dk6R4H0YAMYlv+aOrs1CyWT3eA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/webpack/-/webpack-5.110.3.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/webpack/-/webpack-5.111.0.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:m5:webpack:5.111.0->5.111.1",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "webpack",
+        "oldVersion": "5.111.0",
+        "newVersion": "5.111.1",
+        "oldIntegrity": "sha512-A2R74kfE6b3eLKS91iZiol03Ebx7avmJJBOyiP+4LePW9NNeNJGQkKeSQos4dk6R4H0YAMYlv+aOrs1CyWT3eA==",
+        "newIntegrity": "sha512-cNypaz0RP+S4cvQVi1M/3bRUkvNP0xZpL0TjFx+c6jg64VbxD+2weWDgY9UnjRI6dhZgtaj8DU76GGFcJ79xPQ==",
+        "oldResolvedUrl": "https://registry.npmjs.org/webpack/-/webpack-5.111.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/webpack/-/webpack-5.111.1.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:@babel/core:8.0.1->8.0.5",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "@babel/core",
+        "oldVersion": "8.0.1",
+        "newVersion": "8.0.5",
+        "oldIntegrity": "sha512-5FgxM4dLQpMJHSiVATk8foW263dVHQHBVpXYiimNECVWG01f4nFyEbQixeT6Mwvg7TayREJ2gpKl3o2RoMdnqw==",
+        "newIntegrity": "sha512-2/oWkgTbBYoqioCWAE4XJobOrzwxTDa5/XjDP3tJ1BhDr/owcd9qnXBp4xc3/2G5X4bvXM04nrxbRJxFcXAxFQ==",
+        "oldResolvedUrl": "https://registry.npmjs.org/@babel/core/-/core-8.0.1.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/@babel/core/-/core-8.0.5.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:@babel/core:8.0.5->8.0.6",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "@babel/core",
+        "oldVersion": "8.0.5",
+        "newVersion": "8.0.6",
+        "oldIntegrity": "sha512-2/oWkgTbBYoqioCWAE4XJobOrzwxTDa5/XjDP3tJ1BhDr/owcd9qnXBp4xc3/2G5X4bvXM04nrxbRJxFcXAxFQ==",
+        "newIntegrity": "sha512-5zwYt1V4ji3mXKKRIAkohSJ29WepxNwxQi+7y7P5AcVPh1dcxnZBU2cfxHnPwS+u9+lZnXPsv30TQaF2xg+Tfg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/@babel/core/-/core-8.0.5.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/@babel/core/-/core-8.0.6.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:m5:@babel/core:8.0.6->8.0.7",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "@babel/core",
+        "oldVersion": "8.0.6",
+        "newVersion": "8.0.7",
+        "oldIntegrity": "sha512-5zwYt1V4ji3mXKKRIAkohSJ29WepxNwxQi+7y7P5AcVPh1dcxnZBU2cfxHnPwS+u9+lZnXPsv30TQaF2xg+Tfg==",
+        "newIntegrity": "sha512-ZIsZWBG6Y1oa+8fkQVp0xeCdjCHBkXFCCIWrmg9SvejVvfcVQgKKRmGrBDWfM7rilhvnRoEuaqa5dkK7KB3pHA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/@babel/core/-/core-8.0.6.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/@babel/core/-/core-8.0.7.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:m5:prettier:3.9.7->3.9.8",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "prettier",
+        "oldVersion": "3.9.7",
+        "newVersion": "3.9.8",
+        "oldIntegrity": "sha512-T3mF5P7HFzZVLDQuCUNtJj6WK1pcpLMweMNUVwGb01bLNkH9AkKxtZvmInw8K6bnn2O3d6/5RHl6zSHiBAD0Og==",
+        "newIntegrity": "sha512-WRFq3Wn3WId7LLROfMLdH7xaFr2jR62wU8nLO6rQUOLOxNZUviyJQs1M0iIhLexSFy+L+w0ch66wtoO2jRjG0A==",
+        "oldResolvedUrl": "https://registry.npmjs.org/prettier/-/prettier-3.9.7.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/prettier/-/prettier-3.9.8.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:prettier:3.9.8->3.9.9",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "prettier",
+        "oldVersion": "3.9.8",
+        "newVersion": "3.9.9",
+        "oldIntegrity": "sha512-WRFq3Wn3WId7LLROfMLdH7xaFr2jR62wU8nLO6rQUOLOxNZUviyJQs1M0iIhLexSFy+L+w0ch66wtoO2jRjG0A==",
+        "newIntegrity": "sha512-Z/CJHIkdujO/OtN7nXUii0Rf3VT5SRuhjBA82Xvu2XhBUgX3nhP67T0LHceBdQLex7OOFGTox+Q5Yg8Jk2Qivg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/prettier/-/prettier-3.9.8.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/prettier/-/prettier-3.9.9.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:prettier:3.9.9->3.9.10",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "prettier",
+        "oldVersion": "3.9.9",
+        "newVersion": "3.9.10",
+        "oldIntegrity": "sha512-Z/CJHIkdujO/OtN7nXUii0Rf3VT5SRuhjBA82Xvu2XhBUgX3nhP67T0LHceBdQLex7OOFGTox+Q5Yg8Jk2Qivg==",
+        "newIntegrity": "sha512-skGHTH1Yb9QvaTC4hWnRTzEYtCpApF0UMBPz+t/0ZPzP8ihefo/btKd+QA7pUE0fEwA1SbS/NmhyEcstdXOIdA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/prettier/-/prettier-3.9.9.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/prettier/-/prettier-3.9.10.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:terser:5.50.0->5.51.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "terser",
+        "oldVersion": "5.50.0",
+        "newVersion": "5.51.0",
+        "oldIntegrity": "sha512-CN9BVxWhgS/hRxtUMjtC2uRWSTcSfQFHMDWma6sKKfIivCD91sM+FOPfvwoaRMqCSrUpe1nv3jDamd9eEQ4y+w==",
+        "newIntegrity": "sha512-myiQ6aFnxDOjdiXdTlC8ngVccQD88uHXTx5RUQOSEnarDYgJMjDagwAQszcOusjvmf4YqWsxoD1+MY+oAJRmpw==",
+        "oldResolvedUrl": "https://registry.npmjs.org/terser/-/terser-5.50.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/terser/-/terser-5.51.0.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:terser:5.51.0->5.51.1",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "terser",
+        "oldVersion": "5.51.0",
+        "newVersion": "5.51.1",
+        "oldIntegrity": "sha512-myiQ6aFnxDOjdiXdTlC8ngVccQD88uHXTx5RUQOSEnarDYgJMjDagwAQszcOusjvmf4YqWsxoD1+MY+oAJRmpw==",
+        "newIntegrity": "sha512-jxJxk3OtMbMeoDTtrSezoFRPDFleMDzBl+mFj4gB04HGQUfKnIMllFV1TVhWdsj9o54AlaTvLuNP9yWHzGD1BA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/terser/-/terser-5.51.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/terser/-/terser-5.51.1.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:terser:5.51.1->5.51.2",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "terser",
+        "oldVersion": "5.51.1",
+        "newVersion": "5.51.2",
+        "oldIntegrity": "sha512-jxJxk3OtMbMeoDTtrSezoFRPDFleMDzBl+mFj4gB04HGQUfKnIMllFV1TVhWdsj9o54AlaTvLuNP9yWHzGD1BA==",
+        "newIntegrity": "sha512-bWnjSNscmuI+GJze6ZupnHP8G/cTcsJF+bXCeQknk2SHQsgbNJnLrqiH9jZ2W4STPVXH2mDKKRX3iwPhc9Cn/Q==",
+        "oldResolvedUrl": "https://registry.npmjs.org/terser/-/terser-5.51.1.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/terser/-/terser-5.51.2.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:chalk:5.6.0->5.6.2",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "chalk",
+        "oldVersion": "5.6.0",
+        "newVersion": "5.6.2",
+        "oldIntegrity": "sha512-46QrSQFyVSEyYAgQ22hQ+zDa60YHA4fBstHmtSApj1Y5vKtG27fWowW03jCk5KcbXEWPZUIR894aARCA/G1kfQ==",
+        "newIntegrity": "sha512-7NzBL0rN6fMUW+f7A6Io4h40qQlG+xGmtMxfbnH/K7TAtt8JQWVQK+6g0UXKMeVJoyV5EkkNsErQ8pVD3bLHbA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/chalk/-/chalk-5.6.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/chalk/-/chalk-5.6.2.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:m5:chalk:5.6.2->6.0.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "chalk",
+        "oldVersion": "5.6.2",
+        "newVersion": "6.0.0",
+        "oldIntegrity": "sha512-7NzBL0rN6fMUW+f7A6Io4h40qQlG+xGmtMxfbnH/K7TAtt8JQWVQK+6g0UXKMeVJoyV5EkkNsErQ8pVD3bLHbA==",
+        "newIntegrity": "sha512-2uNTXIuTTxk7ciZgAU1BQcgnchcG0xXnrs6jzkQfj9SsRa9M2s5zE8WT96hS6KmG4MzWHSrvH43DF1m4XRkrFg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/chalk/-/chalk-5.6.2.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/chalk/-/chalk-6.0.0.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:m5:chalk:6.0.0->6.0.1",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "chalk",
+        "oldVersion": "6.0.0",
+        "newVersion": "6.0.1",
+        "oldIntegrity": "sha512-2uNTXIuTTxk7ciZgAU1BQcgnchcG0xXnrs6jzkQfj9SsRa9M2s5zE8WT96hS6KmG4MzWHSrvH43DF1m4XRkrFg==",
+        "newIntegrity": "sha512-/Ce6KNm3vIbWdMlNna6RVIZ/ICQxnJxCicet5LBKK9ZffBkqzDw0xh9EiKSljdRtiIQ1S1z4YgcscUUGzNCWrA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/chalk/-/chalk-6.0.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/chalk/-/chalk-6.0.1.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:yargs:17.7.3->18.0.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "yargs",
+        "oldVersion": "17.7.3",
+        "newVersion": "18.0.0",
+        "oldIntegrity": "sha512-GZtjxm/J/4TSxuL3FNYjCmLktBTnIw/rVmKSIyKeYAZpmJB2ig9VauCC5xsa82GNKVKDAqpOn3KVzNt0zmrU0g==",
+        "newIntegrity": "sha512-4UEqdc2RYGHZc7Doyqkrqiln3p9X2DZVxaGbwhn2pi7MrRagKaOcIKe8L3OxYcbhXLgLFUS3zAYuQjKBQgmuNg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/yargs/-/yargs-17.7.3.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/yargs/-/yargs-18.0.0.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:yargs:18.0.0->18.1.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "yargs",
+        "oldVersion": "18.0.0",
+        "newVersion": "18.1.0",
+        "oldIntegrity": "sha512-4UEqdc2RYGHZc7Doyqkrqiln3p9X2DZVxaGbwhn2pi7MrRagKaOcIKe8L3OxYcbhXLgLFUS3zAYuQjKBQgmuNg==",
+        "newIntegrity": "sha512-2rAgRKu54VsHkqI0/tYkmluGXHD4KW7yZoycuqDQ15QOTnc2VVfy0nN/1eMhnQLO00A+dwtK20xuCnc1YGeUyg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/yargs/-/yargs-18.0.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/yargs/-/yargs-18.1.0.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:yargs:18.1.0->18.2.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "yargs",
+        "oldVersion": "18.1.0",
+        "newVersion": "18.2.0",
+        "oldIntegrity": "sha512-2rAgRKu54VsHkqI0/tYkmluGXHD4KW7yZoycuqDQ15QOTnc2VVfy0nN/1eMhnQLO00A+dwtK20xuCnc1YGeUyg==",
+        "newIntegrity": "sha512-9OpKOLeaoNFecEp7P6iYbzze/5CqWoH7N3SMs/6y1XF4nMvFMspEGZzJ6uFi9MmQwXhyzqYoSEKO3tvA3Z/o2w==",
+        "oldResolvedUrl": "https://registry.npmjs.org/yargs/-/yargs-18.1.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/yargs/-/yargs-18.2.0.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:m5:uuid:14.0.0->14.0.1",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "uuid",
+        "oldVersion": "14.0.0",
+        "newVersion": "14.0.1",
+        "oldIntegrity": "sha512-Qo+uWgilfSmAhXCMav1uYFynlQO7fMFiMVZsQqZRMIXp0O7rR7qjkj+cPvBHLgBqi960QCoo/PH2/6ZtVqKvrg==",
+        "newIntegrity": "sha512-6ZxzVpzDXDa3bJWaHilVayA+BH/1zmxCJoVgvmqJnid/gPoKHxUrS/aC/T6LGQtNHT+XHG9fXPJB4d+IrU30Ew==",
+        "oldResolvedUrl": "https://registry.npmjs.org/uuid/-/uuid-14.0.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/uuid/-/uuid-14.0.1.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:uuid:14.0.1->14.0.2",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "uuid",
+        "oldVersion": "14.0.1",
+        "newVersion": "14.0.2",
+        "oldIntegrity": "sha512-6ZxzVpzDXDa3bJWaHilVayA+BH/1zmxCJoVgvmqJnid/gPoKHxUrS/aC/T6LGQtNHT+XHG9fXPJB4d+IrU30Ew==",
+        "newIntegrity": "sha512-xZe/16rV4aa+HGSOCiY2YeLT1OybRLrrkL/Rqaq7p7GMVXjFh+6wN4oMYgjFmnSnhY8t6Xpdl2l9qmnHYuMHwQ==",
+        "oldResolvedUrl": "https://registry.npmjs.org/uuid/-/uuid-14.0.1.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/uuid/-/uuid-14.0.2.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:m5:uuid:14.0.2->14.0.3",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "uuid",
+        "oldVersion": "14.0.2",
+        "newVersion": "14.0.3",
+        "oldIntegrity": "sha512-xZe/16rV4aa+HGSOCiY2YeLT1OybRLrrkL/Rqaq7p7GMVXjFh+6wN4oMYgjFmnSnhY8t6Xpdl2l9qmnHYuMHwQ==",
+        "newIntegrity": "sha512-Sc5u1VVln93y1Xnz4R+CunOZc7R9LUcTmhj7Rc7Eg3HVcf7rVn2FOoa812fe0W8p3jD7xeoGSYbfqCGGH2B6xw==",
+        "oldResolvedUrl": "https://registry.npmjs.org/uuid/-/uuid-14.0.2.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/uuid/-/uuid-14.0.3.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:dayjs:1.11.20->1.11.21",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "dayjs",
+        "oldVersion": "1.11.20",
+        "newVersion": "1.11.21",
+        "oldIntegrity": "sha512-YbwwqR/uYpeoP4pu043q+LTDLFBLApUP6VxRihdfNTqu4ubqMlGDLd6ErXhEgsyvY0K6nCs7nggYumAN+9uEuQ==",
+        "newIntegrity": "sha512-98IT+HOahAisibz/yjKbzuOBwYcjJ7BCLPzARyHiyEBmRz4fatF+KPJszEHXsGYjUG234aH/cOjW1wwTbKUZlA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/dayjs/-/dayjs-1.11.20.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/dayjs/-/dayjs-1.11.21.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:m5:dayjs:1.11.21->1.11.22",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "dayjs",
+        "oldVersion": "1.11.21",
+        "newVersion": "1.11.22",
+        "oldIntegrity": "sha512-98IT+HOahAisibz/yjKbzuOBwYcjJ7BCLPzARyHiyEBmRz4fatF+KPJszEHXsGYjUG234aH/cOjW1wwTbKUZlA==",
+        "newIntegrity": "sha512-1YRnxzt/AabP3GHxnaB9/b+ZScCKu5TeF+co+BWG+lnWVIwEcTFc1FVE0WLNmNO3sA6GGXL40i5qkHfbLzpwrg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/dayjs/-/dayjs-1.11.21.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/dayjs/-/dayjs-1.11.22.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:dayjs:1.11.22->1.11.23",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "dayjs",
+        "oldVersion": "1.11.22",
+        "newVersion": "1.11.23",
+        "oldIntegrity": "sha512-1YRnxzt/AabP3GHxnaB9/b+ZScCKu5TeF+co+BWG+lnWVIwEcTFc1FVE0WLNmNO3sA6GGXL40i5qkHfbLzpwrg==",
+        "newIntegrity": "sha512-QDTCU0M0MxR3hQfnlDJfwekQiaanm1ubOD231u73WBckQ/fsamwRLiE2GBz6D3a/xF1NgfiDLJjXBa1hYOYTtQ==",
+        "oldResolvedUrl": "https://registry.npmjs.org/dayjs/-/dayjs-1.11.22.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/dayjs/-/dayjs-1.11.23.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:zod:4.6.3->4.6.4",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "zod",
+        "oldVersion": "4.6.3",
+        "newVersion": "4.6.4",
+        "oldIntegrity": "sha512-qTMC0QXIpf4iH+G0rCJl6ZjKiFpqAU9++JDN8tqts3KP58MWeJU/in9tDccsHqlOolCIrBKsiPXR8vCLhe4QhA==",
+        "newIntegrity": "sha512-AXSD6hvGdvRjajG/l1cC+d6IrhH+sjmPKtYeQdJIK8MFJl3LyClzS+o/YsVC+zQZPupAaeH5skwwm8YqYH7BqA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/zod/-/zod-4.6.3.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/zod/-/zod-4.6.4.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:m5:zod:4.6.4->4.6.5",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "zod",
+        "oldVersion": "4.6.4",
+        "newVersion": "4.6.5",
+        "oldIntegrity": "sha512-AXSD6hvGdvRjajG/l1cC+d6IrhH+sjmPKtYeQdJIK8MFJl3LyClzS+o/YsVC+zQZPupAaeH5skwwm8YqYH7BqA==",
+        "newIntegrity": "sha512-v5l/aFXZQeai4awLbOpSoHecE9UiMrnfx75tEXLjNonXVARxQ5mOeipTjROUchszUNCqnE+hqAMujRsRHsut2Q==",
+        "oldResolvedUrl": "https://registry.npmjs.org/zod/-/zod-4.6.4.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/zod/-/zod-4.6.5.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:m5:zod:4.6.5->4.6.6",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "zod",
+        "oldVersion": "4.6.5",
+        "newVersion": "4.6.6",
+        "oldIntegrity": "sha512-v5l/aFXZQeai4awLbOpSoHecE9UiMrnfx75tEXLjNonXVARxQ5mOeipTjROUchszUNCqnE+hqAMujRsRHsut2Q==",
+        "newIntegrity": "sha512-4UmzQUF5fxvfcYHlbjBmejU+w+hbDnWFx4aS8kBx7nPBHcO2SqPbpAG8snbdg+Xse4pRefR98hgjFgIMCI/UhA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/zod/-/zod-4.6.5.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/zod/-/zod-4.6.6.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:bcrypt:5.0.1->5.1.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "bcrypt",
+        "oldVersion": "5.0.1",
+        "newVersion": "5.1.0",
+        "oldIntegrity": "sha512-9BTgmrhZM2t1bNuDtrtIMVSmmxZBrJ71n8Wg+YgdjHuIWYF7SjjmCPZFB+/5i/o/PIeRpwVJR3P+NrpIItUjqw==",
+        "newIntegrity": "sha512-RHBS7HI5N5tEnGTmtR/pppX0mmDSBpQ4aCBsj7CEQfYXDcO74A8sIBYcJMuCsis2E81zDxeENYhv66oZwLiA+Q==",
+        "oldResolvedUrl": "https://registry.npmjs.org/bcrypt/-/bcrypt-5.0.1.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/bcrypt/-/bcrypt-5.1.0.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:bcrypt:5.1.0->5.1.1",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "bcrypt",
+        "oldVersion": "5.1.0",
+        "newVersion": "5.1.1",
+        "oldIntegrity": "sha512-RHBS7HI5N5tEnGTmtR/pppX0mmDSBpQ4aCBsj7CEQfYXDcO74A8sIBYcJMuCsis2E81zDxeENYhv66oZwLiA+Q==",
+        "newIntegrity": "sha512-AGBHOG5hPYZ5Xl9KXzU5iKq9516yEmvCKDg3ecP5kX2aB6UqTeXZxk2ELnDgDm6BQSMlLt9rDB4LoSMx0rYwww==",
+        "oldResolvedUrl": "https://registry.npmjs.org/bcrypt/-/bcrypt-5.1.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/bcrypt/-/bcrypt-5.1.1.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:bcrypt:5.1.1->6.0.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "bcrypt",
+        "oldVersion": "5.1.1",
+        "newVersion": "6.0.0",
+        "oldIntegrity": "sha512-AGBHOG5hPYZ5Xl9KXzU5iKq9516yEmvCKDg3ecP5kX2aB6UqTeXZxk2ELnDgDm6BQSMlLt9rDB4LoSMx0rYwww==",
+        "newIntegrity": "sha512-cU8v/EGSrnH+HnxV2z0J7/blxH8gq7Xh2JFT6Aroax7UohdmiJJlxApMxtKfuI7z68NvvVcmR78k2LbT6efhRg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/bcrypt/-/bcrypt-5.1.1.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/bcrypt/-/bcrypt-6.0.0.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:m5:sqlite3:5.1.5->5.1.6",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "sqlite3",
+        "oldVersion": "5.1.5",
+        "newVersion": "5.1.6",
+        "oldIntegrity": "sha512-7sP16i4wI+yKnGOO2q2ijze7EjQ9US+Vw7DYYwxfFtqNZDGgBcEw0oeDaDvUTq66uJOzVd/z6MkIg+c9erSJKg==",
+        "newIntegrity": "sha512-olYkWoKFVNSSSQNvxVUfjiVbz3YtBwTJj+mfV5zpHmqW3sELx2Cf4QCdirMelhM5Zh+KDVaKgQHqCxrqiWHybw==",
+        "oldResolvedUrl": "https://registry.npmjs.org/sqlite3/-/sqlite3-5.1.5.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/sqlite3/-/sqlite3-5.1.6.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:sqlite3:5.1.6->5.1.7",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "sqlite3",
+        "oldVersion": "5.1.6",
+        "newVersion": "5.1.7",
+        "oldIntegrity": "sha512-olYkWoKFVNSSSQNvxVUfjiVbz3YtBwTJj+mfV5zpHmqW3sELx2Cf4QCdirMelhM5Zh+KDVaKgQHqCxrqiWHybw==",
+        "newIntegrity": "sha512-GGIyOiFaG+TUra3JIfkI/zGP8yZYLPQ0pl1bH+ODjiX57sPhrLU5sQJn1y9bDKZUFYkX1crlrPfSYt0BKKdkog==",
+        "oldResolvedUrl": "https://registry.npmjs.org/sqlite3/-/sqlite3-5.1.6.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/sqlite3/-/sqlite3-5.1.7.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:sqlite3:5.1.7->6.0.1",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "sqlite3",
+        "oldVersion": "5.1.7",
+        "newVersion": "6.0.1",
+        "oldIntegrity": "sha512-GGIyOiFaG+TUra3JIfkI/zGP8yZYLPQ0pl1bH+ODjiX57sPhrLU5sQJn1y9bDKZUFYkX1crlrPfSYt0BKKdkog==",
+        "newIntegrity": "sha512-X0czUUMG2tmSqJpEQa3tCuZSHKIx8PwM53vLZzKp/o6Rpy25fiVfjdbnZ988M8+O3ZWR1ih0K255VumCb3MAnQ==",
+        "oldResolvedUrl": "https://registry.npmjs.org/sqlite3/-/sqlite3-5.1.7.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/sqlite3/-/sqlite3-6.0.1.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:m5:@swc/core:1.16.12->1.16.13",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "@swc/core",
+        "oldVersion": "1.16.12",
+        "newVersion": "1.16.13",
+        "oldIntegrity": "sha512-ksgw/DvuDrxAFi7tfdndxKSyoAls7VNkIlqlASySpe0tbPmvMH2JcAoHMbRZyE6f10EAf289blkvbe/KCOblxw==",
+        "newIntegrity": "sha512-k4uUsIMS0IwOKVsrQs48IZK75O4roV3FnuJEdL7ES+DFESftdgvz73QBqN3VUAbUmUr78We4tzG0kgYj36M22Q==",
+        "oldResolvedUrl": "https://registry.npmjs.org/@swc/core/-/core-1.16.12.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/@swc/core/-/core-1.16.13.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:@swc/core:1.16.13->1.16.17",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "@swc/core",
+        "oldVersion": "1.16.13",
+        "newVersion": "1.16.17",
+        "oldIntegrity": "sha512-k4uUsIMS0IwOKVsrQs48IZK75O4roV3FnuJEdL7ES+DFESftdgvz73QBqN3VUAbUmUr78We4tzG0kgYj36M22Q==",
+        "newIntegrity": "sha512-D/WxLurusHsiHd8FDz9AvCuUJ1W6AXhzmG27/Db1CqCaAAdsan95HMCcTyIzCJfm1m9dAwtSm00DLOZIhCeZAA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/@swc/core/-/core-1.16.13.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/@swc/core/-/core-1.16.17.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:m5:@swc/core:1.16.17->1.16.18",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "@swc/core",
+        "oldVersion": "1.16.17",
+        "newVersion": "1.16.18",
+        "oldIntegrity": "sha512-D/WxLurusHsiHd8FDz9AvCuUJ1W6AXhzmG27/Db1CqCaAAdsan95HMCcTyIzCJfm1m9dAwtSm00DLOZIhCeZAA==",
+        "newIntegrity": "sha512-0cYQLkpcwUngg55TDwpwrrVOU+B6zh1NFbp+oS7dVFhmYkzaARelwugo/bzPJh1FrcnppmF+KTqioCGwyqbcEw==",
+        "oldResolvedUrl": "https://registry.npmjs.org/@swc/core/-/core-1.16.17.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/@swc/core/-/core-1.16.18.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:m5:puppeteer:25.10.0->25.11.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "puppeteer",
+        "oldVersion": "25.10.0",
+        "newVersion": "25.11.0",
+        "oldIntegrity": "sha512-9ZfkiaZDQWpGPJp9XTS+Bkn/D78hPvYmtjPfIBeybn05oeY6Jj7aiSbYdfcSQD2UMvC0vE7Yi9PSDo179euRzw==",
+        "newIntegrity": "sha512-n+psxZFH/qlJ3gwTZMxTLUZoE98FAOEjT/BSxHXvPmNCGAfN/kq0UnIZ8m9RB4rAVvJr7zRHUnKKg98GLMUyyQ==",
+        "oldResolvedUrl": "https://registry.npmjs.org/puppeteer/-/puppeteer-25.10.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/puppeteer/-/puppeteer-25.11.0.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:m5:puppeteer:25.11.0->25.12.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "puppeteer",
+        "oldVersion": "25.11.0",
+        "newVersion": "25.12.0",
+        "oldIntegrity": "sha512-n+psxZFH/qlJ3gwTZMxTLUZoE98FAOEjT/BSxHXvPmNCGAfN/kq0UnIZ8m9RB4rAVvJr7zRHUnKKg98GLMUyyQ==",
+        "newIntegrity": "sha512-agM9cYcxbvmU17w9qtF17s7/Vv7Dhbyig6AWwIgvQQLR2dKZdPqNvRPanac7xH4iMPcNYOCfyCkwqCnR4nVOcA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/puppeteer/-/puppeteer-25.11.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/puppeteer/-/puppeteer-25.12.0.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:puppeteer:25.12.0->25.13.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "puppeteer",
+        "oldVersion": "25.12.0",
+        "newVersion": "25.13.0",
+        "oldIntegrity": "sha512-agM9cYcxbvmU17w9qtF17s7/Vv7Dhbyig6AWwIgvQQLR2dKZdPqNvRPanac7xH4iMPcNYOCfyCkwqCnR4nVOcA==",
+        "newIntegrity": "sha512-vB4KLXTT5QqlikcOQ/xV0RY18bBVtNyLUTfqJ9mW+penHyoM+5DmANYuDCI4jgBtiL0eD9I5ZFSafW6/a6Trpg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/puppeteer/-/puppeteer-25.12.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/puppeteer/-/puppeteer-25.13.0.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:protobufjs:8.7.1->8.7.2",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "protobufjs",
+        "oldVersion": "8.7.1",
+        "newVersion": "8.7.2",
+        "oldIntegrity": "sha512-agdGHrXNTv0IrYscJPDou/PlEJk1c/hBZ9o/B5NH2i/nSPtPqacNxzgwf1CebXxFMjMrZH5sqv9uQuw96aGt/A==",
+        "newIntegrity": "sha512-oTVHV+oelUBtiu5iTuTNNZ0eLYsXSMxry4cgr30mayNkgIZL6qZ0IOQVPuSWGcyAaXKl/XgqwWHIC3a0khYVBA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/protobufjs/-/protobufjs-8.7.1.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/protobufjs/-/protobufjs-8.7.2.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:m5:protobufjs:8.7.2->8.8.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "protobufjs",
+        "oldVersion": "8.7.2",
+        "newVersion": "8.8.0",
+        "oldIntegrity": "sha512-oTVHV+oelUBtiu5iTuTNNZ0eLYsXSMxry4cgr30mayNkgIZL6qZ0IOQVPuSWGcyAaXKl/XgqwWHIC3a0khYVBA==",
+        "newIntegrity": "sha512-N3xhQ5yyBx3vQq4gubBfASzYhJGNzeDbjqBpu61g7UVylsN/qyffU96TKWD3GbbLOKF82VGNRNvv1+BFgE31Eg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/protobufjs/-/protobufjs-8.7.2.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/protobufjs/-/protobufjs-8.8.0.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:protobufjs:8.8.0->8.8.1",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "protobufjs",
+        "oldVersion": "8.8.0",
+        "newVersion": "8.8.1",
+        "oldIntegrity": "sha512-N3xhQ5yyBx3vQq4gubBfASzYhJGNzeDbjqBpu61g7UVylsN/qyffU96TKWD3GbbLOKF82VGNRNvv1+BFgE31Eg==",
+        "newIntegrity": "sha512-d9e9179bjXSJdpJ3+R9fP8hzXsnKLyxTjHLG1dUzje8a27pPyXCe6PrcRtgx2rjoM3IZzHd2vAs+6J/BsO1k7Q==",
+        "oldResolvedUrl": "https://registry.npmjs.org/protobufjs/-/protobufjs-8.8.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/protobufjs/-/protobufjs-8.8.1.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:@aws-sdk/client-s3:3.1146.0->3.1147.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "@aws-sdk/client-s3",
+        "oldVersion": "3.1146.0",
+        "newVersion": "3.1147.0",
+        "oldIntegrity": "sha512-WY0YCBzxc4muFfY6UbGpA+oib0nGT/Px2aEPGYX7pp1la2OmDLChnK81mu8H7LdYvwGU1pLAsLIa/qgad0Wd7g==",
+        "newIntegrity": "sha512-uTrcJxnJKPr8bc1z7cMxopYSQyAm2dPfiMK+UiBr51L8MzimDxHbW/d9GR6X/LFbWDpMzfFPLhB4UohDrCSaPQ==",
+        "oldResolvedUrl": "https://registry.npmjs.org/@aws-sdk/client-s3/-/client-s3-3.1146.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/@aws-sdk/client-s3/-/client-s3-3.1147.0.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:m5:@aws-sdk/client-s3:3.1147.0->3.1148.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "@aws-sdk/client-s3",
+        "oldVersion": "3.1147.0",
+        "newVersion": "3.1148.0",
+        "oldIntegrity": "sha512-uTrcJxnJKPr8bc1z7cMxopYSQyAm2dPfiMK+UiBr51L8MzimDxHbW/d9GR6X/LFbWDpMzfFPLhB4UohDrCSaPQ==",
+        "newIntegrity": "sha512-d2AcfJCZTi4w5zJZD7H/XeVRgJy1vOD5EfO1Y3pKAwfp8pWz2dyJ8Q3vOJFbRiTIQF7c4mB+aptNUyCE4i4kqw==",
+        "oldResolvedUrl": "https://registry.npmjs.org/@aws-sdk/client-s3/-/client-s3-3.1147.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/@aws-sdk/client-s3/-/client-s3-3.1148.0.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:m5:@aws-sdk/client-s3:3.1148.0->3.1149.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "@aws-sdk/client-s3",
+        "oldVersion": "3.1148.0",
+        "newVersion": "3.1149.0",
+        "oldIntegrity": "sha512-d2AcfJCZTi4w5zJZD7H/XeVRgJy1vOD5EfO1Y3pKAwfp8pWz2dyJ8Q3vOJFbRiTIQF7c4mB+aptNUyCE4i4kqw==",
+        "newIntegrity": "sha512-wEccG+3/ap7iIBO4DbWwqNHh2u5Qm5OCQJzJaAvtVFIoZbp0qia8HIXv4rpnNmJJEX8205mlq67F9QJ0nKlcxg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/@aws-sdk/client-s3/-/client-s3-3.1148.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/@aws-sdk/client-s3/-/client-s3-3.1149.0.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:m5:firebase-admin:14.2.0->14.3.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "firebase-admin",
+        "oldVersion": "14.2.0",
+        "newVersion": "14.3.0",
+        "oldIntegrity": "sha512-zfs5PdccEgjX479bbMmz95Rqc7ttQ4LV3qkGFlPiqOaOu/suBZc3fG52Qzn2hQjiSHkBM4NP2AZV5r2NvAt0TQ==",
+        "newIntegrity": "sha512-FUxr5HI9C0RNJW3B+CKyJOnIt5uXn/XHheyCECVTLQGSJ/MaE1Zcwf+dCaaG+xx0+VX1A4sZ1t+hc35bu73dVw==",
+        "oldResolvedUrl": "https://registry.npmjs.org/firebase-admin/-/firebase-admin-14.2.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/firebase-admin/-/firebase-admin-14.3.0.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:firebase-admin:14.3.0->14.4.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "firebase-admin",
+        "oldVersion": "14.3.0",
+        "newVersion": "14.4.0",
+        "oldIntegrity": "sha512-FUxr5HI9C0RNJW3B+CKyJOnIt5uXn/XHheyCECVTLQGSJ/MaE1Zcwf+dCaaG+xx0+VX1A4sZ1t+hc35bu73dVw==",
+        "newIntegrity": "sha512-yEx+GCsHvjH2svh4j1ATW57o8tlfjRQ0klTxvn7XCKUPXWiUQaRTHSzPSqhXtsLYSe4IwTqR7qqrh2sA45A0HA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/firebase-admin/-/firebase-admin-14.3.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/firebase-admin/-/firebase-admin-14.4.0.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:m5:firebase-admin:14.4.0->14.5.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "firebase-admin",
+        "oldVersion": "14.4.0",
+        "newVersion": "14.5.0",
+        "oldIntegrity": "sha512-yEx+GCsHvjH2svh4j1ATW57o8tlfjRQ0klTxvn7XCKUPXWiUQaRTHSzPSqhXtsLYSe4IwTqR7qqrh2sA45A0HA==",
+        "newIntegrity": "sha512-DElmgmaH9aPXu2dWXGQiDoan33UfTnbfAAKaue4fwEZxmpdaNrTk5DmuFn+vVDki2KZ6TiaC0IHRWcEzcDxB3Q==",
+        "oldResolvedUrl": "https://registry.npmjs.org/firebase-admin/-/firebase-admin-14.4.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/firebase-admin/-/firebase-admin-14.5.0.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:m5:stripe:22.6.0->22.6.1",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "stripe",
+        "oldVersion": "22.6.0",
+        "newVersion": "22.6.1",
+        "oldIntegrity": "sha512-Ezk+WYEEwX2DLxFrKfb6coznlCMZvCaCYMNPXNHFSZkBIEzF5Hgm7RLb38q/0h9Ol5jsUJGJRorvhzAvckgfhw==",
+        "newIntegrity": "sha512-hAKSkGeVt2u46TRYhmnvwmVHxBNtOCJnPjc+SH5sP2B2ypElYzAAY3Ljx0Ar8C2w8nfpFQiZ95qoDCDsFkXMTA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/stripe/-/stripe-22.6.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/stripe/-/stripe-22.6.1.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:stripe:22.6.1->22.6.2",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "stripe",
+        "oldVersion": "22.6.1",
+        "newVersion": "22.6.2",
+        "oldIntegrity": "sha512-hAKSkGeVt2u46TRYhmnvwmVHxBNtOCJnPjc+SH5sP2B2ypElYzAAY3Ljx0Ar8C2w8nfpFQiZ95qoDCDsFkXMTA==",
+        "newIntegrity": "sha512-PwRE2scocvXqDKPiskMa5vRJEAEkq46W69XyUYmAwrNSLr675lQnfqLwnsndAWizwgihOWw/irLmoFRo3ez7ew==",
+        "oldResolvedUrl": "https://registry.npmjs.org/stripe/-/stripe-22.6.1.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/stripe/-/stripe-22.6.2.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:stripe:22.6.2->23.0.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "stripe",
+        "oldVersion": "22.6.2",
+        "newVersion": "23.0.0",
+        "oldIntegrity": "sha512-PwRE2scocvXqDKPiskMa5vRJEAEkq46W69XyUYmAwrNSLr675lQnfqLwnsndAWizwgihOWw/irLmoFRo3ez7ew==",
+        "newIntegrity": "sha512-MDE2A5ZVVluYURORaZEVghSmnLJc3w6aHAlZSxDQMsOjOb3V0O6ro/CiaeFlJS4N7uIVmsg98ocRsPmUK6YfyA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/stripe/-/stripe-22.6.2.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/stripe/-/stripe-23.0.0.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:m5:@octokit/rest:21.1.0->21.1.1",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "@octokit/rest",
+        "oldVersion": "21.1.0",
+        "newVersion": "21.1.1",
+        "oldIntegrity": "sha512-93iLxcKDJboUpmnUyeJ6cRIi7z7cqTZT1K7kRK4LobGxwTwpsa+2tQQbRQNGy7IFDEAmrtkf4F4wBj3D5rVlJQ==",
+        "newIntegrity": "sha512-sTQV7va0IUVZcntzy1q3QqPm/r8rWtDCqpRAmb8eXXnKkjoQEtFe3Nt5GTVsHft+R6jJoHeSiVLcgcvhtue/rg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/@octokit/rest/-/rest-21.1.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/@octokit/rest/-/rest-21.1.1.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:@octokit/rest:21.1.1->22.0.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "@octokit/rest",
+        "oldVersion": "21.1.1",
+        "newVersion": "22.0.0",
+        "oldIntegrity": "sha512-sTQV7va0IUVZcntzy1q3QqPm/r8rWtDCqpRAmb8eXXnKkjoQEtFe3Nt5GTVsHft+R6jJoHeSiVLcgcvhtue/rg==",
+        "newIntegrity": "sha512-z6tmTu9BTnw51jYGulxrlernpsQYXpui1RK21vmXn8yF5bp6iX16yfTtJYGK5Mh1qDkvDOmp2n8sRMcQmR8jiA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/@octokit/rest/-/rest-21.1.1.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/@octokit/rest/-/rest-22.0.0.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:@octokit/rest:22.0.0->22.0.1",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "@octokit/rest",
+        "oldVersion": "22.0.0",
+        "newVersion": "22.0.1",
+        "oldIntegrity": "sha512-z6tmTu9BTnw51jYGulxrlernpsQYXpui1RK21vmXn8yF5bp6iX16yfTtJYGK5Mh1qDkvDOmp2n8sRMcQmR8jiA==",
+        "newIntegrity": "sha512-Jzbhzl3CEexhnivb1iQ0KJ7s5vvjMWcmRtq5aUsKmKDrRW6z3r84ngmiFKFvpZjpiU/9/S6ITPFRpn5s/3uQJw==",
+        "oldResolvedUrl": "https://registry.npmjs.org/@octokit/rest/-/rest-22.0.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/@octokit/rest/-/rest-22.0.1.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:pg:8.21.0->8.22.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "pg",
+        "oldVersion": "8.21.0",
+        "newVersion": "8.22.0",
+        "oldIntegrity": "sha512-AUP1EYJuHraQGsVoCQVIcM7TEJVGtDzxWtGFZd8rds9d+CCXlU5Js1rYgfLNvxy9iJrpHjGrRjoi/3BT9fRyiA==",
+        "newIntegrity": "sha512-8wih1vVIBMxoUM2oB4soJsD9tDnDpLv4OXBJ+EJzFsvycD+lfyIreC2gGHq78f8jbLLt+bvlPTFdFZfJkOuzAA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/pg/-/pg-8.21.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/pg/-/pg-8.22.0.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:pg:8.22.0->8.23.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "pg",
+        "oldVersion": "8.22.0",
+        "newVersion": "8.23.0",
+        "oldIntegrity": "sha512-8wih1vVIBMxoUM2oB4soJsD9tDnDpLv4OXBJ+EJzFsvycD+lfyIreC2gGHq78f8jbLLt+bvlPTFdFZfJkOuzAA==",
+        "newIntegrity": "sha512-Ip2EQCngowJLGOfCwkFhPXU7/ljlhn6Rxlmy4XYfL2Y+vyRM59+8uR2xqRWKdYmbXmxCFOAmKxBuSUCdF34qLg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/pg/-/pg-8.22.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/pg/-/pg-8.23.0.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:m5:pg:8.23.0->8.23.1",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (m5 frozen corpus)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "pg",
+        "oldVersion": "8.23.0",
+        "newVersion": "8.23.1",
+        "oldIntegrity": "sha512-Ip2EQCngowJLGOfCwkFhPXU7/ljlhn6Rxlmy4XYfL2Y+vyRM59+8uR2xqRWKdYmbXmxCFOAmKxBuSUCdF34qLg==",
+        "newIntegrity": "sha512-aL96AHANtWjPLDOLqnhx+ngp9+UK7ETEU8VJrDCGvsSSi/mGLcWYsS6Herg7lmaBJe4uwrfqsa7gTEFaSizDoQ==",
+        "oldResolvedUrl": "https://registry.npmjs.org/pg/-/pg-8.23.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/pg/-/pg-8.23.1.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:lodash:4.17.20->4.17.21",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "lodash",
+        "oldVersion": "4.17.20",
+        "newVersion": "4.17.21",
+        "oldIntegrity": "sha512-PlhdFcillOINfeV7Ni6oF1TAEayyZBoZ8bcshTHqOYJYlrqzRK5hagpagky5o4HfCzzd1TRkXPMFq6cKk9rGmA==",
+        "newIntegrity": "sha512-v2kDEe57lecTulaDIuNTPy3Ry4gLGJ6Z1O3vE1krgXZNrsQ+LFTGHVxVjcXPs17LhbZVGedAJv8XZ1tvj5FvSg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/lodash/-/lodash-4.17.20.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/lodash/-/lodash-4.17.21.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:fresh:lodash:4.17.21->4.17.23",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "lodash",
+        "oldVersion": "4.17.21",
+        "newVersion": "4.17.23",
+        "oldIntegrity": "sha512-v2kDEe57lecTulaDIuNTPy3Ry4gLGJ6Z1O3vE1krgXZNrsQ+LFTGHVxVjcXPs17LhbZVGedAJv8XZ1tvj5FvSg==",
+        "newIntegrity": "sha512-LgVTMpQtIopCi79SJeDiP0TfWi5CNEc/L/aRdTh3yIvmZXTnheWpKjSZhnvMl8iXbC1tFg9gdHHDMLoV7CnG+w==",
+        "oldResolvedUrl": "https://registry.npmjs.org/lodash/-/lodash-4.17.21.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/lodash/-/lodash-4.17.23.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:fresh:lodash:4.17.23->4.18.1",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "lodash",
+        "oldVersion": "4.17.23",
+        "newVersion": "4.18.1",
+        "oldIntegrity": "sha512-LgVTMpQtIopCi79SJeDiP0TfWi5CNEc/L/aRdTh3yIvmZXTnheWpKjSZhnvMl8iXbC1tFg9gdHHDMLoV7CnG+w==",
+        "newIntegrity": "sha512-dMInicTPVE8d1e5otfwmmjlxkZoUpiVLwyeTdUsi/Caj/gfzzblBcCE5sRHV/AsjuCmxWrte2TNGSYuCeCq+0Q==",
+        "oldResolvedUrl": "https://registry.npmjs.org/lodash/-/lodash-4.17.23.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/lodash/-/lodash-4.18.1.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:express:5.1.0->5.2.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "express",
+        "oldVersion": "5.1.0",
+        "newVersion": "5.2.0",
+        "oldIntegrity": "sha512-DT9ck5YIRU+8GYzzU5kT3eHGA5iL+1Zd0EutOmTE9Dtk+Tvuzd23VBU+ec7HPNSTxXYO55gPV/hq4pSBJDjFpA==",
+        "newIntegrity": "sha512-XdpJDLxfztVY59X0zPI6sibRiGcxhTPXRD3IhJmjKf2jwMvkRGV1j7loB8U+heeamoU3XvihAaGRTR4aXXUN3A==",
+        "oldResolvedUrl": "https://registry.npmjs.org/express/-/express-5.1.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/express/-/express-5.2.0.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:express:5.2.0->5.2.1",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "express",
+        "oldVersion": "5.2.0",
+        "newVersion": "5.2.1",
+        "oldIntegrity": "sha512-XdpJDLxfztVY59X0zPI6sibRiGcxhTPXRD3IhJmjKf2jwMvkRGV1j7loB8U+heeamoU3XvihAaGRTR4aXXUN3A==",
+        "newIntegrity": "sha512-hIS4idWWai69NezIdRt2xFVofaF4j+6INOpJlVOLDO8zXGpUVEVzIYk12UUi2JzjEzWL3IOAxcTubgz9Po0yXw==",
+        "oldResolvedUrl": "https://registry.npmjs.org/express/-/express-5.2.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/express/-/express-5.2.1.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:express:5.2.1->5.3.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "express",
+        "oldVersion": "5.2.1",
+        "newVersion": "5.3.0",
+        "oldIntegrity": "sha512-hIS4idWWai69NezIdRt2xFVofaF4j+6INOpJlVOLDO8zXGpUVEVzIYk12UUi2JzjEzWL3IOAxcTubgz9Po0yXw==",
+        "newIntegrity": "sha512-qCqy1xSoaugxOD4IVHb1ZWdkvCF2W3aE2okKouWj8VwJ+ztskSiXoBnCSJqfKT+cVPJhuJqe9YLbY425+Zh00g==",
+        "oldResolvedUrl": "https://registry.npmjs.org/express/-/express-5.2.1.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/express/-/express-5.3.0.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:react:19.2.8->19.2.9",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "react",
+        "oldVersion": "19.2.8",
+        "newVersion": "19.2.9",
+        "oldIntegrity": "sha512-PWaYA1L/q9u2u7xYQi+Y3L3Yfnie7XyLeaJICV1MGD6LprsBxcAqGjYyr0eY3p+QdsA+x/Irkt4Qif8D63+Sbw==",
+        "newIntegrity": "sha512-RuLdAokXv3sRmZa2/N8QH0KmTBIgDKC+buRUikGqow31+mGSGidLCX2o4XFq8OV+xBFWfhM9DVgTq1PPHADH4w==",
+        "oldResolvedUrl": "https://registry.npmjs.org/react/-/react-19.2.8.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/react/-/react-19.2.9.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:react:19.2.9->19.3.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "react",
+        "oldVersion": "19.2.9",
+        "newVersion": "19.3.0",
+        "oldIntegrity": "sha512-RuLdAokXv3sRmZa2/N8QH0KmTBIgDKC+buRUikGqow31+mGSGidLCX2o4XFq8OV+xBFWfhM9DVgTq1PPHADH4w==",
+        "newIntegrity": "sha512-E8LUcbtBWt20bbl2YoHfx4ZDBdxVTfOKtCZn9cDSJ4l6/nuoApcpIBcj47t2wZoVX8g2ZHuMHbiShgCR1T5Sog==",
+        "oldResolvedUrl": "https://registry.npmjs.org/react/-/react-19.2.9.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/react/-/react-19.3.0.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:fresh:react:19.3.0->19.3.1",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "react",
+        "oldVersion": "19.3.0",
+        "newVersion": "19.3.1",
+        "oldIntegrity": "sha512-E8LUcbtBWt20bbl2YoHfx4ZDBdxVTfOKtCZn9cDSJ4l6/nuoApcpIBcj47t2wZoVX8g2ZHuMHbiShgCR1T5Sog==",
+        "newIntegrity": "sha512-QNhWdt7nrgVWWQG58QuGsAR3jv3Hbe4mb4vz7w2csnHavciZJgda1CPNaldF6eVxv90ud3jUXpKlHL69gO38yw==",
+        "oldResolvedUrl": "https://registry.npmjs.org/react/-/react-19.3.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/react/-/react-19.3.1.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:minimist:1.2.5->1.2.6",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "minimist",
+        "oldVersion": "1.2.5",
+        "newVersion": "1.2.6",
+        "oldIntegrity": "sha512-FM9nNUYrRBAELZQT3xeZQ7fmMOBg6nWNmJKTcgsJeaLstP/UODVpGsr5OhXhhXg6f+qtJ8uiZ+PUxkDWcgIXLw==",
+        "newIntegrity": "sha512-Jsjnk4bw3YJqYzbdyBiNsPWHPfO++UGG749Cxs6peCu5Xg4nrena6OVxOYxrQTqww0Jmwt+Ref8rggumkTLz9Q==",
+        "oldResolvedUrl": "https://registry.npmjs.org/minimist/-/minimist-1.2.5.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/minimist/-/minimist-1.2.6.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:minimist:1.2.6->1.2.7",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "minimist",
+        "oldVersion": "1.2.6",
+        "newVersion": "1.2.7",
+        "oldIntegrity": "sha512-Jsjnk4bw3YJqYzbdyBiNsPWHPfO++UGG749Cxs6peCu5Xg4nrena6OVxOYxrQTqww0Jmwt+Ref8rggumkTLz9Q==",
+        "newIntegrity": "sha512-bzfL1YUZsP41gmu/qjrEk0Q6i2ix/cVeAhbCbqH9u3zYutS1cLg00qhrD0M2MVdCcx4Sc0UpP2eBWo9rotpq6g==",
+        "oldResolvedUrl": "https://registry.npmjs.org/minimist/-/minimist-1.2.6.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/minimist/-/minimist-1.2.7.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:fresh:minimist:1.2.7->1.2.8",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "minimist",
+        "oldVersion": "1.2.7",
+        "newVersion": "1.2.8",
+        "oldIntegrity": "sha512-bzfL1YUZsP41gmu/qjrEk0Q6i2ix/cVeAhbCbqH9u3zYutS1cLg00qhrD0M2MVdCcx4Sc0UpP2eBWo9rotpq6g==",
+        "newIntegrity": "sha512-2yyAR8qBkN3YuheJanUpWC5U3bb5osDywNB8RzDVlDwDHbocAJveqqj1u8+SVD7jkWT4yvsHCpWqqWqAxb0zCA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/minimist/-/minimist-1.2.7.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/minimist/-/minimist-1.2.8.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:semver:7.8.2->7.8.3",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "semver",
+        "oldVersion": "7.8.2",
+        "newVersion": "7.8.3",
+        "oldIntegrity": "sha512-c8jsqUZm3omBOI66G90z1Dyw5z622G8oLG+omfsHBJf3CWQTlOcwOjvOG6wtiNfW6anKm/eA39LMwMtMez2TiQ==",
+        "newIntegrity": "sha512-wnilbGyMxzbY7dNOl7jpKbLSjcfeweJWU5j4+u5qW+6/wuGD9KzIGOyZnQVSBM9E7DtWaaH3CyHkppYrKYoxwg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/semver/-/semver-7.8.2.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/semver/-/semver-7.8.3.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:semver:7.8.3->7.8.4",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "semver",
+        "oldVersion": "7.8.3",
+        "newVersion": "7.8.4",
+        "oldIntegrity": "sha512-wnilbGyMxzbY7dNOl7jpKbLSjcfeweJWU5j4+u5qW+6/wuGD9KzIGOyZnQVSBM9E7DtWaaH3CyHkppYrKYoxwg==",
+        "newIntegrity": "sha512-rUCObTnP32Q08R2uuIrt7r9PlEonuTmtuXYcW6s5kjdlj3xbnwe+21yXptAUYcMAABLkYYTtnmzb3w3EDZfueA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/semver/-/semver-7.8.3.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/semver/-/semver-7.8.4.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:fresh:semver:7.8.4->7.8.5",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "semver",
+        "oldVersion": "7.8.4",
+        "newVersion": "7.8.5",
+        "oldIntegrity": "sha512-rUCObTnP32Q08R2uuIrt7r9PlEonuTmtuXYcW6s5kjdlj3xbnwe+21yXptAUYcMAABLkYYTtnmzb3w3EDZfueA==",
+        "newIntegrity": "sha512-Y7/KDsb8LjooZpwaqGyulO6DQlksgCncchHGk+sZIY4SBvUocMBEFH5Ur1fI4dV+Jvl0w6cjvucaIi40puRioA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/semver/-/semver-7.8.4.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/semver/-/semver-7.8.5.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:fresh:rimraf:6.1.0->6.1.1",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "rimraf",
+        "oldVersion": "6.1.0",
+        "newVersion": "6.1.1",
+        "oldIntegrity": "sha512-DxdlA1bdNzkZK7JiNWH+BAx1x4tEJWoTofIopFo6qWUU94jYrFZ0ubY05TqH3nWPJ1nKa1JWVFDINZ3fnrle/A==",
+        "newIntegrity": "sha512-aSeDGyL93+CQ/Mn5p8/+dIPSADLLUVxDE2pcrTqEEKMRdwfneUqOcsAOlJmL9OpSUCerImb56WiYE/xbPhyueA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/rimraf/-/rimraf-6.1.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/rimraf/-/rimraf-6.1.1.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:fresh:rimraf:6.1.1->6.1.2",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "rimraf",
+        "oldVersion": "6.1.1",
+        "newVersion": "6.1.2",
+        "oldIntegrity": "sha512-aSeDGyL93+CQ/Mn5p8/+dIPSADLLUVxDE2pcrTqEEKMRdwfneUqOcsAOlJmL9OpSUCerImb56WiYE/xbPhyueA==",
+        "newIntegrity": "sha512-cFCkPslJv7BAXJsYlK1dZsbP8/ZNLkCAQ0bi1hf5EKX2QHegmDFEFA6QhuYJlk7UDdc+02JjO80YSOrWPpw06g==",
+        "oldResolvedUrl": "https://registry.npmjs.org/rimraf/-/rimraf-6.1.1.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/rimraf/-/rimraf-6.1.2.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:rimraf:6.1.2->6.1.3",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "rimraf",
+        "oldVersion": "6.1.2",
+        "newVersion": "6.1.3",
+        "oldIntegrity": "sha512-cFCkPslJv7BAXJsYlK1dZsbP8/ZNLkCAQ0bi1hf5EKX2QHegmDFEFA6QhuYJlk7UDdc+02JjO80YSOrWPpw06g==",
+        "newIntegrity": "sha512-LKg+Cr2ZF61fkcaK1UdkH2yEBBKnYjTyWzTJT6KNPcSPaiT7HSdhtMXQuN5wkTX0Xu72KQ1l8S42rlmexS2hSA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/rimraf/-/rimraf-6.1.2.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/rimraf/-/rimraf-6.1.3.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:glob:13.0.3->13.0.4",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "glob",
+        "oldVersion": "13.0.3",
+        "newVersion": "13.0.4",
+        "oldIntegrity": "sha512-/g3B0mC+4x724v1TgtBlBtt2hPi/EWptsIAmXUx9Z2rvBYleQcsrmaOzd5LyL50jf/Soi83ZDJmw2+XqvH/EeA==",
+        "newIntegrity": "sha512-KACie1EOs9BIOMtenFaxwmYODWA3/fTfGSUnLhMJpXRntu1g+uL/Xvub5f8SCTppvo9q62Qy4LeOoUiaL54G5A==",
+        "oldResolvedUrl": "https://registry.npmjs.org/glob/-/glob-13.0.3.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/glob/-/glob-13.0.4.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:fresh:glob:13.0.4->13.0.5",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "glob",
+        "oldVersion": "13.0.4",
+        "newVersion": "13.0.5",
+        "oldIntegrity": "sha512-KACie1EOs9BIOMtenFaxwmYODWA3/fTfGSUnLhMJpXRntu1g+uL/Xvub5f8SCTppvo9q62Qy4LeOoUiaL54G5A==",
+        "newIntegrity": "sha512-BzXxZg24Ibra1pbQ/zE7Kys4Ua1ks7Bn6pKLkVPZ9FZe4JQS6/Q7ef3LG1H+k7lUf5l4T3PLSyYyYJVYUvfgTw==",
+        "oldResolvedUrl": "https://registry.npmjs.org/glob/-/glob-13.0.4.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/glob/-/glob-13.0.5.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:fresh:glob:13.0.5->13.0.6",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "glob",
+        "oldVersion": "13.0.5",
+        "newVersion": "13.0.6",
+        "oldIntegrity": "sha512-BzXxZg24Ibra1pbQ/zE7Kys4Ua1ks7Bn6pKLkVPZ9FZe4JQS6/Q7ef3LG1H+k7lUf5l4T3PLSyYyYJVYUvfgTw==",
+        "newIntegrity": "sha512-Wjlyrolmm8uDpm/ogGyXZXb1Z+Ca2B8NbJwqBVg0axK9GbBeoS7yGV6vjXnYdGm6X53iehEuxxbyiKp8QmN4Vw==",
+        "oldResolvedUrl": "https://registry.npmjs.org/glob/-/glob-13.0.5.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/glob/-/glob-13.0.6.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:mkdirp:2.1.5->2.1.6",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "mkdirp",
+        "oldVersion": "2.1.5",
+        "newVersion": "2.1.6",
+        "oldIntegrity": "sha512-jbjfql+shJtAPrFoKxHOXip4xS+kul9W3OzfzzrqueWK2QMGon2bFH2opl6W9EagBThjEz+iysyi/swOoVfB/w==",
+        "newIntegrity": "sha512-+hEnITedc8LAtIP9u3HJDFIdcLV2vXP33sqLLIzkv1Db1zO/1OxbvYf0Y1OC/S/Qo5dxHXepofhmxL02PsKe+A==",
+        "oldResolvedUrl": "https://registry.npmjs.org/mkdirp/-/mkdirp-2.1.5.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/mkdirp/-/mkdirp-2.1.6.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:mkdirp:2.1.6->3.0.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "mkdirp",
+        "oldVersion": "2.1.6",
+        "newVersion": "3.0.0",
+        "oldIntegrity": "sha512-+hEnITedc8LAtIP9u3HJDFIdcLV2vXP33sqLLIzkv1Db1zO/1OxbvYf0Y1OC/S/Qo5dxHXepofhmxL02PsKe+A==",
+        "newIntegrity": "sha512-7+JDnNsyCvZXoUJdkMR0oUE2AmAdsNXGTmRbiOjYIwQ6q+bL6NwrozGQdPcmYaNcrhH37F50HHBUzoaBV6FITQ==",
+        "oldResolvedUrl": "https://registry.npmjs.org/mkdirp/-/mkdirp-2.1.6.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/mkdirp/-/mkdirp-3.0.0.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:mkdirp:3.0.0->3.0.1",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "mkdirp",
+        "oldVersion": "3.0.0",
+        "newVersion": "3.0.1",
+        "oldIntegrity": "sha512-7+JDnNsyCvZXoUJdkMR0oUE2AmAdsNXGTmRbiOjYIwQ6q+bL6NwrozGQdPcmYaNcrhH37F50HHBUzoaBV6FITQ==",
+        "newIntegrity": "sha512-+NsyUUAZDmo6YVHzL/stxSu3t9YS1iljliy3BSDrXJ/dkn1KYdmtZODGGjLcc9XLgVVpH4KshHB8XmZgMhaBXg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/mkdirp/-/mkdirp-3.0.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/mkdirp/-/mkdirp-3.0.1.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:dotenv:18.0.6->18.0.7",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "dotenv",
+        "oldVersion": "18.0.6",
+        "newVersion": "18.0.7",
+        "oldIntegrity": "sha512-ZMVmohV6CvAJtj++pZNyggluUt6hbRdQAxc2+Z635RL6/AG/ruXv5lHnybUFoxMPL/yrTL/tsF4paZu2l7RA6Q==",
+        "newIntegrity": "sha512-QEvMEF8ca3GNZJJnAbOgxpj5ULhBvnMcURp+XKrtvqFNPgjBvYoswQ0Jl2cO7JzCjxZjJhr9ZuIEhlrRxMft/Q==",
+        "oldResolvedUrl": "https://registry.npmjs.org/dotenv/-/dotenv-18.0.6.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/dotenv/-/dotenv-18.0.7.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:dotenv:18.0.7->18.0.8",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "dotenv",
+        "oldVersion": "18.0.7",
+        "newVersion": "18.0.8",
+        "oldIntegrity": "sha512-QEvMEF8ca3GNZJJnAbOgxpj5ULhBvnMcURp+XKrtvqFNPgjBvYoswQ0Jl2cO7JzCjxZjJhr9ZuIEhlrRxMft/Q==",
+        "newIntegrity": "sha512-2KDeoFoK/zRtcnbunCDlLG5VWVMcyqeQc6iK65o231nfNAcuGrKoqUQfJFUtBI+QlShk5HKIHxwebBtUl3rEfA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/dotenv/-/dotenv-18.0.7.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/dotenv/-/dotenv-18.0.8.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:dotenv:18.0.8->18.0.9",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "dotenv",
+        "oldVersion": "18.0.8",
+        "newVersion": "18.0.9",
+        "oldIntegrity": "sha512-2KDeoFoK/zRtcnbunCDlLG5VWVMcyqeQc6iK65o231nfNAcuGrKoqUQfJFUtBI+QlShk5HKIHxwebBtUl3rEfA==",
+        "newIntegrity": "sha512-3fVOW4cB02R066PUSwn8O4TJyz9NckQl7F81blIbaq9jKBm2tSmOKky7ZHIXzGvkVPXCSn6jkpziBPZdGFs8Tw==",
+        "oldResolvedUrl": "https://registry.npmjs.org/dotenv/-/dotenv-18.0.8.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/dotenv/-/dotenv-18.0.9.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:picocolors:1.0.0->1.0.1",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "picocolors",
+        "oldVersion": "1.0.0",
+        "newVersion": "1.0.1",
+        "oldIntegrity": "sha512-1fygroTLlHu66zi26VoTDv8yRgm0Fccecssto+MhsZ0D/DGW2sm8E8AjW7NU5VVTRt5GxbeZ5qBuJr+HyLYkjQ==",
+        "newIntegrity": "sha512-anP1Z8qwhkbmu7MFP5iTt+wQKXgwzf7zTyGlcdzabySa9vd0Xt392U0rVmz9poOaBj0uHJKyyo9/upk0HrEQew==",
+        "oldResolvedUrl": "https://registry.npmjs.org/picocolors/-/picocolors-1.0.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/picocolors/-/picocolors-1.0.1.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:picocolors:1.0.1->1.1.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "picocolors",
+        "oldVersion": "1.0.1",
+        "newVersion": "1.1.0",
+        "oldIntegrity": "sha512-anP1Z8qwhkbmu7MFP5iTt+wQKXgwzf7zTyGlcdzabySa9vd0Xt392U0rVmz9poOaBj0uHJKyyo9/upk0HrEQew==",
+        "newIntegrity": "sha512-TQ92mBOW0l3LeMeyLV6mzy/kWr8lkd/hp3mTg7wYK7zJhuBStmGMBG0BdeDZS/dZx1IukaX6Bk11zcln25o1Aw==",
+        "oldResolvedUrl": "https://registry.npmjs.org/picocolors/-/picocolors-1.0.1.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/picocolors/-/picocolors-1.1.0.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:picocolors:1.1.0->1.1.1",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "picocolors",
+        "oldVersion": "1.1.0",
+        "newVersion": "1.1.1",
+        "oldIntegrity": "sha512-TQ92mBOW0l3LeMeyLV6mzy/kWr8lkd/hp3mTg7wYK7zJhuBStmGMBG0BdeDZS/dZx1IukaX6Bk11zcln25o1Aw==",
+        "newIntegrity": "sha512-xceH2snhtb5M9liqDsmEw56le376mTZkEX/jEb/RxNFyegNul7eNslCXP9FDj/Lcu0X8KEyMceP2ntpaHrDEVA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/picocolors/-/picocolors-1.1.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/picocolors/-/picocolors-1.1.1.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:debug:4.3.7->4.4.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "debug",
+        "oldVersion": "4.3.7",
+        "newVersion": "4.4.0",
+        "oldIntegrity": "sha512-Er2nc/H7RrMXZBFCEim6TCmMk02Z8vLC2Rbi1KEBggpo0fS6l0S1nnapwmIi3yW/+GOJap1Krg4w0Hg80oCqgQ==",
+        "newIntegrity": "sha512-6WTZ/IxCY/T6BALoZHaE4ctp9xm+Z5kY/pzYaCHRFeyVhojxlrm+46y68HA6hr0TcwEssoxNiDEUJQjfPZ/RYA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/debug/-/debug-4.3.7.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/debug/-/debug-4.4.0.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:debug:4.4.0->4.4.1",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "debug",
+        "oldVersion": "4.4.0",
+        "newVersion": "4.4.1",
+        "oldIntegrity": "sha512-6WTZ/IxCY/T6BALoZHaE4ctp9xm+Z5kY/pzYaCHRFeyVhojxlrm+46y68HA6hr0TcwEssoxNiDEUJQjfPZ/RYA==",
+        "newIntegrity": "sha512-KcKCqiftBJcZr++7ykoDIEwSa3XWowTfNPo92BYxjXiyYEVrUQh2aLyhxBCwww+heortUFxEJYcRzosstTEBYQ==",
+        "oldResolvedUrl": "https://registry.npmjs.org/debug/-/debug-4.4.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/debug/-/debug-4.4.1.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:fresh:debug:4.4.1->4.4.3",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "debug",
+        "oldVersion": "4.4.1",
+        "newVersion": "4.4.3",
+        "oldIntegrity": "sha512-KcKCqiftBJcZr++7ykoDIEwSa3XWowTfNPo92BYxjXiyYEVrUQh2aLyhxBCwww+heortUFxEJYcRzosstTEBYQ==",
+        "newIntegrity": "sha512-RGwwWnwQvkVfavKVt22FGLw+xYSdzARwm0ru6DhTVA3umU5hZc28V3kO4stgYryrTlLpuvgI9GiijltAjNbcqA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/debug/-/debug-4.4.1.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/debug/-/debug-4.4.3.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:ms:2.1.0->2.1.1",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "ms",
+        "oldVersion": "2.1.0",
+        "newVersion": "2.1.1",
+        "oldIntegrity": "sha512-gVZHb22Z7YDyiiaoGld9LD4tUuDDxdkDJUEfTIej9LFePFqiE9JxI0qTFfu6tD7Wu03lg7skmVwTmA6XkeMlPQ==",
+        "newIntegrity": "sha512-tgp+dl5cGk28utYktBsrFqA7HKgrhgPsg6Z/EfhWI4gl1Hwq8B/GmY/0oXZ6nF8hDVesS/FpnYaD/kOWhYQvyg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/ms/-/ms-2.1.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/ms/-/ms-2.1.1.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:ms:2.1.1->2.1.2",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "ms",
+        "oldVersion": "2.1.1",
+        "newVersion": "2.1.2",
+        "oldIntegrity": "sha512-tgp+dl5cGk28utYktBsrFqA7HKgrhgPsg6Z/EfhWI4gl1Hwq8B/GmY/0oXZ6nF8hDVesS/FpnYaD/kOWhYQvyg==",
+        "newIntegrity": "sha512-sGkPx+VjMtmA6MX27oA4FBFELFCZZ4S4XqeGOXCv68tT+jb3vk/RyaKWP0PTKyWtmLSM0b+adUTEvbs1PEaH2w==",
+        "oldResolvedUrl": "https://registry.npmjs.org/ms/-/ms-2.1.1.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/ms/-/ms-2.1.2.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:ms:2.1.2->2.1.3",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "ms",
+        "oldVersion": "2.1.2",
+        "newVersion": "2.1.3",
+        "oldIntegrity": "sha512-sGkPx+VjMtmA6MX27oA4FBFELFCZZ4S4XqeGOXCv68tT+jb3vk/RyaKWP0PTKyWtmLSM0b+adUTEvbs1PEaH2w==",
+        "newIntegrity": "sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/ms/-/ms-2.1.2.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/ms/-/ms-2.1.3.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:fresh:execa:10.1.0->10.1.1",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "execa",
+        "oldVersion": "10.1.0",
+        "newVersion": "10.1.1",
+        "oldIntegrity": "sha512-5HT/600HqXEtmkb9mK/PkTWw+bQSCzPnWiZ4/87wD3Hi0wFzCapOuNT9p4M08PDd+KLHdHvFhKjOWmNx/npRNQ==",
+        "newIntegrity": "sha512-yJAC9ulsE6fU0K6wzJBIH+wI+KAtMeu6Ck8rs23OVzvEhqXjGADdI6K+YNIDAjcQQ6AwXTD96cKExJo6xFJXyg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/execa/-/execa-10.1.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/execa/-/execa-10.1.1.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:execa:10.1.1->10.2.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "execa",
+        "oldVersion": "10.1.1",
+        "newVersion": "10.2.0",
+        "oldIntegrity": "sha512-yJAC9ulsE6fU0K6wzJBIH+wI+KAtMeu6Ck8rs23OVzvEhqXjGADdI6K+YNIDAjcQQ6AwXTD96cKExJo6xFJXyg==",
+        "newIntegrity": "sha512-j1pFOVxaybMVCTNHSBuISL2KQcDS3KIE1wBmUp4n2X+1FgaQI2ZDJVy9TYxDyMCzYojRIMh9O8X/UoWZtxTJdw==",
+        "oldResolvedUrl": "https://registry.npmjs.org/execa/-/execa-10.1.1.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/execa/-/execa-10.2.0.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:execa:10.2.0->10.2.1",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "execa",
+        "oldVersion": "10.2.0",
+        "newVersion": "10.2.1",
+        "oldIntegrity": "sha512-j1pFOVxaybMVCTNHSBuISL2KQcDS3KIE1wBmUp4n2X+1FgaQI2ZDJVy9TYxDyMCzYojRIMh9O8X/UoWZtxTJdw==",
+        "newIntegrity": "sha512-/Bofl3ZBh2Q4/PG0W63qFzP5vDAypi8Zc90UWTBzaDNIYiX7apPOd0N6L8hG8CojUdq4V51adu8BObP+iVsSTw==",
+        "oldResolvedUrl": "https://registry.npmjs.org/execa/-/execa-10.2.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/execa/-/execa-10.2.1.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:cross-env:7.0.2->7.0.3",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "cross-env",
+        "oldVersion": "7.0.2",
+        "newVersion": "7.0.3",
+        "oldIntegrity": "sha512-KZP/bMEOJEDCkDQAyRhu3RL2ZO/SUVrxQVI0G3YEQ+OLbRA3c6zgixe8Mq8a/z7+HKlNEjo8oiLUs8iRijY2Rw==",
+        "newIntegrity": "sha512-+/HKd6EgcQCJGh2PSjZuUitQBQynKor4wrFbRg4DtAgS1aWO+gU52xpH7M9ScGgXSYmAVS9bIJ8EzuaGw0oNAw==",
+        "oldResolvedUrl": "https://registry.npmjs.org/cross-env/-/cross-env-7.0.2.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/cross-env/-/cross-env-7.0.3.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:cross-env:7.0.3->10.0.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "cross-env",
+        "oldVersion": "7.0.3",
+        "newVersion": "10.0.0",
+        "oldIntegrity": "sha512-+/HKd6EgcQCJGh2PSjZuUitQBQynKor4wrFbRg4DtAgS1aWO+gU52xpH7M9ScGgXSYmAVS9bIJ8EzuaGw0oNAw==",
+        "newIntegrity": "sha512-aU8qlEK/nHYtVuN4p7UQgAwVljzMg8hB4YK5ThRqD2l/ziSnryncPNn7bMLt5cFYsKVKBh8HqLqyCoTupEUu7Q==",
+        "oldResolvedUrl": "https://registry.npmjs.org/cross-env/-/cross-env-7.0.3.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/cross-env/-/cross-env-10.0.0.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:fresh:cross-env:10.0.0->10.1.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "cross-env",
+        "oldVersion": "10.0.0",
+        "newVersion": "10.1.0",
+        "oldIntegrity": "sha512-aU8qlEK/nHYtVuN4p7UQgAwVljzMg8hB4YK5ThRqD2l/ziSnryncPNn7bMLt5cFYsKVKBh8HqLqyCoTupEUu7Q==",
+        "newIntegrity": "sha512-GsYosgnACZTADcmEyJctkJIoqAhHjttw7RsFrVoJNXbsWWqaq6Ym+7kZjq6mS45O0jij6vtiReppKQEtqWy6Dw==",
+        "oldResolvedUrl": "https://registry.npmjs.org/cross-env/-/cross-env-10.0.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/cross-env/-/cross-env-10.1.0.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:commander:14.0.1->14.0.2",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "commander",
+        "oldVersion": "14.0.1",
+        "newVersion": "14.0.2",
+        "oldIntegrity": "sha512-2JkV3gUZUVrbNA+1sjBOYLsMZ5cEEl8GTFP2a4AVz5hvasAMCQ1D2l2le/cX+pV4N6ZU17zjUahLpIXRrnWL8A==",
+        "newIntegrity": "sha512-TywoWNNRbhoD0BXs1P3ZEScW8W5iKrnbithIl0YH+uCmBd0QpPOA8yc82DS3BIE5Ma6FnBVUsJ7wVUDz4dvOWQ==",
+        "oldResolvedUrl": "https://registry.npmjs.org/commander/-/commander-14.0.1.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/commander/-/commander-14.0.2.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:commander:14.0.2->14.0.3",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "commander",
+        "oldVersion": "14.0.2",
+        "newVersion": "14.0.3",
+        "oldIntegrity": "sha512-TywoWNNRbhoD0BXs1P3ZEScW8W5iKrnbithIl0YH+uCmBd0QpPOA8yc82DS3BIE5Ma6FnBVUsJ7wVUDz4dvOWQ==",
+        "newIntegrity": "sha512-H+y0Jo/T1RZ9qPP4Eh1pkcQcLRglraJaSLoyOtHxu6AapkjWVCy2Sit1QQ4x3Dng8qDlSsZEet7g5Pq06MvTgw==",
+        "oldResolvedUrl": "https://registry.npmjs.org/commander/-/commander-14.0.2.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/commander/-/commander-14.0.3.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:commander:14.0.3->15.0.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "commander",
+        "oldVersion": "14.0.3",
+        "newVersion": "15.0.0",
+        "oldIntegrity": "sha512-H+y0Jo/T1RZ9qPP4Eh1pkcQcLRglraJaSLoyOtHxu6AapkjWVCy2Sit1QQ4x3Dng8qDlSsZEet7g5Pq06MvTgw==",
+        "newIntegrity": "sha512-z67u4ZhzCL/Tydu1lJARtEZYWbWaN7oYLHbsuzocr6y4N6WZAagG3RQ4FW61V1/0+jImpj293XfrcYnd1qxtPg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/commander/-/commander-14.0.3.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/commander/-/commander-15.0.0.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:fresh:fs-extra:11.3.5->11.3.6",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "fs-extra",
+        "oldVersion": "11.3.5",
+        "newVersion": "11.3.6",
+        "oldIntegrity": "sha512-eKpRKAovdpZtR1WopLHxlBWvAgPny3c4gX1G5Jhwmmw4XJj0ifSD5qB5TOo8hmA0wlRKDAOAhEE1yVPgs6Fgcg==",
+        "newIntegrity": "sha512-w8ZNZr2mKIc7qeNaQ9AVPT1+iFaI+Avd4xudVOvdDJ8VytREi1Ft5Ih7hd9jjehod8vAM5GMsfQ/TpPf4EyoEA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/fs-extra/-/fs-extra-11.3.5.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/fs-extra/-/fs-extra-11.3.6.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:fs-extra:11.3.6->11.4.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "fs-extra",
+        "oldVersion": "11.3.6",
+        "newVersion": "11.4.0",
+        "oldIntegrity": "sha512-w8ZNZr2mKIc7qeNaQ9AVPT1+iFaI+Avd4xudVOvdDJ8VytREi1Ft5Ih7hd9jjehod8vAM5GMsfQ/TpPf4EyoEA==",
+        "newIntegrity": "sha512-EQsFzMUJkCKGr1ePqlYADkIUmHW1s3ZXr5Yqy6wbGrfUCphpl2maM/kyOIRA2HpP3AaFQTZXD4ldjek+nccddA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/fs-extra/-/fs-extra-11.3.6.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/fs-extra/-/fs-extra-11.4.0.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:fresh:fs-extra:11.4.0->11.4.1",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "fs-extra",
+        "oldVersion": "11.4.0",
+        "newVersion": "11.4.1",
+        "oldIntegrity": "sha512-EQsFzMUJkCKGr1ePqlYADkIUmHW1s3ZXr5Yqy6wbGrfUCphpl2maM/kyOIRA2HpP3AaFQTZXD4ldjek+nccddA==",
+        "newIntegrity": "sha512-KYAb4c9BJQI6QqGKthV68OHe0badztdXJWKo0WtBA9IuCFPTKvE5ZdUBglP833aMjhaSPNO4A5j/EkzZtGlKjA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/fs-extra/-/fs-extra-11.4.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/fs-extra/-/fs-extra-11.4.1.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:cheerio:1.1.0->1.1.1",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "cheerio",
+        "oldVersion": "1.1.0",
+        "newVersion": "1.1.1",
+        "oldIntegrity": "sha512-+0hMx9eYhJvWbgpKV9hN7jg0JcwydpopZE4hgi+KvQtByZXPp04NiCWU0LzcAbP63abZckIHkTQaXVF52mX3xQ==",
+        "newIntegrity": "sha512-bTXxVZeOfc3I97S4CSYVjcYvaTp92YOlwEUrVRtYrkuVn7S8/QKnnozVlztPcXlU039S2UxtsjAMyFRbX3V9gQ==",
+        "oldResolvedUrl": "https://registry.npmjs.org/cheerio/-/cheerio-1.1.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/cheerio/-/cheerio-1.1.1.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:cheerio:1.1.1->1.1.2",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "cheerio",
+        "oldVersion": "1.1.1",
+        "newVersion": "1.1.2",
+        "oldIntegrity": "sha512-bTXxVZeOfc3I97S4CSYVjcYvaTp92YOlwEUrVRtYrkuVn7S8/QKnnozVlztPcXlU039S2UxtsjAMyFRbX3V9gQ==",
+        "newIntegrity": "sha512-IkxPpb5rS/d1IiLbHMgfPuS0FgiWTtFIm/Nj+2woXDLTZ7fOT2eqzgYbdMlLweqlHbsZjxEChoVK+7iph7jyQg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/cheerio/-/cheerio-1.1.1.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/cheerio/-/cheerio-1.1.2.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:cheerio:1.1.2->1.2.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "cheerio",
+        "oldVersion": "1.1.2",
+        "newVersion": "1.2.0",
+        "oldIntegrity": "sha512-IkxPpb5rS/d1IiLbHMgfPuS0FgiWTtFIm/Nj+2woXDLTZ7fOT2eqzgYbdMlLweqlHbsZjxEChoVK+7iph7jyQg==",
+        "newIntegrity": "sha512-WDrybc/gKFpTYQutKIK6UvfcuxijIZfMfXaYm8NMsPQxSYvf+13fXUJ4rztGGbJcBQ/GF55gvrZ0Bc0bj/mqvg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/cheerio/-/cheerio-1.1.2.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/cheerio/-/cheerio-1.2.0.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:fresh:marked:18.0.13->18.0.14",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "marked",
+        "oldVersion": "18.0.13",
+        "newVersion": "18.0.14",
+        "oldIntegrity": "sha512-xTxVzZsBFwunP6HDmtBkabUQEYArnP7/rMDGmPj9SlrKlQ4i8MdYVow+nJL0eOqwpUqhzBoTBRADGN6uYwPyOw==",
+        "newIntegrity": "sha512-mBHK6FBHuBAlhgRe88w9F0O1AbwwXJUcQibUbC/QcdTbVGAD7aWza+xt3N6oT/jCZx3/OMeS+8rnuiHZcQ9s7A==",
+        "oldResolvedUrl": "https://registry.npmjs.org/marked/-/marked-18.0.13.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/marked/-/marked-18.0.14.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:marked:18.0.14->18.1.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "marked",
+        "oldVersion": "18.0.14",
+        "newVersion": "18.1.0",
+        "oldIntegrity": "sha512-mBHK6FBHuBAlhgRe88w9F0O1AbwwXJUcQibUbC/QcdTbVGAD7aWza+xt3N6oT/jCZx3/OMeS+8rnuiHZcQ9s7A==",
+        "newIntegrity": "sha512-PamYXWWWg2nboG3oX5Ffzpy3EFZROqZJK9hSlMmUnekp7TxPs5DcT95vwd46m73/exfKCRVMtgXoPMI4FEJL6w==",
+        "oldResolvedUrl": "https://registry.npmjs.org/marked/-/marked-18.0.14.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/marked/-/marked-18.1.0.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:marked:18.1.0->18.1.1",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "marked",
+        "oldVersion": "18.1.0",
+        "newVersion": "18.1.1",
+        "oldIntegrity": "sha512-PamYXWWWg2nboG3oX5Ffzpy3EFZROqZJK9hSlMmUnekp7TxPs5DcT95vwd46m73/exfKCRVMtgXoPMI4FEJL6w==",
+        "newIntegrity": "sha512-zEGgrtUG8crk+TrMacJSVABU4DYDDkS8uqgU3ohrn/2fW9C2AEfUrO3m6IhpIpQpl7YcVpiXXC9cSMWDANT3dg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/marked/-/marked-18.1.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/marked/-/marked-18.1.1.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:js-yaml:5.4.1->5.4.2",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "js-yaml",
+        "oldVersion": "5.4.1",
+        "newVersion": "5.4.2",
+        "oldIntegrity": "sha512-28R/k+NAjeuf7+CKlTxWZVExJGwVVLwY06DgEnOMz2gEpfNkDcD7QvyiVPT0xy0XXhU8vHsd4Ot42OOPdJG7dQ==",
+        "newIntegrity": "sha512-m+aqu+LwO1O6sIopafj8HUVl5aawITwZQe/yHpMCKjaWBaA/d07B/QdMb3529REftiU+RMMHL3Vlsw3hON7vWg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/js-yaml/-/js-yaml-5.4.1.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/js-yaml/-/js-yaml-5.4.2.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:js-yaml:5.4.2->5.4.3",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "js-yaml",
+        "oldVersion": "5.4.2",
+        "newVersion": "5.4.3",
+        "oldIntegrity": "sha512-m+aqu+LwO1O6sIopafj8HUVl5aawITwZQe/yHpMCKjaWBaA/d07B/QdMb3529REftiU+RMMHL3Vlsw3hON7vWg==",
+        "newIntegrity": "sha512-yzzNtgczwgoVHNigCyKTXcQJU4Y8t/ikU4UxXW0BvrLfHTGWZhsNcOT2s/a7vn81/4KqVnNmHjaUEPlvWnNwVw==",
+        "oldResolvedUrl": "https://registry.npmjs.org/js-yaml/-/js-yaml-5.4.2.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/js-yaml/-/js-yaml-5.4.3.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:js-yaml:5.4.3->5.5.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "js-yaml",
+        "oldVersion": "5.4.3",
+        "newVersion": "5.5.0",
+        "oldIntegrity": "sha512-yzzNtgczwgoVHNigCyKTXcQJU4Y8t/ikU4UxXW0BvrLfHTGWZhsNcOT2s/a7vn81/4KqVnNmHjaUEPlvWnNwVw==",
+        "newIntegrity": "sha512-paNr4LFIFPjeeSmwNYdrb8FafLLG/Cr2Af3GjbsHJ5CxIjH4r0c2emlmRdAtpPAieP1gRVzk6buBbVP5gBMGAg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/js-yaml/-/js-yaml-5.4.3.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/js-yaml/-/js-yaml-5.5.0.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:ajv:8.16.0->8.17.1",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "ajv",
+        "oldVersion": "8.16.0",
+        "newVersion": "8.17.1",
+        "oldIntegrity": "sha512-F0twR8U1ZU67JIEtekUcLkXkoO5mMMmgGD8sK/xUFzJ805jxHQl92hImFAqqXMyMYjSPOyUPAwHYhB72g5sTXw==",
+        "newIntegrity": "sha512-B/gBuNg5SiMTrPkC+A2+cW0RszwxYmn6VYxB/inlBStS5nx6xHIt/ehKRhIMhqusl7a8LjQoZnjCs5vhwxOQ1g==",
+        "oldResolvedUrl": "https://registry.npmjs.org/ajv/-/ajv-8.16.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/ajv/-/ajv-8.17.1.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:fresh:ajv:8.17.1->8.18.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "ajv",
+        "oldVersion": "8.17.1",
+        "newVersion": "8.18.0",
+        "oldIntegrity": "sha512-B/gBuNg5SiMTrPkC+A2+cW0RszwxYmn6VYxB/inlBStS5nx6xHIt/ehKRhIMhqusl7a8LjQoZnjCs5vhwxOQ1g==",
+        "newIntegrity": "sha512-PlXPeEWMXMZ7sPYOHqmDyCJzcfNrUr3fGNKtezX14ykXOEIvyK81d+qydx89KY5O71FKMPaQ2vBfBFI5NHR63A==",
+        "oldResolvedUrl": "https://registry.npmjs.org/ajv/-/ajv-8.17.1.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/ajv/-/ajv-8.18.0.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:ajv:8.18.0->8.20.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "ajv",
+        "oldVersion": "8.18.0",
+        "newVersion": "8.20.0",
+        "oldIntegrity": "sha512-PlXPeEWMXMZ7sPYOHqmDyCJzcfNrUr3fGNKtezX14ykXOEIvyK81d+qydx89KY5O71FKMPaQ2vBfBFI5NHR63A==",
+        "newIntegrity": "sha512-Thbli+OlOj+iMPYFBVBfJ3OmCAnaSyNn4M1vz9T6Gka5Jt9ba/HIR56joy65tY6kx/FCF5VXNB819Y7/GUrBGA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/ajv/-/ajv-8.18.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/ajv/-/ajv-8.20.0.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:jsonwebtoken:9.0.0->9.0.1",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "jsonwebtoken",
+        "oldVersion": "9.0.0",
+        "newVersion": "9.0.1",
+        "oldIntegrity": "sha512-tuGfYXxkQGDPnLJ7SibiQgVgeDgfbPq2k2ICcbgqW8WxWLBAxKQM/ZCu/IT8SOSwmaYl4dpTFCW5xZv7YbbWUw==",
+        "newIntegrity": "sha512-K8wx7eJ5TPvEjuiVSkv167EVboBDv9PZdDoF7BgeQnBLVvZWW9clr2PsQHVJDTKaEIH5JBIwHujGcHp7GgI2eg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/jsonwebtoken/-/jsonwebtoken-9.0.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/jsonwebtoken/-/jsonwebtoken-9.0.1.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:fresh:jsonwebtoken:9.0.1->9.0.2",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "jsonwebtoken",
+        "oldVersion": "9.0.1",
+        "newVersion": "9.0.2",
+        "oldIntegrity": "sha512-K8wx7eJ5TPvEjuiVSkv167EVboBDv9PZdDoF7BgeQnBLVvZWW9clr2PsQHVJDTKaEIH5JBIwHujGcHp7GgI2eg==",
+        "newIntegrity": "sha512-PRp66vJ865SSqOlgqS8hujT5U4AOgMfhrwYIuIhfKaoSCZcirrmASQr8CX7cUg+RMih+hgznrjp99o+W4pJLHQ==",
+        "oldResolvedUrl": "https://registry.npmjs.org/jsonwebtoken/-/jsonwebtoken-9.0.1.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/jsonwebtoken/-/jsonwebtoken-9.0.2.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:jsonwebtoken:9.0.2->9.0.3",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "jsonwebtoken",
+        "oldVersion": "9.0.2",
+        "newVersion": "9.0.3",
+        "oldIntegrity": "sha512-PRp66vJ865SSqOlgqS8hujT5U4AOgMfhrwYIuIhfKaoSCZcirrmASQr8CX7cUg+RMih+hgznrjp99o+W4pJLHQ==",
+        "newIntegrity": "sha512-MT/xP0CrubFRNLNKvxJ2BYfy53Zkm++5bX9dtuPbqAeQpTVe0MQTFhao8+Cp//EmJp244xt6Drw/GVEGCUj40g==",
+        "oldResolvedUrl": "https://registry.npmjs.org/jsonwebtoken/-/jsonwebtoken-9.0.2.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/jsonwebtoken/-/jsonwebtoken-9.0.3.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:nanoid:5.1.16->6.0.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "nanoid",
+        "oldVersion": "5.1.16",
+        "newVersion": "6.0.0",
+        "oldIntegrity": "sha512-kVrnsrJqMR8+oLJnGEmSWw9BivK5mt7H3FZatVRjrc5wGqFYuBxX1yG7+A7Gi5AefkX6t/oCkizcQgpu0cY1dQ==",
+        "newIntegrity": "sha512-mkUH+rPkwU2qPadJ0oJZOjeZ5Mxn8Q1UhevwkTRWNuUZzyia3h4rhzK39hxaHTk0o2OxB8W2SQ6A8k23ZDi1pQ==",
+        "oldResolvedUrl": "https://registry.npmjs.org/nanoid/-/nanoid-5.1.16.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/nanoid/-/nanoid-6.0.0.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:fresh:nanoid:6.0.0->6.0.1",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "nanoid",
+        "oldVersion": "6.0.0",
+        "newVersion": "6.0.1",
+        "oldIntegrity": "sha512-mkUH+rPkwU2qPadJ0oJZOjeZ5Mxn8Q1UhevwkTRWNuUZzyia3h4rhzK39hxaHTk0o2OxB8W2SQ6A8k23ZDi1pQ==",
+        "newIntegrity": "sha512-3wVS3i51pE2pi1k5FFL/95BGfVS0kSsvDVuGXHOtxox/TywUmtgq+3qiTOTbs9J7KfHaXPiN171k/A6dBnaXFw==",
+        "oldResolvedUrl": "https://registry.npmjs.org/nanoid/-/nanoid-6.0.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/nanoid/-/nanoid-6.0.1.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:nanoid:6.0.1->6.0.2",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "nanoid",
+        "oldVersion": "6.0.1",
+        "newVersion": "6.0.2",
+        "oldIntegrity": "sha512-3wVS3i51pE2pi1k5FFL/95BGfVS0kSsvDVuGXHOtxox/TywUmtgq+3qiTOTbs9J7KfHaXPiN171k/A6dBnaXFw==",
+        "newIntegrity": "sha512-hIvVOb9Qr1p/9CNNLOe0OlWvgx/ziTsVwKN/GDSsuArN2K0wDiafP3s0SWmsm7o2BdnyS8Z9Z64NFBUbn6ziBg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/nanoid/-/nanoid-6.0.1.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/nanoid/-/nanoid-6.0.2.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:date-fns:4.2.0->4.2.1",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "date-fns",
+        "oldVersion": "4.2.0",
+        "newVersion": "4.2.1",
+        "oldIntegrity": "sha512-Xztieol+KNB9MxhgS6v44YZt0xa8DN7CtKQCvHLwVE8/AaKv2eYiAACaJ9bHgCbOhfSigA3D7FRgXRLa/eZVpA==",
+        "newIntegrity": "sha512-37RhSdxaG1suen6VDCza6rNrQfooyQh57HFVPwQGEq2QWliVLzPQZ8Oa017weOu+HZCnzI7N3Pf/wyoBKfEqrA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/date-fns/-/date-fns-4.2.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/date-fns/-/date-fns-4.2.1.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:date-fns:4.2.1->4.3.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "date-fns",
+        "oldVersion": "4.2.1",
+        "newVersion": "4.3.0",
+        "oldIntegrity": "sha512-37RhSdxaG1suen6VDCza6rNrQfooyQh57HFVPwQGEq2QWliVLzPQZ8Oa017weOu+HZCnzI7N3Pf/wyoBKfEqrA==",
+        "newIntegrity": "sha512-OYcL+3N/jyWbYdFGqoMAhytDgxP9pbYPUUiRCOgn4Fewaadk9l/Wam4Avciiyp2BgkpfQyBV9B+ehnVJych+eQ==",
+        "oldResolvedUrl": "https://registry.npmjs.org/date-fns/-/date-fns-4.2.1.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/date-fns/-/date-fns-4.3.0.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:fresh:date-fns:4.3.0->4.4.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "date-fns",
+        "oldVersion": "4.3.0",
+        "newVersion": "4.4.0",
+        "oldIntegrity": "sha512-OYcL+3N/jyWbYdFGqoMAhytDgxP9pbYPUUiRCOgn4Fewaadk9l/Wam4Avciiyp2BgkpfQyBV9B+ehnVJych+eQ==",
+        "newIntegrity": "sha512-+1UMbeh68lH1SegH83CGWwpb6OHHbpSgr3+s5Eww5M4CAgswBpoWS0AjTOfEJ33HiYKz1hdj/KTFprzXHmq/6w==",
+        "oldResolvedUrl": "https://registry.npmjs.org/date-fns/-/date-fns-4.3.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/date-fns/-/date-fns-4.4.0.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:fresh:rxjs:7.7.0->7.8.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "rxjs",
+        "oldVersion": "7.7.0",
+        "newVersion": "7.8.0",
+        "oldIntegrity": "sha512-SYVdj/JRf+CtYTBV+Nx1bIAl3iI7GL7kawWEmcNAdHVJMGacOPkuWBfd8QYSx3hDa6Y3Hoaqri4jYZ6jbUW5kw==",
+        "newIntegrity": "sha512-F2+gxDshqmIub1KdvZkaEfGDwLNpPvk9Fs6LD/MyQxNgMds/WH9OdDDXOmxUZpME+iSK3rQCctkL0DYyytUqMg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/rxjs/-/rxjs-7.7.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/rxjs/-/rxjs-7.8.0.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:rxjs:7.8.0->7.8.1",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "rxjs",
+        "oldVersion": "7.8.0",
+        "newVersion": "7.8.1",
+        "oldIntegrity": "sha512-F2+gxDshqmIub1KdvZkaEfGDwLNpPvk9Fs6LD/MyQxNgMds/WH9OdDDXOmxUZpME+iSK3rQCctkL0DYyytUqMg==",
+        "newIntegrity": "sha512-AA3TVj+0A2iuIoQkWEK/tqFjBq2j+6PO6Y0zJcvzLAFhEFIO3HL0vls9hWLncZbAAbK0mar7oZ4V079I/qPMxg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/rxjs/-/rxjs-7.8.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/rxjs/-/rxjs-7.8.1.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:rxjs:7.8.1->7.8.2",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "rxjs",
+        "oldVersion": "7.8.1",
+        "newVersion": "7.8.2",
+        "oldIntegrity": "sha512-AA3TVj+0A2iuIoQkWEK/tqFjBq2j+6PO6Y0zJcvzLAFhEFIO3HL0vls9hWLncZbAAbK0mar7oZ4V079I/qPMxg==",
+        "newIntegrity": "sha512-dhKf903U/PQZY6boNNtAGdWbG85WAbjT/1xYoZIC7FAY0yWapOBQVsVrDl58W86//e1VpMNBtRV4MaXfdMySFA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/rxjs/-/rxjs-7.8.1.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/rxjs/-/rxjs-7.8.2.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:fresh:immer:11.2.6->11.2.7",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "immer",
+        "oldVersion": "11.2.6",
+        "newVersion": "11.2.7",
+        "oldIntegrity": "sha512-AI5pkEyzJZLsu91LASM15eZ0L9CK9SJZ+yI/MwO3Gsv9ajEwTwILrzxnxRqquLVKG7oCalEgXpAPsJfyPuWk/w==",
+        "newIntegrity": "sha512-zGk7AJPx/dKSYCjdUG0jkY6qLKvCzHMtLjqIEm2LhQJOrpRubIvI71RwsYwQGBfRAaLcJuZU0i4dAF3rxwedOA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/immer/-/immer-11.2.6.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/immer/-/immer-11.2.7.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:fresh:immer:11.2.7->11.2.8",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "immer",
+        "oldVersion": "11.2.7",
+        "newVersion": "11.2.8",
+        "oldIntegrity": "sha512-zGk7AJPx/dKSYCjdUG0jkY6qLKvCzHMtLjqIEm2LhQJOrpRubIvI71RwsYwQGBfRAaLcJuZU0i4dAF3rxwedOA==",
+        "newIntegrity": "sha512-QEcGFfpFDA8iwLPGJmYR/1sCEtvScdkV4pKFGHOtDavMXuU/e4rq+6Hoc6fxNvtDo/GNgiawVn7qfThbQS5d/A==",
+        "oldResolvedUrl": "https://registry.npmjs.org/immer/-/immer-11.2.7.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/immer/-/immer-11.2.8.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:immer:11.2.8->11.2.9",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "immer",
+        "oldVersion": "11.2.8",
+        "newVersion": "11.2.9",
+        "oldIntegrity": "sha512-QEcGFfpFDA8iwLPGJmYR/1sCEtvScdkV4pKFGHOtDavMXuU/e4rq+6Hoc6fxNvtDo/GNgiawVn7qfThbQS5d/A==",
+        "newIntegrity": "sha512-IQ4UEtXjZjyefyWjtLEDXUSrF6T2hwjKPi6BIJl3bY/2XXW24d6cNGdXJSBOA/+KNnuiXkZY6DR0C3efolhitA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/immer/-/immer-11.2.8.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/immer/-/immer-11.2.9.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:fresh:postcss:8.5.28->8.5.29",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "postcss",
+        "oldVersion": "8.5.28",
+        "newVersion": "8.5.29",
+        "oldIntegrity": "sha512-RRuzqDtt5Y9h3quz5hWhK+TPnsmVs6WwSU6LkJMeY4HstUEDuYTG8UJSdawMRzmzAtV+KEoG8N3Qg2qLy5vM/A==",
+        "newIntegrity": "sha512-49cGhUbXj8Qenv0iTMxA1cFBzxXoctpC9Ujd77t1WcbJIr6nF/eI7g/8MgxrYldFRuAXvja7xQRwavoW7kgrxQ==",
+        "oldResolvedUrl": "https://registry.npmjs.org/postcss/-/postcss-8.5.28.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/postcss/-/postcss-8.5.29.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:postcss:8.5.29->8.5.30",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "postcss",
+        "oldVersion": "8.5.29",
+        "newVersion": "8.5.30",
+        "oldIntegrity": "sha512-49cGhUbXj8Qenv0iTMxA1cFBzxXoctpC9Ujd77t1WcbJIr6nF/eI7g/8MgxrYldFRuAXvja7xQRwavoW7kgrxQ==",
+        "newIntegrity": "sha512-zkd+e9S1AQHhmaBKye9zlFHWjOwVgqXl1q3ECYy8561K7qxR2cREf/STLskulBFd78k6AOFeA+ff1TtEzk9bAA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/postcss/-/postcss-8.5.29.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/postcss/-/postcss-8.5.30.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:postcss:8.5.30->8.5.31",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "postcss",
+        "oldVersion": "8.5.30",
+        "newVersion": "8.5.31",
+        "oldIntegrity": "sha512-zkd+e9S1AQHhmaBKye9zlFHWjOwVgqXl1q3ECYy8561K7qxR2cREf/STLskulBFd78k6AOFeA+ff1TtEzk9bAA==",
+        "newIntegrity": "sha512-YUbWYCgErwnMAVkjUnYa+KlMBzGpHwiIt/DE7f0G33AuX2LH9UcTk6KgWxd3zRU+pN3u/C+Xl3EnMLM4Hea7Sg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/postcss/-/postcss-8.5.30.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/postcss/-/postcss-8.5.31.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:autoprefixer:10.5.5->10.5.6",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "autoprefixer",
+        "oldVersion": "10.5.5",
+        "newVersion": "10.5.6",
+        "oldIntegrity": "sha512-uiRYvQYe/nNSzBJ7OUnd2/TZVsAdob3blml44teEpee9Cc1f4rGZFewO+JT3Wo8mgFOSzNqes4FHZn/Qz8WOuw==",
+        "newIntegrity": "sha512-HiH4oYNc5+DQEx/b8FPfMj+WHH/WWUBmbN5r1Uf/ixtfyFkk+wGIlfJT/RD5eAyzlwkeYRtZUCI8qrEi26pl2g==",
+        "oldResolvedUrl": "https://registry.npmjs.org/autoprefixer/-/autoprefixer-10.5.5.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/autoprefixer/-/autoprefixer-10.5.6.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:fresh:autoprefixer:10.5.6->10.6.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "autoprefixer",
+        "oldVersion": "10.5.6",
+        "newVersion": "10.6.0",
+        "oldIntegrity": "sha512-HiH4oYNc5+DQEx/b8FPfMj+WHH/WWUBmbN5r1Uf/ixtfyFkk+wGIlfJT/RD5eAyzlwkeYRtZUCI8qrEi26pl2g==",
+        "newIntegrity": "sha512-A26d6qs9kqGgkmImIXMYvXTzqb4Qv7AVgpY1NXzr9Y659J8qHHnLOO/zE8ewIGFMprOolAoRAQYDgNryXIJKBw==",
+        "oldResolvedUrl": "https://registry.npmjs.org/autoprefixer/-/autoprefixer-10.5.6.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/autoprefixer/-/autoprefixer-10.6.0.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:autoprefixer:10.6.0->10.6.1",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "autoprefixer",
+        "oldVersion": "10.6.0",
+        "newVersion": "10.6.1",
+        "oldIntegrity": "sha512-A26d6qs9kqGgkmImIXMYvXTzqb4Qv7AVgpY1NXzr9Y659J8qHHnLOO/zE8ewIGFMprOolAoRAQYDgNryXIJKBw==",
+        "newIntegrity": "sha512-cL1Qz6ADZhcEbny/8HPfe99J6HhNoYtpX2LFLIbhgGE7Q1hlQVkYFdetDN7Id3KiQxhDrHwzlHr/YQCnZ8+xSA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/autoprefixer/-/autoprefixer-10.6.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/autoprefixer/-/autoprefixer-10.6.1.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:tailwindcss:4.3.0->4.3.1",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "tailwindcss",
+        "oldVersion": "4.3.0",
+        "newVersion": "4.3.1",
+        "oldIntegrity": "sha512-y6nxMGB1nMW9R6k96e5gdIFzcfL/gTJRNaqGes1YvkLnPVXzWgbqFF2yLC0T8G774n24cx3Pe8XrKoniCOAH+Q==",
+        "newIntegrity": "sha512-hk+TB1m+K8CYNrP6rjQaq/Y+4Zylwpa87mLYBKCunwnnQ9p+fHb7kmSfGqyEJoxF/O6CDyABWVFEafNSYKll+Q==",
+        "oldResolvedUrl": "https://registry.npmjs.org/tailwindcss/-/tailwindcss-4.3.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/tailwindcss/-/tailwindcss-4.3.1.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:tailwindcss:4.3.1->4.3.2",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "tailwindcss",
+        "oldVersion": "4.3.1",
+        "newVersion": "4.3.2",
+        "oldIntegrity": "sha512-hk+TB1m+K8CYNrP6rjQaq/Y+4Zylwpa87mLYBKCunwnnQ9p+fHb7kmSfGqyEJoxF/O6CDyABWVFEafNSYKll+Q==",
+        "newIntegrity": "sha512-WtctNNSH8A9jlMIqxzuYumOHU5uGZyRv0Q5svQl+oEPy5w84YpBxdb7MdqyiSPQge5jTJ6zFQLq0PFygdccSBA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/tailwindcss/-/tailwindcss-4.3.1.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/tailwindcss/-/tailwindcss-4.3.2.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:tailwindcss:4.3.2->4.3.3",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "tailwindcss",
+        "oldVersion": "4.3.2",
+        "newVersion": "4.3.3",
+        "oldIntegrity": "sha512-WtctNNSH8A9jlMIqxzuYumOHU5uGZyRv0Q5svQl+oEPy5w84YpBxdb7MdqyiSPQge5jTJ6zFQLq0PFygdccSBA==",
+        "newIntegrity": "sha512-gOhV3P7ufE62QDGg1zVaTgCR+EtPv92k2nIhVcVKcLmxT1sUBsQGhnZj175j+MqRt4zLF7ic+sCYjfhxMxj7YQ==",
+        "oldResolvedUrl": "https://registry.npmjs.org/tailwindcss/-/tailwindcss-4.3.2.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/tailwindcss/-/tailwindcss-4.3.3.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:eslint:10.10.0->10.11.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "eslint",
+        "oldVersion": "10.10.0",
+        "newVersion": "10.11.0",
+        "oldIntegrity": "sha512-NPXn6r5zl4uET1DAVPaOwzX3rut4c0wcmw3dWJAfOsTM5+TogXo0DDjz8pwm/hL8cyVNpHqeK4JpN0NjnyFFNw==",
+        "newIntegrity": "sha512-P7a6UEEqb9G95MYAtqkmsTbVXIYyzIfl6NGOIJk162PaahFxFyeGcrlXYFSiagECg4sEm8IseJdZBKR3rx6MsQ==",
+        "oldResolvedUrl": "https://registry.npmjs.org/eslint/-/eslint-10.10.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/eslint/-/eslint-10.11.0.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:fresh:eslint:10.11.0->10.12.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "eslint",
+        "oldVersion": "10.11.0",
+        "newVersion": "10.12.0",
+        "oldIntegrity": "sha512-P7a6UEEqb9G95MYAtqkmsTbVXIYyzIfl6NGOIJk162PaahFxFyeGcrlXYFSiagECg4sEm8IseJdZBKR3rx6MsQ==",
+        "newIntegrity": "sha512-npHjrHb2o4ehH3mE+YuxABR+0gyb0aVWCIolgJDArwCiHEIsonBm3ZKjel5b0U5+a+MbEvIyRCGCzD3eKKK2NA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/eslint/-/eslint-10.11.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/eslint/-/eslint-10.12.0.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:eslint:10.12.0->10.13.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "eslint",
+        "oldVersion": "10.12.0",
+        "newVersion": "10.13.0",
+        "oldIntegrity": "sha512-npHjrHb2o4ehH3mE+YuxABR+0gyb0aVWCIolgJDArwCiHEIsonBm3ZKjel5b0U5+a+MbEvIyRCGCzD3eKKK2NA==",
+        "newIntegrity": "sha512-UohDjD4zSzEwhf58M3O7vc/ycc8O1I7dNlhtD0WxE8Px8EHNJKtUwzBqrzeGhisRuv2ag4sAYswszCJRgKXYUg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/eslint/-/eslint-10.12.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/eslint/-/eslint-10.13.0.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:mocha:12.0.0->12.0.1",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "mocha",
+        "oldVersion": "12.0.0",
+        "newVersion": "12.0.1",
+        "oldIntegrity": "sha512-NYNh5IFt6WYqm9bi4601m7vix8MZdXC0DwS4gY6WhXO2RgJWhivhISVmq1oklCif18OSI9l+vx5Mdm5oh1XGiQ==",
+        "newIntegrity": "sha512-/ILgtFHV+R7EJLwN0OkrPPOu6wbJyrtuRtTJ5szdFHv2A3mPmkbu3r1H2q6FhaAfywDJCulcQQ2S9qDGfZW6dw==",
+        "oldResolvedUrl": "https://registry.npmjs.org/mocha/-/mocha-12.0.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/mocha/-/mocha-12.0.1.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:mocha:12.0.1->12.0.2",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "mocha",
+        "oldVersion": "12.0.1",
+        "newVersion": "12.0.2",
+        "oldIntegrity": "sha512-/ILgtFHV+R7EJLwN0OkrPPOu6wbJyrtuRtTJ5szdFHv2A3mPmkbu3r1H2q6FhaAfywDJCulcQQ2S9qDGfZW6dw==",
+        "newIntegrity": "sha512-SjAulGHxlMJLCD1bhvJBAiYwYxglydRzA9PDQ5MALq1oLRMMtIhxSQJ0olCFgA7c9YbTdxC0KOV0wl8JEDYVhA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/mocha/-/mocha-12.0.1.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/mocha/-/mocha-12.0.2.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:mocha:12.0.2->12.0.3",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "mocha",
+        "oldVersion": "12.0.2",
+        "newVersion": "12.0.3",
+        "oldIntegrity": "sha512-SjAulGHxlMJLCD1bhvJBAiYwYxglydRzA9PDQ5MALq1oLRMMtIhxSQJ0olCFgA7c9YbTdxC0KOV0wl8JEDYVhA==",
+        "newIntegrity": "sha512-beammieDdiWdkjANWeWPpkxUROYGi5FN88fPOkLiticz7HTg3Y+Pho3EYE6SUdcuWnZ3h2WD8EXCA55JF4o6wg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/mocha/-/mocha-12.0.2.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/mocha/-/mocha-12.0.3.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:chai:6.2.0->6.2.1",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "chai",
+        "oldVersion": "6.2.0",
+        "newVersion": "6.2.1",
+        "oldIntegrity": "sha512-aUTnJc/JipRzJrNADXVvpVqi6CO0dn3nx4EVPxijri+fj3LUUDyZQOgVeW54Ob3Y1Xh9Iz8f+CgaCl8v0mn9bA==",
+        "newIntegrity": "sha512-p4Z49OGG5W/WBCPSS/dH3jQ73kD6tiMmUM+bckNK6Jr5JHMG3k9bg/BvKR8lKmtVBKmOiuVaV2ws8s9oSbwysg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/chai/-/chai-6.2.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/chai/-/chai-6.2.1.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:chai:6.2.1->6.2.2",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "chai",
+        "oldVersion": "6.2.1",
+        "newVersion": "6.2.2",
+        "oldIntegrity": "sha512-p4Z49OGG5W/WBCPSS/dH3jQ73kD6tiMmUM+bckNK6Jr5JHMG3k9bg/BvKR8lKmtVBKmOiuVaV2ws8s9oSbwysg==",
+        "newIntegrity": "sha512-NUPRluOfOiTKBKvWPtSD4PhFvWCqOi0BGStNWs57X9js7XGTprSmFoz5F0tWhR4WPjNeR9jXqdC7/UpSJTnlRg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/chai/-/chai-6.2.1.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/chai/-/chai-6.2.2.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:chai:6.2.2->6.3.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "chai",
+        "oldVersion": "6.2.2",
+        "newVersion": "6.3.0",
+        "oldIntegrity": "sha512-NUPRluOfOiTKBKvWPtSD4PhFvWCqOi0BGStNWs57X9js7XGTprSmFoz5F0tWhR4WPjNeR9jXqdC7/UpSJTnlRg==",
+        "newIntegrity": "sha512-XWAtwJ6OHO+tj0EKCs0Y2UamnyOxseZWltU4x2U2wh8g4AigdjwvtUjvLP2tqkA/avxHEtzxNaqGq/YGNwckKg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/chai/-/chai-6.2.2.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/chai/-/chai-6.3.0.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:sinon:21.1.1->21.1.2",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "sinon",
+        "oldVersion": "21.1.1",
+        "newVersion": "21.1.2",
+        "oldIntegrity": "sha512-Tn8sLJZay8gRFQycxVwgL86PSUt9SnS9N2wCg12XyR75BssSS1c2fBPFUzwDj7XTNZlaM8+qkETTBYWnkKWXwg==",
+        "newIntegrity": "sha512-FS6mN+/bx7e2ajpXkEmOcWB6xBzWiuNoAQT18/+a20SS4U7FSYl8Ms7N6VTUxN/1JAjkx7aXp+THMC8xdpp0gA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/sinon/-/sinon-21.1.1.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/sinon/-/sinon-21.1.2.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:fresh:sinon:21.1.2->22.0.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "sinon",
+        "oldVersion": "21.1.2",
+        "newVersion": "22.0.0",
+        "oldIntegrity": "sha512-FS6mN+/bx7e2ajpXkEmOcWB6xBzWiuNoAQT18/+a20SS4U7FSYl8Ms7N6VTUxN/1JAjkx7aXp+THMC8xdpp0gA==",
+        "newIntegrity": "sha512-sq/6DpdXOrLyfbKlXLg/Usc7xu8YXPeLkOFZRvA3bNUSA2lhbrZ06yuXbH1fkzBPCbz9O10+7hznzUsjaYNm0Q==",
+        "oldResolvedUrl": "https://registry.npmjs.org/sinon/-/sinon-21.1.2.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/sinon/-/sinon-22.0.0.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:fresh:sinon:22.0.0->22.1.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "sinon",
+        "oldVersion": "22.0.0",
+        "newVersion": "22.1.0",
+        "oldIntegrity": "sha512-sq/6DpdXOrLyfbKlXLg/Usc7xu8YXPeLkOFZRvA3bNUSA2lhbrZ06yuXbH1fkzBPCbz9O10+7hznzUsjaYNm0Q==",
+        "newIntegrity": "sha512-n1ajF2rBWMTtEwbKcw4UdFg4nCnDdq/U6RDoxtOd7oapOlRoJ5ynwFx60owROyhDpA9QhMZi0pCO/xtmwFjG7w==",
+        "oldResolvedUrl": "https://registry.npmjs.org/sinon/-/sinon-22.0.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/sinon/-/sinon-22.1.0.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:fresh:supertest:7.1.4->7.2.2",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "supertest",
+        "oldVersion": "7.1.4",
+        "newVersion": "7.2.2",
+        "oldIntegrity": "sha512-tjLPs7dVyqgItVFirHYqe2T+MfWc2VOBQ8QFKKbWTA3PU7liZR8zoSpAi/C1k1ilm9RsXIKYf197oap9wXGVYg==",
+        "newIntegrity": "sha512-oK8WG9diS3DlhdUkcFn4tkNIiIbBx9lI2ClF8K+b2/m8Eyv47LSawxUzZQSNKUrVb2KsqeTDCcjAAVPYaSLVTA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/supertest/-/supertest-7.1.4.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/supertest/-/supertest-7.2.2.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:fresh:supertest:7.2.2->7.3.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "supertest",
+        "oldVersion": "7.2.2",
+        "newVersion": "7.3.0",
+        "oldIntegrity": "sha512-oK8WG9diS3DlhdUkcFn4tkNIiIbBx9lI2ClF8K+b2/m8Eyv47LSawxUzZQSNKUrVb2KsqeTDCcjAAVPYaSLVTA==",
+        "newIntegrity": "sha512-UwwmWq3xLhyU96c521wYNaBg7IqX78Wpj4FKs6Katp6vdklX42zU5ESvX3KeZRLFyO44RwFp4yvxYMNZzCcX9g==",
+        "oldResolvedUrl": "https://registry.npmjs.org/supertest/-/supertest-7.2.2.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/supertest/-/supertest-7.3.0.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:fresh:supertest:7.3.0->7.3.1",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "supertest",
+        "oldVersion": "7.3.0",
+        "newVersion": "7.3.1",
+        "oldIntegrity": "sha512-UwwmWq3xLhyU96c521wYNaBg7IqX78Wpj4FKs6Katp6vdklX42zU5ESvX3KeZRLFyO44RwFp4yvxYMNZzCcX9g==",
+        "newIntegrity": "sha512-vNaNCFoCR/edDbErQZp5KLNT8R4dSPHX7rlDLoE8hWLAm/878j6ShMbe8HK/E6RwwuhlSXVelXAIg9AxR5WWPw==",
+        "oldResolvedUrl": "https://registry.npmjs.org/supertest/-/supertest-7.3.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/supertest/-/supertest-7.3.1.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:fresh:lint-staged:17.4.1->17.5.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "lint-staged",
+        "oldVersion": "17.4.1",
+        "newVersion": "17.5.0",
+        "oldIntegrity": "sha512-FmJeudcalbSfg1du+JCfvi5vS6Qt08KgbfLWiHinbef+2JJwUZwAWVoaO1AcJVUTWPfk0t30PMQNwPAeCzYQ+Q==",
+        "newIntegrity": "sha512-ah2qsNtvKP1+Ak4rAvEEIvcXDLjjbr/xmxCvlequxqEOFYk0qINcZcRxD3Ic8wRn7/oQ8+wC9s0DfDrdMVCRFg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/lint-staged/-/lint-staged-17.4.1.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/lint-staged/-/lint-staged-17.5.0.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:fresh:lint-staged:17.5.0->17.5.1",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "lint-staged",
+        "oldVersion": "17.5.0",
+        "newVersion": "17.5.1",
+        "oldIntegrity": "sha512-ah2qsNtvKP1+Ak4rAvEEIvcXDLjjbr/xmxCvlequxqEOFYk0qINcZcRxD3Ic8wRn7/oQ8+wC9s0DfDrdMVCRFg==",
+        "newIntegrity": "sha512-7EDuco1xnBMeVpvAbeMq1U5KXwJGLmY8q6l+Ye78r36C4mPc+Vg1Z2SK8gHyRTyvPro90A0q5/FAZ+Au23d6QQ==",
+        "oldResolvedUrl": "https://registry.npmjs.org/lint-staged/-/lint-staged-17.5.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/lint-staged/-/lint-staged-17.5.1.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:lint-staged:17.5.1->17.6.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "lint-staged",
+        "oldVersion": "17.5.1",
+        "newVersion": "17.6.0",
+        "oldIntegrity": "sha512-7EDuco1xnBMeVpvAbeMq1U5KXwJGLmY8q6l+Ye78r36C4mPc+Vg1Z2SK8gHyRTyvPro90A0q5/FAZ+Au23d6QQ==",
+        "newIntegrity": "sha512-nOhBfYkZEwkFtNzD5pK9s9LkcWoxJ+whLzEnhqi9nl7zTB5n7tg8+9iYgMGx2Wm3VlLu8cbNj0RACzY+nWi5iQ==",
+        "oldResolvedUrl": "https://registry.npmjs.org/lint-staged/-/lint-staged-17.5.1.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/lint-staged/-/lint-staged-17.6.0.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:fresh:husky:9.1.4->9.1.5",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "husky",
+        "oldVersion": "9.1.4",
+        "newVersion": "9.1.5",
+        "oldIntegrity": "sha512-bho94YyReb4JV7LYWRWxZ/xr6TtOTt8cMfmQ39MQYJ7f/YE268s3GdghGwi+y4zAeqewE5zYLvuhV0M0ijsDEA==",
+        "newIntegrity": "sha512-rowAVRUBfI0b4+niA4SJMhfQwc107VLkBUgEYYAOQAbqDCnra1nYh83hF/MDmhYs9t9n1E3DuKOrs2LYNC+0Ag==",
+        "oldResolvedUrl": "https://registry.npmjs.org/husky/-/husky-9.1.4.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/husky/-/husky-9.1.5.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:fresh:husky:9.1.5->9.1.6",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "husky",
+        "oldVersion": "9.1.5",
+        "newVersion": "9.1.6",
+        "oldIntegrity": "sha512-rowAVRUBfI0b4+niA4SJMhfQwc107VLkBUgEYYAOQAbqDCnra1nYh83hF/MDmhYs9t9n1E3DuKOrs2LYNC+0Ag==",
+        "newIntegrity": "sha512-sqbjZKK7kf44hfdE94EoX8MZNk0n7HeW37O4YrVGCF4wzgQjp+akPAkfUK5LZ6KuR/6sqeAVuXHji+RzQgOn5A==",
+        "oldResolvedUrl": "https://registry.npmjs.org/husky/-/husky-9.1.5.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/husky/-/husky-9.1.6.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:husky:9.1.6->9.1.7",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "husky",
+        "oldVersion": "9.1.6",
+        "newVersion": "9.1.7",
+        "oldIntegrity": "sha512-sqbjZKK7kf44hfdE94EoX8MZNk0n7HeW37O4YrVGCF4wzgQjp+akPAkfUK5LZ6KuR/6sqeAVuXHji+RzQgOn5A==",
+        "newIntegrity": "sha512-5gs5ytaNjBrh5Ow3zrvdUUY+0VxIuWVL4i9irt6friV+BqdCfmV11CQTWMiBYWHbXhco+J1kHfTOUkePhCDvMA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/husky/-/husky-9.1.6.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/husky/-/husky-9.1.7.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:fresh:esbuild:0.27.7->0.28.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "esbuild",
+        "oldVersion": "0.27.7",
+        "newVersion": "0.28.0",
+        "oldIntegrity": "sha512-IxpibTjyVnmrIQo5aqNpCgoACA/dTKLTlhMHihVHhdkxKyPO1uBBthumT0rdHmcsk9uMonIWS0m4FljWzILh3w==",
+        "newIntegrity": "sha512-sNR9MHpXSUV/XB4zmsFKN+QgVG82Cc7+/aaxJ8Adi8hyOac+EXptIp45QBPaVyX3N70664wRbTcLTOemCAnyqw==",
+        "oldResolvedUrl": "https://registry.npmjs.org/esbuild/-/esbuild-0.27.7.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/esbuild/-/esbuild-0.28.0.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:esbuild:0.28.0->0.28.1",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "esbuild",
+        "oldVersion": "0.28.0",
+        "newVersion": "0.28.1",
+        "oldIntegrity": "sha512-sNR9MHpXSUV/XB4zmsFKN+QgVG82Cc7+/aaxJ8Adi8hyOac+EXptIp45QBPaVyX3N70664wRbTcLTOemCAnyqw==",
+        "newIntegrity": "sha512-HrJrvZv5ayxBzPfwphOoNzkzOIIlifzk0KJrGK2c8R4+LKpMtpYLQeUdjnwjWv/LZlkH2laZk+4w78pi99D4Vw==",
+        "oldResolvedUrl": "https://registry.npmjs.org/esbuild/-/esbuild-0.28.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/esbuild/-/esbuild-0.28.1.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:fresh:esbuild:0.28.1->0.28.2",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "esbuild",
+        "oldVersion": "0.28.1",
+        "newVersion": "0.28.2",
+        "oldIntegrity": "sha512-HrJrvZv5ayxBzPfwphOoNzkzOIIlifzk0KJrGK2c8R4+LKpMtpYLQeUdjnwjWv/LZlkH2laZk+4w78pi99D4Vw==",
+        "newIntegrity": "sha512-HKVLS8dvII+xoKW9kmqxbRKrnWEXfJJr/FZhhJmiqIB0e053QNYFqOBouTMO/k5sID4MvCiUCvv8b9M4h32wIA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/esbuild/-/esbuild-0.28.1.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/esbuild/-/esbuild-0.28.2.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:sharp:0.35.2->0.35.3",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "sharp",
+        "oldVersion": "0.35.2",
+        "newVersion": "0.35.3",
+        "oldIntegrity": "sha512-FVtFjtBCMiJS6yb5CX7Sop45WFMpeGw6oRKuJnXYgf/f1ms/D7LE/ZUSNxnW7rZ/dbslQWYkoqFHGPaDBtaK4w==",
+        "newIntegrity": "sha512-ej0zVHuZGHCiABXcNxeYhpRnPNPAcvbG8RMdBAhDAxLKkCRVSpK3Iyu7qbqw3JMzoj0REeM6f3tJLtVwl0023Q==",
+        "oldResolvedUrl": "https://registry.npmjs.org/sharp/-/sharp-0.35.2.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/sharp/-/sharp-0.35.3.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:fresh:sharp:0.35.3->0.35.4",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "sharp",
+        "oldVersion": "0.35.3",
+        "newVersion": "0.35.4",
+        "oldIntegrity": "sha512-ej0zVHuZGHCiABXcNxeYhpRnPNPAcvbG8RMdBAhDAxLKkCRVSpK3Iyu7qbqw3JMzoj0REeM6f3tJLtVwl0023Q==",
+        "newIntegrity": "sha512-n++8XWcj+jCOr2IOl7h8LbKnGBDY4aPbmprMONBNFdn0ImXqpGVv5zliDs0V9HbmbCQLpbuo2ej9rAoOQTvMDA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/sharp/-/sharp-0.35.3.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/sharp/-/sharp-0.35.4.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:fresh:sharp:0.35.4->0.35.5",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "sharp",
+        "oldVersion": "0.35.4",
+        "newVersion": "0.35.5",
+        "oldIntegrity": "sha512-n++8XWcj+jCOr2IOl7h8LbKnGBDY4aPbmprMONBNFdn0ImXqpGVv5zliDs0V9HbmbCQLpbuo2ej9rAoOQTvMDA==",
+        "newIntegrity": "sha512-Ywn4OnzGukp7CDMrp08RQ50YKmuwG47brZgIVPTvBaaAfQlRlygrRqSrxdCiL9M+LlzLBiJ68IR1QqvzHyjC7g==",
+        "oldResolvedUrl": "https://registry.npmjs.org/sharp/-/sharp-0.35.4.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/sharp/-/sharp-0.35.5.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:nodemon:3.1.11->3.1.12",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "nodemon",
+        "oldVersion": "3.1.11",
+        "newVersion": "3.1.12",
+        "oldIntegrity": "sha512-is96t8F/1//UHAjNPHpbsNY46ELPpftGUoSVNXwUfMk/qdjSylYrWSu1XavVTBOn526kFiOR733ATgNBCQyH0g==",
+        "newIntegrity": "sha512-ubbKNjz0Xvv49+5VWiqK2N+1VkoWdWi4xfpyuVbdT4QcdpGlN6Nx/OtxBCDHW8aUelaV6QHDbOjGca9HGnCiCw==",
+        "oldResolvedUrl": "https://registry.npmjs.org/nodemon/-/nodemon-3.1.11.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/nodemon/-/nodemon-3.1.12.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:fresh:nodemon:3.1.12->3.1.13",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "nodemon",
+        "oldVersion": "3.1.12",
+        "newVersion": "3.1.13",
+        "oldIntegrity": "sha512-ubbKNjz0Xvv49+5VWiqK2N+1VkoWdWi4xfpyuVbdT4QcdpGlN6Nx/OtxBCDHW8aUelaV6QHDbOjGca9HGnCiCw==",
+        "newIntegrity": "sha512-nPN6L7A9cTA3BnJ3zZIibH5FiDh3GbmibeS17bl5YEU1IRO2mcfvR0ZJXH3ndoeKItjUcaX81FSKc/Kq/IiG6g==",
+        "oldResolvedUrl": "https://registry.npmjs.org/nodemon/-/nodemon-3.1.12.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/nodemon/-/nodemon-3.1.13.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:fresh:nodemon:3.1.13->3.1.14",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "nodemon",
+        "oldVersion": "3.1.13",
+        "newVersion": "3.1.14",
+        "oldIntegrity": "sha512-nPN6L7A9cTA3BnJ3zZIibH5FiDh3GbmibeS17bl5YEU1IRO2mcfvR0ZJXH3ndoeKItjUcaX81FSKc/Kq/IiG6g==",
+        "newIntegrity": "sha512-jakjZi93UtB3jHMWsXL68FXSAosbLfY0In5gtKq3niLSkrWznrVBzXFNOEMJUfc9+Ke7SHWoAZsiMkNP3vq6Jw==",
+        "oldResolvedUrl": "https://registry.npmjs.org/nodemon/-/nodemon-3.1.13.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/nodemon/-/nodemon-3.1.14.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:tsx:4.23.12->4.23.13",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "tsx",
+        "oldVersion": "4.23.12",
+        "newVersion": "4.23.13",
+        "oldIntegrity": "sha512-FDf4L4sYzKtzWYhU/Xm0AQFdTjdIxNo9ElTf2mxXM6k8YMHXzYUe4yODVaXP4V9uMFbVg8c0qyBccK2OOxb45Q==",
+        "newIntegrity": "sha512-BL5MGkRln6aDYhb0xbQlEAGw743BaZYWdbWtdJOBriYJboKgUUYCadFp2/FpBBZquBC/ezNBn7wMMPx7FDZUDw==",
+        "oldResolvedUrl": "https://registry.npmjs.org/tsx/-/tsx-4.23.12.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/tsx/-/tsx-4.23.13.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:tsx:4.23.13->4.23.14",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "tsx",
+        "oldVersion": "4.23.13",
+        "newVersion": "4.23.14",
+        "oldIntegrity": "sha512-BL5MGkRln6aDYhb0xbQlEAGw743BaZYWdbWtdJOBriYJboKgUUYCadFp2/FpBBZquBC/ezNBn7wMMPx7FDZUDw==",
+        "newIntegrity": "sha512-yFwMnbAsUFz/T3kR8P2ENc/DDUaYd9tKg4oVYo0lhkX0LlK4UuqYAO6mpQ2y6lmcyip1uPJ34C2kPACopDwG4w==",
+        "oldResolvedUrl": "https://registry.npmjs.org/tsx/-/tsx-4.23.13.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/tsx/-/tsx-4.23.14.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:tsx:4.23.14->4.23.15",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "tsx",
+        "oldVersion": "4.23.14",
+        "newVersion": "4.23.15",
+        "oldIntegrity": "sha512-yFwMnbAsUFz/T3kR8P2ENc/DDUaYd9tKg4oVYo0lhkX0LlK4UuqYAO6mpQ2y6lmcyip1uPJ34C2kPACopDwG4w==",
+        "newIntegrity": "sha512-Yiex1Ovn8z2xPpOWckIiysV1SSyRMY9BkLF++q0yKiDxCqRhosKfMg3janKkiLBwZ5c/YryloKwGZcrEmtwxKw==",
+        "oldResolvedUrl": "https://registry.npmjs.org/tsx/-/tsx-4.23.14.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/tsx/-/tsx-4.23.15.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:fresh:vite:8.3.2->8.3.3",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "vite",
+        "oldVersion": "8.3.2",
+        "newVersion": "8.3.3",
+        "oldIntegrity": "sha512-SQr1x6W5vVSbROg7vsyXIaxK9b0G7zsT68acdWWRmnBUsgDieLCRG+Rep9WdZgcposvv/GSnr4GUUBqB3vXq6w==",
+        "newIntegrity": "sha512-cTAldKPImjg6c+gk48U19POPn3GCBzZwpdsN8ZMEEcbpes+6/wvfqUd0C2y3qYY4wsj8PwgFwrZ/1jBPVttMSg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/vite/-/vite-8.3.2.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/vite/-/vite-8.3.3.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:vite:8.3.3->8.3.4",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "vite",
+        "oldVersion": "8.3.3",
+        "newVersion": "8.3.4",
+        "oldIntegrity": "sha512-cTAldKPImjg6c+gk48U19POPn3GCBzZwpdsN8ZMEEcbpes+6/wvfqUd0C2y3qYY4wsj8PwgFwrZ/1jBPVttMSg==",
+        "newIntegrity": "sha512-IftLE8phJhdNRIGNEV4JCCvfNScoZQVfcXaN8TQropWGJtOHcu+iAB9pHcuGvmEb/kddw0LBe/jS8ztdC6xdiQ==",
+        "oldResolvedUrl": "https://registry.npmjs.org/vite/-/vite-8.3.3.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/vite/-/vite-8.3.4.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:vite:8.3.4->8.3.5",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "vite",
+        "oldVersion": "8.3.4",
+        "newVersion": "8.3.5",
+        "oldIntegrity": "sha512-IftLE8phJhdNRIGNEV4JCCvfNScoZQVfcXaN8TQropWGJtOHcu+iAB9pHcuGvmEb/kddw0LBe/jS8ztdC6xdiQ==",
+        "newIntegrity": "sha512-z1YpjieJ9g0ebTmQpLBv/oq9E3F9EIlOe+7LahW8SrE3LTiG3udBRUXQOlYXP9b+IC2q2phHeVxj9xGlw34OEQ==",
+        "oldResolvedUrl": "https://registry.npmjs.org/vite/-/vite-8.3.4.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/vite/-/vite-8.3.5.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:fresh:pino:10.2.1->10.3.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "pino",
+        "oldVersion": "10.2.1",
+        "newVersion": "10.3.0",
+        "oldIntegrity": "sha512-Tjyv76gdUe2460dEhtcnA4fU/+HhGq2Kr7OWlo2R/Xxbmn/ZNKWavNWTD2k97IE+s755iVU7WcaOEIl+H3cq8w==",
+        "newIntegrity": "sha512-0GNPNzHXBKw6U/InGe79A3Crzyk9bcSyObF9/Gfo9DLEf5qj5RF50RSjsu0W1rZ6ZqRGdzDFCRBQvi9/rSGPtA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/pino/-/pino-10.2.1.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/pino/-/pino-10.3.0.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:pino:10.3.0->10.3.1",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "pino",
+        "oldVersion": "10.3.0",
+        "newVersion": "10.3.1",
+        "oldIntegrity": "sha512-0GNPNzHXBKw6U/InGe79A3Crzyk9bcSyObF9/Gfo9DLEf5qj5RF50RSjsu0W1rZ6ZqRGdzDFCRBQvi9/rSGPtA==",
+        "newIntegrity": "sha512-r34yH/GlQpKZbU1BvFFqOjhISRo1MNx1tWYsYvmj6KIRHSPMT2+yHOEb1SG6NMvRoHRF0a07kCOox/9yakl1vg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/pino/-/pino-10.3.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/pino/-/pino-10.3.1.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:pino:10.3.1->10.4.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "pino",
+        "oldVersion": "10.3.1",
+        "newVersion": "10.4.0",
+        "oldIntegrity": "sha512-r34yH/GlQpKZbU1BvFFqOjhISRo1MNx1tWYsYvmj6KIRHSPMT2+yHOEb1SG6NMvRoHRF0a07kCOox/9yakl1vg==",
+        "newIntegrity": "sha512-bk1ZMTwG/Vymx+zPoa28MhNzucFvXJWp3csrSuxuHPSMeUettaCoQ5Jvg07mtC4JGNpcfTwz41oVCnNgBK9+vA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/pino/-/pino-10.3.1.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/pino/-/pino-10.4.0.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:cors:2.8.3->2.8.4",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "cors",
+        "oldVersion": "2.8.3",
+        "newVersion": "2.8.4",
+        "oldIntegrity": "sha512-anT5RmfPJjvXdnFfu7Ft+V+5qOoCHaFSVDIRUAaj8NNQFv8gP0Ew0hxltS03M33A6OH0UxhLTv4s55Zco/R8qQ==",
+        "newIntegrity": "sha512-ZEDmjGp8X+Slw7pFoWntR1aGcULLoVeKzcyTdR8dfP4LcVooO6oQ2n/vElN7L2RmoJ7mpJGGiseaDr3m3g85eg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/cors/-/cors-2.8.3.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/cors/-/cors-2.8.4.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:cors:2.8.4->2.8.5",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "cors",
+        "oldVersion": "2.8.4",
+        "newVersion": "2.8.5",
+        "oldIntegrity": "sha512-ZEDmjGp8X+Slw7pFoWntR1aGcULLoVeKzcyTdR8dfP4LcVooO6oQ2n/vElN7L2RmoJ7mpJGGiseaDr3m3g85eg==",
+        "newIntegrity": "sha512-KIHbLJqu73RGr/hnbrO9uBeixNGuvSQjul/jdFvS/KFSIH1hWVd1ng7zOHx+YrEfInLG7q4n6GHQ9cDtxv/P6g==",
+        "oldResolvedUrl": "https://registry.npmjs.org/cors/-/cors-2.8.4.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/cors/-/cors-2.8.5.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:cors:2.8.5->2.8.6",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "cors",
+        "oldVersion": "2.8.5",
+        "newVersion": "2.8.6",
+        "oldIntegrity": "sha512-KIHbLJqu73RGr/hnbrO9uBeixNGuvSQjul/jdFvS/KFSIH1hWVd1ng7zOHx+YrEfInLG7q4n6GHQ9cDtxv/P6g==",
+        "newIntegrity": "sha512-tJtZBBHA6vjIAaF6EnIaq6laBBP9aq/Y3ouVJjEfoHbRBcHBAHYcMh/w8LDrk2PvIMMq8gmopa5D4V8RmbrxGw==",
+        "oldResolvedUrl": "https://registry.npmjs.org/cors/-/cors-2.8.5.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/cors/-/cors-2.8.6.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:tar:7.5.19->7.5.20",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "tar",
+        "oldVersion": "7.5.19",
+        "newVersion": "7.5.20",
+        "oldIntegrity": "sha512-4LeEWl96twnS2Q7Bz4MGqgazLqO+hJN63GZxXoIqh1T3VweYD997gbU1ItNsQafqqXTXd5WFyFdReLtwvRBNiw==",
+        "newIntegrity": "sha512-9FcyK4PA6+WbzlTM9WhQm6vB5W7cP7dUiPsv1g7YDwEQnQ1CGpK3MGlKk/ITVWMk05kHZuBhmVhiv8LZoy/PFQ==",
+        "oldResolvedUrl": "https://registry.npmjs.org/tar/-/tar-7.5.19.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/tar/-/tar-7.5.20.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:tar:7.5.20->7.5.21",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "tar",
+        "oldVersion": "7.5.20",
+        "newVersion": "7.5.21",
+        "oldIntegrity": "sha512-9FcyK4PA6+WbzlTM9WhQm6vB5W7cP7dUiPsv1g7YDwEQnQ1CGpK3MGlKk/ITVWMk05kHZuBhmVhiv8LZoy/PFQ==",
+        "newIntegrity": "sha512-XdhtCvlMywwxpCW8YEq3lOXBJpUPTR2OHHcwLPO3HwsJqOHa2Ok/oJ7ruGzp+JrKoRPVCzJwAdEjqLW/vNRPHA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/tar/-/tar-7.5.20.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/tar/-/tar-7.5.21.tgz"
+      },
+      "heldOut": true
+    },
+    {
+      "id": "benign:fresh:tar:7.5.21->7.5.22",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "tar",
+        "oldVersion": "7.5.21",
+        "newVersion": "7.5.22",
+        "oldIntegrity": "sha512-XdhtCvlMywwxpCW8YEq3lOXBJpUPTR2OHHcwLPO3HwsJqOHa2Ok/oJ7ruGzp+JrKoRPVCzJwAdEjqLW/vNRPHA==",
+        "newIntegrity": "sha512-MFO/QzvtAOmJbkhOaCTvbGcFN9L9b+JunIsDwaKljSOdcLMea3NJ1k9Usz/rjdfSXTq4dfzfeS7W4p4YOAAHeA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/tar/-/tar-7.5.21.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/tar/-/tar-7.5.22.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:archiver:6.0.2->7.0.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "archiver",
+        "oldVersion": "6.0.2",
+        "newVersion": "7.0.0",
+        "oldIntegrity": "sha512-UQ/2nW7NMl1G+1UnrLypQw1VdT9XZg/ECcKPq7l+STzStrSivFIXIp34D8M5zeNGW5NoOupdYCHv6VySCPNNlw==",
+        "newIntegrity": "sha512-R9HM9egs8FfktSqUqyjlKmvF4U+CWNqm/2tlROV+lOFg79MLdT67ae1l3hU47pGy8twSXxHoiefMCh43w0BriQ==",
+        "oldResolvedUrl": "https://registry.npmjs.org/archiver/-/archiver-6.0.2.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/archiver/-/archiver-7.0.0.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:archiver:7.0.0->7.0.1",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "archiver",
+        "oldVersion": "7.0.0",
+        "newVersion": "7.0.1",
+        "oldIntegrity": "sha512-R9HM9egs8FfktSqUqyjlKmvF4U+CWNqm/2tlROV+lOFg79MLdT67ae1l3hU47pGy8twSXxHoiefMCh43w0BriQ==",
+        "newIntegrity": "sha512-ZcbTaIqJOfCc03QwD468Unz/5Ir8ATtvAHsK+FdXbDIbGfihqh9mrvdcYunQzqn4HrvWWaFyaxJhGZagaJJpPQ==",
+        "oldResolvedUrl": "https://registry.npmjs.org/archiver/-/archiver-7.0.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/archiver/-/archiver-7.0.1.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "benign:fresh:archiver:7.0.1->8.0.0",
+      "label": "benign",
+      "source": "assumed benign: popular package adjacent bump (registry selection 2026-10-24)",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "archiver",
+        "oldVersion": "7.0.1",
+        "newVersion": "8.0.0",
+        "oldIntegrity": "sha512-ZcbTaIqJOfCc03QwD468Unz/5Ir8ATtvAHsK+FdXbDIbGfihqh9mrvdcYunQzqn4HrvWWaFyaxJhGZagaJJpPQ==",
+        "newIntegrity": "sha512-fV1orZfsnPn9BaSByR/qE67rJCLJEy2Ox5bq7nJh+jquWaNh6Sfec75kJ2T6PtdGUbPQlrVoSVCEOa5SdiTQ1g==",
+        "oldResolvedUrl": "https://registry.npmjs.org/archiver/-/archiver-7.0.1.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/archiver/-/archiver-8.0.0.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "malicious:faker:5.5.3->6.6.6",
+      "label": "malicious",
+      "source": "https://github.com/advisories/GHSA-5w9c-rv96-fr7g",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "faker",
+        "oldVersion": "5.5.3",
+        "newVersion": "6.6.6",
+        "oldIntegrity": "sha512-wLTv2a28wjUyWkbnX7u/ABZBkUkIF2fCd73V6P2oFqEGEktDfzWx4UxrSqtPRw0xPRAcjeAOIiJWqZm3pP4u3g==",
+        "newIntegrity": "sha512-9tCqYEDHI5RYFQigXFwF1hnCwcWCOJl/hmll0lr5D2Ljjb0o4wphb69wikeJDz5qCEzXCoPvG6ss5SDP6IfOdg==",
+        "oldResolvedUrl": "https://registry.npmjs.org/faker/-/faker-5.5.3.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/faker/-/faker-6.6.6.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "malicious:node-ipc:10.1.0->11.0.0",
+      "label": "malicious",
+      "source": "https://github.com/advisories/GHSA-3mpp-xfvh-qh37",
+      "provenance": "real-registry",
+      "pair": {
+        "name": "node-ipc",
+        "oldVersion": "10.1.0",
+        "newVersion": "11.0.0",
+        "oldIntegrity": "sha512-JBHRlMU8xAoo1kPtcvlBAa/6OBi/FUZoO/NbZf63q5Fe8q2aDhVJFryBFSq5T3E7EM13NnAUyEYk1b0IF6QV3Q==",
+        "newIntegrity": "sha512-1WyjtPx/4XNjqlU1TBaIq7FokPI4n1Ftb+D8iGgK3oTApSAol7MuPGSHIWv4+rR1j08oBBRuTvxnebLOWHFcwA==",
+        "oldResolvedUrl": "https://registry.npmjs.org/node-ipc/-/node-ipc-10.1.0.tgz",
+        "resolvedUrl": "https://registry.npmjs.org/node-ipc/-/node-ipc-11.0.0.tgz"
+      },
+      "heldOut": false
+    },
+    {
+      "id": "malicious:synthetic:axios-2026/attack",
+      "label": "malicious",
+      "source": "synthetic reconstruction, not the original artifact: https://github.com/axios/axios/issues/10636 https://www.stepsecurity.io/blog/axios-compromised-on-npm-malicious-versions-drop-remote-access-trojan https://socket.dev/blog/axios-npm-packa…",
+      "provenance": "synthetic-reconstruction",
+      "resultOverride": {
+        "gateSeverity": {
+          "CRITICAL": 1,
+          "HIGH": 0,
+          "MEDIUM": 0,
+          "LOW": 2,
+          "INFO": 0
+        },
+        "incomplete": false
+      },
+      "heldOut": false
+    },
+    {
+      "id": "malicious:synthetic:shai-hulud-2025/attack",
+      "label": "malicious",
+      "source": "synthetic reconstruction, not the original artifact: https://www.stepsecurity.io/blog/ctrl-tinycolor-and-40-npm-packages-compromised https://sysdig.com/blog/shai-hulud-the-novel-self-replicating-worm-infecting-hundreds-of-npm-packages http…",
+      "provenance": "synthetic-reconstruction",
+      "resultOverride": {
+        "gateSeverity": {
+          "CRITICAL": 4,
+          "HIGH": 1,
+          "MEDIUM": 0,
+          "LOW": 0,
+          "INFO": 0
+        },
+        "incomplete": false
+      },
+      "heldOut": false
+    },
+    {
+      "id": "malicious:synthetic:shai-hulud-2-2025/attack",
+      "label": "malicious",
+      "source": "synthetic reconstruction, not the original artifact: https://www.endorlabs.com/learn/shai-hulud-2-malware-campaign-targets-github-and-cloud-credentials-using-bun-runtime https://socket.dev/npm/package/@commute/market-data/diff/1.0.2",
+      "provenance": "synthetic-reconstruction",
+      "resultOverride": {
+        "gateSeverity": {
+          "CRITICAL": 4,
+          "HIGH": 0,
+          "MEDIUM": 0,
+          "LOW": 0,
+          "INFO": 0
+        },
+        "incomplete": false
+      },
+      "heldOut": false
+    },
+    {
+      "id": "malicious:synthetic:layout-evasion/attack",
+      "label": "malicious",
+      "source": "synthetic reconstruction, not the original artifact: https://github.com/npm/pacote/blob/main/lib/fetcher.js https://github.com/isaacs/node-tar/blob/main/src/unpack.ts",
+      "provenance": "synthetic-reconstruction",
+      "resultOverride": {
+        "gateSeverity": {
+          "CRITICAL": 1,
+          "HIGH": 0,
+          "MEDIUM": 0,
+          "LOW": 0,
+          "INFO": 0
+        },
+        "incomplete": false
+      },
+      "heldOut": true
+    },
+    {
+      "id": "malicious:synthetic:mode-evasion/attack",
+      "label": "malicious",
+      "source": "synthetic reconstruction, not the original artifact: https://github.com/npm/pacote/blob/main/lib/fetcher.js https://github.com/isaacs/node-tar/blob/main/src/unpack.ts",
+      "provenance": "synthetic-reconstruction",
+      "resultOverride": {
+        "gateSeverity": {
+          "CRITICAL": 3,
+          "HIGH": 0,
+          "MEDIUM": 0,
+          "LOW": 0,
+          "INFO": 0
+        },
+        "incomplete": false
+      },
+      "heldOut": false
+    },
+    {
+      "id": "malicious:synthetic:manifest-directory/attack",
+      "label": "malicious",
+      "source": "synthetic reconstruction, not the original artifact: https://github.com/npm/pacote/blob/main/lib/fetcher.js https://github.com/isaacs/node-tar/blob/main/src/unpack.ts",
+      "provenance": "synthetic-reconstruction",
+      "resultOverride": {
+        "gateSeverity": {
+          "CRITICAL": 0,
+          "HIGH": 0,
+          "MEDIUM": 0,
+          "LOW": 0,
+          "INFO": 0
+        },
+        "incomplete": true
+      },
+      "heldOut": false
+    },
+    {
+      "id": "malicious:synthetic:old-side-unanalyzable/attack",
+      "label": "malicious",
+      "source": "synthetic reconstruction, not the original artifact: https://github.com/isaacs/node-tar/blob/main/src/unpack.ts",
+      "provenance": "synthetic-reconstruction",
+      "resultOverride": {
+        "gateSeverity": {
+          "CRITICAL": 1,
+          "HIGH": 0,
+          "MEDIUM": 0,
+          "LOW": 0,
+          "INFO": 0
+        },
+        "incomplete": true
+      },
+      "heldOut": false
+    },
+    {
+      "id": "malicious:synthetic:template-boundary/attack",
+      "label": "malicious",
+      "source": "synthetic reconstruction, not the original artifact: https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-template-literals",
+      "provenance": "synthetic-reconstruction",
+      "resultOverride": {
+        "gateSeverity": {
+          "CRITICAL": 0,
+          "HIGH": 3,
+          "MEDIUM": 0,
+          "LOW": 0,
+          "INFO": 0
+        },
+        "incomplete": false
+      },
+      "heldOut": false
+    },
+    {
+      "id": "malicious:synthetic:escaped-url/attack",
+      "label": "malicious",
+      "source": "synthetic reconstruction, not the original artifact: https://tc39.es/ecma262/multipage/ecmascript-language-lexical-grammar.html#sec-literals-string-literals",
+      "provenance": "synthetic-reconstruction",
+      "resultOverride": {
+        "gateSeverity": {
+          "CRITICAL": 0,
+          "HIGH": 2,
+          "MEDIUM": 0,
+          "LOW": 0,
+          "INFO": 0
+        },
+        "incomplete": false
+      },
+      "heldOut": false
+    },
+    {
+      "id": "malicious:synthetic:underscore-label/attack",
+      "label": "malicious",
+      "source": "synthetic reconstruction, not the original artifact: https://www.rfc-editor.org/rfc/rfc1035#section-2.3.1 https://url.spec.whatwg.org/#host-parsing",
+      "provenance": "synthetic-reconstruction",
+      "resultOverride": {
+        "gateSeverity": {
+          "CRITICAL": 0,
+          "HIGH": 1,
+          "MEDIUM": 0,
+          "LOW": 0,
+          "INFO": 0
+        },
+        "incomplete": false
+      },
+      "heldOut": false
+    },
+    {
+      "id": "malicious:synthetic:file-kinds/attack",
+      "label": "malicious",
+      "source": "synthetic reconstruction, not the original artifact: https://docs.npmjs.com/cli/v11/configuring-npm/package-json#bin https://nodejs.org/api/cli.html#hashbang",
+      "provenance": "synthetic-reconstruction",
+      "resultOverride": {
+        "gateSeverity": {
+          "CRITICAL": 0,
+          "HIGH": 1,
+          "MEDIUM": 0,
+          "LOW": 1,
+          "INFO": 0
+        },
+        "incomplete": false
+      },
+      "heldOut": false
+    },
+    {
+      "id": "malicious:synthetic:ipv4-octal-hex/attack",
+      "label": "malicious",
+      "source": "synthetic reconstruction, not the original artifact: https://man7.org/linux/man-pages/man3/inet_aton.3.html",
+      "provenance": "synthetic-reconstruction",
+      "resultOverride": {
+        "gateSeverity": {
+          "CRITICAL": 0,
+          "HIGH": 1,
+          "MEDIUM": 0,
+          "LOW": 0,
+          "INFO": 0
+        },
+        "incomplete": false
+      },
+      "heldOut": false
+    },
+    {
+      "id": "malicious:synthetic:net-existing/attack",
+      "label": "malicious",
+      "source": "synthetic reconstruction, not the original artifact: https://nodejs.org/api/globals.html#fetch",
+      "provenance": "synthetic-reconstruction",
+      "resultOverride": {
+        "gateSeverity": {
+          "CRITICAL": 0,
+          "HIGH": 1,
+          "MEDIUM": 1,
+          "LOW": 0,
+          "INFO": 0
+        },
+        "incomplete": false
+      },
+      "heldOut": false
+    },
+    {
+      "id": "malicious:synthetic:fs-read-existing/attack",
+      "label": "malicious",
+      "source": "synthetic reconstruction, not the original artifact: https://nodejs.org/api/fs.html#fsreadfilesyncpath-options https://nodejs.org/api/os.html#oshomedir",
+      "provenance": "synthetic-reconstruction",
+      "resultOverride": {
+        "gateSeverity": {
+          "CRITICAL": 0,
+          "HIGH": 1,
+          "MEDIUM": 0,
+          "LOW": 0,
+          "INFO": 0
+        },
+        "incomplete": false
+      },
+      "heldOut": false
+    }
+  ],
+  "selection": {
+    "m5Pairs": 90,
+    "freshPackages": 45,
+    "freshPairs": 132,
+    "freshFailures": [
+      {
+        "package": "node-sass",
+        "error": "0 eligible release(s), need 2"
+      }
+    ],
+    "maliciousCandidates": [
+      {
+        "name": "colors",
+        "version": "1.4.1",
+        "status": "excluded",
+        "reason": "version is not in the registry metadata (unpublished or replaced)"
+      },
+      {
+        "name": "colors",
+        "version": "1.4.2",
+        "status": "excluded",
+        "reason": "version is not in the registry metadata (unpublished or replaced)"
+      },
+      {
+        "name": "faker",
+        "version": "6.6.6",
+        "status": "included",
+        "reason": "malicious and previous tarballs present; named previous 6.6.5 is unpublished, used 5.5.3"
+      },
+      {
+        "name": "node-ipc",
+        "version": "10.1.1",
+        "status": "excluded",
+        "reason": "version is not in the registry metadata (unpublished or replaced)"
+      },
+      {
+        "name": "node-ipc",
+        "version": "10.1.2",
+        "status": "excluded",
+        "reason": "version is not in the registry metadata (unpublished or replaced)"
+      },
+      {
+        "name": "node-ipc",
+        "version": "10.1.3",
+        "status": "excluded",
+        "reason": "version is not in the registry metadata (unpublished or replaced)"
+      },
+      {
+        "name": "node-ipc",
+        "version": "11.0.0",
+        "status": "included",
+        "reason": "malicious and previous tarballs present"
+      },
+      {
+        "name": "event-stream",
+        "version": "3.3.6",
+        "status": "excluded",
+        "reason": "version is not in the registry metadata (unpublished or replaced)"
+      },
+      {
+        "name": "ua-parser-js",
+        "version": "0.7.29",
+        "status": "excluded",
+        "reason": "version is not in the registry metadata (unpublished or replaced)"
+      },
+      {
+        "name": "ua-parser-js",
+        "version": "0.8.0",
+        "status": "excluded",
+        "reason": "version is not in the registry metadata (unpublished or replaced)"
+      },
+      {
+        "name": "ua-parser-js",
+        "version": "1.0.0",
+        "status": "excluded",
+        "reason": "version is not in the registry metadata (unpublished or replaced)"
+      },
+      {
+        "name": "coa",
+        "version": "2.0.3",
+        "status": "excluded",
+        "reason": "version is not in the registry metadata (unpublished or replaced)"
+      },
+      {
+        "name": "rc",
+        "version": "1.2.9",
+        "status": "excluded",
+        "reason": "version is not in the registry metadata (unpublished or replaced)"
+      },
+      {
+        "name": "@ctrl/tinycolor",
+        "version": "4.1.1",
+        "status": "excluded",
+        "reason": "version is not in the registry metadata (unpublished or replaced)"
+      },
+      {
+        "name": "@lottiefiles/lottie-player",
+        "version": "2.0.7",
+        "status": "excluded",
+        "reason": "version is not in the registry metadata (unpublished or replaced)"
+      },
+      {
+        "name": "@solana/web3.js",
+        "version": "1.95.6",
+        "status": "excluded",
+        "reason": "version is not in the registry metadata (unpublished or replaced)"
+      }
+    ],
+    "syntheticAttacks": [
+      "axios-2026",
+      "shai-hulud-2025",
+      "shai-hulud-2-2025",
+      "layout-evasion",
+      "mode-evasion",
+      "manifest-directory",
+      "old-side-unanalyzable",
+      "template-boundary",
+      "escaped-url",
+      "underscore-label",
+      "file-kinds",
+      "ipv4-octal-hex",
+      "net-existing",
+      "fs-read-existing"
+    ]
+  }
+}

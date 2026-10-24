@@ -237,4 +237,25 @@ describe("eval corpus report", () => {
       expect(markdown).toContain("| Measure | All | Held-out | Development |");
     });
   });
+
+  it("accepts an INFO-only result", async () => {
+    await withTempDirectory(async (directory) => {
+      const corpusPath = join(directory, "corpus.json");
+      const resultsPath = join(directory, "results.json");
+      const out = join(directory, "report.md");
+      await writeFile(
+        corpusPath,
+        JSON.stringify(corpus([realEntry("benign:pkg@1.0.0->1.0.1")])),
+        "utf8",
+      );
+      await runCorpus(corpusPath, resultsPath, () =>
+        Promise.resolve(attempt({ status: "analyzed", severity: "INFO" })),
+      );
+
+      await reportCorpus(corpusPath, resultsPath, out);
+
+      const markdown = await readFile(out, "utf8");
+      expect(markdown).toContain("0 of 1 (0.0%");
+    });
+  });
 });

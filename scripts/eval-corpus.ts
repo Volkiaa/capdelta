@@ -168,10 +168,11 @@ function parseEntryResult(
     maxSeverity !== "LOW" &&
     maxSeverity !== "MEDIUM" &&
     maxSeverity !== "HIGH" &&
-    maxSeverity !== "CRITICAL"
+    maxSeverity !== "CRITICAL" &&
+    maxSeverity !== "INFO"
   )
     throw new EvalRunError(
-      `${where}.maxSeverity: expected NONE, LOW, MEDIUM, HIGH or CRITICAL`,
+      `${where}.maxSeverity: expected NONE, INFO, LOW, MEDIUM, HIGH or CRITICAL`,
     );
   return { id, analyzed, gateCritical, maxSeverity, incomplete };
 }
