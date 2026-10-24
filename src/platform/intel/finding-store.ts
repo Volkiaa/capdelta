@@ -11,7 +11,7 @@ import {
   type Validation,
   type Verdict,
 } from "./finding.js";
-import { applyTransition } from "./finding.js";
+import { applyTransition, findingId } from "./finding.js";
 
 export class FindingStoreError extends NamedError {}
 
@@ -43,10 +43,12 @@ const PUBLISHED: ReadonlySet<Verdict> = new Set([
   "retracted",
 ]);
 
+/** The finding as published at that sequence, so a later review state cannot hide a retraction. */
 interface FeedEntry {
   sequence: number;
   id: string;
   revision: number;
+  finding: IntelFinding;
 }
 
 export interface FeedPage {
@@ -67,6 +69,16 @@ export class FindingStore {
     finding: IntelFinding,
   ): Promise<{ finding: IntelFinding; created: boolean }> {
     const validated = parseFinding(finding, finding.id);
+    if (
+      validated.verdict !== "suspected" ||
+      validated.revision !== 1 ||
+      validated.history.length !== 0 ||
+      validated.id !== findingId(validated)
+    ) {
+      throw new FindingStoreError(
+        `cannot insert finding ${quote(validated.id)}: only a new suspected finding with its derived id may be inserted`,
+      );
+    }
 
     return this.withLock(async () => {
       const created = await this.store.putIfAbsent(
@@ -171,14 +183,9 @@ export class FindingStore {
     for (const item of await this.listFeedSequences()) {
       if (item.sequence <= sequence) continue;
       const entry = await this.readFeedEntry(item.key, item.sequence);
-      const finding = await this.get(entry.id);
-      if (finding === null || !PUBLISHED.has(finding.verdict)) {
-        lastSequence = item.sequence;
-        continue;
-      }
       // A newer entry for one finding replaces the older one in the page.
       if (!page.has(entry.id) && page.size >= limit) break;
-      page.set(entry.id, { sequence: item.sequence, finding });
+      page.set(entry.id, { sequence: item.sequence, finding: entry.finding });
       lastSequence = item.sequence;
     }
 
@@ -200,6 +207,7 @@ export class FindingStore {
       sequence,
       id: finding.id,
       revision: finding.revision,
+      finding,
     };
     await this.store.put(FEED_KIND, feedKey(sequence), entry);
     await this.store.put(FEED_META_KIND, FEED_HEAD_KEY, { sequence });
@@ -257,7 +265,12 @@ export class FindingStore {
         `invalid feed entry for ${quote(value.id)}: revision must be a positive integer`,
       );
     }
-    return { sequence, id: value.id, revision: value.revision };
+    return {
+      sequence,
+      id: value.id,
+      revision: value.revision,
+      finding: parseFinding(value.finding, value.id),
+    };
   }
 
   private async addToIndex(

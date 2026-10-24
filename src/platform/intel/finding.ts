@@ -112,13 +112,13 @@ export function findingId(input: {
 }): string {
   const hash = createHash("sha256")
     .update(
-      [
+      JSON.stringify([
         input.ecosystem,
         input.name,
         input.version,
         input.digest,
         input.ruleKey,
-      ].join("\n"),
+      ]),
       "utf8",
     )
     .digest("hex");
@@ -131,6 +131,19 @@ export function createFinding(
 ): IntelFinding {
   requireEcosystem(source.ecosystem);
   const id = findingId(source);
+  // Truncating an identity field after hashing would split one stored identity across ids.
+  for (const [field, value] of [
+    ["name", source.name],
+    ["version", source.version],
+    ["digest", source.digest],
+    ["ruleKey", source.ruleKey],
+  ] as const) {
+    if (value.length > MAX_IDENTITY_CHARS) {
+      throw new IntelModelError(
+        `cannot create finding ${id}: ${field} is longer than ${String(MAX_IDENTITY_CHARS)} characters`,
+      );
+    }
+  }
   const at = isoTime(now, id);
   const severity = requireMember(source.severity, SEVERITIES, "severity", id);
   const confidence = requireMember(

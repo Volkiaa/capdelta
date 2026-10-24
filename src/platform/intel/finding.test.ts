@@ -131,7 +131,7 @@ describe("findingId", () => {
 
   it("is a fixed known digest", () => {
     // Independent worked example: sha256 of the five fields joined by "\n".
-    expect(findingId(input())).toBe("CDI-27a9cdf9ea0b7a88effc");
+    expect(findingId(input())).toBe("CDI-b52c3645800696628e3e");
   });
 });
 
@@ -152,30 +152,18 @@ describe("createFinding", () => {
   it("bounds every attacker-controlled string", () => {
     const long = "x".repeat(1000);
     const finding = created({
-      name: long,
-      version: long,
-      digest: long,
       analyzerVersion: long,
-      ruleKey: long,
       summary: long,
       evidence: [{ file: long, line: 1, excerpt: long }],
     });
 
     const values = [
-      finding.name,
-      finding.version,
-      finding.digest,
       finding.analyzerVersion,
-      finding.ruleKey,
       finding.summary,
       finding.evidence[0]?.file,
       finding.evidence[0]?.excerpt,
     ];
     const limits = [
-      MAX_IDENTITY_CHARS,
-      MAX_IDENTITY_CHARS,
-      MAX_IDENTITY_CHARS,
-      MAX_IDENTITY_CHARS,
       MAX_IDENTITY_CHARS,
       MAX_VALUE_CHARS,
       MAX_EVIDENCE_FILE_CHARS,
@@ -414,6 +402,29 @@ describe("confirmation validation", () => {
           },
         },
         LATER,
+      ),
+    ).toThrow(IntelModelError);
+  });
+});
+
+describe("finding identity", () => {
+  it("gives distinct ids to inputs that differ only by where a newline falls", () => {
+    const base = {
+      ecosystem: "npm" as const,
+      name: "pkg",
+      version: "1.0.0",
+    };
+
+    expect(findingId({ ...base, digest: "a\nb", ruleKey: "c" })).not.toBe(
+      findingId({ ...base, digest: "a", ruleKey: "b\nc" }),
+    );
+  });
+
+  it("rejects an identity field longer than the bound instead of truncating it", () => {
+    expect(() =>
+      createFinding(
+        { ...BASE_INPUT, ruleKey: "r".repeat(MAX_IDENTITY_CHARS + 1) },
+        new Date("2026-10-24T00:00:00.000Z"),
       ),
     ).toThrow(IntelModelError);
   });

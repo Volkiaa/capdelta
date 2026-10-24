@@ -92,6 +92,27 @@ describe("FindingStore.putIfAbsent", () => {
   });
 });
 
+describe("FindingStore.putIfAbsent insertion rules", () => {
+  it("rejects a finding inserted already confirmed", async () => {
+    const forged = {
+      ...makeFinding(),
+      verdict: "confirmed-malicious" as const,
+    };
+
+    await expect(findings.putIfAbsent(forged)).rejects.toThrow(
+      FindingStoreError,
+    );
+  });
+
+  it("rejects a finding whose id is not derived from its identity", async () => {
+    const forged = { ...makeFinding(), id: "CDI-00000000000000000000" };
+
+    await expect(findings.putIfAbsent(forged)).rejects.toThrow(
+      FindingStoreError,
+    );
+  });
+});
+
 describe("FindingStore.transition", () => {
   it("persists the new verdict and revision across store instances", async () => {
     const finding = makeFinding();
@@ -274,7 +295,7 @@ describe("FindingStore.feedSince", () => {
     expect(next.lastSequence).toBe(2);
   });
 
-  it("skips a feed entry whose finding is missing", async () => {
+  it("publishes the snapshot even when the finding record is gone", async () => {
     const finding = makeFinding();
     await findings.putIfAbsent(finding);
     await confirm(finding.id);
@@ -282,8 +303,26 @@ describe("FindingStore.feedSince", () => {
 
     const feed = await findings.feedSince(0, 10);
 
-    expect(feed.entries).toEqual([]);
-    expect(feed.lastSequence).toBe(1);
+    expect(feed.entries).toHaveLength(1);
+    expect(feed.entries[0]?.finding.verdict).toBe("confirmed-malicious");
+  });
+
+  it("keeps the retraction visible after the finding is reopened for review", async () => {
+    const finding = makeFinding();
+    await findings.putIfAbsent(finding);
+    await confirm(finding.id);
+    await findings.transition(
+      finding.id,
+      { to: "retracted", actor: "alice", reason: "false positive" },
+      NOW,
+    );
+    await underReview(finding.id);
+
+    const feed = await findings.feedSince(1, 10);
+
+    expect(feed.entries).toHaveLength(1);
+    expect(feed.entries[0]?.finding.verdict).toBe("retracted");
+    expect(feed.entries[0]?.sequence).toBe(2);
   });
 
   it("rejects an invalid page request", async () => {
