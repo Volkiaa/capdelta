@@ -617,6 +617,55 @@ describe("collectReleases failure accounting", () => {
     expect(result.skipped.at(-1)?.reason).toMatch(/more skipped entries/u);
   });
 
+  it("queues only the 20 newest of many valid versions", async () => {
+    const items: FixtureVersion[] = [];
+    for (let index = 0; index < 5000; index += 1) {
+      items.push({
+        version: `1.0.${String(index)}`,
+        publishedAt: new Date(
+          Date.UTC(2020, 0, 1) + index * 60_000,
+        ).toISOString(),
+      });
+    }
+    const { fetchImpl } = routedFetch(
+      new Map([[`${REGISTRY}/many`, jsonResponse(packument("many", items))]]),
+    );
+
+    const result = await candidatesForPackage("many", { fetchImpl });
+
+    expect(result.candidates).toHaveLength(20);
+    expect(result.candidates.at(-1)?.version).toBe("1.0.4999");
+    expect(result.candidates[0]?.version).toBe("1.0.4980");
+    expect(result.candidates[0]?.previous?.version).toBe("1.0.4979");
+    expect(result.skipped.at(-1)?.reason).toBe(
+      "4980 older versions not queued",
+    );
+  });
+
+  it("still returns an old version that onlyVersions names", async () => {
+    const items: FixtureVersion[] = [];
+    for (let index = 0; index < 50; index += 1) {
+      items.push({
+        version: `1.0.${String(index)}`,
+        publishedAt: new Date(
+          Date.UTC(2020, 0, 1) + index * 60_000,
+        ).toISOString(),
+      });
+    }
+    const { fetchImpl } = routedFetch(
+      new Map([[`${REGISTRY}/many`, jsonResponse(packument("many", items))]]),
+    );
+
+    const result = await candidatesForPackage(
+      "many",
+      { fetchImpl },
+      new Set(["1.0.3"]),
+    );
+
+    expect(result.candidates.map((item) => item.version)).toEqual(["1.0.3"]);
+    expect(result.skipped).toEqual([]);
+  });
+
   it("throws CollectorError for a change feed that is not the expected JSON", async () => {
     const { fetchImpl } = routedFetch(
       new Map([[`${CHANGES}?since=0&limit=100`, new Response("not json")]]),

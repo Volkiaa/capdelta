@@ -9,6 +9,7 @@ import type { ReleaseArtifact, ReleaseCandidate } from "./release-candidate.js";
 
 /** A registry read failed in a way the caller must see: the cursor stays put. */
 const MAX_SKIPPED_PER_PACKAGE = 100;
+const MAX_CANDIDATES_PER_PACKAGE = 20;
 
 export class CollectorError extends NamedError {}
 
@@ -99,16 +100,7 @@ export async function collectReleases(
     const result = await candidatesForPackage(name, options);
     // Loops, not spread: a packument with 100k versions would overflow the call stack.
     for (const candidate of result.candidates) candidates.push(candidate);
-    for (const entry of result.skipped.slice(0, MAX_SKIPPED_PER_PACKAGE)) {
-      skipped.push(entry);
-    }
-    const dropped = result.skipped.length - MAX_SKIPPED_PER_PACKAGE;
-    if (dropped > 0) {
-      skipped.push({
-        name: truncate(name, MAX_IDENTITY_CHARS),
-        reason: `${String(dropped)} more skipped entries for this package not listed`,
-      });
-    }
+    for (const entry of result.skipped) skipped.push(entry);
   }
   return {
     candidates,
@@ -172,7 +164,12 @@ function readPackument(
   onlyVersions: ReadonlySet<string> | undefined,
 ): CandidatesResult {
   const skipped: CollectorSkipped[] = [];
+  let omitted = 0;
   const skip = (reason: string): void => {
+    if (skipped.length >= MAX_SKIPPED_PER_PACKAGE) {
+      omitted += 1;
+      return;
+    }
     skipped.push({
       name,
       reason: truncate(reason, MAX_VALUE_CHARS),
@@ -235,7 +232,22 @@ function readPackument(
       publishedAt: entry.publishedAt,
     });
   }
-  return { candidates, skipped };
+  // A feed event concerns the newest releases; an older one is reachable with onlyVersions.
+  const tooOld = candidates.length - MAX_CANDIDATES_PER_PACKAGE;
+  const kept = tooOld > 0 ? candidates.slice(tooOld) : candidates;
+  if (tooOld > 0) {
+    skipped.push({
+      name,
+      reason: `${String(tooOld)} older versions not queued`,
+    });
+  }
+  if (omitted > 0) {
+    skipped.push({
+      name,
+      reason: `${String(omitted)} more skipped entries not listed`,
+    });
+  }
+  return { candidates: kept, skipped };
 }
 
 type ParsedVersion = { entry: VersionEntry } | { reason: string };
