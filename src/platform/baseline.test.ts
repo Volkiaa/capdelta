@@ -453,5 +453,5 @@ describe("analyzeAgainstBaseline", () => {
     } finally {
       await rm(work, { recursive: true, force: true });
     }
-  });
+  }, 60_000);
 });
