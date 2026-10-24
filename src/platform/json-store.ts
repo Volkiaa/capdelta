@@ -25,6 +25,13 @@ const KIND_PATTERN = /^[a-z][a-z0-9-]{0,31}$/;
 const KEY_PATTERN = /^[A-Za-z0-9._-]{1,200}$/;
 const RECORD_SUFFIX = ".json";
 
+/**
+ * Threat model: the root is a directory only the operator can write. Key
+ * validation and symlink checks stop attacker-controlled names (package
+ * names, versions) from escaping it. A local attacker who can swap
+ * directories inside the root can win a check-then-use race, because Node has
+ * no openat; protect the root with file permissions.
+ */
 export class JsonStore {
   private readonly root: string;
 
