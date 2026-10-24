@@ -10,5 +10,10 @@
     "types": ["node"]
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["src/**/*.test.ts", "src/action.ts", "src/action/**/*.ts"]
+  "exclude": [
+    "src/**/*.test.ts",
+    "src/platform/test-registry.ts",
+    "src/action.ts",
+    "src/action/**/*.ts"
+  ]
 }

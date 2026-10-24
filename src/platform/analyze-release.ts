@@ -53,8 +53,14 @@ export async function analyzeRelease(
   );
 
   if (hasOperationalFailure(run)) {
+    const causes = run.packages
+      .flatMap((item) => (item.status === "unavailable" ? item.failures : []))
+      .map((failure) => `${failure.stage}:${failure.failure.kind}`);
     throw new TransientAnalysisError(
-      `analysis of ${releaseIdentity(candidate)} failed operationally; retry`,
+      truncate(
+        `analysis of ${releaseIdentity(candidate)} failed operationally (${causes.join(", ")}); retry`,
+        MAX_VALUE_CHARS,
+      ),
     );
   }
 

@@ -34,13 +34,15 @@ Status: pre-release. The existing v0.1 release, security guarantees, and validat
 
 **Success criteria:**
 
-- [ ] A package version can be analyzed without a lockfile or Git repository.
-- [ ] A newly published npm release automatically triggers analysis.
-- [ ] Two releases of the same package produce a behavioral diff.
-- [ ] Repeated events are idempotent; identical artifact bytes are not unnecessarily reanalyzed under the same analyzer version.
-- [ ] Reports persist across process restarts.
+- [x] A package version can be analyzed without a lockfile or Git repository.
+- [x] A newly published npm release automatically triggers analysis.
+- [x] Two releases of the same package produce a behavioral diff.
+- [x] Repeated events are idempotent; identical artifact bytes are not unnecessarily reanalyzed under the same analyzer version.
+- [x] Reports persist across process restarts.
 - [ ] Existing CLI/Action regression tests pass unchanged.
-- [ ] An end-to-end test demonstrates registry event → verification → analysis → stored report, including failure recovery.
+- [x] An end-to-end test demonstrates registry event → verification → analysis → stored report, including failure recovery.
+
+`src/platform/e2e.test.ts` covers every criterion above except the CLI/Action regression one. The full `npm test` suite covers that criterion.
 
 **Deliverable:** A working npm release monitoring and analysis service.
 
