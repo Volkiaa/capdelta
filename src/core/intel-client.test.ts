@@ -268,6 +268,28 @@ describe("lookupIntel", () => {
     ]);
   });
 
+  it("ignores entries for another digest and cuts off a flood", async () => {
+    const flood = Array.from({ length: 6000 }, (_, index) => ({
+      ...CONFIRMED,
+      id: `CDI-${String(index).padStart(20, "0")}`,
+    }));
+    const foreign = { ...CONFIRMED, digest: "sha512-other" };
+    const result = await lookupIntel(
+      [changedPackage("left-pad", "sha512-new")],
+      {
+        baseUrl: "https://intel.example",
+        maxResponseBytes: 10 * 1024 * 1024,
+        fetchImpl: jsonFetch({ findings: [foreign, ...flood] }),
+      },
+    );
+    expect(result.findings).toHaveLength(20);
+    expect(result.findings.every((item) => item.digest === "sha512-new")).toBe(
+      true,
+    );
+    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings[0]).toMatch(/invalid findings/u);
+  });
+
   it("caps lookups at maxPackages and names how many were not checked", async () => {
     const captured: CapturedRequest[] = [];
     const result = await lookupIntel(

@@ -180,9 +180,10 @@ async function analyzeCheckout(
     for (const warning of intel.warnings) {
       runtime.stderr(`capdelta: warning: ${terminalSafeText(warning)}\n`);
     }
-    lockfileDiff.findings.push(
-      ...intelMatches(lockfileDiff.changed, intel.findings),
-    );
+    // A loop, not a spread: argument spreading has a stack limit.
+    for (const match of intelMatches(lockfileDiff.changed, intel.findings)) {
+      lockfileDiff.findings.push(match);
+    }
   }
   const analyze = runtime.analyze ?? analyzeChangedPackages;
   const analysis = await analyze(lockfileDiff, {

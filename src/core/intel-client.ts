@@ -143,7 +143,7 @@ export async function lookupIntel(
   let invalidEntries = 0;
   for (const outcome of outcomes) {
     if (outcome === undefined) continue;
-    findings.push(...outcome.findings);
+    for (const finding of outcome.findings) findings.push(finding);
     invalidEntries += outcome.invalidEntries;
     if (outcome.failure !== undefined) {
       failures.set(outcome.failure, (failures.get(outcome.failure) ?? 0) + 1);
@@ -224,7 +224,7 @@ async function lookupDigest(
       if (!(error instanceof SyntaxError)) throw error;
       return failed("invalid-json");
     }
-    return parseFindings(parsed);
+    return parseFindings(parsed, digest);
   } catch {
     if (
       request.signal.reason === REQUEST_TIMEOUT_ABORT ||
@@ -253,14 +253,22 @@ function failed(failure: FailureKind): LookupOutcome {
   return { findings: [], failure, invalidEntries: 0 };
 }
 
-function parseFindings(value: unknown): LookupOutcome {
+const MAX_FINDINGS_PER_DIGEST = 20;
+
+function parseFindings(value: unknown, digest: string): LookupOutcome {
   if (!isRecord(value) || !Array.isArray(value.findings)) {
     return failed("invalid-shape");
   }
   const findings: IntelFindingView[] = [];
   let invalidEntries = 0;
   for (const entry of value.findings) {
-    if (!isIntelFindingView(entry)) {
+    // A hostile service must not widen the match set: only entries for the
+    // digest that was asked about count, and a flood is cut off loudly.
+    if (
+      !isIntelFindingView(entry) ||
+      entry.digest !== digest ||
+      findings.length >= MAX_FINDINGS_PER_DIGEST
+    ) {
       invalidEntries += 1;
       continue;
     }
