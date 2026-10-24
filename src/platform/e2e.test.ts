@@ -282,6 +282,7 @@ describe("platform end to end", () => {
       version: "1.0.0",
       attempts: 2,
     });
+    await stopApi();
 
     // docs/platform.md documents this manual step: remove the failed job, then
     // analyze the version again. The monitor cursor already passed the event.
