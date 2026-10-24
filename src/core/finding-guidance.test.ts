@@ -156,6 +156,7 @@ describe("finding guidance", () => {
     const kinds: readonly LockfileFindingKind[] = [
       "integrity-changed-version-same",
       "version-downgrade",
+      "intel-confirmed-malicious",
     ];
     expect(Object.keys(LOCKFILE_GUIDANCE).sort()).toEqual([...kinds].sort());
     for (const kind of kinds) {
@@ -290,17 +291,26 @@ describe("finding guidance", () => {
     ).toThrow(SeverityGateError);
   });
 
-  it("keeps every guidance string free of malware claims", () => {
+  it("keeps local-analysis guidance free of malware claims", () => {
     const strings = [
       ...Object.values(SHAPE_GUIDANCE),
       ...Object.values(CAPABILITY_GUIDANCE),
       ...Object.values(SIGNAL_GUIDANCE),
-      ...Object.values(LOCKFILE_GUIDANCE),
+      ...Object.entries(LOCKFILE_GUIDANCE)
+        .filter(([kind]) => kind !== "intel-confirmed-malicious")
+        .map(([, guidance]) => guidance),
       ...Object.values(ANALYSIS_ISSUE_GUIDANCE),
     ].flatMap((guidance) => [guidance.whyItMatters, guidance.whatToCheck]);
     expect(strings.length).toBeGreaterThan(0);
     for (const text of strings) {
       expect(text).not.toMatch(BANNED_WORDS);
     }
+  });
+
+  it("states the reviewer verdict in the confirmed intel guidance", () => {
+    const guidance = LOCKFILE_GUIDANCE["intel-confirmed-malicious"];
+    expect(guidance.whyItMatters).toContain("confirmed malicious");
+    expect(guidance.whatToCheck).toContain("Do not install it.");
+    expect(guidance.whatToCheck).toContain("finding id");
   });
 });

@@ -880,6 +880,76 @@ describe("renderSarifReport", () => {
       ]);
     });
 
+    it("renders a confirmed intel match as an error naming the finding id", () => {
+      const intelId = "CDI-0123456789abcdef0123";
+      const sarif = JSON.parse(
+        renderSarifReport(
+          lockfileRun([
+            {
+              kind: "intel-confirmed-malicious",
+              name: "left-pad",
+              path: `intel:${intelId}`,
+              oldVersion: "1.0.0",
+              newVersion: "1.1.0",
+              intelId,
+            },
+          ]),
+          { lockfilePath: "package-lock.json" },
+        ),
+      ) as ParsedSarif;
+
+      expect(sarif.runs[0].tool.driver.rules).toEqual([
+        expect.objectContaining({
+          id: "CAPDELTA-LOCKFILE-INTEL-CONFIRMED-MALICIOUS",
+          shortDescription: {
+            text: "Artifact confirmed malicious by shared intelligence",
+          },
+        }),
+      ]);
+      expect(sarif.runs[0].tool.driver.rules[0]?.help.text).toContain(
+        "Shared intelligence marks this exact artifact as confirmed malicious.",
+      );
+      expect(sarif.runs[0].tool.driver.rules[0]?.help.text).not.toContain(
+        "does not assert malware",
+      );
+      expect(sarif.runs[0].results).toEqual([
+        expect.objectContaining({
+          ruleId: "CAPDELTA-LOCKFILE-INTEL-CONFIRMED-MALICIOUS",
+          level: "error",
+          message: {
+            text: `Review this change: intel-confirmed-malicious for left-pad at intel:${intelId}: 1.0.0 -> 1.1.0. Intel ID ${intelId}.`,
+          },
+          properties: expect.objectContaining({
+            kind: "lockfile",
+            lockfileFinding: "intel-confirmed-malicious",
+            intelId,
+            severity: "CRITICAL",
+          }) as unknown,
+        }),
+      ]);
+    });
+
+    it("bounds an attacker-controlled intel id in SARIF", () => {
+      const marker = "](http://x)";
+      const intelId = `CDI-${"a".repeat(300)}${marker}`;
+      const sarifText = renderSarifReport(
+        lockfileRun([
+          {
+            kind: "intel-confirmed-malicious",
+            name: "left-pad",
+            path: `intel:${intelId}`,
+            oldVersion: "1.0.0",
+            newVersion: "1.1.0",
+            intelId,
+          },
+        ]),
+      );
+      const result = (JSON.parse(sarifText) as ParsedSarif).runs[0].results[0];
+      if (result === undefined) throw new Error("missing result");
+      expect(Array.from(String(result.properties.intelId))).toHaveLength(160);
+      expect(sarifText).not.toContain("http://x");
+    });
+
     it("bounds attacker-controlled lockfile identity and path", () => {
       const marker = "](http://x)";
       const sarifText = renderSarifReport(

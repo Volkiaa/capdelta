@@ -30,7 +30,8 @@ export interface ChangedPackage {
  */
 export type LockfileFindingKind =
   | "integrity-changed-version-same" // PLAN §4.1
-  | "version-downgrade"; // PLAN §4.1: "INFO finding"
+  | "version-downgrade" // PLAN §4.1: "INFO finding"
+  | "intel-confirmed-malicious"; // ADR-039 item 8: a reviewer confirmed this exact artifact
 
 export interface LockfileFinding {
   kind: LockfileFindingKind;
@@ -39,6 +40,8 @@ export interface LockfileFinding {
   path: string;
   oldVersion: string | null;
   newVersion: string;
+  /** The CDI-... finding id; present only for `intel-confirmed-malicious`. */
+  intelId?: string;
 }
 
 /** Why a changed package could not be queued for analysis. Never silent (PLAN §2). */
