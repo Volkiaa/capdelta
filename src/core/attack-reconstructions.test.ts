@@ -26,6 +26,7 @@ import {
   buildRunReport,
   type JsonReport,
   type JsonRunReport,
+  type ReportEvidence,
 } from "./reporter.js";
 import { evaluateSeverityGate } from "./run-severity.js";
 
@@ -128,6 +129,53 @@ function packageReport(report: JsonRunReport, name: string): JsonReport {
 
 function findingsOf(report: JsonReport, kind: string) {
   return report.findings.filter((finding) => finding.capability.kind === kind);
+}
+
+function expectSourceEvidence(evidence: readonly ReportEvidence[]): void {
+  expect(evidence.length).toBeGreaterThan(0);
+  for (const item of evidence) {
+    expect(item.file).not.toBe("");
+    expect(Number.isSafeInteger(item.line)).toBe(true);
+    expect(item.line).toBeGreaterThan(0);
+  }
+}
+
+function expectJsEvidence(evidence: readonly ReportEvidence[]): void {
+  expect(
+    evidence.some(
+      (item) =>
+        item.file.endsWith(".js") &&
+        Number.isSafeInteger(item.line) &&
+        item.line > 0,
+    ),
+  ).toBe(true);
+}
+
+const MANIFEST_FINDING_KINDS = new Set([
+  "INSTALL_HOOK",
+  "COMMAND_ENTRYPOINT",
+  "DEPENDENCY",
+  "RUNTIME_CONSTRAINT",
+]);
+
+function expectFindingEvidence(
+  kind: string,
+  evidence: readonly ReportEvidence[],
+): void {
+  expectSourceEvidence(evidence);
+  if (MANIFEST_FINDING_KINDS.has(kind)) {
+    expect(evidence.map((item) => item.file)).toContain("package.json");
+  }
+}
+
+function gateAtHighOrAbove(report: JsonRunReport): number {
+  return (
+    report.summary.gateSeverity.CRITICAL + report.summary.gateSeverity.HIGH
+  );
+}
+
+function isScenario(value: string): value is "attack" | "control" {
+  return value === "attack" || value === "control";
 }
 
 function expectAllAnalyzed(
@@ -885,4 +933,134 @@ describe("synthetic inet_aton IPv4 host (ADR-031)", () => {
     ]);
     expect(evaluateSeverityGate(result.report, "HIGH").fail).toBe(true);
   });
+});
+
+describe("synthetic new endpoint over an existing NET capability", () => {
+  it("reports the added host while the pre-existing fetch stays quiet", async () => {
+    const result = await runScenario("net-existing", "attack");
+    expectAllAnalyzed(result, 1);
+    const report = packageReport(
+      result.report,
+      "capdelta-fixture-net-existing",
+    );
+
+    expect(report.package.newPackage).toBe(false);
+    expect(findingsOf(report, "NET")).toEqual([]);
+
+    const endpoints = (report.signalFindings ?? []).filter(
+      (finding) => finding.kind === "new-external-endpoint",
+    );
+    expect(endpoints).toEqual([
+      expect.objectContaining({
+        severity: "HIGH",
+        detail: "new external domain collect.example.test",
+      }),
+    ]);
+    expect(endpoints[0]?.detail).not.toContain("api.example.test");
+    expectSourceEvidence(endpoints[0]?.evidence ?? []);
+    expectJsEvidence(endpoints[0]?.evidence ?? []);
+
+    expect(gateAtHighOrAbove(result.report)).toBeGreaterThanOrEqual(1);
+    expect(evaluateSeverityGate(result.report, "HIGH")).toMatchObject({
+      fail: true,
+      exitCode: 1,
+    });
+  });
+
+  it("passes the control that changes only a comment", async () => {
+    const result = await runScenario("net-existing", "control");
+    expectAllAnalyzed(result, 1);
+    expect(gateAtHighOrAbove(result.report)).toBe(0);
+    expect(evaluateSeverityGate(result.report, "HIGH").fail).toBe(false);
+  });
+});
+
+describe("synthetic sensitive read over an existing FS_READ capability", () => {
+  it("reports the added credential reads while the pre-existing read stays quiet", async () => {
+    const result = await runScenario("fs-read-existing", "attack");
+    expectAllAnalyzed(result, 1);
+    const report = packageReport(
+      result.report,
+      "capdelta-fixture-fs-read-existing",
+    );
+
+    expect(report.package.newPackage).toBe(false);
+    expect(findingsOf(report, "FS_READ")).toEqual([]);
+
+    const sensitive = findingsOf(report, "FS_SENSITIVE");
+    expect(sensitive).toHaveLength(1);
+    const sensitiveFinding = sensitive[0];
+    if (sensitiveFinding === undefined) {
+      throw new Error("FS_SENSITIVE finding is missing");
+    }
+    expect(sensitiveFinding.severity).toBe("HIGH");
+    expect(sensitiveFinding.change).toBe("added");
+    expect(sensitiveFinding.capability.kind).toBe("FS_SENSITIVE");
+    const snippets = sensitiveFinding.capability.evidence.map(
+      (item) => item.snippet,
+    );
+    expect(snippets).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining(".npmrc"),
+        expect.stringContaining(".ssh"),
+      ]),
+    );
+    expectSourceEvidence(sensitiveFinding.capability.evidence);
+    expectJsEvidence(sensitiveFinding.capability.evidence);
+
+    expect(gateAtHighOrAbove(result.report)).toBeGreaterThanOrEqual(1);
+    expect(evaluateSeverityGate(result.report, "HIGH")).toMatchObject({
+      fail: true,
+      exitCode: 1,
+    });
+  });
+
+  it("passes the control that adds only a project-local read", async () => {
+    const result = await runScenario("fs-read-existing", "control");
+    expectAllAnalyzed(result, 1);
+    expect(gateAtHighOrAbove(result.report)).toBe(0);
+    expect(evaluateSeverityGate(result.report, "HIGH").fail).toBe(false);
+  });
+});
+
+describe("phase 2 evidence coverage", () => {
+  it.each(
+    INVENTORY.incidents.flatMap((incident) =>
+      Object.keys(incident.scenarios)
+        .filter(isScenario)
+        .map((scenario) => [incident.name, scenario] as const),
+    ),
+  )(
+    "%s/%s: every MEDIUM-or-above finding carries source evidence",
+    async (name, scenario) => {
+      const result = await runScenario(name, scenario);
+      expect(result.report.summary.unavailablePackages).toBe(0);
+      for (const item of result.report.packages) {
+        if (item.status !== "analyzed") continue;
+        for (const finding of item.report.findings) {
+          if (finding.severity === "LOW" || finding.severity === "INFO") {
+            continue;
+          }
+          expectFindingEvidence(
+            finding.capability.kind,
+            finding.capability.evidence,
+          );
+        }
+        for (const finding of item.report.signalFindings ?? []) {
+          if (finding.severity === "LOW" || finding.severity === "INFO") {
+            continue;
+          }
+          expectSourceEvidence(finding.evidence);
+        }
+        for (const shape of item.report.shapes ?? []) {
+          for (const capability of shape.capabilities) {
+            expectFindingEvidence(capability.kind, capability.evidence);
+          }
+          for (const signal of shape.signals ?? []) {
+            expectSourceEvidence(signal.evidence);
+          }
+        }
+      }
+    },
+  );
 });

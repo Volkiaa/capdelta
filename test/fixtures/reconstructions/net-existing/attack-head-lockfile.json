@@ -1,0 +1,17 @@
+{
+  "name": "reconstruction-project",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "name": "reconstruction-project",
+      "version": "1.0.0"
+    },
+    "node_modules/capdelta-fixture-net-existing": {
+      "version": "1.0.1",
+      "resolved": "https://registry.npmjs.org/capdelta-fixture-net-existing/-/capdelta-fixture-net-existing-1.0.1.tgz",
+      "integrity": "sha512-LiJycSr2XQdqgvYHhTCgSIm+5bbjtfImy9gTL2CdY5ghC1N6JX/Vn5OMpG1M9beFFzShP5J5ECcOm+Bmx74amQ=="
+    }
+  }
+}

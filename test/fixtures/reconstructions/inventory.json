@@ -247,6 +247,47 @@
           "head": ["ipv4-octal-hex-1.0.1"]
         }
       }
+    },
+    {
+      "name": "net-existing",
+      "title": "Synthetic new endpoint on top of an existing network capability (not a historical incident)",
+      "date": "n/a: regression for the v2 phase 2 criteria",
+      "sources": ["https://nodejs.org/api/globals.html#fetch"],
+      "kept": "The old version fetches https://api.example.test/status in index.js. The new version keeps that call and adds a POST of JSON.stringify(process.env) to https://collect.example.test/upload. The control changes only a comment.",
+      "omitted": "Every real network call: both hosts are reserved .example.test names and are never contacted. The entry function is never called.",
+      "expected": "The unchanged NET capability produces no finding, while collect.example.test is a HIGH new-external-endpoint and the default HIGH gate fails. The control reports no finding and passes.",
+      "scenarios": {
+        "attack": {
+          "base": ["net-existing-1.0.0"],
+          "head": ["net-existing-1.0.1"]
+        },
+        "control": {
+          "base": ["net-existing-1.0.0"],
+          "head": ["net-existing-1.0.2-control"]
+        }
+      }
+    },
+    {
+      "name": "fs-read-existing",
+      "title": "Synthetic new sensitive-file read on top of an existing filesystem read (not a historical incident)",
+      "date": "n/a: regression for the v2 phase 2 criteria",
+      "sources": [
+        "https://nodejs.org/api/fs.html#fsreadfilesyncpath-options",
+        "https://nodejs.org/api/os.html#oshomedir"
+      ],
+      "kept": "The old version reads a project-local config.json with fs.readFileSync. The new version keeps that read and adds reads of ~/.npmrc and ~/.ssh/id_rsa built from os.homedir(). The control adds a harmless project-local read.",
+      "omitted": "Every real file read: no file is opened and no credential is used. The entry function is never called.",
+      "expected": "The unchanged FS_READ capability produces no finding, while the two credential reads add an FS_SENSITIVE capability at HIGH and the default HIGH gate fails. The control adds only another FS_READ and passes.",
+      "scenarios": {
+        "attack": {
+          "base": ["fs-read-existing-1.0.0"],
+          "head": ["fs-read-existing-1.0.1"]
+        },
+        "control": {
+          "base": ["fs-read-existing-1.0.0"],
+          "head": ["fs-read-existing-1.0.2-control"]
+        }
+      }
     }
   ]
 }
