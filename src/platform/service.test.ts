@@ -14,6 +14,7 @@ import {
 
 const REGISTRY = "https://registry.npmjs.org";
 const CHANGES = "https://replicate.npmjs.com/_changes";
+const FEED_ROOT = "https://replicate.npmjs.com/";
 
 let base: string;
 let dataDir: string;
@@ -144,8 +145,8 @@ function cursorValue(since: string): object {
 describe("monitorOnce", () => {
   it("stores a cursor on the first cycle and enqueues nothing", async () => {
     const { fetchImpl } = routedFetch((url) => {
-      if (url === `${CHANGES}?since=now&limit=100`) {
-        return jsonResponse({ results: [], last_seq: 100 });
+      if (url === FEED_ROOT) {
+        return jsonResponse({ update_seq: 100 });
       }
       return undefined;
     });
@@ -168,8 +169,8 @@ describe("monitorOnce", () => {
 
   it("analyzes one new release and stores one record", async () => {
     const { fetchImpl } = routedFetch((url) => {
-      if (url === `${CHANGES}?since=now&limit=100`) {
-        return jsonResponse({ results: [], last_seq: 100 });
+      if (url === FEED_ROOT) {
+        return jsonResponse({ update_seq: 100 });
       }
       if (url === `${CHANGES}?since=100&limit=100`) {
         return jsonResponse({
@@ -214,8 +215,8 @@ describe("monitorOnce", () => {
 
   it("replays the same feed page without a duplicate job or record", async () => {
     const { fetchImpl } = routedFetch((url) => {
-      if (url.includes("since=now")) {
-        return jsonResponse({ results: [], last_seq: 100 });
+      if (url === FEED_ROOT) {
+        return jsonResponse({ update_seq: 100 });
       }
       if (url.startsWith(`${CHANGES}?`)) {
         return jsonResponse({
@@ -244,8 +245,8 @@ describe("monitorOnce", () => {
 
   it("replays a release that was enqueued before the cursor write", async () => {
     const { fetchImpl } = routedFetch((url) => {
-      if (url.includes("since=now")) {
-        return jsonResponse({ results: [], last_seq: 100 });
+      if (url === FEED_ROOT) {
+        return jsonResponse({ update_seq: 100 });
       }
       if (url.startsWith(`${CHANGES}?`)) {
         return jsonResponse({
@@ -293,15 +294,31 @@ describe("monitorOnce", () => {
 
   it("rejects a feed cursor that is unsafe to store or request", async () => {
     const { fetchImpl } = routedFetch((url) => {
-      if (url.includes("since=now")) {
+      if (url === FEED_ROOT) {
+        return jsonResponse({ update_seq: 100 });
+      }
+      if (url.startsWith(`${CHANGES}?`)) {
         return jsonResponse({ results: [], last_seq: "12\n34" });
       }
       return undefined;
     });
 
+    await monitorOnce(config(fetchImpl));
     await expect(monitorOnce(config(fetchImpl))).rejects.toBeInstanceOf(
       ServiceError,
     );
+    const handles = openService(config(fetchImpl));
+    await expect(handles.store.get("cursor", "npm-changes")).resolves.toEqual(
+      cursorValue("100"),
+    );
+  });
+
+  it("rejects a database root without a usable update_seq", async () => {
+    const { fetchImpl } = routedFetch((url) =>
+      url === FEED_ROOT ? jsonResponse({ update_seq: "12\n34" }) : undefined,
+    );
+
+    await expect(monitorOnce(config(fetchImpl))).rejects.toThrow(/update_seq/u);
     const handles = openService(config(fetchImpl));
     await expect(
       handles.store.get("cursor", "npm-changes"),
@@ -310,8 +327,8 @@ describe("monitorOnce", () => {
 
   it("passes every skipped package to onEvent", async () => {
     const { fetchImpl } = routedFetch((url) => {
-      if (url.includes("since=now")) {
-        return jsonResponse({ results: [], last_seq: 100 });
+      if (url === FEED_ROOT) {
+        return jsonResponse({ update_seq: 100 });
       }
       if (url.startsWith(`${CHANGES}?`)) {
         return jsonResponse({

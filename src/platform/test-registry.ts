@@ -51,6 +51,7 @@ export function createFakeRegistry(): FakeRegistry {
   function respond(url: string): Response {
     const parsed = registryUrl(url);
     if (parsed.pathname === "/_changes") return changesPage(parsed);
+    if (parsed.pathname === "/") return json({ update_seq: lastSeq });
     if (parsed.pathname.startsWith("/tarballs/")) {
       return tarball(parsed.pathname.slice("/tarballs/".length));
     }
@@ -58,10 +59,10 @@ export function createFakeRegistry(): FakeRegistry {
   }
 
   function changesPage(url: URL): Response {
-    const sinceText = url.searchParams.get("since") ?? "now";
+    const sinceText = url.searchParams.get("since") ?? "0";
     const limit = parseLimit(url.searchParams.get("limit"));
     if (limit === null) return badRequest("invalid limit");
-    const since = sinceText === "now" ? lastSeq : parseSince(sinceText);
+    const since = parseSince(sinceText);
     if (since === null) return badRequest("invalid since");
     const page = changes.filter((entry) => entry.seq > since).slice(0, limit);
     return json({

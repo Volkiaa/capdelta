@@ -9,7 +9,7 @@ import type { ReleaseArtifact, ReleaseCandidate } from "./release-candidate.js";
 
 /** A registry read failed in a way the caller must see: the cursor stays put. */
 const MAX_SKIPPED_PER_PACKAGE = 100;
-const MAX_CANDIDATES_PER_PACKAGE = 20;
+const MAX_CANDIDATES_PER_PACKAGE = 3;
 
 export class CollectorError extends NamedError {}
 
@@ -354,6 +354,31 @@ function changeFeed(feed: unknown): ChangeFeed {
     ids.add(item.id);
   }
   return { ids: [...ids], lastSeq };
+}
+
+/**
+ * The database's current sequence. The live feed rejects `since=now` with HTTP
+ * 400, so a first run starts from the number the database root reports.
+ */
+export async function currentFeedSequence(
+  options: CollectorOptions,
+): Promise<string> {
+  const resolved = resolveOptions(options);
+  const root = new URL("./", resolved.changesUrl);
+  const info = await fetchJson(
+    root.href,
+    resolved,
+    "change feed database info",
+    MAX_CHANGE_FEED_BYTES,
+  );
+  const sequence = isRecord(info) ? info.update_seq : undefined;
+  if (
+    (typeof sequence !== "number" || !Number.isSafeInteger(sequence)) &&
+    (typeof sequence !== "string" || !/^\d{1,20}$/u.test(sequence))
+  ) {
+    throw new CollectorError("change feed database info has no update_seq");
+  }
+  return String(sequence);
 }
 
 async function fetchJson(

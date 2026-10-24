@@ -617,7 +617,7 @@ describe("collectReleases failure accounting", () => {
     expect(result.skipped.at(-1)?.reason).toMatch(/more skipped entries/u);
   });
 
-  it("queues only the 20 newest of many valid versions", async () => {
+  it("queues only the 3 newest of many valid versions", async () => {
     const items: FixtureVersion[] = [];
     for (let index = 0; index < 5000; index += 1) {
       items.push({
@@ -633,12 +633,12 @@ describe("collectReleases failure accounting", () => {
 
     const result = await candidatesForPackage("many", { fetchImpl });
 
-    expect(result.candidates).toHaveLength(20);
+    expect(result.candidates).toHaveLength(3);
     expect(result.candidates.at(-1)?.version).toBe("1.0.4999");
-    expect(result.candidates[0]?.version).toBe("1.0.4980");
-    expect(result.candidates[0]?.previous?.version).toBe("1.0.4979");
+    expect(result.candidates[0]?.version).toBe("1.0.4997");
+    expect(result.candidates[0]?.previous?.version).toBe("1.0.4996");
     expect(result.skipped.at(-1)?.reason).toBe(
-      "4980 older versions not queued",
+      "4997 older versions not queued",
     );
   });
 

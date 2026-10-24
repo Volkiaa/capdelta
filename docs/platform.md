@@ -199,7 +199,7 @@ The feed is for mirrors and other consumers that replay each published change wi
 
 ## Limits
 
-- One feed event queues at most the 20 newest versions of one package. An older version is reachable with `analyze`.
+- One feed event queues at most the 3 newest versions of one package. An older version is reachable with `analyze`.
 - The file store writes one JSON file per record and lists a directory to find jobs and records. Job listing reads every job file, so the store does not scale past one host and a large job count. ADR-038 says to replace it when the record count passes what a directory listing handles.
 - One process should own a data directory. Two `monitor` processes would race on the same queue and cursor.
 - The API rejects a URL over 2048 characters and a name or version over 214 characters. The failed job list is capped at 100.
