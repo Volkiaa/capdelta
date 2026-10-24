@@ -39,7 +39,7 @@ Status: pre-release. The existing v0.1 release, security guarantees, and validat
 - [x] Two releases of the same package produce a behavioral diff.
 - [x] Repeated events are idempotent; identical artifact bytes are not unnecessarily reanalyzed under the same analyzer version.
 - [x] Reports persist across process restarts.
-- [ ] Existing CLI/Action regression tests pass unchanged.
+- [x] Existing CLI/Action regression tests pass unchanged. (the whole existing suite passes unchanged on main, including `src/cli/run-cli.test.ts` and `src/action/run-action.test.ts`)
 - [x] An end-to-end test demonstrates registry event → verification → analysis → stored report, including failure recovery.
 
 `src/platform/e2e.test.ts` covers every criterion above except the CLI/Action regression one. The full `npm test` suite covers that criterion.
@@ -58,13 +58,13 @@ Status: pre-release. The existing v0.1 release, security guarantees, and validat
 
 **Success criteria:**
 
-- [ ] Detect a newly added suspicious network operation even when the previous version already had `NET`.
-- [ ] Detect new sensitive-file access when the previous version already had `FS_READ`.
-- [ ] Detect a modeled slow-roll attack through a reviewed historical baseline.
-- [ ] Every behavior finding includes reproducible source evidence.
-- [ ] Build a labeled evaluation corpus containing at least 25 real malicious releases and 200 benign version transitions, with a held-out subset.
-- [ ] Publish measured recall, false-positive rates, incomplete-analysis rates and known evasions.
-- [ ] No regression in existing attack reconstruction tests.
+- [x] Detect a newly added suspicious network operation even when the previous version already had `NET`. (`src/core/attack-reconstructions.test.ts`, `net-existing`)
+- [x] Detect new sensitive-file access when the previous version already had `FS_READ`. (`src/core/attack-reconstructions.test.ts`, `fs-read-existing`)
+- [x] Detect a modeled slow-roll attack through a reviewed historical baseline. (`src/platform/baseline.test.ts`, ADR-040)
+- [x] Every behavior finding includes reproducible source evidence. (evidence coverage test in `src/core/attack-reconstructions.test.ts`)
+- [ ] Build a labeled evaluation corpus containing at least 25 real malicious releases and 200 benign version transitions, with a held-out subset. Not met: the corpus has 222 benign transitions and a held-out split, but only 2 real malicious releases against 25, because compromised releases are removed from the registry. See `docs/eval/2026-10-24/README.md`.
+- [x] Publish measured recall, false-positive rates, incomplete-analysis rates and known evasions. (`docs/eval/2026-10-24/README.md`)
+- [x] No regression in existing attack reconstruction tests. (`src/core/attack-reconstructions.test.ts` passes unchanged)
 
 **Deliverable:** A more granular, independently evaluated behavioral-detection engine.
 
