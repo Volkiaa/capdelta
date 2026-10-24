@@ -38,6 +38,7 @@ import {
 export const SARIF_VERSION = "2.1.0" as const;
 const SARIF_SCHEMA = "https://json.schemastore.org/sarif-2.1.0.json";
 const INTEGRITY_RULE_ID = "CAPDELTA-INTEGRITY-MISMATCH";
+const INTEL_RULE_ID = "CAPDELTA-LOCKFILE-INTEL-CONFIRMED-MALICIOUS";
 const BASELINE_GUIDANCE: Guidance = {
   whyItMatters:
     "The old version could not be analyzed, so capdelta reports every capability of the new version as added.",
@@ -444,10 +445,14 @@ function lockfileResult(
       ? null
       : truncate(finding.oldVersion, MAX_IDENTITY_CHARS);
   const newVersion = truncate(finding.newVersion, MAX_IDENTITY_CHARS);
+  const intelId =
+    finding.intelId === undefined
+      ? undefined
+      : truncate(finding.intelId, MAX_IDENTITY_CHARS);
   const result = resultFor(
     ruleId,
     lockfileFindingSeverity(finding.kind),
-    `Review this change: ${finding.kind} for ${name} at ${path}: ${oldVersion ?? "<new package>"} -> ${newVersion}.`,
+    `Review this change: ${finding.kind} for ${name} at ${path}: ${oldVersion ?? "<new package>"} -> ${newVersion}.${intelId === undefined ? "" : ` Intel ID ${intelId}.`}`,
     [],
     name,
     newVersion,
@@ -457,6 +462,7 @@ function lockfileResult(
       path,
       oldVersion,
       newVersion,
+      ...(intelId === undefined ? {} : { intelId }),
     },
   );
   if (lockfilePath === undefined) return result;
@@ -503,6 +509,9 @@ function ruleDescription(id: string, unanalyzable: boolean): string {
   if (id === INTEGRITY_RULE_ID) {
     return "Downloaded artifact does not match lockfile integrity";
   }
+  if (id === INTEL_RULE_ID) {
+    return "Artifact confirmed malicious by shared intelligence";
+  }
   if (id.startsWith("CAPDELTA-LOCKFILE-")) return "Lockfile entry changed";
   if (id.startsWith("CAPDELTA-BASELINE-"))
     return "Old version could not be analyzed";
@@ -517,7 +526,13 @@ function ruleHelp(ruleId: string, guidance: Guidance | undefined): string {
       `SARIF rule ${ruleId} is missing its reviewer guidance`,
     );
   }
-  return `${guidance.whyItMatters} ${guidance.whatToCheck} This result does not assert malware.`;
+  // A confirmed intel match is a reviewer's verdict, so the local-analysis
+  // disclaimer would contradict the rule itself.
+  const disclaimer =
+    ruleId === INTEL_RULE_ID
+      ? "This result comes from a reviewer's confirmed verdict in shared intelligence."
+      : "This result does not assert malware.";
+  return `${guidance.whyItMatters} ${guidance.whatToCheck} ${disclaimer}`;
 }
 
 function shapeSuppression(reasons: readonly (string | undefined)[]): {

@@ -11,12 +11,16 @@ import type {
   CapabilityAnalysisRun,
   PackageAnalysisFailure,
 } from "./capability-analysis-pipeline.js";
-import type { ChangedPackage } from "./contract/lockfile-diff.js";
+import type {
+  ChangedPackage,
+  LockfileFinding,
+} from "./contract/lockfile-diff.js";
 import {
   REPORT_SCHEMA_VERSION,
   type JsonReport,
   type JsonReportAnalysisIssue,
   type JsonReportDiagnostic,
+  type JsonReportLockfileFinding,
   type JsonReportSignalFinding,
   type JsonRunPackage,
   type JsonRunReport,
@@ -118,17 +122,7 @@ export function buildRunReport(run: CapabilityAnalysisRun): JsonRunReport {
     };
   });
   crossLinkDependencies(packages);
-  const lockfileFindings = run.lockfileFindings.map((finding) => ({
-    kind: finding.kind,
-    name: truncate(finding.name, MAX_IDENTITY_CHARS),
-    path: truncate(finding.path, MAX_EVIDENCE_FILE_CHARS),
-    oldVersion:
-      finding.oldVersion === null
-        ? null
-        : truncate(finding.oldVersion, MAX_IDENTITY_CHARS),
-    newVersion: truncate(finding.newVersion, MAX_IDENTITY_CHARS),
-    severity: lockfileFindingSeverity(finding.kind),
-  }));
+  const lockfileFindings = run.lockfileFindings.map(reportLockfileFinding);
   for (const finding of lockfileFindings) gateSeverity[finding.severity] += 1;
 
   return {
@@ -237,6 +231,35 @@ function reportChangedPackage(changedPackage: ChangedPackage): ReportPackage {
         : truncate(changedPackage.oldVersion, MAX_IDENTITY_CHARS),
     newVersion: truncate(changedPackage.newVersion, MAX_IDENTITY_CHARS),
     newPackage: changedPackage.oldVersion === null,
+  };
+}
+
+function reportLockfileFinding(
+  finding: LockfileFinding,
+): JsonReportLockfileFinding {
+  // ADR-039 item 8: the id is the only link back to the reviewer's record, so
+  // it is required for this kind and meaningless for the others.
+  if (
+    (finding.kind === "intel-confirmed-malicious") !==
+    (finding.intelId !== undefined)
+  ) {
+    throw new ReporterContractError(
+      "only an intel-confirmed-malicious finding carries an intelId, and it must carry one",
+    );
+  }
+  return {
+    kind: finding.kind,
+    name: truncate(finding.name, MAX_IDENTITY_CHARS),
+    path: truncate(finding.path, MAX_EVIDENCE_FILE_CHARS),
+    oldVersion:
+      finding.oldVersion === null
+        ? null
+        : truncate(finding.oldVersion, MAX_IDENTITY_CHARS),
+    newVersion: truncate(finding.newVersion, MAX_IDENTITY_CHARS),
+    severity: lockfileFindingSeverity(finding.kind),
+    ...(finding.intelId === undefined
+      ? {}
+      : { intelId: truncate(finding.intelId, MAX_IDENTITY_CHARS) }),
   };
 }
 

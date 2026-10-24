@@ -110,6 +110,9 @@ describe("run severity classification", () => {
       "HIGH",
     );
     expect(lockfileFindingSeverity("version-downgrade")).toBe("INFO");
+    expect(lockfileFindingSeverity("intel-confirmed-malicious")).toBe(
+      "CRITICAL",
+    );
   });
 
   // ADR-016

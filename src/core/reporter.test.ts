@@ -14,6 +14,8 @@ import {
   renderTextRunReport,
 } from "./reporter.js";
 import { renderSarifReport } from "./sarif-reporter.js";
+import { evaluateSeverityGate } from "./run-severity.js";
+import type { JsonRunReport } from "./report-contract.js";
 
 function emptyResult(): CapabilityDiffResult {
   return {
@@ -406,6 +408,103 @@ describe("manifest Reporter", () => {
     expect(info).toContain("[INFO] [version-downgrade]");
     expect(info).not.toContain("  Why: ");
     expect(info).not.toContain("  Check: ");
+  });
+
+  it("gates and names a confirmed intel match in the report and text", () => {
+    const intelId = "CDI-0123456789abcdef0123";
+    const run: CapabilityAnalysisRun = {
+      firstRun: false,
+      summary: { changed: 0, analyzed: 0, unavailable: 0, skipped: 0 },
+      packages: [],
+      lockfileFindings: [
+        {
+          kind: "intel-confirmed-malicious",
+          name: "left-pad",
+          path: `intel:${intelId}`,
+          oldVersion: "1.0.0",
+          newVersion: "1.1.0",
+          intelId,
+        },
+      ],
+      skipped: [],
+    };
+
+    const report = JSON.parse(renderJsonRunReport(run)) as JsonRunReport;
+    expect(report.summary.gateSeverity.CRITICAL).toBe(1);
+    expect(evaluateSeverityGate(report, "CRITICAL").fail).toBe(true);
+    expect(report.lockfileFindings[0]).toMatchObject({
+      kind: "intel-confirmed-malicious",
+      intelId,
+      severity: "CRITICAL",
+    });
+
+    const text = renderTextRunReport(run);
+    expect(text).toContain("[CRITICAL] [intel-confirmed-malicious]");
+    expect(text).toContain(`intel ID "${intelId}"`);
+    expect(text).toContain(
+      "Why: Shared intelligence marks this exact artifact as confirmed malicious.",
+    );
+    expect(text).toContain("Check: Do not install it.");
+  });
+
+  it("bounds an attacker-controlled intel id and never renders it as a link", () => {
+    const marker = "](http://x)";
+    const intelId = `CDI-${"a".repeat(300)}${marker}`;
+    const run: CapabilityAnalysisRun = {
+      firstRun: false,
+      summary: { changed: 0, analyzed: 0, unavailable: 0, skipped: 0 },
+      packages: [],
+      lockfileFindings: [
+        {
+          kind: "intel-confirmed-malicious",
+          name: "left-pad",
+          path: `intel:${intelId}`,
+          oldVersion: "1.0.0",
+          newVersion: "1.1.0",
+          intelId,
+        },
+      ],
+      skipped: [],
+    };
+
+    const report = JSON.parse(renderJsonRunReport(run)) as JsonRunReport;
+    const bounded = report.lockfileFindings[0]?.intelId ?? "";
+    expect(Array.from(bounded)).toHaveLength(160);
+    expect(bounded.endsWith("\u2026")).toBe(true);
+
+    const text = renderTextRunReport(run);
+    expect(text).not.toContain("http://x");
+    expect(text).toContain("intel ID");
+  });
+
+  it("rejects an intel finding without an id and an id on another kind", () => {
+    for (const finding of [
+      {
+        kind: "intel-confirmed-malicious" as const,
+        name: "left-pad",
+        path: "node_modules/left-pad",
+        oldVersion: "1.0.0",
+        newVersion: "1.1.0",
+      },
+      {
+        kind: "version-downgrade" as const,
+        name: "left-pad",
+        path: "node_modules/left-pad",
+        oldVersion: "2.0.0",
+        newVersion: "1.0.0",
+        intelId: "CDI-0123456789abcdef0123",
+      },
+    ]) {
+      expect(() =>
+        renderJsonRunReport({
+          firstRun: false,
+          summary: { changed: 0, analyzed: 0, unavailable: 0, skipped: 0 },
+          packages: [],
+          lockfileFindings: [finding],
+          skipped: [],
+        }),
+      ).toThrow(ReporterContractError);
+    }
   });
 
   it("reports whole-analysis cancellation without inventing a package side", () => {

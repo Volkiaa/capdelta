@@ -145,6 +145,8 @@ export interface JsonReportLockfileFinding {
   oldVersion: string | null;
   newVersion: string;
   severity: FindingSeverity;
+  /** The CDI-... finding id; present only for `intel-confirmed-malicious`. */
+  intelId?: string;
 }
 
 export interface JsonReportSkippedPackage {

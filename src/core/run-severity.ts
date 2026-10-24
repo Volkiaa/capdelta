@@ -107,6 +107,9 @@ export function lockfileFindingSeverity(
       return "HIGH";
     case "version-downgrade":
       return "INFO";
+    // ADR-039 item 8: a reviewer confirmed this exact artifact as malicious.
+    case "intel-confirmed-malicious":
+      return "CRITICAL";
     default: {
       const unclassified: never = kind;
       throw new SeverityGateError(

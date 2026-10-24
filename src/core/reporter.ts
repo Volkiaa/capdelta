@@ -23,6 +23,7 @@ import type {
   JsonReport,
   JsonReportAnalysisIssue,
   JsonReportFinding,
+  JsonReportLockfileFinding,
   JsonRunReport,
   ReportEvidence,
   ReportPackage,
@@ -220,7 +221,7 @@ export function formatTextRunReport(report: JsonRunReport): string {
       "",
       "Lockfile findings:",
       ...report.lockfileFindings.flatMap((finding) => [
-        `- [${finding.severity}] [${finding.kind}] ${quote(finding.name)} at ${quote(finding.path)}: ${finding.oldVersion === null ? "<new package>" : quote(finding.oldVersion)} -> ${quote(finding.newVersion)}`,
+        `- [${finding.severity}] [${finding.kind}] ${quote(finding.name)} at ${quote(finding.path)}: ${finding.oldVersion === null ? "<new package>" : quote(finding.oldVersion)} -> ${quote(finding.newVersion)}${intelIdText(finding)}`,
         ...findingGuidanceLines(
           finding.severity,
           lockfileGuidance(finding.kind),
@@ -324,6 +325,12 @@ function suppressionText(reason: string | undefined): string {
 
 function evidenceText(evidence: ReportEvidence): string {
   return `${quote(evidence.file)}:${String(evidence.line)} — ${quote(evidence.snippet)}`;
+}
+
+function intelIdText(finding: JsonReportLockfileFinding): string {
+  return finding.intelId === undefined
+    ? ""
+    : `; intel ID ${quote(finding.intelId)}`;
 }
 
 function count(value: number, singular: string): string {

@@ -2,9 +2,12 @@
  * Reviewer guidance for findings (PLAN §4.5): why a change matters and what a
  * person should check. Every string is a constant authored here; package,
  * lockfile, and registry data is never interpolated into it. The wording
- * describes what code could do and always frames the change as something to
+ * describes what code could do and always frames a change as something to
  * review. It never asserts malware or exploitation, and heuristic results are
- * stated as what static analysis found or suggests, not as fact.
+ * stated as what static analysis found or suggests, not as fact. The one
+ * exception is `intel-confirmed-malicious`, which reports a reviewer's
+ * confirmed verdict from shared intelligence (ADR-039 item 8), not a local
+ * heuristic.
  */
 import type { ShapeRuleId, FindingSeverity } from "./capability-differ.js";
 import type { Capability } from "./contract/capability-set.js";
@@ -206,6 +209,13 @@ export const LOCKFILE_GUIDANCE: Readonly<
       "A lower version can bring back bugs or vulnerabilities that a later release fixed.",
     whatToCheck:
       "Confirm the downgrade was intended and check the older version's security advisories.",
+  },
+  // ADR-039 item 8: the verdict comes from a reviewer, not from static analysis.
+  "intel-confirmed-malicious": {
+    whyItMatters:
+      "Shared intelligence marks this exact artifact as confirmed malicious. A reviewer checked this name, version and digest.",
+    whatToCheck:
+      "Do not install it. Pin or replace the dependency, and look up the finding id in the lockfile finding.",
   },
 };
 
