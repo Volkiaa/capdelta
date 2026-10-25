@@ -15,7 +15,9 @@ before a CVE exists.
 > **Status: pre-release, under active development.** The repository is public,
 > but the npm package is private, unpublished, and versioned `0.0.0`. The CLI
 > and the GitHub Action work end to end, and the first formal false-positive
-> measurement is [below](#measured-results-2026-10-12). capdelta is suitable for
+> measurement is [below](#measured-results-2026-10-12). A v2 platform service
+> that watches the npm registry and shares reviewed findings is in
+> [the platform section](#platform-service-and-shared-intelligence). capdelta is suitable for
 > development and evaluation, not production enforcement. No detection rate has
 > been measured; the attack reconstructions are modeled cases.
 
@@ -27,6 +29,8 @@ before a CVE exists.
 - [What capdelta detects today](#what-capdelta-detects-today)
 - [Severity means review priority](#severity-means-review-priority)
 - [Quick start](#quick-start)
+- [Show it working](#show-it-working)
+- [Platform service and shared intelligence](#platform-service-and-shared-intelligence)
 - [Security model](#security-model)
 - [Dogfooding evidence](#dogfooding-evidence)
 - [Architecture decisions](#architecture-decisions)
@@ -225,6 +229,75 @@ check so a bump cannot merge before the configured gate runs.
 Every input, output, and step is in
 [docs/github-action.md](docs/github-action.md).
 
+## Show it working
+
+Two checks prove the tool end to end. Both use the real built CLI against real
+registry data, and neither executes package code. Build first (see
+[CLI](#cli)). Node.js 22 and network access are required.
+
+**A risky bump fails the gate.** This installs bcrypt 5.1.1 in a scratch Git
+repository, commits it, then installs 6.0.0 uncommitted and runs capdelta on the
+change:
+
+```bash
+R="$(.claude/skills/verify-capdelta/bin/scenario bcrypt 5.1.1 6.0.0)"
+cd "$R" && node /path/to/capdelta/dist/cli.js --base HEAD --fail-on CRITICAL; echo "exit $?"
+```
+
+Expected on the 2026-10-25 run: exit `1`, and the report opens with one CRITICAL
+finding, `install hook changed` (`package.json:29`, `"install": "node-gyp-build"`),
+plus the new `node-gyp-build` dependency. That is the behavior to show: a bump
+added code that runs at install time, and the check failed before anyone merged it.
+bcrypt is legitimate, so this is a review prompt and not a malware verdict.
+
+**Confirmed intelligence blocks a release.** One command starts a real platform
+service, seeds a finding, and walks it through every verdict:
+
+```bash
+.claude/skills/verify-capdelta/bin/intel-drive
+```
+
+Expected output, one line per state:
+
+| State                            | CLI result                              |
+| -------------------------------- | --------------------------------------- |
+| no `--intel-url`                 | exit 0                                  |
+| finding is `suspected`           | exit 0, no intel finding                |
+| finding is `confirmed-malicious` | exit 1, `intel-confirmed-malicious`     |
+| finding is `retracted`           | exit 0                                  |
+| service stopped                  | exit 0, warning, local analysis decides |
+| `--intel-url ftp://x`            | exit 64                                 |
+
+To see a PR comment instead of terminal output, open
+[PR #63](https://github.com/Volkiaa/capdelta/pull/63) or the screenshots under
+[Dogfooding evidence](#dogfooding-evidence).
+
+## Platform service and shared intelligence
+
+`capdelta-platform` is the v2 service. It follows the npm change feed, analyzes
+each new release once, stores the report, and serves it over HTTP. Named
+reviewers move findings through a verdict lifecycle (`suspected`, `under-review`,
+`confirmed-malicious`, `benign`, `retracted`), and the CLI and Action can ask the
+service about the artifacts a bump changes.
+
+```bash
+capdelta-platform monitor --data ./data --interval 60   # follow the registry
+capdelta-platform serve --data ./data --reviewers ./reviewers.json
+capdelta --base origin/main --intel-url http://127.0.0.1:8787
+```
+
+The lookup sends only the artifact digest, never names or the lockfile. It can
+only make the gate stricter, and a service outage becomes a warning. The
+service is for localhost or a private network. It speaks plain HTTP, so put a
+TLS proxy in front before exposing it. The operator guide is
+[docs/platform.md](docs/platform.md), and the designs are ADR-038 to ADR-041.
+
+Measured on 2026-10-24 ([results](docs/eval/2026-10-24/README.md)): 2 false
+positives in 222 benign transitions (0.9%), 13 of 14 synthetic attacks flagged
+at HIGH or above, and 6 of 14 at the default CRITICAL gate. Only 2 real
+malicious releases were still available to test, so no real-world detection
+rate exists. The service is not deployed anywhere yet.
+
 ## Security model
 
 ### Adversary
@@ -343,10 +416,10 @@ capabilities. The PR was closed unmerged.
 
 ![capdelta's comment on a demo PR bumping bcrypt from 5.1.1 to 6.0.0: one CRITICAL changed install hook, one HIGH process capability in node-gyp-build](docs/images/demo-bcrypt-6.png)
 
-capdelta currently has seven direct runtime dependencies: `@actions/artifact`,
-`@actions/core`, `@actions/github`, `acorn`, `acorn-walk`, `jsonc-parser`, and
-`tar`. The `@actions/*` packages are bundled into `dist/action` and listed in
-the release SBOM. `npm run check:deps` counts all seven against the limit of
+capdelta currently has eight direct runtime dependencies: `@actions/artifact`,
+`@actions/core`, `@actions/github`, `acorn`, `acorn-walk`, `amaro`, `jsonc-parser`,
+and `tar`. The platform service adds none. The `@actions/*` packages are bundled into `dist/action` and listed in
+the release SBOM. `npm run check:deps` counts all eight against the limit of
 fewer than 10, and CI fails at 10. Transitive runtime packages are reported by
 the check but are not the gate.
 
@@ -410,12 +483,20 @@ The authoritative architecture and roadmap remain in
   On the 2026-10-20 held-out corpus, all 82 such observations were prose; see
   [the measurement](docs/heldout-2026-10-20/README.md#after-adr-024).
 
+- **V2 platform (phases 1 to 3).** The registry monitor, release store, job
+  queue, HTTP API, reviewed baselines, the intelligence model with reviewer
+  tokens, the `--intel-url` consumer, and labeled evaluation tooling
+  (PRs #169 to #192, ADR-038 to ADR-041).
+
 ### Next
 
-1. Cut v0.1.0 and verify the signed provenance and SBOM for both Action
+1. Decide on the open overnight drafts, add a driven proof for the Action's
+   `intel-url` input, and deploy the service behind TLS. Phases 4 and 5 of the
+   [v2 roadmap](docs/v2-roadmap.md) are not started.
+2. Cut v0.1.0 and verify the signed provenance and SBOM for both Action
    bundles.
-2. M5 publication of the measured results.
-3. Noise reduction for published TypeScript (zod's `unparseable-file`
+3. M5 publication of the measured results.
+4. Noise reduction for published TypeScript (zod's `unparseable-file`
    findings) and IPv6 literals in minified data.
 
 ## Contributing and security reports
