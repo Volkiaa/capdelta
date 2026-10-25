@@ -25,11 +25,21 @@ export class JobQueueError extends NamedError {}
 const KIND = "job";
 const STATES: readonly JobState[] = ["pending", "running", "done", "failed"];
 
+interface PendingEntry {
+  id: string;
+  enqueuedAt: string;
+}
+
 export class JobQueue {
   private readonly store: JsonStore;
   private readonly now: () => Date;
   // One process owns the queue, so this chain serializes every read-modify-write.
   private tail: Promise<void> = Promise.resolve();
+  // Pending ids in claim order. The first claim or enqueue fills it from one
+  // directory scan; every mutation keeps it current, so a steady-state claim
+  // reads only the record it claims.
+  private pending: PendingEntry[] = [];
+  private loaded = false;
 
   constructor(store: JsonStore, now: () => Date = () => new Date()) {
     this.store = store;
@@ -45,6 +55,7 @@ export class JobQueue {
    */
   async enqueue(candidate: ReleaseCandidate): Promise<boolean> {
     return this.serialize(async () => {
+      await this.ensureLoaded();
       const id = encodeKey(
         `${candidate.name}\n${candidate.version}\n${candidate.digest}`,
       );
@@ -62,7 +73,11 @@ export class JobQueue {
       // Validate before writing, so a malformed candidate fails at the caller
       // instead of at the next claim. The stored copy drops unknown fields.
       const validated = parseRecord(id, record);
-      return this.store.putIfAbsent(KIND, id, validated);
+      const created = await this.store.putIfAbsent(KIND, id, validated);
+      if (created) {
+        this.insertPending({ id, enqueuedAt: validated.enqueuedAt });
+      }
+      return created;
     });
   }
 
@@ -77,14 +92,26 @@ export class JobQueue {
   /** Returns every running job to pending. Call once at startup. */
   async recover(): Promise<number> {
     return this.serialize(async () => {
-      const running = await this.records("running");
+      // Drop the cache first: a failure partway through the writes leaves the
+      // next call free to rebuild it from disk instead of trusting a mix.
+      this.loaded = false;
+      const records = await this.records();
+      const running = records.filter((record) => record.state === "running");
+      const recovered = new Set<string>();
       for (const job of running) {
         await this.store.put(KIND, job.id, {
           ...job,
           state: "pending",
           updatedAt: this.timestamp(),
         });
+        recovered.add(job.id);
       }
+      this.pending = records
+        .filter(
+          (record) => record.state === "pending" || recovered.has(record.id),
+        )
+        .map((record) => ({ id: record.id, enqueuedAt: record.enqueuedAt }));
+      this.loaded = true;
       return running.length;
     });
   }
@@ -92,16 +119,20 @@ export class JobQueue {
   /** Oldest pending job, moved to running with attempts + 1. */
   async claim(): Promise<JobRecord | null> {
     return this.serialize(async () => {
-      const pending = await this.records("pending");
-      const next = pending[0];
+      await this.ensureLoaded();
+      const next = this.pending[0];
       if (next === undefined) return null;
+      const job = await this.require(next.id);
       const claimed: JobRecord = {
-        ...next,
+        ...job,
         state: "running",
-        attempts: next.attempts + 1,
+        attempts: job.attempts + 1,
         updatedAt: this.timestamp(),
       };
       await this.store.put(KIND, next.id, claimed);
+      // Drop the id only after the write, so a failed write leaves the job
+      // claimable instead of losing it from both the disk order and the cache.
+      this.pending.shift();
       return claimed;
     });
   }
@@ -114,6 +145,7 @@ export class JobQueue {
         state: "done",
         updatedAt: this.timestamp(),
       });
+      if (this.loaded) this.removePending(id);
     });
   }
 
@@ -136,6 +168,12 @@ export class JobQueue {
         lastError: truncate(error, MAX_VALUE_CHARS),
         updatedAt: this.timestamp(),
       });
+      if (this.loaded) {
+        this.removePending(id);
+        if (state === "pending") {
+          this.insertPending({ id, enqueuedAt: job.enqueuedAt });
+        }
+      }
       return state;
     });
   }
@@ -151,6 +189,36 @@ export class JobQueue {
 
   private timestamp(): string {
     return this.now().toISOString();
+  }
+
+  /** Fills the pending ids from one directory scan. */
+  private async ensureLoaded(): Promise<void> {
+    if (this.loaded) return;
+    const records = await this.records();
+    this.pending = records
+      .filter((record) => record.state === "pending")
+      .map((record) => ({ id: record.id, enqueuedAt: record.enqueuedAt }));
+    this.loaded = true;
+  }
+
+  private insertPending(entry: PendingEntry): void {
+    let low = 0;
+    let high = this.pending.length;
+    while (low < high) {
+      const middle = (low + high) >>> 1;
+      const current = this.pending[middle];
+      if (current !== undefined && compareClaimOrder(current, entry) <= 0) {
+        low = middle + 1;
+      } else {
+        high = middle;
+      }
+    }
+    this.pending.splice(low, 0, entry);
+  }
+
+  private removePending(id: string): void {
+    const index = this.pending.findIndex((entry) => entry.id === id);
+    if (index !== -1) this.pending.splice(index, 1);
   }
 
   private async read(id: string): Promise<JobRecord | null> {
@@ -176,12 +244,19 @@ export class JobQueue {
       state === undefined
         ? records
         : records.filter((record) => record.state === state);
-    return selected.sort(
-      (left, right) =>
-        left.enqueuedAt.localeCompare(right.enqueuedAt) ||
-        left.id.localeCompare(right.id),
-    );
+    return selected.sort(compareClaimOrder);
   }
+}
+
+/** Oldest first, then by id so two jobs with the same enqueuedAt keep a stable order. */
+function compareClaimOrder(
+  left: { id: string; enqueuedAt: string },
+  right: { id: string; enqueuedAt: string },
+): number {
+  return (
+    left.enqueuedAt.localeCompare(right.enqueuedAt) ||
+    left.id.localeCompare(right.id)
+  );
 }
 
 function parseRecord(key: string, value: unknown): JobRecord {
