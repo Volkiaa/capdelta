@@ -384,3 +384,120 @@ describe("signal contract validation", () => {
     );
   });
 });
+
+describe("wallet address swap shape (ADR-044)", () => {
+  const walletFile = {
+    file: "browser.js",
+    byteLength: 400,
+    entropyMilliBitsPerByte: 4_000,
+    parseState: "parsed" as const,
+    walletProviderReference: true,
+    walletAddresses: [
+      { value: `0x${"a".repeat(40)}`, shape: "evm" as const, line: 3 },
+    ],
+  };
+
+  function withWalletSignal(
+    capabilities: readonly Capability[],
+  ): CapabilitySet {
+    return {
+      ...set("2.0.0", capabilities),
+      signals: {
+        sourceFiles: [walletFile],
+        endpoints: [],
+        obfuscationPatterns: [],
+      },
+    };
+  }
+
+  function netCapability(): Capability {
+    return {
+      kind: "NET",
+      location: { kind: "runtime" },
+      evidence: EVIDENCE,
+    };
+  }
+
+  it("raises the swap signal and the NET gain to CRITICAL together", () => {
+    const result = diffCapabilities(null, withWalletSignal([netCapability()]));
+
+    expect(result.shapes?.map((shape) => shape.ruleId)).toEqual([
+      "wallet-address-swap",
+    ]);
+    expect(result.signalFindings).toMatchObject([
+      {
+        kind: "wallet-address-swap",
+        severity: "CRITICAL",
+      },
+    ]);
+    expect(result.findings).toMatchObject([
+      { capability: { kind: "NET" }, severity: "CRITICAL" },
+    ]);
+  });
+
+  it("keeps the swap signal at HIGH when the package gains no NET capability", () => {
+    const result = diffCapabilities(
+      null,
+      withWalletSignal([
+        {
+          kind: "FS_READ",
+          location: { kind: "runtime" },
+          evidence: EVIDENCE,
+        },
+      ]),
+    );
+
+    expect(result.shapes ?? []).toEqual([]);
+    expect(result.signalFindings).toMatchObject([
+      {
+        kind: "wallet-address-swap",
+        severity: "HIGH",
+      },
+    ]);
+  });
+
+  it.each([
+    [
+      "an unknown address shape",
+      {
+        ...walletFile,
+        walletAddresses: [{ value: "0x1", shape: "x", line: 1 }],
+      },
+    ],
+    [
+      "more than 32 addresses",
+      {
+        ...walletFile,
+        walletAddresses: Array.from({ length: 33 }, (_, index) => ({
+          value: `0x${String(index).padStart(40, "0")}`,
+          shape: "evm",
+          line: 1,
+        })),
+      },
+    ],
+    [
+      "a non-positive address line",
+      {
+        ...walletFile,
+        walletAddresses: [{ value: "0x1", shape: "evm", line: 0 }],
+      },
+    ],
+    [
+      "a non-boolean provider flag",
+      { ...walletFile, walletProviderReference: "yes" },
+    ],
+  ])("rejects %s in the signal contract", (_label, file) => {
+    const invalid = {
+      ...set("2.0.0", []),
+      signals: {
+        sourceFiles: [file],
+        endpoints: [],
+        obfuscationPatterns: [],
+      },
+    } as unknown as CapabilitySet;
+
+    expect(() => diffCapabilities(null, invalid)).toThrow(
+      CapabilityDifferContractError,
+    );
+  });
+});

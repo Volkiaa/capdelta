@@ -665,3 +665,176 @@ describe("signal aggregation", () => {
     expect(performance.now() - started).toBeLessThan(2_000);
   });
 });
+
+describe("wallet address signals (ADR-044)", () => {
+  function literals(values: readonly string[]): {
+    text: string;
+    ranges: [number, number, boolean][];
+  } {
+    const lines: string[] = [];
+    const ranges: [number, number, boolean][] = [];
+    let offset = 0;
+    for (const value of values) {
+      const line = `const address = "${value}";`;
+      const start = offset + line.indexOf('"') + 1;
+      ranges.push([start, start + value.length, false]);
+      lines.push(line);
+      offset += line.length + 1;
+    }
+    return { text: lines.join("\n"), ranges };
+  }
+
+  function observe(
+    values: readonly string[],
+    options: {
+      commentRanges?: readonly (readonly [number, number])[];
+      parseState?: "parsed" | "unparseable";
+    } = {},
+  ) {
+    const { text, ranges } = literals(values);
+    return observeSignalSource({
+      file: "browser.js",
+      bytes: new TextEncoder().encode(text),
+      parseState: options.parseState ?? "parsed",
+      stringRanges: ranges,
+      ...(options.commentRanges === undefined
+        ? {}
+        : { commentRanges: options.commentRanges }),
+    });
+  }
+
+  it("records each address shape and its line", () => {
+    const values = [
+      ["evm", `0x${"a".repeat(40)}`],
+      ["tron", `T${"1".repeat(33)}`],
+      ["bitcoin-base58", `1${"a".repeat(33)}`],
+      ["bitcoin-bech32", `bc1${"q".repeat(38)}`],
+      ["solana", `5${"a".repeat(43)}`],
+    ] as const;
+
+    const result = observe(values.map(([, value]) => value));
+
+    expect(result.file.walletAddresses).toEqual(
+      values.map(([shape, value], index) => ({
+        value,
+        shape,
+        line: index + 1,
+      })),
+    );
+    expect(result.file.walletProviderReference).toBeUndefined();
+  });
+
+  it("counts a Tron address as Tron rather than Solana", () => {
+    const tron = `T${"1".repeat(33)}`;
+    expect(observe([tron]).file.walletAddresses).toEqual([
+      { value: tron, shape: "tron", line: 1 },
+    ]);
+  });
+
+  it.each([
+    "window.ethereum",
+    "provider.request",
+    "transport.send",
+    "wallet.sendTransaction",
+    "provider.enable",
+  ])("records the wallet provider reference %s", (reference) => {
+    const address = `0x${"b".repeat(40)}`;
+    const line = `const address = "${address}"; const value = ${reference};`;
+    const start = line.indexOf('"') + 1;
+
+    const result = observeSignalSource({
+      file: "browser.js",
+      bytes: new TextEncoder().encode(line),
+      parseState: "parsed",
+      stringRanges: [[start, start + address.length, false]],
+    });
+
+    expect(result.file.walletProviderReference).toBe(true);
+    expect(result.file.walletAddresses).toEqual([
+      { value: address, shape: "evm", line: 1 },
+    ]);
+  });
+
+  it("ignores a provider reference that appears only in a comment", () => {
+    const address = `0x${"c".repeat(40)}`;
+    const comment = "// window.ethereum.request";
+    const body = `${comment}\nconst address = "${address}";`;
+    const start = body.indexOf('"') + 1;
+
+    const result = observeSignalSource({
+      file: "browser.js",
+      bytes: new TextEncoder().encode(body),
+      parseState: "parsed",
+      commentRanges: [[0, comment.length]],
+      stringRanges: [[start, start + address.length, false]],
+    });
+
+    expect(result.file.walletProviderReference).toBeUndefined();
+    expect(result.file.walletAddresses).toEqual([
+      { value: address, shape: "evm", line: 2 },
+    ]);
+  });
+
+  it("does not read addresses without parser string ranges", () => {
+    const address = `0x${"d".repeat(40)}`;
+    const result = observeSignalSource({
+      file: "browser.js",
+      bytes: new TextEncoder().encode(`const address = "${address}";`),
+      parseState: "parsed",
+    });
+
+    expect(result.file.walletAddresses).toBeUndefined();
+  });
+
+  it("does not read addresses from a file that did not parse", () => {
+    const address = `0x${"e".repeat(40)}`;
+    expect(
+      observe([address], { parseState: "unparseable" }).file.walletAddresses,
+    ).toBeUndefined();
+  });
+
+  it("keeps at most 32 distinct addresses per file", () => {
+    const values = Array.from(
+      { length: 40 },
+      (_, index) => `0x${index.toString(16).padStart(40, "0")}`,
+    );
+    const result = observe(values);
+
+    expect(result.file.walletAddresses).toHaveLength(32);
+    expect(result.file.walletAddresses?.[0]?.value).toBe(values[0]);
+  });
+
+  it("skips a string longer than the address scan bound", () => {
+    const address = `0x${"f".repeat(40)}`;
+    const value = `${"x".repeat(1024)}${address}`;
+    expect(observe([value]).file.walletAddresses).toBeUndefined();
+  });
+
+  it("records a repeated address once", () => {
+    const address = `0x${"1".repeat(40)}`;
+    expect(observe([address, address]).file.walletAddresses).toEqual([
+      { value: address, shape: "evm", line: 1 },
+    ]);
+  });
+});
+
+describe("wallet provider token boundaries (ADR-044)", () => {
+  it.each([".enabled", ".sender", ".requests"])(
+    "does not treat %s as a provider reference",
+    (token) => {
+      const address = `0x${"d".repeat(40)}`;
+      const line = `const address = "${address}"; const value = provider${token};`;
+      const start = line.indexOf('"') + 1;
+
+      const result = observeSignalSource({
+        file: "browser.js",
+        bytes: new TextEncoder().encode(line),
+        parseState: "parsed",
+        stringRanges: [[start, start + address.length, false]],
+      });
+
+      expect(result.file.walletProviderReference).toBeUndefined();
+      expect(result.file.walletAddresses).toHaveLength(1);
+    },
+  );
+});

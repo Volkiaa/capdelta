@@ -44,6 +44,7 @@ export const SHAPE_RULE_IDS: readonly ShapeRuleId[] = [
   "obfuscated-execution",
   "install-hook-change",
   "dynamic-or-native-code",
+  "wallet-address-swap",
 ];
 
 export const ANALYSIS_ISSUE_CLASSES: readonly AnalysisIssueClass[] = [
@@ -90,6 +91,12 @@ export const SHAPE_GUIDANCE: Readonly<Record<ShapeRuleId, Guidance>> = {
       "Dynamic code evaluation and native binaries run behavior that static analysis cannot fully follow.",
     whatToCheck:
       "Confirm the package needs this and review the file at the evidence line.",
+  },
+  "wallet-address-swap": {
+    whyItMatters:
+      "A new address-shaped literal and network access together match the pattern used to replace a wallet address before a request leaves or a response reaches the caller.",
+    whatToCheck:
+      "Check where the address is used and whether the package can rewrite a wallet, payment, or transaction address.",
   },
 };
 
@@ -198,6 +205,12 @@ export const SIGNAL_GUIDANCE: Readonly<Record<SignalFindingKind, Guidance>> = {
       "A loop at module scope has no exit condition, so importing the package can hang the process that imports it.",
     whatToCheck:
       "Open the file at the evidence line and confirm the loop can end.",
+  },
+  "wallet-address-swap": {
+    whyItMatters:
+      "Static analysis found a wallet provider reference and address-shaped string literals that the previous version of the file did not have, which is how address-swap code finds the values to replace.",
+    whatToCheck:
+      "Open the file at the evidence line and confirm the package does not rewrite wallet, payment, or transaction addresses.",
   },
 };
 

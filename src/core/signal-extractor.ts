@@ -9,6 +9,8 @@ import type {
   SignalObfuscationObservation,
   SignalParseState,
   SignalSet,
+  SignalWalletAddressObservation,
+  WalletAddressShape,
 } from "./contract/capability-set.js";
 import { compareEvidence, compareText } from "./compare.js";
 import { lineIndexAt, lineStarts } from "./line-index.js";
@@ -19,6 +21,14 @@ export const MIN_ENTROPY_BYTES = 256 as const;
 export const ENTROPY_JUMP_MILLIBITS = 1_000 as const;
 export const HIGH_ENTROPY_MILLIBITS = 6_500 as const;
 export const MIN_OBFUSCATION_ARRAY_ELEMENTS = 8 as const;
+// ADR-044: one file contributes one finding, so more values add no signal.
+export const MAX_WALLET_ADDRESSES_PER_FILE = 32 as const;
+// The shortest accepted shape is a 14-character bech32 address, so a shorter
+// literal cannot hold one.
+const MIN_WALLET_ADDRESS_CHARS = 14;
+// A very long literal is prose, generated data, or a packed payload, not an
+// address constant. Bounding the scan keeps the per-string cost small.
+const MAX_WALLET_ADDRESS_SCAN_CHARS = 1024;
 
 const MAX_EVIDENCE_SNIPPET = 240;
 // Only the scheme and authority decide the host, so a match stops at the first
@@ -77,6 +87,46 @@ const ARRAY_RE = /\x5b([^\x5b\x5d]{1,4096})\x5d/gu;
 const HEX_ELEMENT_RE = /^0x[0-9a-f]{1,2}$/iu;
 const CHARCODE_ELEMENT_RE = /^\d{1,3}$/u;
 
+const BASE58 = "[1-9A-HJ-NP-Za-km-z]";
+const BECH32 = "[02-9ac-hj-np-z]";
+
+interface WalletAddressPattern {
+  shape: WalletAddressShape;
+  /** Lower rank wins when two shapes match the same span. */
+  rank: number;
+  pattern: RegExp;
+}
+
+// Most specific first. Solana is the base58 catch-all for 32 to 44 characters,
+// so a Tron or Bitcoin address of that length must be claimed before it.
+const WALLET_ADDRESS_PATTERNS: readonly WalletAddressPattern[] = [
+  { shape: "evm", rank: 0, pattern: /\b0x[0-9a-fA-F]{40}\b/gu },
+  { shape: "tron", rank: 1, pattern: new RegExp(`\\bT${BASE58}{33}\\b`, "gu") },
+  {
+    shape: "bitcoin-base58",
+    rank: 2,
+    pattern: new RegExp(`\\b[13]${BASE58}{25,33}\\b`, "gu"),
+  },
+  {
+    shape: "bitcoin-bech32",
+    rank: 3,
+    pattern: new RegExp(`\\bbc1${BECH32}{11,71}\\b`, "giu"),
+  },
+  {
+    shape: "solana",
+    rank: 4,
+    pattern: new RegExp(`\\b${BASE58}{32,44}\\b`, "gu"),
+  },
+];
+
+const WALLET_PROVIDER_REFERENCES = [
+  "window.ethereum",
+  ".request",
+  ".sendTransaction",
+  ".send",
+  ".enable",
+] as const;
+
 export interface SignalSourceInput {
   file: string;
   bytes: Uint8Array;
@@ -126,9 +176,11 @@ export function observeSignalSource(input: SignalSourceInput): {
       : (): boolean => false;
   // Unknown is a security rule: a file the parser cannot read must never get a
   // URL demoted, so an attacker cannot gain by breaking the parse.
+  const parsedRanges =
+    input.parseState === "parsed" ? input.stringRanges : undefined;
   const stringRanges =
-    input.parseState === "parsed" && input.stringRanges !== undefined
-      ? stringRangeLookup(input.file, input.stringRanges, source)
+    parsedRanges !== undefined
+      ? stringRangeLookup(input.file, parsedRanges, source)
       : undefined;
   const contextAt =
     stringRanges?.contextAt ?? ((): SignalEndpointContext => "unknown");
@@ -155,6 +207,11 @@ export function observeSignalSource(input: SignalSourceInput): {
     source,
     starts,
   );
+  // ADR-044: literal content only. Ranges were validated by the lookup above.
+  const wallet =
+    parsedRanges === undefined
+      ? undefined
+      : detectWalletSignals(source, starts, parsedRanges, inComment);
   return {
     file: {
       file: input.file,
@@ -163,6 +220,12 @@ export function observeSignalSource(input: SignalSourceInput): {
       parseState: input.parseState,
       ...(input.parseState === "parsed" && input.topLevelLoop !== undefined
         ? { topLevelLoop: input.topLevelLoop }
+        : {}),
+      ...(wallet?.providerReference === true
+        ? { walletProviderReference: true }
+        : {}),
+      ...(wallet !== undefined && wallet.addresses.length > 0
+        ? { walletAddresses: wallet.addresses }
         : {}),
     },
     endpoints,
@@ -208,6 +271,96 @@ export function buildSignalSet(
     }),
   );
   return { sourceFiles, endpoints, obfuscationPatterns };
+}
+
+interface WalletAddressMatch {
+  start: number;
+  end: number;
+  value: string;
+  shape: WalletAddressShape;
+  rank: number;
+}
+
+/**
+ * ADR-044: address-shaped string literals plus a provider reference in the
+ * same parsed file. The value set is distinct and capped, because one file
+ * contributes one finding.
+ */
+function detectWalletSignals(
+  source: string,
+  starts: readonly number[],
+  ranges: readonly StringRange[],
+  inComment: (start: number, end: number) => boolean,
+): { providerReference: boolean; addresses: SignalWalletAddressObservation[] } {
+  const addresses: SignalWalletAddressObservation[] = [];
+  const seen = new Set<string>();
+
+  for (const range of ranges) {
+    if (addresses.length >= MAX_WALLET_ADDRESSES_PER_FILE) break;
+    const [start, end] = range;
+    if (end - start < MIN_WALLET_ADDRESS_CHARS) continue;
+    if (end - start > MAX_WALLET_ADDRESS_SCAN_CHARS) continue;
+    const content = source.slice(start, end);
+    const matches: WalletAddressMatch[] = [];
+    for (const { shape, rank, pattern } of WALLET_ADDRESS_PATTERNS) {
+      pattern.lastIndex = 0;
+      for (
+        let match = pattern.exec(content);
+        match !== null;
+        match = pattern.exec(content)
+      ) {
+        matches.push({
+          start: match.index,
+          end: match.index + match[0].length,
+          value: match[0],
+          shape,
+          rank,
+        });
+      }
+    }
+    // Overlapping spans resolve to the more specific shape. Greedy acceptance
+    // in start order keeps one value per address token.
+    matches.sort(
+      (left, right) => left.start - right.start || left.rank - right.rank,
+    );
+    let consumedUntil = 0;
+    for (const match of matches) {
+      if (match.start < consumedUntil) continue;
+      consumedUntil = match.end;
+      if (seen.has(match.value)) continue;
+      seen.add(match.value);
+      addresses.push({
+        value: match.value,
+        shape: match.shape,
+        line: lineIndexAt(starts, start + match.start) + 1,
+      });
+      if (addresses.length >= MAX_WALLET_ADDRESSES_PER_FILE) break;
+    }
+  }
+
+  return {
+    providerReference: hasWalletProviderReference(source, inComment),
+    addresses,
+  };
+}
+
+function hasWalletProviderReference(
+  source: string,
+  inComment: (start: number, end: number) => boolean,
+): boolean {
+  for (const reference of WALLET_PROVIDER_REFERENCES) {
+    let index = source.indexOf(reference);
+    while (index !== -1) {
+      const end = index + reference.length;
+      // `.enabled` is not `.enable`. A method call, property access, or word
+      // boundary ends the token.
+      const endsToken =
+        end === source.length || !/[A-Za-z0-9_$]/u.test(source.charAt(end));
+      if (endsToken && !inComment(index, end)) return true;
+      index = source.indexOf(reference, end);
+    }
+  }
+  return false;
 }
 
 function detectEndpoints(

@@ -295,3 +295,115 @@ describe("import-time unbounded loop signal", () => {
     ).toEqual([]);
   });
 });
+
+describe("wallet address swap signal (ADR-044)", () => {
+  const evm = {
+    value: `0x${"a".repeat(40)}`,
+    shape: "evm" as const,
+    line: 3,
+  };
+  const solana = {
+    value: `5${"b".repeat(43)}`,
+    shape: "solana" as const,
+    line: 4,
+  };
+
+  function browserFile(
+    addresses: readonly {
+      value: string;
+      shape: "evm" | "solana";
+      line: number;
+    }[],
+    providerReference = true,
+  ) {
+    return {
+      file: "browser.js",
+      byteLength: 400,
+      entropyMilliBitsPerByte: 4_000,
+      parseState: "parsed" as const,
+      ...(providerReference ? { walletProviderReference: true } : {}),
+      ...(addresses.length === 0 ? {} : { walletAddresses: addresses }),
+    };
+  }
+
+  it("reports a new address literal beside a wallet provider at HIGH", () => {
+    const result = diffSignals(
+      set(),
+      set({ sourceFiles: [browserFile([evm])] }),
+    );
+
+    expect(result).toEqual([
+      {
+        kind: "wallet-address-swap",
+        severity: "HIGH",
+        change: "added",
+        detail:
+          "browser.js adds 1 address-shaped literal (evm) and references a wallet provider",
+        evidence: [{ file: "browser.js", line: 3, snippet: "" }],
+      },
+    ]);
+  });
+
+  it("reports only the address values that the old file did not have", () => {
+    const result = diffSignals(
+      set({ sourceFiles: [browserFile([evm])] }),
+      set({ sourceFiles: [browserFile([evm, solana])] }),
+    );
+
+    expect(result).toEqual([
+      expect.objectContaining({
+        kind: "wallet-address-swap",
+        severity: "HIGH",
+        change: "changed",
+        detail:
+          "browser.js adds 1 address-shaped literal (solana) and references a wallet provider",
+        evidence: [{ file: "browser.js", line: 4, snippet: "" }],
+      }),
+    ]);
+  });
+
+  it("does not report a provider reference without an address literal", () => {
+    expect(diffSignals(set(), set({ sourceFiles: [browserFile([])] }))).toEqual(
+      [],
+    );
+  });
+
+  it("does not report an address literal without a provider reference", () => {
+    expect(
+      diffSignals(set(), set({ sourceFiles: [browserFile([evm], false)] })),
+    ).toEqual([]);
+  });
+
+  it("does not report an address the old file already had", () => {
+    expect(
+      diffSignals(
+        set({ sourceFiles: [browserFile([evm])] }),
+        set({ sourceFiles: [browserFile([evm])] }),
+      ),
+    ).toEqual([]);
+  });
+
+  it("does not report an address that the old file carried without a provider", () => {
+    expect(
+      diffSignals(
+        set({ sourceFiles: [browserFile([evm], false)] }),
+        set({ sourceFiles: [browserFile([evm])] }),
+      ),
+    ).toEqual([]);
+  });
+
+  it("reports a replaced address even when the provider reference is old", () => {
+    const replaced = { ...evm, value: `0x${"c".repeat(40)}`, line: 3 };
+    expect(
+      diffSignals(
+        set({ sourceFiles: [browserFile([evm])] }),
+        set({ sourceFiles: [browserFile([replaced])] }),
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        kind: "wallet-address-swap",
+        change: "changed",
+      }),
+    ]);
+  });
+});

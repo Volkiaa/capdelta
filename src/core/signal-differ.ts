@@ -21,7 +21,8 @@ export type SignalFindingKind =
   | "unparseable-file"
   | "unparseable-bytes-growth"
   | "obfuscation-pattern-added"
-  | "import-time-unbounded-loop";
+  | "import-time-unbounded-loop"
+  | "wallet-address-swap";
 
 export interface SignalFinding {
   kind: SignalFindingKind;
@@ -164,6 +165,8 @@ function fileFindings(
 
   const loop = importTimeLoopFinding(file, previous);
   if (loop !== null) found.push(loop);
+  const swap = walletAddressSwapFinding(file, previous);
+  if (swap !== null) found.push(swap);
   return found;
 }
 
@@ -180,6 +183,36 @@ function importTimeLoopFinding(
     change: "added",
     detail: `${file.file} has an unbounded loop at module scope (line ${String(loop.line)})`,
     evidence: [{ file: file.file, line: loop.line, snippet: "" }],
+  };
+}
+
+/**
+ * ADR-044: a provider reference alone or an address alone is ordinary library
+ * code. The signal is an address that this file did not carry before, next to
+ * a wallet provider reference.
+ */
+function walletAddressSwapFinding(
+  file: SignalFileObservation,
+  previous: SignalFileObservation | undefined,
+): SignalFinding | null {
+  if (file.walletProviderReference !== true) return null;
+  const previousValues = new Set(
+    (previous?.walletAddresses ?? []).map((address) => address.value),
+  );
+  const added = (file.walletAddresses ?? []).filter(
+    (address) => !previousValues.has(address.value),
+  );
+  const first = added[0];
+  if (first === undefined) return null;
+  const shapes = [...new Set(added.map((address) => address.shape))]
+    .sort(compareText)
+    .join(", ");
+  return {
+    kind: "wallet-address-swap",
+    severity: "HIGH",
+    change: previous === undefined ? "added" : "changed",
+    detail: `${file.file} adds ${String(added.length)} address-shaped ${added.length === 1 ? "literal" : "literals"} (${shapes}) and references a wallet provider`,
+    evidence: [{ file: file.file, line: first.line, snippet: "" }],
   };
 }
 
