@@ -1,0 +1,6 @@
+{
+  "name": "event-stream",
+  "version": "3.3.7",
+  "description": "construct pipes of streams of events",
+  "main": "index.js"
+}

@@ -1,5 +1,5 @@
 {
-  "notice": "DEFANGED SYNTHETIC RECONSTRUCTIONS (PLAN §7.4 fallback). Package names and versions are public identifiers from documented incidents; every file is synthetic, modeled on public analyses, and never the original artifact. Fixtures are parsed by tests only: never imported, installed, executed, or published. Hosts use .example.test, and commands are nonexistent fixture names.",
+  "notice": "DEFANGED SYNTHETIC RECONSTRUCTIONS (PLAN §7.4 fallback). Package names and versions are public identifiers from documented incidents; every file is synthetic, modeled on public analyses, and never the original artifact. Fixtures are parsed by tests only: never imported, installed, executed, or published. Hosts use reserved .example.test or .example.invalid names, and commands are nonexistent fixture names.",
   "incidents": [
     {
       "name": "axios-2026",
@@ -286,6 +286,72 @@
         "control": {
           "base": ["fs-read-existing-1.0.0"],
           "head": ["fs-read-existing-1.0.2-control"]
+        }
+      }
+    },
+    {
+      "name": "event-stream-2018",
+      "title": "event-stream backdoor: malicious new dependency with an encrypted payload (November 2018)",
+      "date": "2018-11 (event-stream 3.3.6; flatmap-stream 0.1.1)",
+      "sources": [
+        "https://github.com/dominictarr/event-stream/issues/116",
+        "https://snyk.io/blog/a-post-mortem-of-the-malicious-event-stream-backdoor/"
+      ],
+      "kept": "event-stream@3.3.6 adds \"flatmap-stream\": \"^0.1.1\" to an otherwise unchanged package. flatmap-stream@0.1.1 reads the event-stream package.json description, derives a key from it, decrypts an embedded blob, and evaluates the result.",
+      "omitted": "The real ciphertext, the real key, and the wallet-stealing payload. The blob is an inert placeholder, the payload function is never called, and event-stream source is unchanged.",
+      "expected": "event-stream gets a LOW dependency addition cross-linked to the new flatmap-stream report. flatmap-stream gets a full new-package report with a CRITICAL DYNAMIC_CODE eval sink, a LOW read of another package's manifest, and a CRITICAL dynamic-or-native-code shape. The default CRITICAL gate fails.",
+      "scenarios": {
+        "attack": {
+          "base": ["event-stream-3.3.5"],
+          "head": ["event-stream-3.3.6", "flatmap-stream-0.1.1"]
+        },
+        "control": {
+          "base": ["event-stream-3.3.5"],
+          "head": ["event-stream-3.3.7-control"]
+        }
+      }
+    },
+    {
+      "name": "ua-parser-js-2021",
+      "title": "ua-parser-js hijack: preinstall hook downloads a platform-specific binary (October 2021)",
+      "date": "2021-10 (ua-parser-js 0.7.29)",
+      "sources": [
+        "https://github.com/faisalman/ua-parser-js/issues/536",
+        "https://github.com/advisories/GHSA-pjwm-rvh2-c87w"
+      ],
+      "kept": "ua-parser-js@0.7.29 adds \"preinstall\": \"node preinstall.js\". preinstall.js selects a download URL with os.platform(), fetches it with https.get, and writes the response to a local file.",
+      "omitted": "Every real host and miner binary. All URLs use the reserved .example.invalid name, the download function is never called, and the drop path is a fixture name.",
+      "expected": "ua-parser-js gets a CRITICAL registry preinstall hook in package.json. NET in the hook's install script is CRITICAL through install-code-execution, FS_WRITE is MEDIUM, and downloads.example.invalid is a HIGH new endpoint. The default CRITICAL gate fails.",
+      "scenarios": {
+        "attack": {
+          "base": ["ua-parser-js-0.7.28"],
+          "head": ["ua-parser-js-0.7.29"]
+        },
+        "control": {
+          "base": ["ua-parser-js-0.7.28"],
+          "head": ["ua-parser-js-0.7.30-control"]
+        }
+      }
+    },
+    {
+      "name": "eslint-scope-2018",
+      "title": "eslint-scope credential theft: npmrc read and remote send (July 2018)",
+      "date": "2018-07 (eslint-scope 3.7.2)",
+      "sources": [
+        "https://eslint.org/blog/2018/07/postmortem-for-malicious-package-publishes/",
+        "https://github.com/eslint/eslint-scope/issues/44"
+      ],
+      "kept": "eslint-scope@3.7.2 adds a function that reads ~/.npmrc with fs.readFileSync and posts its contents to https://npm-stat.example.invalid/collect.",
+      "omitted": "The real host, the credential value, and every call. The function is never invoked and the reserved .example.invalid host is never contacted.",
+      "expected": "eslint-scope gets an FS_READ and an FS_SENSITIVE finding for ~/.npmrc, and a NET finding for the https.request call. The secret-exfiltration shape makes the NET and FS_SENSITIVE findings CRITICAL, npm-stat.example.invalid is a HIGH new endpoint, and the default CRITICAL gate fails.",
+      "scenarios": {
+        "attack": {
+          "base": ["eslint-scope-3.7.1"],
+          "head": ["eslint-scope-3.7.2"]
+        },
+        "control": {
+          "base": ["eslint-scope-3.7.1"],
+          "head": ["eslint-scope-3.7.3-control"]
         }
       }
     }

@@ -1023,6 +1023,196 @@ describe("synthetic sensitive read over an existing FS_READ capability", () => {
   });
 });
 
+describe("event-stream backdoor (2018) reconstruction", () => {
+  it("fails the default gate on the added dependency's encrypted payload", async () => {
+    const result = await runScenario("event-stream-2018", "attack");
+    expectAllAnalyzed(result, 2);
+
+    const dropper = packageReport(result.report, "flatmap-stream");
+    expect(dropper.package.newPackage).toBe(true);
+    expect(findingsOf(dropper, "DYNAMIC_CODE")).toEqual([
+      expect.objectContaining({
+        severity: "CRITICAL",
+        capability: expect.objectContaining({
+          location: expect.objectContaining({ kind: "runtime" }) as unknown,
+          evidence: [
+            expect.objectContaining({
+              file: "index.js",
+              snippet: "return eval(code);",
+            }),
+          ],
+        }) as unknown,
+      }),
+    ]);
+    expect(findingsOf(dropper, "FS_READ")).toEqual([
+      expect.objectContaining({
+        severity: "LOW",
+        capability: expect.objectContaining({
+          evidence: [
+            expect.objectContaining({
+              file: "index.js",
+              snippet: "fs.readFileSync(",
+            }),
+          ],
+        }) as unknown,
+      }),
+    ]);
+    expect(dropper.shapes?.map((shape) => shape.ruleId)).toContain(
+      "dynamic-or-native-code",
+    );
+
+    const eventStream = packageReport(result.report, "event-stream");
+    expect(findingsOf(eventStream, "DEPENDENCY")).toEqual([
+      expect.objectContaining({
+        severity: "LOW",
+        relatedReportIds: [dropper.reportId],
+      }),
+    ]);
+
+    expect(evaluateSeverityGate(result.report, "CRITICAL")).toMatchObject({
+      fail: true,
+      exitCode: 1,
+      highest: "CRITICAL",
+    });
+  });
+
+  it("passes the benign control bump", async () => {
+    const result = await runScenario("event-stream-2018", "control");
+    expectAllAnalyzed(result, 1);
+    expect(result.report.summary.gateSeverity.CRITICAL).toBe(0);
+    expect(evaluateSeverityGate(result.report, "CRITICAL").fail).toBe(false);
+  });
+});
+
+describe("ua-parser-js hijack (2021) reconstruction", () => {
+  it("fails the default gate on the preinstall downloader hook", async () => {
+    const result = await runScenario("ua-parser-js-2021", "attack");
+    expectAllAnalyzed(result, 1);
+    const report = packageReport(result.report, "ua-parser-js");
+
+    expect(findingsOf(report, "INSTALL_HOOK")).toEqual([
+      expect.objectContaining({
+        severity: "CRITICAL",
+        capability: expect.objectContaining({
+          hook: "preinstall",
+          applicability: "registry-install",
+          evidence: [
+            expect.objectContaining({
+              file: "package.json",
+              snippet: '"preinstall": "node preinstall.js"',
+            }),
+          ],
+        }) as unknown,
+      }),
+    ]);
+    expect(findingsOf(report, "NET")).toEqual([
+      expect.objectContaining({
+        severity: "CRITICAL",
+        capability: expect.objectContaining({
+          location: expect.objectContaining({
+            kind: "install-script",
+            hook: "preinstall",
+          }) as unknown,
+          evidence: expect.arrayContaining([
+            expect.objectContaining({ file: "preinstall.js" }),
+          ]) as unknown,
+        }) as unknown,
+      }),
+    ]);
+    expect(findingsOf(report, "FS_WRITE")).toEqual([
+      expect.objectContaining({
+        severity: "MEDIUM",
+        capability: expect.objectContaining({
+          location: expect.objectContaining({
+            kind: "install-script",
+          }) as unknown,
+        }) as unknown,
+      }),
+    ]);
+    expect(report.shapes?.map((shape) => shape.ruleId)).toEqual(
+      expect.arrayContaining(["install-code-execution", "install-hook-change"]),
+    );
+    expect(report.signalFindings).toEqual([
+      expect.objectContaining({
+        kind: "new-external-endpoint",
+        severity: "HIGH",
+        detail: "new external domain downloads.example.invalid",
+      }),
+    ]);
+
+    expect(evaluateSeverityGate(result.report, "CRITICAL")).toMatchObject({
+      fail: true,
+      exitCode: 1,
+      highest: "CRITICAL",
+    });
+  });
+
+  it("passes the benign control bump", async () => {
+    const result = await runScenario("ua-parser-js-2021", "control");
+    expectAllAnalyzed(result, 1);
+    expect(result.report.summary.gateSeverity.CRITICAL).toBe(0);
+    expect(evaluateSeverityGate(result.report, "CRITICAL").fail).toBe(false);
+  });
+});
+
+describe("eslint-scope credential theft (2018) reconstruction", () => {
+  it("fails the default gate on the npmrc read and remote send", async () => {
+    const result = await runScenario("eslint-scope-2018", "attack");
+    expectAllAnalyzed(result, 1);
+    const report = packageReport(result.report, "eslint-scope");
+
+    expect(findingsOf(report, "FS_SENSITIVE")).toEqual([
+      expect.objectContaining({
+        severity: "CRITICAL",
+        capability: expect.objectContaining({
+          evidence: [
+            expect.objectContaining({
+              file: "lib/index.js",
+              snippet: expect.stringContaining(".npmrc") as unknown,
+            }),
+          ],
+        }) as unknown,
+      }),
+    ]);
+    expect(findingsOf(report, "NET")).toEqual([
+      expect.objectContaining({
+        severity: "CRITICAL",
+        capability: expect.objectContaining({
+          evidence: expect.arrayContaining([
+            expect.objectContaining({ file: "lib/index.js" }),
+          ]) as unknown,
+        }) as unknown,
+      }),
+    ]);
+    expect(findingsOf(report, "FS_READ")).toEqual([
+      expect.objectContaining({ severity: "LOW" }),
+    ]);
+    expect(report.shapes?.map((shape) => shape.ruleId)).toContain(
+      "secret-exfiltration",
+    );
+    expect(report.signalFindings).toEqual([
+      expect.objectContaining({
+        kind: "new-external-endpoint",
+        severity: "HIGH",
+        detail: "new external domain npm-stat.example.invalid",
+      }),
+    ]);
+
+    expect(evaluateSeverityGate(result.report, "CRITICAL")).toMatchObject({
+      fail: true,
+      exitCode: 1,
+      highest: "CRITICAL",
+    });
+  });
+
+  it("passes the benign control bump", async () => {
+    const result = await runScenario("eslint-scope-2018", "control");
+    expectAllAnalyzed(result, 1);
+    expect(result.report.summary.gateSeverity.CRITICAL).toBe(0);
+    expect(evaluateSeverityGate(result.report, "CRITICAL").fail).toBe(false);
+  });
+});
+
 describe("phase 2 evidence coverage", () => {
   it.each(
     INVENTORY.incidents.flatMap((incident) =>

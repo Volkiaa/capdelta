@@ -1,0 +1,6 @@
+{
+  "name": "ua-parser-js",
+  "version": "0.7.28",
+  "description": "Lightweight JavaScript-based user-agent string parser",
+  "main": "src/ua-parser.js"
+}

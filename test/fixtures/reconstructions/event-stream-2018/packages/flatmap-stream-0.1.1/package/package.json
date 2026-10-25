@@ -1,0 +1,6 @@
+{
+  "name": "flatmap-stream",
+  "version": "0.1.1",
+  "description": "a stream of flat maps",
+  "main": "index.js"
+}

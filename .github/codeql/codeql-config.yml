@@ -1,0 +1,5 @@
+# The attack reconstructions are inert, defanged text shaped like real attacks so
+# capdelta can analyze them. They are never imported or executed (inventory.json
+# notice), and CodeQL correctly reports their malicious-looking flows.
+paths-ignore:
+  - test/fixtures/reconstructions

@@ -1,0 +1,17 @@
+{
+  "name": "reconstruction-project",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "name": "reconstruction-project",
+      "version": "1.0.0"
+    },
+    "node_modules/eslint-scope": {
+      "version": "3.7.3",
+      "resolved": "https://registry.npmjs.org/eslint-scope/-/eslint-scope-3.7.3.tgz",
+      "integrity": "sha512-tSLeghzsbvnbH0/yirPgCbXZnPtl96BmrzMkEend4Y5W01RbFIrVM6g7Bsb7ofT6OrfuAIE/8fO/0eNp/vEsTw=="
+    }
+  }
+}

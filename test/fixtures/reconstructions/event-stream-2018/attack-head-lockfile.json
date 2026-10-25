@@ -1,0 +1,25 @@
+{
+  "name": "reconstruction-project",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "name": "reconstruction-project",
+      "version": "1.0.0"
+    },
+    "node_modules/event-stream": {
+      "version": "3.3.6",
+      "resolved": "https://registry.npmjs.org/event-stream/-/event-stream-3.3.6.tgz",
+      "integrity": "sha512-yAWsNjrD8FNMokY26f2DWXde8EFsGzzbRMk+GApQPFicWp1NGB88yd0BKnquSE9iV7MRihApmAI268XZ4Hx+cw==",
+      "dependencies": {
+        "flatmap-stream": "^0.1.1"
+      }
+    },
+    "node_modules/flatmap-stream": {
+      "version": "0.1.1",
+      "resolved": "https://registry.npmjs.org/flatmap-stream/-/flatmap-stream-0.1.1.tgz",
+      "integrity": "sha512-LrWkL8/25/gNp60KZJDXJavvQosom3+w3lQolW3977UuzzpMXDMYUYz1lVxiKMhmscJ9DH+2YhBhKLnyRuMY2w=="
+    }
+  }
+}
