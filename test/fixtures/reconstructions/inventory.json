@@ -401,7 +401,7 @@
       ],
       "kept": "Each bump adds browser.js and points the browser field at it. It wraps window.fetch, XMLHttpRequest open and send, and the window.ethereum and window.solana request methods. Strings that match a 20-byte EVM address are replaced with the all-zero address before a request is sent and in JSON responses.",
       "omitted": "The real injection vector, the operator address, and every real wallet address. The replacement is the all-zero address, which no one controls. The module is never loaded in a browser or in Node.",
-      "expected": "The browser wrapper calls fetch, so the new side gains a runtime NET capability at HIGH. No capability describes browser wallet access, address substitution, or request tampering, so the report stops at HIGH and the default CRITICAL gate passes. This is a detection gap.",
+      "expected": "The browser wrapper calls fetch, so the new side gains a runtime NET capability. browser.js also references window.ethereum and request and carries the all-zero EVM address, so the signal layer emits one wallet-address-swap finding. The NET gain and the swap signal together match the wallet-address-swap shape at CRITICAL, and the NET capability is raised with it. gateSeverity counts two CRITICAL per package, so the default CRITICAL gate fails.",
       "scenarios": {
         "attack": {
           "base": ["chalk-5.5.0", "debug-4.4.1"],

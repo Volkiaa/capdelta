@@ -102,6 +102,8 @@ export {
   type SignalObfuscationObservation,
   type SignalParseState,
   type SignalSet,
+  type SignalWalletAddressObservation,
+  type WalletAddressShape,
 } from "./core/contract/capability-set.js";
 export type {
   ChangedPackage,

@@ -99,6 +99,17 @@ export interface CodeCapability extends CapabilityBase {
 export type SignalParseState =
   "parsed" | "unparseable" | "unsupported" | "unreadable";
 
+export type WalletAddressShape =
+  "evm" | "tron" | "bitcoin-base58" | "bitcoin-bech32" | "solana";
+
+/** ADR-044: address-shaped string literal, recorded from parsed content only. */
+export interface SignalWalletAddressObservation {
+  value: string;
+  shape: WalletAddressShape;
+  /** One-based source line of the literal. */
+  line: number;
+}
+
 /** Per-file signal measurements; non-parsed states are first-class data. */
 export interface SignalFileObservation {
   file: string;
@@ -107,6 +118,10 @@ export interface SignalFileObservation {
   parseState: SignalParseState;
   /** Line of a loop at module scope that has no exit condition. */
   topLevelLoop?: { line: number };
+  /** ADR-044: the parsed file references a wallet provider. */
+  walletProviderReference?: boolean;
+  /** ADR-044: distinct address-shaped literals, capped at 32 per file. */
+  walletAddresses?: readonly SignalWalletAddressObservation[];
 }
 
 export type SignalEndpointType = "domain" | "ipv4" | "ipv6";

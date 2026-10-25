@@ -1882,3 +1882,58 @@ describe("module-scope unbounded loop signal", () => {
     );
   });
 });
+
+describe("wallet address signals (ADR-044)", () => {
+  const address = `0x${"a".repeat(40)}`;
+
+  it("reads addresses and provider references from parsed literals only", async () => {
+    await withPackage(
+      {
+        "browser.js": [
+          `const pattern = /\\b0x[0-9a-f]{40}\\b/gu;`,
+          `const zero = "${address}";`,
+          "const provider = window.ethereum;",
+        ].join("\n"),
+      },
+      async (root) => {
+        const result = await extractNpmJavaScriptCapabilities(
+          { root },
+          manifestSet,
+        );
+        expect(result.signals?.sourceFiles[0]).toMatchObject({
+          walletProviderReference: true,
+          walletAddresses: [{ value: address, shape: "evm", line: 2 }],
+        });
+        expect(
+          diffSignals(null, result.signals ?? emptySignalSet()),
+        ).toContainEqual(
+          expect.objectContaining({
+            kind: "wallet-address-swap",
+            severity: "HIGH",
+          }),
+        );
+      },
+    );
+  });
+
+  it("does not read an address or provider from a file that fails to parse", async () => {
+    await withPackage(
+      {
+        "broken.js": `const zero = "${address}";\nconst provider = window.ethereum;\nconst = ;\n`,
+      },
+      async (root) => {
+        const result = await extractNpmJavaScriptCapabilities(
+          { root },
+          manifestSet,
+        );
+        expect(result.signals?.sourceFiles[0]).toMatchObject({
+          parseState: "unparseable",
+        });
+        expect(result.signals?.sourceFiles[0]?.walletAddresses).toBeUndefined();
+        expect(
+          result.signals?.sourceFiles[0]?.walletProviderReference,
+        ).toBeUndefined();
+      },
+    );
+  });
+});

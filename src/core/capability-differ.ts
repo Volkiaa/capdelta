@@ -9,9 +9,14 @@ import {
   type PackageSubject,
   type RuntimeConstraintCapability,
   type CodeCapability,
+  type SignalFileObservation,
+  type WalletAddressShape,
 } from "./contract/capability-set.js";
 import { compareText } from "./compare.js";
-import { emptySignalSet } from "./signal-extractor.js";
+import {
+  MAX_WALLET_ADDRESSES_PER_FILE,
+  emptySignalSet,
+} from "./signal-extractor.js";
 import { diffSignals, type SignalFinding } from "./signal-differ.js";
 import { NamedError } from "./named-error.js";
 
@@ -42,7 +47,8 @@ export type ShapeRuleId =
   | "secret-exfiltration"
   | "obfuscated-execution"
   | "install-hook-change"
-  | "dynamic-or-native-code";
+  | "dynamic-or-native-code"
+  | "wallet-address-swap";
 
 export interface ShapeFinding {
   ruleId: ShapeRuleId;
@@ -78,6 +84,15 @@ export class CapabilityDifferError extends NamedError {}
 
 /** The producer violated the ecosystem-agnostic capability-set contract. */
 export class CapabilityDifferContractError extends CapabilityDifferError {}
+
+// ADR-044: the closed set of address shapes the extractor may report.
+const WALLET_ADDRESS_SHAPES: ReadonlySet<WalletAddressShape> = new Set([
+  "evm",
+  "tron",
+  "bitcoin-base58",
+  "bitcoin-bech32",
+  "solana",
+]);
 
 const SEVERITY_ORDER: Readonly<Record<FindingSeverity, number>> = {
   CRITICAL: 0,
@@ -225,6 +240,7 @@ function validateSignals(
     ) {
       throw contractError(side, "invalid signal file observation");
     }
+    validateWalletSignal(file, side);
   }
   for (const endpoint of signals.endpoints) {
     if (
@@ -243,6 +259,42 @@ function validateSignals(
     ) {
       throw contractError(side, "invalid obfuscation signal observation");
     }
+  }
+}
+
+/** ADR-044: a broken wallet observation must fail loudly, not vanish. */
+function validateWalletSignal(
+  file: SignalFileObservation,
+  side: "old" | "new",
+): void {
+  if (
+    file.walletProviderReference !== undefined &&
+    typeof file.walletProviderReference !== "boolean"
+  ) {
+    throw contractError(side, "invalid wallet provider reference");
+  }
+  const addresses = file.walletAddresses;
+  if (addresses === undefined) return;
+  if (
+    addresses.length === 0 ||
+    addresses.length > MAX_WALLET_ADDRESSES_PER_FILE
+  ) {
+    throw contractError(side, "invalid wallet address count");
+  }
+  const values = new Set<string>();
+  for (const address of addresses) {
+    if (
+      typeof address.value !== "string" ||
+      address.value.length === 0 ||
+      address.value.length > 128 ||
+      !WALLET_ADDRESS_SHAPES.has(address.shape) ||
+      !Number.isSafeInteger(address.line) ||
+      address.line <= 0 ||
+      values.has(address.value)
+    ) {
+      throw contractError(side, "invalid wallet address observation");
+    }
+    values.add(address.value);
   }
 }
 
@@ -438,6 +490,20 @@ function evaluateShapes(
         capabilities: [gain.capability],
       });
     }
+  }
+
+  // ADR-044: a new address literal beside a wallet provider reference, with a
+  // NET gain, is the address-swap half of the September 2025 compromise.
+  const walletSwaps = signalFindings.filter(
+    (finding) => finding.kind === "wallet-address-swap",
+  );
+  if (walletSwaps.length > 0 && network.length > 0) {
+    shapes.push({
+      ruleId: "wallet-address-swap",
+      severity: "CRITICAL",
+      capabilities: network.map((gain) => gain.capability),
+      signals: walletSwaps,
+    });
   }
   return shapes;
 }

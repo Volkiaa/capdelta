@@ -773,13 +773,13 @@ describe("colors 1.4.1 sabotage (2022) reconstruction", () => {
 
 describe("chalk and debug compromise (2025-09) reconstruction", () => {
   it.each(["chalk", "debug"] as const)(
-    "reports the %s browser injection as runtime NET at HIGH",
+    "reports the %s browser injection as a CRITICAL wallet address swap",
     async (name) => {
       const result = await runScenario("chalk-debug-2025", "attack");
       expectAllAnalyzed(result, 2);
       expect(result.report.summary.gateSeverity).toEqual({
-        CRITICAL: 0,
-        HIGH: 2,
+        CRITICAL: 4,
+        HIGH: 0,
         MEDIUM: 0,
         LOW: 0,
         INFO: 0,
@@ -788,7 +788,7 @@ describe("chalk and debug compromise (2025-09) reconstruction", () => {
       const report = packageReport(result.report, name);
       expect(findingsOf(report, "NET")).toEqual([
         expect.objectContaining({
-          severity: "HIGH",
+          severity: "CRITICAL",
           change: "added",
           capability: expect.objectContaining({
             kind: "NET",
@@ -800,16 +800,25 @@ describe("chalk and debug compromise (2025-09) reconstruction", () => {
         }),
       ]);
       expect(report.findings).toHaveLength(1);
-      expect(report.signalFindings ?? []).toEqual([]);
-      expect(report.shapes ?? []).toEqual([]);
-      // Detection gap: no capability covers browser wallet access, address
-      // substitution, or request tampering, so the report stops at NET/HIGH.
+      expect(report.signalFindings).toEqual([
+        {
+          kind: "wallet-address-swap",
+          severity: "CRITICAL",
+          change: "added",
+          detail:
+            "browser.js adds 1 address-shaped literal (evm) and references a wallet provider",
+          evidence: [{ file: "browser.js", line: 8, snippet: "" }],
+        },
+      ]);
+      expect(report.shapes?.map((shape) => shape.ruleId)).toEqual([
+        "wallet-address-swap",
+      ]);
       expect(evaluateSeverityGate(result.report, "CRITICAL")).toMatchObject({
-        fail: false,
-        exitCode: 0,
-        highest: "HIGH",
+        fail: true,
+        exitCode: 1,
+        highest: "CRITICAL",
+        matchingCount: 4,
       });
-      expect(evaluateSeverityGate(result.report, "HIGH").fail).toBe(true);
     },
   );
 });
