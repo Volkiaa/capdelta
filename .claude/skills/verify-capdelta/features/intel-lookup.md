@@ -31,6 +31,12 @@ bad URL) with the observed and expected exit code and finding kinds, and exits 1
 any mismatch. Evidence lands in `<evidence dir>/<run-id>/intel/`, including
 `service.log`. `INTEL_DRIVE_PORT` changes the port (default 18811).
 
+`replay record <label>` runs this drive and keeps one line per state in
+`intel-matrix.txt` with the state, the observed exit code and the observed finding
+kinds. It strips the evidence path and port first, so two runs compare equal.
+`replay compare` diffs that file with the CLI drives, and `record` exits 2 when the
+registry is unreachable.
+
 ## Not covered
 
 The Action path. `bin/action-drive` drives its confirmed and retracted states
