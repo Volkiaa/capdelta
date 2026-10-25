@@ -107,6 +107,13 @@ Adding `redirect: "error"` is a separate, stricter change for all hosts.
   run, so a missed normalization during migration is a build break, not a
   silent skip.
 
+## Evidence (2026-10-25)
+
+- Held-out corpus, `docs/heldout-2026-10-20/corpus-heldout.json`, main versus this branch with no config: 45 pairs, 0 rows different, 0 pairs failing the default gate.
+- Full verification passes (1391 tests, check:deps, check:action). The Action bundle is rebuilt.
+- Codex security review: APPROVE.
+- Not measured: a repository that adopts a mirror. No mirror was available.
+
 ## Consequences
 
 - Teams behind a mirror can analyze those packages. The `private-registry` flag
