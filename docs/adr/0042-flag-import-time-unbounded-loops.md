@@ -24,7 +24,11 @@ An import-time hang is availability sabotage. It is not install-time execution, 
 
 ## Evidence (Tier 2 checks)
 
-To be filled by the orchestrator after the held-out run.
+- **Held-out corpus.** `scripts/m5-measure.ts run docs/heldout-2026-10-20/corpus-heldout.json` on main and on this branch, 2026-10-25. 45 pairs, every pair analyzed, 0 rows different between the two runs, 0 new findings at any severity, 0 pairs failing the default CRITICAL gate. New findings labelled: attack 0, noise 0, unknown 0.
+- **Reconstructions and golden fixtures.** Full suite passes (1367 tests). Only colors-2022 moved: gateSeverity MEDIUM 0 to 1, highest null to MEDIUM. Nothing moved down, and no `expected-*` golden file changed.
+- **Real CLI drive.** Not possible for the attack case. colors 1.4.1 is unpublished, the fetcher requires https and the lockfile differ accepts only registry.npmjs.org, so the reconstruction test drives the same pipeline and `evaluateSeverityGate` with a fake fetch, as the other reconstructions do. The 45 held-out pairs are real published bumps analyzed by the same code.
+- **Codex security review.** APPROVE (2026-10-25).
+- **Action bundle.** `npm run package:action` run and `dist/action/` committed; `check:action` passes.
 
 ## Alternatives rejected
 
