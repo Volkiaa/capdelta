@@ -1,0 +1,24 @@
+{
+  "name": "reconstruction-project",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "name": "reconstruction-project",
+      "version": "1.0.0"
+    },
+    "node_modules/coa": {
+      "version": "2.0.3",
+      "resolved": "https://registry.npmjs.org/coa/-/coa-2.0.3.tgz",
+      "integrity": "sha512-jnLEL/XD04e784lcID+IlzP/YSIPxmuibuWdBysgOhFjiR2YTt/1s60sDVxPxzU5HF5o+80Q7/c4H15lfuCoCw==",
+      "hasInstallScript": true
+    },
+    "node_modules/rc": {
+      "version": "1.2.9",
+      "resolved": "https://registry.npmjs.org/rc/-/rc-1.2.9.tgz",
+      "integrity": "sha512-Qi2RkyMJFYBhSBCMt5m4MoJ/JDsLU7QGPYkpaQosw31KIYbl27gvep6tTkt5V1Gv4QtY++9RFpjA4lgdme6n2Q==",
+      "hasInstallScript": true
+    }
+  }
+}

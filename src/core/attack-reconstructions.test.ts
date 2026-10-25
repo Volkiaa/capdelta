@@ -641,6 +641,166 @@ describe("Shai-Hulud 2.0 (2025-11) reconstruction", () => {
   });
 });
 
+describe("coa and rc compromise (2021-11) reconstruction", () => {
+  it.each(["coa", "rc"] as const)(
+    "fails the default gate on the %s preinstall dropper",
+    async (name) => {
+      const result = await runScenario("coa-rc-2021", "attack");
+      expectAllAnalyzed(result, 2);
+      expect(result.report.summary.gateSeverity).toEqual({
+        CRITICAL: 6,
+        HIGH: 2,
+        MEDIUM: 2,
+        LOW: 0,
+        INFO: 0,
+      });
+
+      const report = packageReport(result.report, name);
+      expect(findingsOf(report, "INSTALL_HOOK")).toEqual([
+        expect.objectContaining({
+          severity: "CRITICAL",
+          capability: expect.objectContaining({
+            hook: "preinstall",
+            applicability: "registry-install",
+            evidence: [
+              expect.objectContaining({
+                file: "package.json",
+                snippet: '"preinstall": "node compile.js"',
+              }),
+            ],
+          }) as unknown,
+        }),
+      ]);
+      for (const kind of ["NET", "PROCESS"]) {
+        expect(findingsOf(report, kind)).toEqual([
+          expect.objectContaining({
+            severity: "CRITICAL",
+            change: "added",
+            capability: expect.objectContaining({
+              kind,
+              location: {
+                kind: "install-script",
+                hook: "preinstall",
+                applicability: "registry-install",
+              },
+              evidence: expect.arrayContaining([
+                expect.objectContaining({ file: "compile.js" }),
+              ]) as unknown,
+            }) as unknown,
+          }),
+        ]);
+      }
+      expect(findingsOf(report, "FS_WRITE")).toEqual([
+        expect.objectContaining({
+          severity: "MEDIUM",
+          capability: expect.objectContaining({
+            location: {
+              kind: "install-script",
+              hook: "preinstall",
+              applicability: "registry-install",
+            },
+            evidence: expect.arrayContaining([
+              expect.objectContaining({ file: "compile.js" }),
+            ]) as unknown,
+          }) as unknown,
+        }),
+      ]);
+
+      const host =
+        name === "coa" ? "download.example.invalid" : "cdn.example.invalid";
+      expect(report.signalFindings).toEqual([
+        expect.objectContaining({
+          kind: "new-external-endpoint",
+          severity: "HIGH",
+          detail: `new external domain ${host}`,
+        }),
+      ]);
+      expect(report.shapes?.map((shape) => shape.ruleId)).toEqual(
+        expect.arrayContaining([
+          "install-hook-change",
+          "install-code-execution",
+        ]),
+      );
+
+      expect(evaluateSeverityGate(result.report, "CRITICAL")).toMatchObject({
+        fail: true,
+        exitCode: 1,
+        highest: "CRITICAL",
+        matchingCount: 6,
+      });
+    },
+  );
+});
+
+describe("colors 1.4.1 sabotage (2022) reconstruction", () => {
+  it("passes the default gate because no capability covers an endless loop", async () => {
+    const result = await runScenario("colors-2022", "attack");
+    expectAllAnalyzed(result, 1);
+    const report = packageReport(result.report, "colors");
+
+    expect(report.findings).toEqual([]);
+    expect(report.signalFindings ?? []).toEqual([]);
+    expect(report.shapes ?? []).toEqual([]);
+    // Detection gap: the closed taxonomy has no kind for an endless loop or
+    // console output, so sabotage that hangs every importer is invisible here.
+    expect(result.report.summary.gateSeverity).toEqual({
+      CRITICAL: 0,
+      HIGH: 0,
+      MEDIUM: 0,
+      LOW: 0,
+      INFO: 0,
+    });
+    expect(evaluateSeverityGate(result.report, "CRITICAL")).toMatchObject({
+      fail: false,
+      exitCode: 0,
+      highest: null,
+    });
+  });
+});
+
+describe("chalk and debug compromise (2025-09) reconstruction", () => {
+  it.each(["chalk", "debug"] as const)(
+    "reports the %s browser injection as runtime NET at HIGH",
+    async (name) => {
+      const result = await runScenario("chalk-debug-2025", "attack");
+      expectAllAnalyzed(result, 2);
+      expect(result.report.summary.gateSeverity).toEqual({
+        CRITICAL: 0,
+        HIGH: 2,
+        MEDIUM: 0,
+        LOW: 0,
+        INFO: 0,
+      });
+
+      const report = packageReport(result.report, name);
+      expect(findingsOf(report, "NET")).toEqual([
+        expect.objectContaining({
+          severity: "HIGH",
+          change: "added",
+          capability: expect.objectContaining({
+            kind: "NET",
+            location: { kind: "runtime" },
+            evidence: expect.arrayContaining([
+              expect.objectContaining({ file: "browser.js" }),
+            ]) as unknown,
+          }) as unknown,
+        }),
+      ]);
+      expect(report.findings).toHaveLength(1);
+      expect(report.signalFindings ?? []).toEqual([]);
+      expect(report.shapes ?? []).toEqual([]);
+      // Detection gap: no capability covers browser wallet access, address
+      // substitution, or request tampering, so the report stops at NET/HIGH.
+      expect(evaluateSeverityGate(result.report, "CRITICAL")).toMatchObject({
+        fail: false,
+        exitCode: 0,
+        highest: "HIGH",
+      });
+      expect(evaluateSeverityGate(result.report, "HIGH").fail).toBe(true);
+    },
+  );
+});
+
 describe("synthetic layout evasion (ADR-013)", () => {
   it("analyzes a hook in an archive rooted at x/ instead of reporting it unavailable", async () => {
     // npm installs any single-root tarball (strip one component), so a root

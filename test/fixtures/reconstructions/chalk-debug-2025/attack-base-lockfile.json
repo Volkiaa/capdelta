@@ -1,0 +1,22 @@
+{
+  "name": "reconstruction-project",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "name": "reconstruction-project",
+      "version": "1.0.0"
+    },
+    "node_modules/chalk": {
+      "version": "5.5.0",
+      "resolved": "https://registry.npmjs.org/chalk/-/chalk-5.5.0.tgz",
+      "integrity": "sha512-xthQYW517CYzpcL1CtFDhoKv6C6RFUPi5jSAe4gurZcqU4FbK6COGOIAhw7nJW+/8qbqxjDYnbyeCcJYOgFR8A=="
+    },
+    "node_modules/debug": {
+      "version": "4.4.1",
+      "resolved": "https://registry.npmjs.org/debug/-/debug-4.4.1.tgz",
+      "integrity": "sha512-FnbfButUlnba3iYZkjONgTOsKoYVzgsLKR3oRGTyg86KqSsixbSTqJ6chNOOKHrHgFIEPs6PL/q3ViNswqeKTA=="
+    }
+  }
+}
