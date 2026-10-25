@@ -203,7 +203,10 @@ export function renderIncompleteCauses(
 }
 
 function escapeCell(value: string): string {
-  return value.replace(/\|/gu, "\\|").replace(/\r?\n/gu, " ");
+  return value
+    .replace(/\\/gu, "\\\\")
+    .replace(/\|/gu, "\\|")
+    .replace(/\r?\n/gu, " ");
 }
 
 interface ParsedResults {
