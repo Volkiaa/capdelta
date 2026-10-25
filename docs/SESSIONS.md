@@ -1032,3 +1032,22 @@ platform from `docs/v2-roadmap.md`. ADR-038 to ADR-041 and PRs #169 to #190.
   registry now rejects what the live feed rejects.
 - Flaky timing tests came from running several workers at once. Heavy tests
   carry a 60 s timeout.
+
+## 2026-10-25 follow-up batch
+
+Verification and tooling after phase 3, then the gaps they exposed.
+
+- Audited the verify skill and README against the v2 code. Found `--intel-url`
+  missing from `docs/cli.md` and a stale dependency count. Added `check-docs` and
+  `check-skill` to `check:deps` so both drifts fail the build (#194, #195).
+- Built `intel-drive`, `action-drive`, an intel row in `replay`, a weekly live
+  workflow, an incomplete-causes report and the queue index (#196 to #198, #201,
+  #202). CodeQL blocked #196 (backslash escaping) and #199 (inert attack fixtures).
+- Six reconstructions of documented attacks (#199, #200) found two detection
+  gaps. Closed with Tier 2 ADRs 042 and 044 (#203, #205). Each had a held-out
+  run (45 pairs, 0 rows different) and a Codex APPROVE.
+- Drafted the registry host allowlist as Tier 3 (#204, ADR-043).
+- Lessons: spawn-worker must run from the repo, not the scratchpad. A baseline
+  worktree needs `npm run build` before `m5-measure` (the parser worker lives in
+  `dist/`). `codex-review` writes progress lines first, so wait for `VERDICT`, not
+  for a non-empty file.
