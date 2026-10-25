@@ -50,6 +50,36 @@ const NEW_LOCKFILE = JSON.stringify({
 });
 const INTEL_ID = "CDI-0123456789abcdef0123";
 
+const CORP_OLD_LOCKFILE = JSON.stringify({
+  name: "fixture",
+  version: "1.0.0",
+  lockfileVersion: 3,
+  requires: true,
+  packages: {
+    "": { name: "fixture", version: "1.0.0" },
+    "node_modules/bad": {
+      version: "1.0.0",
+      resolved: "https://npm.corp.example.com/bad/-/bad-1.0.0.tgz",
+      integrity: "sha512-old",
+    },
+  },
+});
+const CORP_NEW_LOCKFILE = JSON.stringify({
+  name: "fixture",
+  version: "1.0.0",
+  lockfileVersion: 3,
+  requires: true,
+  packages: {
+    "": { name: "fixture", version: "1.0.0" },
+    "node_modules/bad": {
+      version: "1.1.0",
+      resolved: "https://npm.corp.example.com/bad/-/bad-1.1.0.tgz",
+      integrity: "sha512-bad",
+    },
+  },
+});
+const CORP_CONFIG = "registry-hosts:\n  - npm.corp.example.com\n";
+
 function emptyRun(firstRun = false): CapabilityAnalysisRun {
   return {
     firstRun,
@@ -568,6 +598,7 @@ describe("runAction", () => {
         },
       ],
       unanalyzable: [],
+      registryHosts: ["registry.npmjs.org"],
     };
 
     function withBaseConfig(config: string | null | Error) {
@@ -650,6 +681,7 @@ describe("runAction", () => {
         {
           allowlist: [],
           unanalyzable: [],
+          registryHosts: ["registry.npmjs.org"],
         },
       );
       expect(vi.mocked(runtime.warn).mock.calls.flat()).toEqual([
@@ -903,6 +935,54 @@ describe("runAction", () => {
       expect(body).toContain("intel&#45;confirmed&#45;malicious");
       expect(body).toContain("CDI&#45;0123456789abcdef0123");
       expect(runtime.warn).not.toHaveBeenCalled();
+    });
+
+    it("reads registry-hosts at the base commit so intel matches the same packages (ADR-0043)", async () => {
+      const runtime = adapters(emptyRun(), intelFetch("confirmed-malicious"));
+      runtime.contents.getContent.mockImplementation((request) => {
+        if (request.path === ".capdelta.yml") {
+          return Promise.resolve({
+            status: 200,
+            data: {
+              type: "file",
+              size: Buffer.byteLength(CORP_CONFIG),
+              encoding: "base64",
+              content: Buffer.from(CORP_CONFIG).toString("base64"),
+            },
+          });
+        }
+        return Promise.resolve({
+          status: 200,
+          data: {
+            type: "file",
+            size: Buffer.byteLength(CORP_OLD_LOCKFILE),
+            encoding: "base64",
+            content: Buffer.from(CORP_OLD_LOCKFILE).toString("base64"),
+          },
+        });
+      });
+      runtime.readHeadLockfile.mockResolvedValue(CORP_NEW_LOCKFILE);
+
+      await runAction(
+        {
+          ...inputs,
+          configPath: ".capdelta.yml",
+          intelUrl: "https://intel.example",
+          failOn: "none",
+        },
+        context,
+        runtime,
+      );
+
+      const json = runtime.uploadJson.mock.calls[0]?.[1];
+      expect(json).toContain("intel-confirmed-malicious");
+      expect(runtime.analyze).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.objectContaining({
+          registryHosts: ["registry.npmjs.org", "npm.corp.example.com"],
+        }),
+      );
     });
 
     it.each(["retracted", "suspected"])(

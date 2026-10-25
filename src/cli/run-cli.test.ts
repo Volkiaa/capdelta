@@ -148,6 +148,29 @@ function lockfileWithGolden(
   };
 }
 
+const CORP_REGISTRY = "npm.corp.example.com";
+
+function lockfileWithHost(
+  version: "1.0.0" | "2.0.0",
+  integrity: string,
+  host: string,
+): Readonly<Record<string, unknown>> {
+  return {
+    name: "inert-cli-project",
+    version: "1.0.0",
+    lockfileVersion: 3,
+    requires: true,
+    packages: {
+      "": { name: "inert-cli-project", version: "1.0.0" },
+      "node_modules/golden-fixture": {
+        version,
+        resolved: `https://${host}/golden-fixture/-/golden-fixture-${version}.tgz`,
+        integrity,
+      },
+    },
+  };
+}
+
 async function goldenBytes(): Promise<{ oldBytes: Buffer; newBytes: Buffer }> {
   const [oldBytes, newBytes] = await Promise.all([
     readFile(join(GOLDEN_ROOT, "v1.tgz")),
@@ -166,6 +189,30 @@ function goldenFetch(oldBytes: Uint8Array, newBytes: Uint8Array): typeof fetch {
       "https://registry.npmjs.org/golden-fixture/-/golden-fixture-2.0.0.tgz",
       newBytes,
     ],
+  ]);
+  return (input) => {
+    const url = input instanceof Request ? input.url : input.toString();
+    const bytes = responses.get(url);
+    if (bytes === undefined) {
+      return Promise.resolve(new Response("not found", { status: 404 }));
+    }
+    return Promise.resolve(
+      new Response(bytes, {
+        status: 200,
+        headers: { "content-length": String(bytes.length) },
+      }),
+    );
+  };
+}
+
+function hostFetch(
+  host: string,
+  oldBytes: Uint8Array,
+  newBytes: Uint8Array,
+): typeof fetch {
+  const responses = new Map<string, Uint8Array>([
+    [`https://${host}/golden-fixture/-/golden-fixture-1.0.0.tgz`, oldBytes],
+    [`https://${host}/golden-fixture/-/golden-fixture-2.0.0.tgz`, newBytes],
   ]);
   return (input) => {
     const url = input instanceof Request ? input.url : input.toString();
@@ -1156,6 +1203,83 @@ describe("capdelta CLI", () => {
           );
         }
       });
+    });
+
+    it("analyzes a registry host listed at the base commit (ADR-0043)", async () => {
+      const { oldBytes, newBytes } = await goldenBytes();
+      const cwd = await createRepository(
+        lockfileWithHost("1.0.0", sri(oldBytes), CORP_REGISTRY),
+      );
+      try {
+        await writeFile(
+          join(cwd, ".capdelta.yml"),
+          `registry-hosts:\n  - ${CORP_REGISTRY}\n`,
+          "utf8",
+        );
+        await git(cwd, "add", ".");
+        await git(cwd, "commit", "--quiet", "-m", "test: registry hosts");
+        await writeLockfile(
+          cwd,
+          lockfileWithHost("2.0.0", sri(newBytes), CORP_REGISTRY),
+        );
+        const result = await runInProcess(
+          cwd,
+          ["--base", "HEAD", "--format", "json", "--fail-on", "none"],
+          hostFetch(CORP_REGISTRY, oldBytes, newBytes),
+        );
+        expect(result.exitCode).toBe(0);
+        expect(result.stderr).toBe("");
+        const report = JSON.parse(result.stdout) as {
+          summary: {
+            analyzedPackages: number;
+            skippedLockfileEntries: number;
+          };
+          skipped: unknown[];
+        };
+        expect(report.summary.analyzedPackages).toBe(1);
+        expect(report.summary.skippedLockfileEntries).toBe(0);
+        expect(report.skipped).toEqual([]);
+      } finally {
+        await rm(cwd, { recursive: true, force: true });
+      }
+    });
+
+    it("ignores registry-hosts that exist only in the working tree (ADR-0043, ADR-015)", async () => {
+      const { oldBytes, newBytes } = await goldenBytes();
+      const cwd = await createRepository(
+        lockfileWithHost("1.0.0", sri(oldBytes), CORP_REGISTRY),
+      );
+      try {
+        await writeFile(
+          join(cwd, ".capdelta.yml"),
+          `registry-hosts:\n  - ${CORP_REGISTRY}\n`,
+          "utf8",
+        );
+        await writeLockfile(
+          cwd,
+          lockfileWithHost("2.0.0", sri(newBytes), CORP_REGISTRY),
+        );
+        const result = await runInProcess(
+          cwd,
+          ["--base", "HEAD", "--format", "json"],
+          hostFetch(CORP_REGISTRY, oldBytes, newBytes),
+        );
+        expect(result.exitCode).toBe(0);
+        const report = JSON.parse(result.stdout) as {
+          summary: {
+            analyzedPackages: number;
+            skippedLockfileEntries: number;
+          };
+          skipped: { reason: string }[];
+        };
+        expect(report.summary.analyzedPackages).toBe(0);
+        expect(report.summary.skippedLockfileEntries).toBe(1);
+        expect(report.skipped[0]?.reason).toBe("private-registry");
+        expect(result.stderr).toContain(".capdelta.yml differs from base");
+        expect(result.stderr).toContain("is not present at base");
+      } finally {
+        await rm(cwd, { recursive: true, force: true });
+      }
     });
   });
 

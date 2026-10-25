@@ -24,8 +24,8 @@ import {
 } from "./errors.js";
 import { isRecord } from "../guards.js";
 import { compareSemver } from "./semver.js";
+import { registryHostSet } from "./registry-host.js";
 
-const NPM_REGISTRY_HOST = "registry.npmjs.org";
 const NODE_MODULES_SEGMENT = "node_modules/";
 
 interface Entry {
@@ -44,10 +44,20 @@ type Analyzability =
   | { analyzable: true; version: string; resolved: string; integrity: string }
   | { analyzable: false; reason: SkipReason; detail: string };
 
+export interface DiffNpmLockfilesOptions {
+  /**
+   * ADR-0043: additional exact hosts whose entries are analyzable. Matched
+   * literally and always additive to `registry.npmjs.org`.
+   */
+  registryHosts?: readonly string[];
+}
+
 export function diffNpmLockfiles(
   oldLockfile: unknown,
   newLockfile: unknown,
+  options: DiffNpmLockfilesOptions = {},
 ): LockfileDiffResult {
+  const registryHosts = registryHostSet(options.registryHosts);
   // Lockfile added in this PR → first-run mode (PLAN §4.1): every package is new.
   const firstRun = oldLockfile === null || oldLockfile === undefined;
   const newPackages = validateLockfile(newLockfile, "new");
@@ -58,32 +68,7 @@ export function diffNpmLockfiles(
   const findings: LockfileFinding[] = [];
   const skipped: SkippedPackage[] = [];
 
-  const oldByPath = new Map<string, Entry>();
-  const oldByName = new Map<string, Entry[]>();
-  for (const [path, raw] of Object.entries(oldPackages)) {
-    if (!isDependencyPath(path)) continue;
-    const parsed = parseEntry(path, raw);
-    if (!parsed.ok) {
-      // A malformed OLD entry is treated as absent for diffing (the new
-      // version gets the newly-added full-report treatment — over-reporting,
-      // never suppression) but the parse failure itself is still flagged:
-      // no silent failures.
-      skipped.push({
-        name: parsed.name,
-        path,
-        reason: "malformed-entry",
-        detail: `old lockfile: ${parsed.detail}; any new-side version is treated as newly added`,
-      });
-      continue;
-    }
-    oldByPath.set(path, parsed.entry);
-    const siblings = oldByName.get(parsed.entry.name);
-    if (siblings === undefined) {
-      oldByName.set(parsed.entry.name, [parsed.entry]);
-    } else {
-      siblings.push(parsed.entry);
-    }
-  }
+  const { oldByPath, oldByName } = indexOldPackages(oldPackages, skipped);
 
   for (const [path, raw] of Object.entries(newPackages)) {
     if (!isDependencyPath(path)) continue;
@@ -133,7 +118,7 @@ export function diffNpmLockfiles(
       }
     }
 
-    const verdict = classify(entry);
+    const verdict = classify(entry, registryHosts);
     if (!verdict.analyzable) {
       skipped.push({
         name: entry.name,
@@ -149,7 +134,7 @@ export function diffNpmLockfiles(
     // be downloaded and diffed, so the package gets the newly-added
     // full-report treatment (PLAN 4.1) instead of a baseline the Fetcher
     // cannot honor. Over-reporting, never under.
-    const oldVerdict = old === null ? null : classify(old);
+    const oldVerdict = old === null ? null : classify(old, registryHosts);
     const baseline = oldVerdict?.analyzable === true ? oldVerdict : null;
 
     const candidate: ChangedPackage = {
@@ -169,6 +154,39 @@ export function diffNpmLockfiles(
   }
 
   return { changed, findings, skipped, firstRun };
+}
+
+function indexOldPackages(
+  oldPackages: Record<string, unknown>,
+  skipped: SkippedPackage[],
+): { oldByPath: Map<string, Entry>; oldByName: Map<string, Entry[]> } {
+  const oldByPath = new Map<string, Entry>();
+  const oldByName = new Map<string, Entry[]>();
+  for (const [path, raw] of Object.entries(oldPackages)) {
+    if (!isDependencyPath(path)) continue;
+    const parsed = parseEntry(path, raw);
+    if (!parsed.ok) {
+      // A malformed OLD entry is treated as absent for diffing (the new
+      // version gets the newly-added full-report treatment — over-reporting,
+      // never suppression) but the parse failure itself is still flagged:
+      // no silent failures.
+      skipped.push({
+        name: parsed.name,
+        path,
+        reason: "malformed-entry",
+        detail: `old lockfile: ${parsed.detail}; any new-side version is treated as newly added`,
+      });
+      continue;
+    }
+    oldByPath.set(path, parsed.entry);
+    const siblings = oldByName.get(parsed.entry.name);
+    if (siblings === undefined) {
+      oldByName.set(parsed.entry.name, [parsed.entry]);
+    } else {
+      siblings.push(parsed.entry);
+    }
+  }
+  return { oldByPath, oldByName };
 }
 
 /** Root entry (""), workspace source dirs, and anything else outside node_modules is the repo's own code, not a dependency. */
@@ -309,7 +327,10 @@ function hasSingleDistinctArtifact(candidates: Entry[]): boolean {
   return artifacts.size === 1;
 }
 
-function classify(entry: Entry): Analyzability {
+function classify(
+  entry: Entry,
+  registryHosts: ReadonlySet<string>,
+): Analyzability {
   if (entry.link) {
     return {
       analyzable: false,
@@ -348,9 +369,10 @@ function classify(entry: Entry): Analyzability {
       detail: "resolved is not a valid URL",
     };
   }
-  if (host !== NPM_REGISTRY_HOST) {
-    // v0.1 rule (PLAN §2): any non-npmjs host is treated as private.
-    // A mirror allowlist is future config, not a differ concern.
+  if (!registryHosts.has(host)) {
+    // v0.1 rule (PLAN §2, ADR-009): a host outside the configured set is
+    // private. ADR-0043 adds exact hosts from base-commit policy; it never
+    // matches by prefix or wildcard.
     return {
       analyzable: false,
       reason: "private-registry",

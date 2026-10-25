@@ -111,7 +111,10 @@ export type {
   SkipReason,
   SkippedPackage,
 } from "./core/contract/lockfile-diff.js";
-export { diffNpmLockfiles } from "./core/npm/lockfile-differ.js";
+export {
+  diffNpmLockfiles,
+  type DiffNpmLockfilesOptions,
+} from "./core/npm/lockfile-differ.js";
 export { intelMatches, type IntelFindingView } from "./core/intel-match.js";
 export {
   FetcherConfigurationError,

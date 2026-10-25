@@ -13,6 +13,13 @@ This page documents every input, output, and step of the capdelta GitHub Action.
 | `config-path`   | empty                 | Optional `.capdelta.yml` path, read from the base commit, not the PR head   |
 | `strict`        | `false`               | Fails the Action when any changed content remains unanalyzed                |
 
+`config-path` may name a `.capdelta.yml` with `registry-hosts`, the exact
+registry hosts whose packages the Action analyzes in addition to
+`registry.npmjs.org`. The Action reads that list at the same base commit as the
+allowlist, so a pull request cannot add its own mirror (ADR-0043, ADR-015).
+Each entry is one exact host with no scheme, port, path or wildcard. At most 32
+entries are accepted, and `registry.npmjs.org` is always included.
+
 Outputs are `status` (`no-op`, `passed`, or `failed`), `artifact-id`,
 and `highest-severity`.
 
