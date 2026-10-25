@@ -20,7 +20,7 @@ built entrypoint during development.
 ## CLI behavior
 
 ```text
-Usage: capdelta --base <ref> [--format text|json] [--config path] [--fail-on severity] [--strict]
+Usage: capdelta --base <ref> [--format text|json] [--config path] [--fail-on severity] [--strict] [--intel-url url]
 ```
 
 - The base ref is resolved to an immutable commit. Git is invoked with argument
@@ -69,7 +69,9 @@ could not be fetched or analyzed` to stderr and exits `1`.
 |  `0` | Nothing reached the `--fail-on` threshold and no package failed operationally, or the lockfile is unchanged |
 |  `1` | A finding reached the threshold, or an operational failure; see stderr, unless `--strict` selects exit 2    |
 |  `2` | `--strict` found unanalyzed content; takes precedence over severity and operational failure                 |
-| `64` | Invalid usage                                                                                               |
+| `64` | Invalid usage, including a malformed `--intel-url`                                                          |
+
+`--intel-url` asks a capdelta platform service whether a reviewer confirmed a changed artifact as malicious. It sends only the artifact digest. A confirmed match adds a CRITICAL lockfile finding, and an unreachable service becomes a warning. Setup, privacy and failure behavior are in [platform.md](platform.md#consumers). The setting is never read from `.capdelta.yml` (ADR-015, ADR-041).
 
 Allowlist exceptions live in `.capdelta.yml` and require a justification. The
 GitHub Action reads this file from the selected base commit (the PR base, or

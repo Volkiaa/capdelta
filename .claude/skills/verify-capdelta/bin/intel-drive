@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+# Drives the real CLI against a real platform service through every verdict state.
+# Needs the network once, to fetch is-odd 3.0.0 and 3.0.1 metadata from the registry.
+set -u
+BIN="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(cd "$BIN/../../../.." && pwd)"
+RUN_ID="${CAPDELTA_VERIFY_RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
+PORT="${INTEL_DRIVE_PORT:-18811}"
+EVID="${CAPDELTA_VERIFY_EVIDENCE:-$HOME/.local/state/capdelta-verify}/$RUN_ID/intel"
+B="$ROOT/dist"
+[ -f "$B/cli.js" ] && [ -f "$B/platform-cli.js" ] || { echo "intel-drive: run npm run build first" >&2; exit 1; }
+R="$(mktemp -d "${TMPDIR:-/tmp}/capdelta-verify-$RUN_ID-intel-XXXXXX")"
+D="$(mktemp -d "${TMPDIR:-/tmp}/capdelta-verify-$RUN_ID-svc-XXXXXX")"
+mkdir -p "$EVID"
+P=""
+cleanup() { [ -n "$P" ] && kill -INT "$P" 2>/dev/null; rm -rf "$R" "$D"; }
+trap cleanup EXIT
+
+python3 -I - "$R" "$D" <<'PY'
+import json, sys, urllib.request
+R, D = sys.argv[1:3]
+def meta(v):
+    d = json.load(urllib.request.urlopen("https://registry.npmjs.org/is-odd/" + v))
+    return d["dist"]["integrity"], d["dist"]["tarball"]
+def lock(v, i, t):
+    return {"name": "app", "version": "1.0.0", "lockfileVersion": 3, "requires": True,
+            "packages": {"": {"name": "app", "version": "1.0.0", "dependencies": {"is-odd": v}},
+                         "node_modules/is-odd": {"version": v, "resolved": t, "integrity": i}}}
+for v in ("3.0.0", "3.0.1"):
+    i, t = meta(v)
+    json.dump(lock(v, i, t), open(f"{R}/lock-{v}.json", "w"), indent=2)
+    if v == "3.0.1":
+        open(f"{D}/digest", "w").write(i)
+PY
+[ -s "$D/digest" ] || { echo "intel-drive: registry metadata fetch failed" >&2; exit 1; }
+
+cd "$R" && git init -q . && git config user.email v@v && git config user.name v
+echo '{"name":"app","version":"1.0.0","dependencies":{"is-odd":"3.0.0"}}' > package.json
+cp lock-3.0.0.json package-lock.json && git add package.json package-lock.json && git commit -qm base
+cp lock-3.0.1.json package-lock.json && git commit -qam head
+
+DIG="$(cat "$D/digest")"
+OUT="$(node "$B/platform-cli.js" reviewer-token --name alice)"
+TOKEN="$(echo "$OUT" | sed -n 1p)"
+echo "{ $(echo "$OUT" | sed -n 2p) }" > "$D/reviewers.json"
+cat > "$D/seed.mjs" <<JS
+import { JsonStore } from "$B/platform/json-store.js";
+import { FindingStore } from "$B/platform/intel/finding-store.js";
+import { createFinding } from "$B/platform/intel/finding.js";
+const s = new FindingStore(new JsonStore({ root: "$D/data" }));
+const f = createFinding({ecosystem:"npm",name:"is-odd",version:"3.0.1",digest:"$DIG",analyzerVersion:"verify",ruleKey:"verify:drive",summary:"verify drive finding",severity:"CRITICAL",confidence:"medium",evidence:[{file:"index.js",line:1,excerpt:"x"}]}, new Date());
+await s.putIfAbsent(f); console.log(f.id);
+JS
+ID="$(node "$D/seed.mjs")"
+node "$B/platform-cli.js" serve --data "$D/data" --port "$PORT" --reviewers "$D/reviewers.json" > "$EVID/service.log" 2>&1 &
+P=$!
+for _ in 1 2 3 4 5 6 7 8 9 10; do curl -sf "http://127.0.0.1:$PORT/v1/feed" >/dev/null 2>&1 && break; sleep 1; done
+U="http://127.0.0.1:$PORT"
+fails=0
+
+# run <label> <expected exit> <expected finding kinds, comma list or "none"> <cli args>
+run() {
+  label=$1 want_exit=$2 want_kinds=$3; shift 3
+  node "$B/cli.js" --base HEAD~1 --format json --fail-on CRITICAL "$@" >"$EVID/$label.out" 2>"$EVID/$label.err"
+  code=$?; echo "$code" > "$EVID/$label.exit"
+  got=$(python3 -I - "$EVID/$label.out" <<'PY'
+import json, sys
+try:
+    d = json.load(open(sys.argv[1]))
+    print(",".join(sorted(x["kind"] for x in d["lockfileFindings"] if x["kind"].startswith("intel"))) or "none")
+except Exception:
+    print("no-report")
+PY
+)
+  if [ "$code" = "$want_exit" ] && [ "$got" = "$want_kinds" ]; then s=ok; else s=MISMATCH; fails=$((fails+1)); fi
+  printf '%-10s %-24s exit %s (want %s) kinds %s (want %s)\n' "$s" "$label" "$code" "$want_exit" "$got" "$want_kinds"
+}
+post() {
+  curl -s -o /dev/null -w "POST $1 -> %{http_code}\n" -X POST -H "authorization: Bearer $TOKEN" \
+    -H 'content-type: application/json' -d "$2" "$U/v1/findings/$ID/transitions"
+}
+
+run no-intel 0 none
+run suspected 0 none --intel-url "$U"
+post under-review '{"to":"under-review","reason":"triage"}'
+post confirmed '{"to":"confirmed-malicious","reason":"verify","validation":{"method":"verify","evidenceRefs":[0]}}'
+run confirmed 1 intel-confirmed-malicious --intel-url "$U"
+post retracted '{"to":"retracted","reason":"verify retract"}'
+run retracted 0 none --intel-url "$U"
+kill -INT "$P"; wait "$P" 2>/dev/null; P=""
+run service-down 0 none --intel-url "$U"
+node "$B/cli.js" --base HEAD~1 --intel-url ftp://x >"$EVID/bad-url.out" 2>"$EVID/bad-url.err"; code=$?
+echo "$code" > "$EVID/bad-url.exit"
+if [ "$code" = 64 ]; then echo "ok         bad-url                  exit 64"; else echo "MISMATCH   bad-url exit $code (want 64)"; fails=$((fails+1)); fi
+echo "evidence: $EVID"
+[ "$fails" = 0 ]
