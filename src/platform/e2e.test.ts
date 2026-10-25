@@ -194,6 +194,45 @@ describe("platform end to end", () => {
     });
   });
 
+  it("analyzes a dependency the new release newly declares", async () => {
+    const registry = createFakeRegistry();
+    const service = serviceConfig(registry);
+    await monitorOnce(service);
+    registry.publish("wrapper", "1.0.0");
+    registry.publish("wrapper", "1.1.0", {
+      dependencies: { helper: "^1.0.0" },
+    });
+    registry.publish("helper", "1.0.0", {
+      scripts: { postinstall: "node index.js" },
+    });
+
+    const cycle = await monitorOnce(service);
+
+    expect(cycle).toMatchObject({ enqueued: 3, done: 3, failed: 0 });
+    const handles = openService(service);
+    const record = onlyRelease(
+      await handles.releases.findByVersion("wrapper", "1.1.0"),
+    );
+    expect(record.status).toBe("complete");
+    expect(record.report.packages).toHaveLength(2);
+    const reports = record.report.packages.flatMap((item) =>
+      item.status === "analyzed" ? [item.report] : [],
+    );
+    const parent = reports.find((item) => item.package.name === "wrapper");
+    const child = reports.find((item) => item.package.name === "helper");
+    const installHook = child?.findings.find(
+      (finding) => finding.capability.kind === "INSTALL_HOOK",
+    );
+    expect(installHook).toMatchObject({
+      severity: "CRITICAL",
+      capability: { kind: "INSTALL_HOOK" },
+    });
+    const dependency = parent?.findings.find(
+      (finding) => finding.capability.kind === "DEPENDENCY",
+    );
+    expect(dependency?.relatedReportIds).toEqual([child?.reportId]);
+  });
+
   it("does not analyze a replayed feed page twice", async () => {
     const registry = createFakeRegistry();
     const service = serviceConfig(registry);

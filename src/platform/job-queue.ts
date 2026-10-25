@@ -5,7 +5,12 @@ import {
   truncate,
 } from "../core/report-builder.js";
 import { encodeKey, JsonStore } from "./json-store.js";
-import type { ReleaseArtifact, ReleaseCandidate } from "./release-candidate.js";
+import type {
+  ReleaseArtifact,
+  ReleaseCandidate,
+  ReleaseChild,
+  UnresolvedReleaseChild,
+} from "./release-candidate.js";
 
 export type JobState = "pending" | "running" | "done" | "failed";
 
@@ -303,7 +308,17 @@ function parseCandidate(key: string, value: unknown): ReleaseCandidate {
     throw invalid(key, `has ecosystem ${show(value.ecosystem)}`);
   }
   const previous =
-    value.previous === null ? null : parseArtifact(key, value.previous);
+    value.previous === null
+      ? null
+      : parseArtifact(key, value.previous, "previous");
+  const children =
+    value.children === undefined
+      ? undefined
+      : parseChildren(key, value.children);
+  const unresolvedChildren =
+    value.unresolvedChildren === undefined
+      ? undefined
+      : parseUnresolvedChildren(key, value.unresolvedChildren);
   return {
     ecosystem: "npm",
     name: parseText(key, value.name, "candidate.name"),
@@ -312,15 +327,53 @@ function parseCandidate(key: string, value: unknown): ReleaseCandidate {
     tarballUrl: parseText(key, value.tarballUrl, "candidate.tarballUrl"),
     previous,
     publishedAt: parseTime(key, value.publishedAt, "candidate.publishedAt"),
+    ...(children === undefined ? {} : { children }),
+    ...(unresolvedChildren === undefined ? {} : { unresolvedChildren }),
   };
 }
 
-function parseArtifact(key: string, value: unknown): ReleaseArtifact {
-  if (!isRecord(value)) throw invalid(key, "has no previous artifact object");
+function parseChildren(key: string, value: unknown): ReleaseChild[] {
+  if (!Array.isArray(value)) {
+    throw invalid(key, "has children that are not an array");
+  }
+  return value.map((item: unknown) => {
+    if (!isRecord(item))
+      throw invalid(key, "has a child that is not an object");
+    return {
+      name: parseText(key, item.name, "child.name"),
+      artifact: parseArtifact(key, item.artifact, "child artifact"),
+    };
+  });
+}
+
+function parseUnresolvedChildren(
+  key: string,
+  value: unknown,
+): UnresolvedReleaseChild[] {
+  if (!Array.isArray(value)) {
+    throw invalid(key, "has unresolvedChildren that are not an array");
+  }
+  return value.map((item: unknown) => {
+    if (!isRecord(item)) {
+      throw invalid(key, "has an unresolved child that is not an object");
+    }
+    return {
+      name: parseText(key, item.name, "unresolved child name"),
+      reason: parseText(key, item.reason, "unresolved child reason"),
+    };
+  });
+}
+
+function parseArtifact(
+  key: string,
+  value: unknown,
+  field: string,
+): ReleaseArtifact {
+  if (!isRecord(value)) throw invalid(key, `has no ${field} object`);
   return {
-    version: parseText(key, value.version, "previous.version"),
-    digest: parseText(key, value.digest, "previous.digest"),
-    tarballUrl: parseText(key, value.tarballUrl, "previous.tarballUrl"),
+    version: parseText(key, value.version, `${field} version`),
+    digest: parseText(key, value.digest, `${field} digest`),
+    tarballUrl: parseText(key, value.tarballUrl, `${field} tarballUrl`),
   };
 }
 

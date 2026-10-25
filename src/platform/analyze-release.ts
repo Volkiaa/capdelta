@@ -14,7 +14,11 @@ import {
 } from "../core/report-builder.js";
 import { hasOperationalFailure } from "../core/run-severity.js";
 import { ANALYZER_VERSION } from "./analyzer-version.js";
-import type { ReleaseCandidate } from "./release-candidate.js";
+import type {
+  ReleaseCandidate,
+  ReleaseChild,
+  UnresolvedReleaseChild,
+} from "./release-candidate.js";
 import {
   releaseKey,
   type ReleaseRecord,
@@ -42,9 +46,14 @@ export async function analyzeRelease(
   if (existing !== null) return { record: existing, created: false };
 
   const analyze = deps.analyze ?? analyzeChangedPackages;
+  const children = candidate.children ?? [];
+  const unresolved = candidate.unresolvedChildren ?? [];
   const run = await analyze(
     {
-      changed: [toChangedPackage(candidate)],
+      changed: [
+        toChangedPackage(candidate),
+        ...children.map((child) => toChildChangedPackage(child)),
+      ],
       findings: [],
       skipped: [],
       firstRun: false,
@@ -64,7 +73,10 @@ export async function analyzeRelease(
     );
   }
 
-  const incomplete = hasUnanalyzedContent(run) || run.budget?.partial === true;
+  const incomplete =
+    hasUnanalyzedContent(run) ||
+    run.budget?.partial === true ||
+    unresolved.length > 0;
   const record: ReleaseRecord = {
     schemaVersion: 1,
     ecosystem: "npm",
@@ -76,7 +88,9 @@ export async function analyzeRelease(
     analyzerVersion,
     analyzedAt: (deps.now?.() ?? new Date()).toISOString(),
     status: incomplete ? "incomplete" : "complete",
-    incompleteReasons: incomplete ? unavailableReasons(run) : [],
+    incompleteReasons: incomplete
+      ? [...unavailableReasons(run), ...unresolvedChildReasons(unresolved)]
+      : [],
     report: buildRunReport(run),
   };
 
@@ -96,7 +110,15 @@ export function analyzeArtifact(
   candidate: ReleaseCandidate,
   deps: AnalyzeReleaseDeps,
 ): ReturnType<typeof analyzeRelease> {
-  return analyzeRelease({ ...candidate, previous: null }, deps);
+  return analyzeRelease(
+    {
+      ...candidate,
+      previous: null,
+      children: [],
+      unresolvedChildren: [],
+    },
+    deps,
+  );
 }
 
 function toChangedPackage(candidate: ReleaseCandidate): ChangedPackage {
@@ -110,6 +132,30 @@ function toChangedPackage(candidate: ReleaseCandidate): ChangedPackage {
     oldResolvedUrl: previous?.tarballUrl ?? null,
     resolvedUrl: candidate.tarballUrl,
   };
+}
+
+/** A child is new, so the engine analyzes it as a full snapshot (ADR-045). */
+function toChildChangedPackage(child: ReleaseChild): ChangedPackage {
+  return {
+    name: child.name,
+    oldVersion: null,
+    newVersion: child.artifact.version,
+    oldIntegrity: null,
+    newIntegrity: child.artifact.digest,
+    oldResolvedUrl: null,
+    resolvedUrl: child.artifact.tarballUrl,
+  };
+}
+
+function unresolvedChildReasons(
+  unresolved: readonly UnresolvedReleaseChild[],
+): string[] {
+  return unresolved.map((child) =>
+    truncate(
+      `${truncate(child.name, MAX_IDENTITY_CHARS)}: ${child.reason}`,
+      MAX_VALUE_CHARS,
+    ),
+  );
 }
 
 function unavailableReasons(run: CapabilityAnalysisRun): string[] {

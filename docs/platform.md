@@ -2,6 +2,8 @@
 
 `capdelta-platform` watches the npm registry, analyzes each new release with the capdelta engine, stores the report, and serves it over an HTTP API. It needs no project lockfile and no Git repository. The CLI and the GitHub Action keep working without it.
 
+A release record covers the release and, at depth 1, up to eight dependencies that release newly declares relative to the version published before it. A peer dependency is not followed, and a first release expands nothing. An alias, URL, git or file specifier, a registry failure, or a child over the cap marks the record `incomplete` and names the child in `incompleteReasons`.
+
 Phase 1 adds collection, analysis and the read API. Phase 3 adds reviewer-confirmed findings: a findings query, a feed, an OSV view, and a write route a reviewer uses to change a verdict. The write route exists only when the service starts with a reviewers file.
 
 ## Run it

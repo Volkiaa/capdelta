@@ -5,7 +5,19 @@ import {
   MAX_VALUE_CHARS,
   truncate,
 } from "../core/report-builder.js";
-import type { ReleaseArtifact, ReleaseCandidate } from "./release-candidate.js";
+import {
+  MAX_CHILDREN_PER_RELEASE,
+  resolveVersion,
+  selectNewDependencies,
+  specifierKind,
+  unsupportedSpecifierReason,
+  type DeclaredDependency,
+} from "./dependency-children.js";
+import type {
+  ReleaseArtifact,
+  ReleaseCandidate,
+  UnresolvedReleaseChild,
+} from "./release-candidate.js";
 
 /** A registry read failed in a way the caller must see: the cursor stays put. */
 const MAX_SKIPPED_PER_PACKAGE = 100;
@@ -54,6 +66,8 @@ const MAX_VERSION_CHARS = 128;
 const MAX_URL_CHARS = 2048;
 /** A rejected name has no identity; the truncated text belongs in the reason. */
 const INVALID_NAME_IDENTITY = "<invalid-name>";
+/** A dependency name the queue would refuse gets a bounded placeholder; the reason keeps the original. */
+const INVALID_DEPENDENCY_NAME = "invalid-dependency-name";
 /** npm accepts semver only; a packument key is never a path or a free-form label. */
 const STRICT_SEMVER = /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$/u;
 /** A `_changes` page holds ids only; 1 MiB fits any allowed page size. */
@@ -154,7 +168,171 @@ export async function candidatesForPackage(
     }
     throw error;
   }
-  return readPackument(name, packument, resolved, onlyVersions);
+  const result = readPackument(name, packument, resolved, onlyVersions);
+  await attachChildren(result.candidates, packument, resolved);
+  return result;
+}
+
+/**
+ * ADR-045: expand only names the new version newly declares, depth 1. Every
+ * unresolved or over-cap child is recorded so the release record turns
+ * incomplete instead of silently missing it.
+ */
+async function attachChildren(
+  candidates: readonly ReleaseCandidate[],
+  packument: unknown,
+  resolved: ResolvedOptions,
+): Promise<void> {
+  if (!isRecord(packument) || !isRecord(packument.versions)) return;
+  const versions = packument.versions;
+  for (const candidate of candidates) {
+    if (candidate.previous === null) continue;
+    const previous = versions[candidate.previous.version];
+    if (previous === undefined) continue;
+    const selection = selectNewDependencies(
+      versions[candidate.version],
+      previous,
+    );
+    if (selection.selected.length === 0 && selection.overflow.length === 0) {
+      continue;
+    }
+    candidate.children = [];
+    candidate.unresolvedChildren = capReasons(selection.overflow);
+    for (const dependency of selection.selected) {
+      const resolution = await resolveChild(dependency, resolved);
+      if ("artifact" in resolution) {
+        candidate.children.push({
+          name: dependency.name,
+          artifact: resolution.artifact,
+        });
+      } else {
+        candidate.unresolvedChildren.push({
+          name: unresolvedChildName(dependency.name),
+          reason: truncate(resolution.reason, MAX_VALUE_CHARS),
+        });
+      }
+    }
+  }
+}
+
+/**
+ * The queue stores the unresolved name verbatim, so a name its validation
+ * rejects must not reach it. The reason already carries the truncated original.
+ */
+function unresolvedChildName(name: string): string {
+  if (nameProblem(name) !== null) return INVALID_DEPENDENCY_NAME;
+  return truncate(name, MAX_IDENTITY_CHARS);
+}
+
+function capReasons(
+  overflow: readonly DeclaredDependency[],
+): UnresolvedReleaseChild[] {
+  const reasons: UnresolvedReleaseChild[] = [];
+  const named = overflow.slice(0, MAX_CHILDREN_PER_RELEASE);
+  for (const dependency of named) {
+    reasons.push({
+      name: truncate(dependency.name, MAX_IDENTITY_CHARS),
+      reason: `over the ${String(MAX_CHILDREN_PER_RELEASE)}-child cap; not analyzed`,
+    });
+  }
+  const unnamed = overflow.length - named.length;
+  if (unnamed > 0) {
+    reasons.push({
+      name: truncate(overflow[0]?.name ?? "<cap>", MAX_IDENTITY_CHARS),
+      reason: `${String(unnamed)} more new dependencies are over the ${String(MAX_CHILDREN_PER_RELEASE)}-child cap; not analyzed`,
+    });
+  }
+  return reasons;
+}
+
+type ChildResolution = { artifact: ReleaseArtifact } | { reason: string };
+
+async function resolveChild(
+  dependency: DeclaredDependency,
+  resolved: ResolvedOptions,
+): Promise<ChildResolution> {
+  const invalid = nameProblem(dependency.name);
+  if (invalid !== null) {
+    return {
+      reason: `${invalid}: ${JSON.stringify(truncate(dependency.name, MAX_IDENTITY_CHARS))}`,
+    };
+  }
+  const kind = specifierKind(dependency.specifier);
+  if (kind !== "range" && kind !== "tag") {
+    return { reason: unsupportedSpecifierReason(kind) };
+  }
+
+  let packument: unknown;
+  try {
+    // Recovery is loud: a child registry failure becomes an incomplete record.
+    packument = await fetchJson(
+      `${resolved.registryUrl}/${encodePackageName(dependency.name)}`,
+      resolved,
+      `packument for ${truncate(dependency.name, MAX_IDENTITY_CHARS)}`,
+      resolved.maxPackumentBytes,
+    );
+  } catch (error: unknown) {
+    if (error instanceof CollectorError) return { reason: error.message };
+    throw error;
+  }
+  const resolution = resolveVersion(
+    dependency.specifier,
+    publishedVersionKeys(packument),
+    isRecord(packument) ? readDistTags(packument) : new Map<string, string>(),
+  );
+  if ("reason" in resolution) return { reason: resolution.reason };
+  const selected = selectedVersion(
+    packument,
+    resolution.version,
+    resolved.registryOrigin,
+  );
+  if ("reason" in selected) {
+    return {
+      reason: `${truncate(dependency.name, MAX_IDENTITY_CHARS)}: ${selected.reason}`,
+    };
+  }
+  return { artifact: artifact(selected.entry) };
+}
+
+/**
+ * Every strict semver key the packument publishes, before any metadata check.
+ * The resolver chooses among these so a version missing dist metadata is
+ * reported instead of silently skipped in favor of a lower one.
+ */
+function publishedVersionKeys(packument: unknown): string[] {
+  if (!isRecord(packument) || !isRecord(packument.versions)) return [];
+  return Object.keys(packument.versions).filter(
+    (version) => versionProblem(version) === null,
+  );
+}
+
+function selectedVersion(
+  packument: unknown,
+  version: string,
+  registryOrigin: string,
+): ParsedVersion {
+  if (!isRecord(packument) || !isRecord(packument.versions)) {
+    return { reason: "the packument has no version metadata" };
+  }
+  const times = isRecord(packument.time) ? packument.time : {};
+  return parseVersion(
+    version,
+    packument.versions[version],
+    times[version],
+    registryOrigin,
+  );
+}
+
+function readDistTags(
+  packument: Record<string, unknown>,
+): ReadonlyMap<string, string> {
+  const tags = new Map<string, string>();
+  const raw = packument["dist-tags"];
+  if (!isRecord(raw)) return tags;
+  for (const [tag, value] of Object.entries(raw)) {
+    if (typeof value === "string") tags.set(tag, value);
+  }
+  return tags;
 }
 
 function readPackument(
