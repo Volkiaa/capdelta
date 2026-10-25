@@ -1,0 +1,17 @@
+{
+  "name": "reconstruction-project",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "name": "reconstruction-project",
+      "version": "1.0.0"
+    },
+    "node_modules/event-stream": {
+      "version": "3.3.7",
+      "resolved": "https://registry.npmjs.org/event-stream/-/event-stream-3.3.7.tgz",
+      "integrity": "sha512-biKmGHf7SR7wZaq0ZzrtBTjwJDA3sgi/Lg+3M7Y3MB0xUbiIjnAsr3qJTH0CQezMSvSdmYLGctgbbgqyLZRQ9A=="
+    }
+  }
+}

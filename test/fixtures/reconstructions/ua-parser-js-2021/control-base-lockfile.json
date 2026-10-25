@@ -1,0 +1,17 @@
+{
+  "name": "reconstruction-project",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "name": "reconstruction-project",
+      "version": "1.0.0"
+    },
+    "node_modules/ua-parser-js": {
+      "version": "0.7.28",
+      "resolved": "https://registry.npmjs.org/ua-parser-js/-/ua-parser-js-0.7.28.tgz",
+      "integrity": "sha512-CpyjwzbOXmxdoJbUhdQAb4Uq3vLuqsyUgxuSQ6b49ezGcxYhUsuWC3el5WdcWFqPmi3YUU0k2WJu365a8sWg+Q=="
+    }
+  }
+}

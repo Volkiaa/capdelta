@@ -1,0 +1,6 @@
+{
+  "name": "eslint-scope",
+  "version": "3.7.2",
+  "description": "ECMAScript scope analyzer for ESLint",
+  "main": "lib/index.js"
+}
