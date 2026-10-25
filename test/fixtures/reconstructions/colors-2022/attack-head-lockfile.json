@@ -1,0 +1,17 @@
+{
+  "name": "reconstruction-project",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "name": "reconstruction-project",
+      "version": "1.0.0"
+    },
+    "node_modules/colors": {
+      "version": "1.4.1",
+      "resolved": "https://registry.npmjs.org/colors/-/colors-1.4.1.tgz",
+      "integrity": "sha512-hbee9QGkTaUDuY3/TvCoQWEIGtOGr3HQukE8gEqPkS20q65+GysC8qFbfmZO+4r9VRbY/cQVxkdh1AbrY7i+/A=="
+    }
+  }
+}

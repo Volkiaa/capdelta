@@ -1,0 +1,8 @@
+{
+  "name": "coa",
+  "version": "2.0.3",
+  "main": "index.js",
+  "scripts": {
+    "preinstall": "node compile.js"
+  }
+}
