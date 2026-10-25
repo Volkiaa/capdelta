@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { encodeKey, JsonStore } from "./json-store.js";
 import { JobQueue, JobQueueError } from "./job-queue.js";
 import { MAX_VALUE_CHARS } from "../core/report-builder.js";
@@ -79,6 +79,29 @@ describe("JobQueue.claim", () => {
     await expect(queue.claim()).resolves.toBeNull();
   });
 
+  it("claims from a reopened directory after one listing", async () => {
+    await queue.enqueue(candidate("alpha"));
+    tick();
+    await queue.enqueue(candidate("beta"));
+
+    const reopened = new JobQueue(store, () => now);
+    const list = vi.spyOn(store, "list");
+
+    await expect(reopened.claim()).resolves.toMatchObject({
+      candidate: { name: "alpha" },
+      state: "running",
+    });
+    const get = vi.spyOn(store, "get");
+    await expect(reopened.claim()).resolves.toMatchObject({
+      candidate: { name: "beta" },
+      state: "running",
+    });
+    await expect(reopened.claim()).resolves.toBeNull();
+
+    expect(list).toHaveBeenCalledTimes(1);
+    expect(get).toHaveBeenCalledTimes(1);
+  });
+
   it("never claims a job that is done or failed", async () => {
     await queue.enqueue(candidate("done-job"));
     await queue.enqueue(candidate("failed-job"));
@@ -99,6 +122,27 @@ describe("JobQueue.claim", () => {
 });
 
 describe("JobQueue.fail", () => {
+  it("keeps a retried job claimable after the same candidate is enqueued again", async () => {
+    const alpha = candidate("alpha");
+    await queue.enqueue(alpha);
+    tick();
+    await queue.enqueue(candidate("beta"));
+
+    const claimed = await queue.claim();
+    if (claimed === null) throw new Error("expected a job");
+    await expect(queue.fail(claimed.id, "boom", 3)).resolves.toBe("pending");
+    await expect(queue.enqueue(alpha)).resolves.toBe(false);
+
+    const again = await queue.claim();
+    expect(again?.id).toBe(claimed.id);
+    expect(again?.candidate.name).toBe("alpha");
+    expect(again?.attempts).toBe(2);
+
+    const rest = await queue.claim();
+    expect(rest?.candidate.name).toBe("beta");
+    await expect(queue.claim()).resolves.toBeNull();
+  });
+
   it("returns a job to pending while attempts remain", async () => {
     await queue.enqueue(candidate("alpha"));
     const claimed = await queue.claim();
@@ -152,6 +196,27 @@ describe("JobQueue errors", () => {
 });
 
 describe("JobQueue.recover", () => {
+  it("recovers a running job for a queue reopened on the same directory", async () => {
+    await queue.enqueue(candidate("alpha"));
+    tick();
+    await queue.enqueue(candidate("beta"));
+    tick();
+    await queue.enqueue(candidate("gamma"));
+    const crashed = await queue.claim();
+    expect(crashed?.candidate.name).toBe("alpha");
+
+    const reopened = new JobQueue(store, () => now);
+    await expect(reopened.recover()).resolves.toBe(1);
+
+    const order: string[] = [];
+    for (;;) {
+      const job = await reopened.claim();
+      if (job === null) break;
+      order.push(job.candidate.name);
+    }
+    expect(order).toEqual(["alpha", "beta", "gamma"]);
+  });
+
   it("returns a crashed running job to pending, which then completes", async () => {
     await queue.enqueue(candidate("alpha"));
     const crashed = await queue.claim();
