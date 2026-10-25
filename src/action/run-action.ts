@@ -1,6 +1,7 @@
 import {
   analyzeChangedPackages,
   hasUnanalyzedContent,
+  type CapabilityAnalysisOptions,
   type CapabilityAnalysisRun,
 } from "../core/capability-analysis-pipeline.js";
 import { NamedError } from "../core/named-error.js";
@@ -195,6 +196,7 @@ export async function runAction(
     inputs.intelUrl,
     oldLockfile,
     headLockfile,
+    config,
     adapters,
   );
   const analyzed = await withContext("analyze changed packages", () =>
@@ -302,12 +304,15 @@ async function lookupConfiguredIntel(
   intelUrl: string | undefined,
   oldLockfile: unknown,
   headLockfile: unknown,
+  config: CapdeltaConfig,
   adapters: ActionAdapters,
 ): Promise<{ findings: LockfileFinding[] }> {
   if (intelUrl === undefined || intelUrl.length === 0) return { findings: [] };
   // The feed URL is an Action input only. Reading it from .capdelta.yml would
   // let a pull request point the check at a feed that never matches (ADR-015).
-  const diff = diffNpmLockfiles(oldLockfile, headLockfile);
+  const diff = diffNpmLockfiles(oldLockfile, headLockfile, {
+    registryHosts: config.registryHosts,
+  });
   const lookup = await withContext("look up intelligence findings", () =>
     lookupIntel(diff.changed, {
       baseUrl: intelUrl,
@@ -459,8 +464,16 @@ export async function analyzeLockfiles(
   oldLockfile: unknown,
   newLockfile: unknown,
   config?: CapdeltaConfig,
+  options: Omit<CapabilityAnalysisOptions, "config"> = {},
 ): Promise<CapabilityAnalysisRun> {
-  return analyzeChangedPackages(diffNpmLockfiles(oldLockfile, newLockfile), {
-    ...(config === undefined ? {} : { config }),
-  });
+  // ADR-0043: the same base-commit policy decides which hosts the differ
+  // analyzes, so analysis and intel matching cannot disagree.
+  return analyzeChangedPackages(
+    diffNpmLockfiles(
+      oldLockfile,
+      newLockfile,
+      config === undefined ? {} : { registryHosts: config.registryHosts },
+    ),
+    { ...options, ...(config === undefined ? {} : { config }) },
+  );
 }

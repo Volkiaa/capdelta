@@ -4,6 +4,11 @@ import type { SignalFindingKind } from "./signal-differ.js";
 import { isExactSemver } from "./npm/semver.js";
 import { parseSha512Integrity } from "./npm/fetcher.js";
 import {
+  MAX_CONFIGURED_REGISTRY_HOSTS,
+  NPM_REGISTRY_HOST,
+  normalizeRegistryHost,
+} from "./npm/registry-host.js";
+import {
   EXCEPTABLE_UNANALYZABLE_KINDS,
   FETCH_STAGE_CRITICAL_KINDS,
   type ExceptableUnanalyzableKind,
@@ -39,6 +44,11 @@ export interface UnanalyzableExceptionEntry {
 export interface CapdeltaConfig {
   allowlist: readonly CapabilityAllowlistEntry[];
   unanalyzable: readonly UnanalyzableExceptionEntry[];
+  /**
+   * ADR-0043: registry hosts whose lockfile entries are analyzable. Always
+   * contains `registry.npmjs.org`, whether or not the config names it.
+   */
+  registryHosts: readonly string[];
 }
 
 export type AllowlistedCapability =
@@ -76,7 +86,11 @@ export class CapdeltaConfigError extends NamedError {}
 export class CapdeltaConfigParseError extends CapdeltaConfigError {}
 export class CapdeltaConfigContractError extends CapdeltaConfigError {}
 
-const EMPTY_CONFIG: CapdeltaConfig = { allowlist: [], unanalyzable: [] };
+const EMPTY_CONFIG: CapdeltaConfig = {
+  allowlist: [],
+  unanalyzable: [],
+  registryHosts: [NPM_REGISTRY_HOST],
+};
 const CAPABILITY_SET = new Set<string>(ALLOWLISTED_CAPABILITIES);
 const EXCEPTABLE_UNANALYZABLE_KIND_SET = new Set<string>(
   EXCEPTABLE_UNANALYZABLE_KINDS,
@@ -85,7 +99,9 @@ const FETCH_STAGE_CRITICAL_KIND_SET = new Set<string>(
   FETCH_STAGE_CRITICAL_KINDS,
 );
 
-type ConfigSection = "allowlist" | "unanalyzable";
+type ConfigSection = "allowlist" | "unanalyzable" | "registry-hosts";
+
+type EntrySection = "allowlist" | "unanalyzable";
 
 type AllowlistField = "package" | "capability" | "justification" | "version";
 
@@ -99,8 +115,8 @@ type PendingEntry = Partial<CapabilityAllowlistEntry> &
  * Parse the deliberately small YAML subset used by `.capdelta.yml`.
  * Keeping this parser bounded avoids adding a runtime YAML dependency and
  * rejects YAML features that would make policy review ambiguous. The top-level
- * `allowlist:` and `unanalyzable:` keys (ADR-017) may each appear once, in
- * either order.
+ * `allowlist:`, `unanalyzable:` (ADR-017) and `registry-hosts:` (ADR-0043)
+ * keys may each appear once, in any order.
  */
 export function parseCapdeltaConfig(text: string): CapdeltaConfig {
   if (text.length === 0) return EMPTY_CONFIG;
@@ -108,16 +124,19 @@ export function parseCapdeltaConfig(text: string): CapdeltaConfig {
     .replaceAll("\r\n", "\n")
     .replaceAll("\r", "\n")
     .split("\n");
-  const entries: Record<ConfigSection, PendingEntry[]> = {
+  const entries: Record<EntrySection, PendingEntry[]> = {
     allowlist: [],
     unanalyzable: [],
   };
+  const registryHosts: string[] = [];
   const seen = new Set<ConfigSection>();
   let section: ConfigSection | null = null;
   let inlineEmpty = false;
   let current: PendingEntry | null = null;
   const commit = (): void => {
-    if (current === null || section === null) return;
+    if (current === null || section === null || section === "registry-hosts") {
+      return;
+    }
     entries[section].push(current);
     current = null;
   };
@@ -142,11 +161,15 @@ export function parseCapdeltaConfig(text: string): CapdeltaConfig {
     if (section === null) {
       failParse(
         lineNumber,
-        'content must follow the "allowlist:" or "unanalyzable:" key',
+        'content must follow the "allowlist:", "unanalyzable:" or "registry-hosts:" key',
       );
     }
     if (inlineEmpty) {
       failParse(lineNumber, `inline empty ${section} cannot contain entries`);
+    }
+    if (section === "registry-hosts") {
+      consumeRegistryHost(registryHosts, indent, trimmed, lineNumber);
+      continue;
     }
     if (indent === 2 && trimmed === `${section}: []`) {
       failParse(
@@ -169,9 +192,50 @@ export function parseCapdeltaConfig(text: string): CapdeltaConfig {
   commit();
   if (section === null) return EMPTY_CONFIG;
 
-  const allowlist = entries.allowlist.map((entry, index) =>
-    normalizeEntry(entry, index),
-  );
+  if (registryHosts.length > MAX_CONFIGURED_REGISTRY_HOSTS) {
+    throw new CapdeltaConfigContractError(
+      `registry-hosts accepts at most ${String(MAX_CONFIGURED_REGISTRY_HOSTS)} hosts`,
+    );
+  }
+  const registryHostsWithNpmjs = [
+    NPM_REGISTRY_HOST,
+    ...registryHosts.filter((host) => host !== NPM_REGISTRY_HOST),
+  ];
+
+  const allowlist = normalizeAllowlistEntries(entries.allowlist);
+  const unanalyzable = normalizeUnanalyzableEntries(entries.unanalyzable);
+  return { allowlist, unanalyzable, registryHosts: registryHostsWithNpmjs };
+}
+
+function consumeRegistryHost(
+  registryHosts: string[],
+  indent: number,
+  trimmed: string,
+  lineNumber: number,
+): void {
+  if (indent !== 2 || !trimmed.startsWith("- ")) {
+    failParse(lineNumber, "expected a two-space registry host list item");
+  }
+  const value = parseScalar(trimmed.slice(2), lineNumber);
+  const host = normalizeRegistryHost(value);
+  if (host === null) {
+    failParse(
+      lineNumber,
+      `registry host must be one exact host without scheme, port, credentials, path, wildcard, or npmjs look-alike: ${JSON.stringify(value)}`,
+    );
+  }
+  if (registryHosts.includes(host)) {
+    throw new CapdeltaConfigContractError(
+      `duplicate registry host ${JSON.stringify(host)}`,
+    );
+  }
+  registryHosts.push(host);
+}
+
+function normalizeAllowlistEntries(
+  entries: readonly PendingEntry[],
+): CapabilityAllowlistEntry[] {
+  const allowlist = entries.map((entry, index) => normalizeEntry(entry, index));
   // Order-independent: several exact versions may coexist for one
   // package/capability, but a repeated tuple or a scoped/unscoped mixture
   // (which would make one entry silently override the other) is rejected.
@@ -196,8 +260,13 @@ export function parseCapdeltaConfig(text: string): CapdeltaConfig {
     versions.add(entry.version);
     scopes.set(pair, versions);
   }
+  return allowlist;
+}
 
-  const unanalyzable = entries.unanalyzable.map((entry, index) =>
+function normalizeUnanalyzableEntries(
+  entries: readonly PendingEntry[],
+): UnanalyzableExceptionEntry[] {
+  const unanalyzable = entries.map((entry, index) =>
     normalizeUnanalyzableEntry(entry, index),
   );
   const tuples = new Set<string>();
@@ -219,7 +288,7 @@ export function parseCapdeltaConfig(text: string): CapdeltaConfig {
     }
     tuples.add(tuple);
   }
-  return { allowlist, unanalyzable };
+  return unanalyzable;
 }
 
 function topLevelSection(trimmed: string, lineNumber: number): ConfigSection {
@@ -229,9 +298,12 @@ function topLevelSection(trimmed: string, lineNumber: number): ConfigSection {
   if (trimmed === "unanalyzable:" || trimmed === "unanalyzable: []") {
     return "unanalyzable";
   }
+  if (trimmed === "registry-hosts:" || trimmed === "registry-hosts: []") {
+    return "registry-hosts";
+  }
   return failParse(
     lineNumber,
-    'expected the top-level key "allowlist:" or "unanalyzable:"',
+    'expected a top-level "allowlist:", "unanalyzable:" or "registry-hosts:" key',
   );
 }
 

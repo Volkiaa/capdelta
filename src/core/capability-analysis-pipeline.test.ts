@@ -1010,6 +1010,7 @@ describe("analyzeChangedPackages", () => {
     });
     const config: CapdeltaConfig = {
       allowlist: [],
+      registryHosts: ["registry.npmjs.org"],
       unanalyzable: [
         {
           package: "old-fails",

@@ -189,6 +189,82 @@ describe("private registries and missing fields", () => {
   });
 });
 
+describe("configured registry hosts (ADR-0043)", () => {
+  const corpHosts = { registryHosts: ["npm.corp.example.com"] };
+
+  it("analyzes an allowlisted host instead of skipping it", () => {
+    const result = diffNpmLockfiles(
+      fixture("private-old.json"),
+      fixture("private-new.json"),
+      corpHosts,
+    );
+    expect(result.changed).toEqual([
+      {
+        name: "corp-pkg",
+        oldVersion: "1.0.0",
+        newVersion: "2.0.0",
+        oldIntegrity: "sha512-FAKEcorpOldAAAA==",
+        newIntegrity: "sha512-FAKEcorpNewAAAA==",
+        oldResolvedUrl:
+          "https://npm.corp.example.com/corp-pkg/-/corp-pkg-1.0.0.tgz",
+        resolvedUrl:
+          "https://npm.corp.example.com/corp-pkg/-/corp-pkg-2.0.0.tgz",
+      },
+    ]);
+    expect(result.skipped.map((item) => item.name).sort()).toEqual([
+      "nointegrity",
+      "noresolved",
+    ]);
+  });
+
+  it("names the allowlisted host in no detail because the entry is analyzed", () => {
+    const result = diffNpmLockfiles(
+      fixture("private-old.json"),
+      fixture("private-new.json"),
+      corpHosts,
+    );
+    expect(result.skipped.some((item) => item.name === "corp-pkg")).toBe(false);
+  });
+
+  it("never stops analyzing registry.npmjs.org when the caller lists another host", () => {
+    const result = diffNpmLockfiles(
+      fixture("basic-old.json"),
+      fixture("basic-new.json"),
+      corpHosts,
+    );
+    expect(result.changed.length).toBeGreaterThan(0);
+    expect(
+      result.skipped.some((item) => item.reason === "private-registry"),
+    ).toBe(false);
+  });
+
+  it("does not treat a registry.npmjs.org look-alike as npmjs", () => {
+    const entry = (version: string) => ({
+      name: "lookalike",
+      version: "1.0.0",
+      lockfileVersion: 3,
+      packages: {
+        "": { name: "lookalike", version: "1.0.0" },
+        "node_modules/lookalike": {
+          version,
+          resolved: `https://registry.npmjs.org.evil.com/lookalike/-/lookalike-${version}.tgz`,
+          integrity: `sha512-FAKElookalike${version}==`,
+        },
+      },
+    });
+    const result = diffNpmLockfiles(entry("1.0.0"), entry("2.0.0"), {
+      registryHosts: ["registry.npmjs.org"],
+    });
+    expect(result.changed).toHaveLength(0);
+    expect(result.skipped).toContainEqual({
+      name: "lookalike",
+      path: "node_modules/lookalike",
+      reason: "private-registry",
+      detail: "registry host: registry.npmjs.org.evil.com",
+    });
+  });
+});
+
 describe("moved packages (re-hoisting)", () => {
   const result = diffNpmLockfiles(
     fixture("moved-old.json"),

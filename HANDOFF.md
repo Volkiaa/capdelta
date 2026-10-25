@@ -39,10 +39,17 @@ synthetic reconstructions. Nothing was tuned on the held-out entries.
    roadmap marks them post-MVP.
 3. The platform has no TLS and no rate limiting by design. Put a reverse proxy
    in front before exposing it beyond localhost.
+4. ADR-0043 (draft, Tier 3) adds a base-commit `registry-hosts` allowlist so a
+   project can analyze an internal mirror instead of skipping it as
+   `private-registry`. It narrows a detection and adds policy reading, so it
+   needs your approval and has not been merged. Tests cover exact-host
+   matching, base-commit reading in the CLI and Action, and SRI on a listed
+   host. Measurement is in the ADR.
 
-**Known gaps worth a ticket.** The lockfile differ accepts only
-`registry.npmjs.org` (`src/core/npm/lockfile-differ.ts:28`), so mirrors are
-skipped as private. A feed event queues the 3 newest versions of a package.
+**Known gaps worth a ticket.** The lockfile differ analyzes only
+`registry.npmjs.org` unless base policy lists more hosts under `registry-hosts`
+(ADR-0043, draft), so unlisted mirrors are skipped as private. A feed event
+queues the 3 newest versions of a package.
 `JobQueue.claim` scans the whole job directory. The analyzer cannot yet
 analyze a new package's dependency tree, which is why `node-ipc` 11.0.0 is
 missed.

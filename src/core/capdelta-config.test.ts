@@ -56,6 +56,7 @@ describe("capdelta config", () => {
         },
       ],
       unanalyzable: [],
+      registryHosts: ["registry.npmjs.org"],
     });
   });
 
@@ -63,6 +64,7 @@ describe("capdelta config", () => {
     expect(parseCapdeltaConfig("allowlist: []\n")).toEqual({
       allowlist: [],
       unanalyzable: [],
+      registryHosts: ["registry.npmjs.org"],
     });
   });
 
@@ -297,6 +299,7 @@ describe("capdelta config unanalyzable exceptions (ADR-017)", () => {
           justification: "reviewed upstream provenance",
         },
       ],
+      registryHosts: ["registry.npmjs.org"],
     };
     expect(
       parseCapdeltaConfig(
@@ -314,10 +317,12 @@ describe("capdelta config unanalyzable exceptions (ADR-017)", () => {
     expect(parseCapdeltaConfig("unanalyzable: []\n")).toEqual({
       allowlist: [],
       unanalyzable: [],
+      registryHosts: ["registry.npmjs.org"],
     });
     expect(parseCapdeltaConfig("allowlist: []\nunanalyzable: []\n")).toEqual({
       allowlist: [],
       unanalyzable: [],
+      registryHosts: ["registry.npmjs.org"],
     });
   });
 
@@ -424,5 +429,93 @@ describe("capdelta config unanalyzable exceptions (ADR-017)", () => {
     expect(() =>
       parseCapdeltaConfig("unanalyzable: []\nunanalyzable: []\n"),
     ).toThrow(CapdeltaConfigParseError);
+  });
+});
+
+describe("registry hosts (ADR-0043)", () => {
+  const hosts = (...values: string[]) =>
+    `registry-hosts:\n${values.map((value) => `  - ${value}\n`).join("")}`;
+
+  it("defaults to registry.npmjs.org with no config", () => {
+    expect(parseCapdeltaConfig("").registryHosts).toEqual([
+      "registry.npmjs.org",
+    ]);
+    expect(parseCapdeltaConfig("registry-hosts: []\n").registryHosts).toEqual([
+      "registry.npmjs.org",
+    ]);
+  });
+
+  it("adds exact hosts, normalizes case, and keeps npmjs first", () => {
+    const config = parseCapdeltaConfig(
+      hosts("NPM.Corp.Example", "registry.npmjs.org", "mirror.example"),
+    );
+    expect(config.registryHosts).toEqual([
+      "registry.npmjs.org",
+      "npm.corp.example",
+      "mirror.example",
+    ]);
+  });
+
+  it("parses registry-hosts alongside the entry sections in either order", () => {
+    const config = parseCapdeltaConfig(
+      `registry-hosts:\n  - mirror.example\nallowlist:\n  - package: fixture\n    capability: NET\n    justification: "reviewed"\n`,
+    );
+    expect(config.registryHosts).toEqual([
+      "registry.npmjs.org",
+      "mirror.example",
+    ]);
+    expect(config.allowlist).toHaveLength(1);
+  });
+
+  it.each([
+    "https://x",
+    "x:443",
+    "x:8443",
+    "user@x",
+    "x/path",
+    "*.corp.example",
+    "registry.npmjs.org.evil.com",
+    "npmjs.org.registry.npmjs.org",
+    "BÜCHER.example",
+  ])("rejects the non-exact host %s", (value) => {
+    expect(() => parseCapdeltaConfig(hosts(value))).toThrow(
+      CapdeltaConfigParseError,
+    );
+  });
+
+  it("rejects an empty entry and a non-list value", () => {
+    expect(() => parseCapdeltaConfig("registry-hosts:\n  -\n")).toThrow(
+      CapdeltaConfigParseError,
+    );
+    expect(() => parseCapdeltaConfig('registry-hosts:\n  - ""\n')).toThrow(
+      CapdeltaConfigParseError,
+    );
+    expect(() =>
+      parseCapdeltaConfig("registry-hosts: mirror.example\n"),
+    ).toThrow(CapdeltaConfigParseError);
+    expect(() =>
+      parseCapdeltaConfig(
+        "registry-hosts:\n  - mirror.example\n    port: 443\n",
+      ),
+    ).toThrow(CapdeltaConfigParseError);
+  });
+
+  it("rejects a duplicate host", () => {
+    expect(() =>
+      parseCapdeltaConfig(hosts("mirror.example", "MIRROR.example")),
+    ).toThrow(CapdeltaConfigContractError);
+  });
+
+  it("rejects more than 32 hosts", () => {
+    const many = Array.from(
+      { length: 33 },
+      (_, index) => `mirror-${String(index)}.example`,
+    );
+    expect(() => parseCapdeltaConfig(hosts(...many))).toThrow(
+      CapdeltaConfigContractError,
+    );
+    expect(
+      parseCapdeltaConfig(hosts(...many.slice(0, 32))).registryHosts,
+    ).toHaveLength(33);
   });
 });

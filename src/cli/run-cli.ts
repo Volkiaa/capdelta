@@ -167,7 +167,9 @@ async function analyzeCheckout(
     configPath,
     allowMissingConfig,
   );
-  const lockfileDiff = diffNpmLockfiles(oldLockfile, headLockfile);
+  const lockfileDiff = diffNpmLockfiles(oldLockfile, headLockfile, {
+    registryHosts: config.registryHosts,
+  });
   if (intelUrl !== null) {
     // The feed URL is a CLI argument only. Reading it from .capdelta.yml would
     // let a pull request point the check at a feed that never matches (ADR-015).

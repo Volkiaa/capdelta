@@ -117,6 +117,29 @@ in that package would also be suppressed. Several exact versions may be listed
 for one package and capability, but scoped and unscoped entries for the same
 pair cannot be mixed.
 
+### Registry hosts
+
+By default the differ analyzes only entries whose `resolved` host is exactly
+`registry.npmjs.org`; it skips every other host and reports it as
+`private-registry` (ADR-009). Name an internal mirror under `registry-hosts:`
+to analyze its packages instead:
+
+```yaml
+registry-hosts:
+  - npm.corp.example.com
+```
+
+Each entry must be one exact host: no scheme, port, user, path or wildcard.
+The parser lowercases the value and rejects a host that embeds
+`registry.npmjs.org` without being it, such as `registry.npmjs.org.evil.com`.
+The list holds at most 32 entries. `registry.npmjs.org` is always included, so
+this setting cannot stop analyzing npm packages.
+
+The CLI reads `registry-hosts` from the `--base` commit, like the allowlist, so
+a pull request cannot add its own mirror (ADR-015, ADR-0043). A listed host
+still goes through the HTTPS and sha512 SRI checks; a tampered tarball fails as
+CRITICAL.
+
 A package capdelta cannot analyze at all — an oversized tarball, a refused
 entry, or a missing manifest — fails the default gate (ADR-016). Release a
 reviewed one with a top-level `unanalyzable:` exception, bound to the exact

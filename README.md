@@ -322,7 +322,8 @@ snippets, and JavaScript source are attacker-controlled input.
 - malformed or unavailable data remains visible.
 
 Private registries and mirrors are not authenticated in v0.1. Any host other
-than `registry.npmjs.org` is skipped and flagged.
+than `registry.npmjs.org` that base policy does not list under
+`registry-hosts` is skipped and flagged.
 
 ### Known limitations and evasions
 
@@ -381,8 +382,9 @@ than `registry.npmjs.org` is skipped and flagged.
   the old failures as `baselineFailures`, which count as analysis issues but
   never add to `summary.gateSeverity`. `--strict` still returns exit 2, and a
   reviewed `unanalyzable:` exception is only needed when the new side fails.
-- **Registry scope:** private registries, mirrors, git, file, and link
-  dependencies are skipped and surfaced as unanalyzed.
+- **Registry scope:** private registries, mirrors not named in
+  `registry-hosts`, git, file, and link dependencies are skipped and surfaced
+  as unanalyzed.
 - **Single ecosystem and lockfile:** npm lockfile v2/v3 only, one lockfile per
   invocation.
 - **Configuration:** allowlists and `--strict` are implemented; full-inventory
