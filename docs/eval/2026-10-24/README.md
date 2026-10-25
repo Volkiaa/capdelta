@@ -69,7 +69,7 @@ Both flags are real changes, not detector noise. They are scored as false positi
 
 ## Incomplete analysis
 
-26 of 238 entries are incomplete or unavailable. All 238 were analyzed; none was unavailable. The 24 real incomplete transitions are 21 from published TypeScript sources (`fastify`, `zod`, `cheerio`, `ajv`, `rxjs`, `immer`, `pino`, three each), 2 from `bcrypt`, and 1 from `faker`, whose old-side `dist/faker.js` exceeds the parser limit. The two synthetic incomplete entries are `manifest-directory` and `old-side-unanalyzable`.
+26 of 238 entries are incomplete or unavailable. All 238 were analyzed; none was unavailable. The 24 real incomplete transitions are 21 from published TypeScript sources (`fastify`, `zod`, `cheerio`, `ajv`, `rxjs`, `immer`, `pino`, three each), 2 from `bcrypt`, and 1 from `faker`, whose old-side `dist/faker.js` exceeds the parser limit. The two synthetic incomplete entries are `manifest-directory` and `old-side-unanalyzable`. The causes across the 24 real-registry entries, grouped by message class with one example release each, are in [incomplete-causes.md](incomplete-causes.md).
 
 ## Malicious candidate decisions
 
