@@ -71,9 +71,11 @@ R="$(.claude/skills/verify-capdelta/bin/scenario esbuild 0.0.12 0.0.13)"
 
 ## Replay
 
-Replays 20 fixed CLI drives against scenario repos created once, then compares
-two recordings byte for byte. It proves that a change moved no CLI output and no
-`summary.gateSeverity`. It does not prove that either build is correct.
+Replays twenty-six fixed drives, then compares two recordings byte for byte.
+Twenty are CLI drives against scenario repos created once. Six are intelligence
+verdict states against a live platform service. It proves that a change moved no
+CLI output, no `summary.gateSeverity` and no intelligence-matrix row. It does not
+prove that either build is correct.
 
 ```sh
 # Once per machine.
@@ -90,11 +92,13 @@ npm run build
 .claude/skills/verify-capdelta/bin/replay compare base head
 ```
 
-`setup` builds the scenario repos under `$HOME/.cache/capdelta-dedupe` and is
-the only step that needs the network. `record` writes evidence to
+`setup` builds the scenario repos under `$HOME/.cache/capdelta-dedupe` and needs
+the network. `record` also needs the registry, because it runs `bin/intel-drive`
+and stores `intel-matrix.txt` in the recording. When the registry is unreachable,
+`record` exits 2 and names the log. `record` writes evidence to
 `$HOME/.local/state/capdelta-verify/dedupe-<label>`. `compare` prints
-`gateSeverity` and the exit code for each JSON drive, and exits 1 on any
-difference or 2 when a recording is missing.
+`gateSeverity` and the exit code for each JSON drive, lists the intelligence
+rows, and exits 1 on any difference or 2 when a recording is missing.
 
 An intended output change shows up as a difference. Explain it in the PR instead
 of recording the base again to make it match.
