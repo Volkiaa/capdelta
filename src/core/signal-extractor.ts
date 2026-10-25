@@ -99,6 +99,8 @@ export interface SignalSourceInput {
    * the start of its string range. Only applied when parseState is "parsed".
    */
   cookedStrings?: readonly (readonly [start: number, value: string])[];
+  /** Line of a module-scope loop the parser found with no exit condition. */
+  topLevelLoop?: { line: number };
 }
 
 export function emptySignalSet(): SignalSet {
@@ -159,6 +161,9 @@ export function observeSignalSource(input: SignalSourceInput): {
       byteLength: input.bytes.byteLength,
       entropyMilliBitsPerByte: entropyMilliBitsPerByte(input.bytes),
       parseState: input.parseState,
+      ...(input.parseState === "parsed" && input.topLevelLoop !== undefined
+        ? { topLevelLoop: input.topLevelLoop }
+        : {}),
     },
     endpoints,
     obfuscationPatterns,

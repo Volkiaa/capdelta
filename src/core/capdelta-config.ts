@@ -68,6 +68,7 @@ export const ALLOWLISTED_CAPABILITIES: readonly AllowlistedCapability[] = [
   "unparseable-file",
   "unparseable-bytes-growth",
   "obfuscation-pattern-added",
+  "import-time-unbounded-loop",
 ];
 
 export class CapdeltaConfigError extends NamedError {}

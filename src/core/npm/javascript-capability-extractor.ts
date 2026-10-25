@@ -367,6 +367,9 @@ function signalInput(
       commentRanges: response.comments,
       stringRanges: response.stringRanges,
       cookedStrings: response.cookedStrings,
+      ...(response.topLevelLoop === undefined
+        ? {}
+        : { topLevelLoop: response.topLevelLoop }),
     };
   }
   return {

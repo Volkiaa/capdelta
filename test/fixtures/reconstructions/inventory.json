@@ -383,7 +383,7 @@
       ],
       "kept": "The 1.4.1 bump adds a top-level for (;;) loop that calls console.log, so importing the package never returns. The library exports are unchanged.",
       "omitted": "The real printed message and the rest of the sabotage. The loop runs only if the package is imported, and the tests parse the file without loading it.",
-      "expected": "No capability in the closed taxonomy describes an endless loop or console output, so the report has no findings and gateSeverity stays at zero. This is a detection gap: sabotage by hanging the importer is invisible to the default CRITICAL gate.",
+      "expected": "The signal layer records the module-scope for (;;) as one import-time-unbounded-loop finding at MEDIUM, so gateSeverity counts one MEDIUM and the highest severity is MEDIUM. The default CRITICAL gate still passes, while --fail-on MEDIUM fails. No capability finding or shape matches, because the exports are unchanged and console output is not a capability.",
       "scenarios": {
         "attack": {
           "base": ["colors-1.4.0"],

@@ -26,6 +26,9 @@ function analyze(request: ParserRequest): ParserResponse {
       comments,
       stringRanges: resolver.stringRanges,
       cookedStrings: resolver.cookedStrings,
+      ...(resolver.topLevelLoop === undefined
+        ? {}
+        : { topLevelLoop: resolver.topLevelLoop }),
     };
   } catch (error: unknown) {
     const located = error as { loc?: { line?: unknown }; pos?: unknown };
@@ -383,9 +386,12 @@ class BindingResolver {
   readonly visits: NodeVisit[] = [];
   readonly stringRanges: StringRange[] = [];
   readonly cookedStrings: (readonly [start: number, value: string])[] = [];
+  readonly topLevelLoop: { line: number } | undefined;
 
   constructor(ast: Node, source: string) {
     const aliases: AliasTask[] = [];
+    const loopCandidates: Node[] = [];
+    const brokenLoops = new Set<Node>();
     fullAncestor(ast, (node, _state, ancestors) => {
       const scope = this.ensureScopes(ancestors);
       this.collectDeclaration(node, ancestors, scope);
@@ -398,8 +404,16 @@ class BindingResolver {
         if (content.cooked !== null) this.cookedStrings.push(content.cooked);
       }
       if (isAliasCandidate(node, ancestors)) aliases.push({ node, scope });
+      if (isUnboundedModuleLoop(node, ancestors)) loopCandidates.push(node);
+      const target = breakTarget(node, ancestors);
+      if (target !== null) brokenLoops.add(target);
     });
 
+    const firstLoop = loopCandidates.find((loop) => !brokenLoops.has(loop));
+    this.topLevelLoop =
+      firstLoop === undefined
+        ? undefined
+        : { line: firstLoop.loc?.start.line ?? 1 };
     this.stringRanges.sort((left, right) => left[0] - right[0]);
     this.cookedStrings.sort((left, right) => left[0] - right[0]);
     for (const alias of aliases) this.collectAlias(alias.node, alias.scope);
@@ -596,6 +610,80 @@ function isFunctionNode(node: Node): boolean {
     node.type === "FunctionExpression" ||
     node.type === "ArrowFunctionExpression"
   );
+}
+
+/**
+ * A loop that runs at import time with no exit condition: For, While or
+ * DoWhile outside every function, with an absent or constant-true test, and no
+ * break that leaves the loop itself. A break inside a nested loop, switch, or a
+ * labelled outer statement does not count for this loop.
+ */
+function isUnboundedModuleLoop(
+  node: Node,
+  ancestors: readonly Node[],
+): boolean {
+  if (!isLoopNode(node)) return false;
+  if (ancestors.some((ancestor) => isFunctionNode(ancestor))) return false;
+  const test = asRecord(node)?.test;
+  return test === null || test === undefined || constantTruthy(test) === true;
+}
+
+function isLoopNode(node: Node): boolean {
+  return (
+    node.type === "ForStatement" ||
+    node.type === "WhileStatement" ||
+    node.type === "DoWhileStatement"
+  );
+}
+
+function isBreakableNode(node: Node): boolean {
+  return (
+    isLoopNode(node) ||
+    node.type === "ForInStatement" ||
+    node.type === "ForOfStatement" ||
+    node.type === "SwitchStatement"
+  );
+}
+
+/** The loop, switch or labelled statement a break leaves, if it has one. */
+function breakTarget(node: Node, ancestors: readonly Node[]): Node | null {
+  if (node.type !== "BreakStatement") return null;
+  const label = identifierName(asRecord(node)?.label);
+  for (let index = ancestors.length - 2; index >= 0; index -= 1) {
+    const ancestor = ancestors[index];
+    if (ancestor === undefined) continue;
+    if (label !== null) {
+      if (
+        ancestor.type === "LabeledStatement" &&
+        identifierName(asRecord(ancestor)?.label) === label
+      ) {
+        return nodeValue(asRecord(ancestor)?.body);
+      }
+      continue;
+    }
+    if (isBreakableNode(ancestor)) return ancestor;
+  }
+  return null;
+}
+
+/** True or false for a literal or a negation of one, null otherwise. */
+function constantTruthy(value: unknown): boolean | null {
+  const node = asRecord(value);
+  if (node === null) return null;
+  if (node.type === "Literal") return Boolean(node.value);
+  if (node.type === "UnaryExpression" && node.operator === "!") {
+    const argument = constantTruthy(node.argument);
+    return argument === null ? null : !argument;
+  }
+  return null;
+}
+
+function nodeValue(value: unknown): Node | null {
+  return typeof value === "object" &&
+    value !== null &&
+    typeof (value as Record<string, unknown>).type === "string"
+    ? (value as Node)
+    : null;
 }
 
 function isResolved(binding: Binding | undefined): binding is ResolvedBinding {

@@ -20,7 +20,8 @@ export type SignalFindingKind =
   | "entropy-jump"
   | "unparseable-file"
   | "unparseable-bytes-growth"
-  | "obfuscation-pattern-added";
+  | "obfuscation-pattern-added"
+  | "import-time-unbounded-loop";
 
 export interface SignalFinding {
   kind: SignalFindingKind;
@@ -81,36 +82,7 @@ export function diffSignals(
   }
 
   for (const file of newSet.sourceFiles) {
-    const previous = oldFiles.get(file.file);
-    if (file.parseState !== "parsed" && isNewlyUnparseable(file, previous)) {
-      findings.push({
-        kind: "unparseable-file",
-        severity: "MEDIUM",
-        change: previous === undefined ? "added" : "changed",
-        detail: `${file.file} is ${file.parseState} (${String(file.byteLength)} bytes)`,
-        evidence: fileEvidence(file),
-      });
-    }
-
-    if (
-      previous?.entropyMilliBitsPerByte !== null &&
-      previous?.entropyMilliBitsPerByte !== undefined &&
-      file.entropyMilliBitsPerByte !== null &&
-      file.byteLength >= MIN_ENTROPY_BYTES &&
-      file.entropyMilliBitsPerByte >= HIGH_ENTROPY_MILLIBITS &&
-      file.entropyMilliBitsPerByte - previous.entropyMilliBitsPerByte >=
-        ENTROPY_JUMP_MILLIBITS
-    ) {
-      const delta =
-        file.entropyMilliBitsPerByte - previous.entropyMilliBitsPerByte;
-      findings.push({
-        kind: "entropy-jump",
-        severity: "MEDIUM",
-        change: "changed",
-        detail: `${file.file} entropy rose from ${String(previous.entropyMilliBitsPerByte)} to ${String(file.entropyMilliBitsPerByte)} millibits/byte (+${String(delta)})`,
-        evidence: fileEvidence(file),
-      });
-    }
+    findings.push(...fileFindings(file, oldFiles.get(file.file)));
   }
 
   const oldUnparseableBytes = oldSet === null ? 0 : unparseableBytes(oldSet);
@@ -152,6 +124,63 @@ function unparseableBytes(set: SignalSet): number {
       total + (file.parseState === "parsed" ? 0 : file.byteLength),
     0,
   );
+}
+
+/** Per-file signal additions: unparseable content, entropy and import-time loops. */
+function fileFindings(
+  file: SignalFileObservation,
+  previous: SignalFileObservation | undefined,
+): SignalFinding[] {
+  const found: SignalFinding[] = [];
+  if (file.parseState !== "parsed" && isNewlyUnparseable(file, previous)) {
+    found.push({
+      kind: "unparseable-file",
+      severity: "MEDIUM",
+      change: previous === undefined ? "added" : "changed",
+      detail: `${file.file} is ${file.parseState} (${String(file.byteLength)} bytes)`,
+      evidence: fileEvidence(file),
+    });
+  }
+
+  if (
+    previous?.entropyMilliBitsPerByte !== null &&
+    previous?.entropyMilliBitsPerByte !== undefined &&
+    file.entropyMilliBitsPerByte !== null &&
+    file.byteLength >= MIN_ENTROPY_BYTES &&
+    file.entropyMilliBitsPerByte >= HIGH_ENTROPY_MILLIBITS &&
+    file.entropyMilliBitsPerByte - previous.entropyMilliBitsPerByte >=
+      ENTROPY_JUMP_MILLIBITS
+  ) {
+    const delta =
+      file.entropyMilliBitsPerByte - previous.entropyMilliBitsPerByte;
+    found.push({
+      kind: "entropy-jump",
+      severity: "MEDIUM",
+      change: "changed",
+      detail: `${file.file} entropy rose from ${String(previous.entropyMilliBitsPerByte)} to ${String(file.entropyMilliBitsPerByte)} millibits/byte (+${String(delta)})`,
+      evidence: fileEvidence(file),
+    });
+  }
+
+  const loop = importTimeLoopFinding(file, previous);
+  if (loop !== null) found.push(loop);
+  return found;
+}
+
+/** ADR-042: a module-scope loop with no exit condition is an availability signal. */
+function importTimeLoopFinding(
+  file: SignalFileObservation,
+  previous: SignalFileObservation | undefined,
+): SignalFinding | null {
+  const loop = file.topLevelLoop;
+  if (loop === undefined || previous?.topLevelLoop !== undefined) return null;
+  return {
+    kind: "import-time-unbounded-loop",
+    severity: "MEDIUM",
+    change: "added",
+    detail: `${file.file} has an unbounded loop at module scope (line ${String(loop.line)})`,
+    evidence: [{ file: file.file, line: loop.line, snippet: "" }],
+  };
 }
 
 function endpointKey(endpoint: SignalEndpointObservation): string {

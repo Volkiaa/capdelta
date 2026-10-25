@@ -733,27 +733,40 @@ describe("coa and rc compromise (2021-11) reconstruction", () => {
 });
 
 describe("colors 1.4.1 sabotage (2022) reconstruction", () => {
-  it("passes the default gate because no capability covers an endless loop", async () => {
+  it("reports the module-scope endless loop as MEDIUM while the default gate passes", async () => {
     const result = await runScenario("colors-2022", "attack");
     expectAllAnalyzed(result, 1);
     const report = packageReport(result.report, "colors");
 
     expect(report.findings).toEqual([]);
-    expect(report.signalFindings ?? []).toEqual([]);
+    expect(report.signalFindings).toEqual([
+      {
+        kind: "import-time-unbounded-loop",
+        severity: "MEDIUM",
+        change: "added",
+        detail: "index.js has an unbounded loop at module scope (line 11)",
+        evidence: [{ file: "index.js", line: 11, snippet: "" }],
+      },
+    ]);
     expect(report.shapes ?? []).toEqual([]);
-    // Detection gap: the closed taxonomy has no kind for an endless loop or
-    // console output, so sabotage that hangs every importer is invisible here.
     expect(result.report.summary.gateSeverity).toEqual({
       CRITICAL: 0,
       HIGH: 0,
-      MEDIUM: 0,
+      MEDIUM: 1,
       LOW: 0,
       INFO: 0,
     });
     expect(evaluateSeverityGate(result.report, "CRITICAL")).toMatchObject({
       fail: false,
       exitCode: 0,
-      highest: null,
+      highest: "MEDIUM",
+      matchingCount: 0,
+    });
+    expect(evaluateSeverityGate(result.report, "MEDIUM")).toMatchObject({
+      fail: true,
+      exitCode: 1,
+      highest: "MEDIUM",
+      matchingCount: 1,
     });
   });
 });

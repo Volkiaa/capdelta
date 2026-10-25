@@ -193,6 +193,12 @@ export const SIGNAL_GUIDANCE: Readonly<Record<SignalFindingKind, Guidance>> = {
     whatToCheck:
       "Open the file at the evidence line and confirm the decoding is expected.",
   },
+  "import-time-unbounded-loop": {
+    whyItMatters:
+      "A loop at module scope has no exit condition, so importing the package can hang the process that imports it.",
+    whatToCheck:
+      "Open the file at the evidence line and confirm the loop can end.",
+  },
 };
 
 export const LOCKFILE_GUIDANCE: Readonly<

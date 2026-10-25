@@ -244,3 +244,54 @@ describe("signal differ", () => {
     ).toEqual([]);
   });
 });
+
+describe("import-time unbounded loop signal", () => {
+  const looping = {
+    file: "index.js",
+    byteLength: 120,
+    entropyMilliBitsPerByte: 4_000,
+    parseState: "parsed" as const,
+    topLevelLoop: { line: 7 },
+  };
+
+  it("reports a new module-scope endless loop at MEDIUM", () => {
+    const result = diffSignals(set(), set({ sourceFiles: [looping] }));
+
+    expect(result).toEqual([
+      {
+        kind: "import-time-unbounded-loop",
+        severity: "MEDIUM",
+        change: "added",
+        detail: "index.js has an unbounded loop at module scope (line 7)",
+        evidence: [{ file: "index.js", line: 7, snippet: "" }],
+      },
+    ]);
+  });
+
+  it("does not report a loop the old side already had", () => {
+    expect(
+      diffSignals(
+        set({ sourceFiles: [looping] }),
+        set({ sourceFiles: [looping] }),
+      ),
+    ).toEqual([]);
+  });
+
+  it("does not report a file without the flag", () => {
+    expect(
+      diffSignals(
+        set(),
+        set({
+          sourceFiles: [
+            {
+              file: "index.js",
+              byteLength: 120,
+              entropyMilliBitsPerByte: 4_000,
+              parseState: "parsed",
+            },
+          ],
+        }),
+      ),
+    ).toEqual([]);
+  });
+});
