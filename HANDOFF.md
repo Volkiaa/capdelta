@@ -3,6 +3,38 @@
 Start here, then read CLAUDE.md. `docs/SESSIONS.md` has the history and
 docs/PLAN.md (rev. 3) is the spec. Last updated 2026-10-25.
 
+## Follow-up batch (2026-10-25, after phase 3)
+
+Merged: #192 to #203 and #205. Draft: #204.
+
+- **Tooling.** `bin/intel-drive` and `bin/action-drive` drive the CLI and the
+  bundled Action against a real platform service. `replay` records the intel
+  matrix. `check:deps` also runs `check-docs` (CLI flags in `docs/cli.md`,
+  README dependency list) and `check-skill` (verify skill drift). A weekly
+  workflow runs the live drives. `eval-incomplete` publishes the causes of
+  incomplete analyses.
+- **Platform.** `JobQueue.claim` no longer scans the job directory (#197).
+- **Six new reconstructions** (#199, #200): event-stream, ua-parser-js,
+  eslint-scope, coa and rc, colors, chalk and debug. They exposed two gaps, now
+  closed by Tier 2 detections: colors 1.4.1 gets a MEDIUM
+  `import-time-unbounded-loop` (ADR-042, #203) and chalk and debug get a
+  CRITICAL `wallet-address-swap` shape (ADR-044, #205). Held-out corpus
+  unchanged both times (45 pairs, 0 rows different). The `docs/eval` totals are
+  not recomputed with the new reconstructions.
+- **CodeQL** ignores `test/fixtures/reconstructions` only (#199), because the
+  inert attack fixtures model the flows it reports.
+
+**Decide.** Draft #204 (ADR-043, Tier 3) adds a base-commit `registry-hosts`
+allowlist for internal mirrors. Held-out unchanged with no config, Codex APPROVE.
+It is not measured on a repository that uses a mirror.
+
+**Open tickets.** Walking a new package's dependency tree needs a design call
+first: the release path has no baseline, so expanding children would flag vetted
+install-hook packages as new. Hook detection (`window.fetch` assignment,
+`XMLHttpRequest`) has false-positive risk and needs its own held-out run. The
+dogfood workflow still pins a pre-v2 Action revision without `intel-url`. Deploy
+the service behind TLS, then point the dogfood workflow at it.
+
 ## v2 platform, phases 1 to 3 (2026-10-24 to 25)
 
 The v2 service is on main and works end to end. `docs/v2-roadmap.md` is the
@@ -41,11 +73,10 @@ synthetic reconstructions. Nothing was tuned on the held-out entries.
    in front before exposing it beyond localhost.
 
 **Known gaps worth a ticket.** The lockfile differ accepts only
-`registry.npmjs.org` (`src/core/npm/lockfile-differ.ts:28`), so mirrors are
-skipped as private. A feed event queues the 3 newest versions of a package.
-`JobQueue.claim` scans the whole job directory. The analyzer cannot yet
-analyze a new package's dependency tree, which is why `node-ipc` 11.0.0 is
-missed.
+`registry.npmjs.org` unless draft #204 lands, so mirrors are skipped as
+private. A feed event queues the 3 newest versions of a package. The analyzer
+cannot yet analyze a new package's dependency tree, which is why `node-ipc`
+11.0.0 is missed.
 
 **Lessons.** Run the built tool on the real service before calling it done:
 the live feed rejected `since=now`, which a fake registry had accepted, and
