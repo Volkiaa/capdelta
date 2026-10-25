@@ -34,3 +34,5 @@ index before driving, then use the matching feature file as the recipe.
 - [The gate](./gate.md): `--fail-on`, `--strict`, exit codes 0, 1, 2.
 - [Allowlist and config](./allowlist-config.md): base-commit allowlists, `--config`.
 - [Edge paths](./edge-paths.md): unchanged lockfile, first-run mode, usage errors.
+- [Intelligence lookup](./intel-lookup.md): `--intel-url`, confirmed-malicious matches, outage handling.
+- [Platform service](./platform-service.md): `capdelta-platform` monitor, analyze, serve.

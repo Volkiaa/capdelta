@@ -30,6 +30,11 @@ if [ -f "$CLI" ] && node "$CLI" --help >/dev/null 2>&1; then
 else
   fail "node dist/cli.js --help did not exit 0"
 fi
+if [ -f "$ROOT/dist/platform-cli.js" ]; then
+  printf 'doctor: ok - dist/platform-cli.js is present\n'
+else
+  fail "dist/platform-cli.js missing; run: npm run build"
+fi
 if command -v npm >/dev/null 2>&1 && npm view esbuild version >/dev/null 2>&1; then
   printf 'doctor: ok - registry.npmjs.org is reachable\n'
 else
