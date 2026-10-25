@@ -1,0 +1,316 @@
+#!/usr/bin/env bash
+# Drives the real bundled Action against a local GitHub API and artifact
+# stand-in, plus a real platform service for the intelligence states.
+# Needs the network once, to fetch is-odd 3.0.0 and 3.0.1 metadata from the registry.
+set -eu
+BIN="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(cd "$BIN/../../../.." && pwd)"
+RUN_ID="${CAPDELTA_VERIFY_RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
+PORT="${ACTION_DRIVE_PORT:-18812}"
+SERVICE_PORT="${ACTION_DRIVE_SERVICE_PORT:-$((PORT + 10))}"
+EVID="${CAPDELTA_VERIFY_EVIDENCE:-$HOME/.local/state/capdelta-verify}/$RUN_ID/action"
+B="$ROOT/dist"
+[ -f "$B/action/index.js" ] || { echo "action-drive: dist/action/index.js missing; run npm run build && npm run package:action" >&2; exit 1; }
+[ -f "$B/platform-cli.js" ] || { echo "action-drive: dist/platform-cli.js missing; run npm run build" >&2; exit 1; }
+command -v python3 >/dev/null 2>&1 || { echo "action-drive: python3 is required" >&2; exit 1; }
+command -v curl >/dev/null 2>&1 || { echo "action-drive: curl is required" >&2; exit 1; }
+R="$(mktemp -d "${TMPDIR:-/tmp}/capdelta-verify-$RUN_ID-action-XXXXXX")"
+S="$(mktemp -d "${TMPDIR:-/tmp}/capdelta-verify-$RUN_ID-action-svc-XXXXXX")"
+W="$(mktemp -d "${TMPDIR:-/tmp}/capdelta-verify-$RUN_ID-action-work-XXXXXX")"
+mkdir -p "$EVID"
+PLATFORM_PID=""
+FAKE_PID=""
+cleanup() {
+  [ -n "$FAKE_PID" ] && kill -TERM "$FAKE_PID" 2>/dev/null
+  [ -n "$PLATFORM_PID" ] && kill -INT "$PLATFORM_PID" 2>/dev/null
+  rm -rf "$R" "$S" "$W"
+}
+trap cleanup EXIT
+
+fetch_metadata() {
+  python3 -I - "$R" "$S" <<'PY'
+import json, sys, urllib.request
+R, S = sys.argv[1:3]
+def meta(version):
+    data = json.load(urllib.request.urlopen("https://registry.npmjs.org/is-odd/" + version))
+    return data["dist"]["integrity"], data["dist"]["tarball"]
+def lock(version, integrity, tarball):
+    return {"name": "app", "version": "1.0.0", "lockfileVersion": 3, "requires": True,
+            "packages": {"": {"name": "app", "version": "1.0.0", "dependencies": {"is-odd": version}},
+                         "node_modules/is-odd": {"version": version, "resolved": tarball, "integrity": integrity}}}
+for version in ("3.0.0", "3.0.1"):
+    integrity, tarball = meta(version)
+    json.dump(lock(version, integrity, tarball), open(f"{R}/lock-{version}.json", "w"), indent=2)
+    if version == "3.0.1":
+        open(f"{S}/digest", "w").write(integrity)
+PY
+}
+fetch_metadata || { echo "action-drive: registry metadata fetch failed" >&2; exit 1; }
+[ -s "$S/digest" ] || { echo "action-drive: registry metadata fetch failed" >&2; exit 1; }
+
+git -C "$R" init -q .
+git -C "$R" config user.email v@v
+git -C "$R" config user.name v
+printf '%s\n' '{"name":"app","version":"1.0.0","dependencies":{"is-odd":"3.0.0"}}' > "$R/package.json"
+cp "$R/lock-3.0.0.json" "$R/package-lock.json"
+git -C "$R" add package.json package-lock.json
+git -C "$R" commit -qm base
+cp "$R/lock-3.0.1.json" "$R/package-lock.json"
+git -C "$R" commit -qam head
+BASE_SHA="$(git -C "$R" rev-parse HEAD~1)"
+HEAD_SHA="$(git -C "$R" rev-parse HEAD)"
+
+# @actions/artifact refuses to run when GITHUB_SERVER_URL looks like GHES.
+# A .localhost host is the SDK's own local escape hatch, so the stand-in does
+# not need a real GitHub hostname. The API and results service stay on 127.0.0.1.
+cat > "$W/fake-github.py" <<'PY'
+import base64, json, sys
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import parse_qs, urlparse
+
+PORT = int(sys.argv[1])
+BASE_LOCK = sys.argv[2]
+PREFIX = sys.argv[3]
+
+LOG = open(PREFIX + ".server.log", "a", buffering=1)
+
+class Handler(BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
+
+    def log_message(self, fmt, *args):
+        pass
+
+    def read_body(self):
+        length = int(self.headers.get("content-length") or 0)
+        return self.rfile.read(length) if length else b""
+
+    def send(self, status, obj=None, headers=None):
+        body = b"" if obj is None else json.dumps(obj).encode()
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        for key, value in (headers or {}).items():
+            self.send_header(key, value)
+        self.end_headers()
+        if body:
+            self.wfile.write(body)
+        LOG.write(f"{self.command} {self.path} -> {status}\n")
+
+    def do_GET(self):
+        self.any("GET")
+
+    def do_POST(self):
+        self.any("POST")
+
+    def do_PUT(self):
+        self.any("PUT")
+
+    def any(self, method):
+        parsed = urlparse(self.path)
+        path = parsed.path
+        body = self.read_body()
+        if path == "/health":
+            return self.send(200, {"ok": True})
+        if path.endswith("/pulls/1/files"):
+            return self.send(200, [{"filename": "package-lock.json", "status": "modified"}])
+        if "/contents/package-lock.json" in path:
+            data = open(BASE_LOCK, "rb").read()
+            return self.send(200, {"type": "file", "encoding": "base64", "size": len(data),
+                                   "name": "package-lock.json", "path": "package-lock.json",
+                                   "content": base64.b64encode(data).decode()})
+        if path.endswith("/issues/1/comments") and method == "GET":
+            return self.send(200, [])
+        if path.endswith("/issues/1/comments") and method == "POST":
+            # ADR-020: a token without pull-requests: write gets this exact
+            # refusal, and the Action must fall back to the job summary.
+            return self.send(403, {"message": "Resource not accessible by integration",
+                                   "documentation_url": "https://docs.github.com"})
+        if path.endswith("/code-scanning/sarifs"):
+            return self.send(202, {"id": "sarif-1", "url": "http://example.test"})
+        if path.endswith("/CreateArtifact"):
+            return self.send(200, {"ok": True, "signedUploadUrl": f"http://127.0.0.1:{PORT}/blob/upload?sig=fake"})
+        if path.endswith("/FinalizeArtifact"):
+            return self.send(200, {"ok": True, "artifactId": "4242"})
+        if path.startswith("/blob/upload"):
+            # The Azure client stages one block for a small raw file, then
+            # commits the block list. Only block bodies are report bytes.
+            comp = parse_qs(parsed.query).get("comp", [""])[0]
+            if comp in ("", "block"):
+                with open(PREFIX + ".artifact.json", "ab") as handle:
+                    handle.write(body)
+            return self.send(201, None, {"ETag": '"0x1"', "x-ms-request-id": "req-1",
+                                        "x-ms-version": "2023-11-03",
+                                        "Last-Modified": "Sun, 25 Oct 2026 00:00:00 GMT"})
+        return self.send(404, {"message": "not found: " + path})
+
+ThreadingHTTPServer(("127.0.0.1", PORT), Handler).serve_forever()
+PY
+
+OUT="$(node "$B/platform-cli.js" reviewer-token --name alice)"
+REVIEWER_TOKEN="$(printf '%s\n' "$OUT" | sed -n 1p)"
+printf '{ %s }\n' "$(printf '%s\n' "$OUT" | sed -n 2p)" > "$S/reviewers.json"
+DIGEST="$(cat "$S/digest")"
+cat > "$S/seed.mjs" <<JS
+import { JsonStore } from "$B/platform/json-store.js";
+import { FindingStore } from "$B/platform/intel/finding-store.js";
+import { createFinding } from "$B/platform/intel/finding.js";
+const store = new FindingStore(new JsonStore({ root: "$S/data" }));
+const finding = createFinding({ecosystem:"npm",name:"is-odd",version:"3.0.1",digest:"$DIGEST",analyzerVersion:"verify",ruleKey:"verify:drive",summary:"verify drive finding",severity:"CRITICAL",confidence:"medium",evidence:[{file:"index.js",line:1,excerpt:"x"}]}, new Date());
+await store.putIfAbsent(finding); console.log(finding.id);
+JS
+FINDING_ID="$(node "$S/seed.mjs")"
+node "$B/platform-cli.js" serve --data "$S/data" --port "$SERVICE_PORT" --reviewers "$S/reviewers.json" > "$EVID/service.log" 2>&1 &
+PLATFORM_PID=$!
+SERVICE_URL="http://127.0.0.1:$SERVICE_PORT"
+service_ready=0
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+  curl -sf "$SERVICE_URL/v1/feed" >/dev/null 2>&1 && service_ready=1 && break
+  sleep 1
+done
+[ "$service_ready" = 1 ] || { echo "action-drive: platform service did not become ready; see $EVID/service.log" >&2; exit 1; }
+
+cat > "$EVID/event.json" <<EOF
+{"pull_request":{"number":1,"base":{"sha":"$BASE_SHA","repo":{"full_name":"acme/app"}},"head":{"sha":"$HEAD_SHA","ref":"feature/dep","repo":{"full_name":"acme/app"}}}}
+EOF
+RUNTIME_TOKEN="$(python3 -I - <<'PY'
+import base64, json
+def encode(value):
+    raw = json.dumps(value, separators=(",", ":")).encode()
+    return base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
+print(encode({"alg": "none", "typ": "JWT"}) + "." + encode({"scp": "Actions.Results:verify-run:verify-job"}) + ".")
+PY
+)"
+
+fails=0
+
+transition() {
+  label=$1
+  body=$2
+  code=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "authorization: Bearer $REVIEWER_TOKEN" \
+    -H 'content-type: application/json' -d "$body" "$SERVICE_URL/v1/findings/$FINDING_ID/transitions")
+  [ "$code" = 200 ] || { echo "action-drive: transition for $label returned $code" >&2; exit 1; }
+}
+
+output_value() {
+  python3 -I - "$1" "$2" <<'PY'
+import sys
+key, path = sys.argv[1:3]
+lines = open(path, encoding="utf-8").read().splitlines()
+for index, line in enumerate(lines):
+    if line.startswith(key + "<<"):
+        print(lines[index + 1])
+        break
+PY
+}
+
+intel_kinds() {
+  python3 -I - "$1" <<'PY'
+import json, sys
+try:
+    data = json.load(open(sys.argv[1], encoding="utf-8"))
+    kinds = sorted({finding["kind"] for finding in data.get("lockfileFindings", [])
+                    if isinstance(finding.get("kind"), str) and finding["kind"].startswith("intel")})
+    print(",".join(kinds) if kinds else "none")
+except Exception:
+    print("no-artifact")
+PY
+}
+
+# run_case <label> <intel-url or ""> <port> <expected exit> <expected status> <expected intel> <expected summary>
+run_case() {
+  label=$1
+  intel_url=$2
+  port=$3
+  want_exit=$4
+  want_status=$5
+  want_intel=$6
+  want_summary=$7
+  summary="$EVID/$label.summary.md"
+  output="$EVID/$label.output"
+  : > "$summary"
+  : > "$output"
+  printf 'cd %s && GITHUB_EVENT_PATH=%s GITHUB_API_URL=http://127.0.0.1:%s INPUT_INTEL-URL=%s node %s\n' \
+    "$R" "$EVID/event.json" "$port" "$intel_url" "$B/action/index.js" > "$EVID/$label.cmd"
+  python3 -I "$W/fake-github.py" "$port" "$R/lock-3.0.0.json" "$EVID/$label" > "$EVID/$label.server.out" 2>&1 &
+  FAKE_PID=$!
+  fake_ready=0
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    curl -sf "http://127.0.0.1:$port/health" >/dev/null 2>&1 && fake_ready=1 && break
+    sleep 0.2
+  done
+  [ "$fake_ready" = 1 ] || { echo "action-drive: local GitHub stand-in did not start on port $port" >&2; exit 1; }
+
+  set +e
+  (cd "$R" && env \
+    "INPUT_GITHUB-TOKEN=fake-token" \
+    "INPUT_LOCKFILE-PATH=package-lock.json" \
+    "INPUT_FAIL-ON=CRITICAL" \
+    "INPUT_CONFIG-PATH=" \
+    "INPUT_BASE-REF=" \
+    "INPUT_STRICT=false" \
+    "INPUT_INTEL-URL=$intel_url" \
+    GITHUB_EVENT_NAME=pull_request \
+    GITHUB_EVENT_PATH="$EVID/event.json" \
+    GITHUB_REPOSITORY=acme/app \
+    GITHUB_API_URL="http://127.0.0.1:$port" \
+    GITHUB_SERVER_URL="http://github.localhost:$port" \
+    GITHUB_WORKSPACE="$R" \
+    GITHUB_SHA="$HEAD_SHA" \
+    GITHUB_REF=refs/pull/1/merge \
+    GITHUB_ACTOR=alice \
+    ACTIONS_RUNTIME_TOKEN="$RUNTIME_TOKEN" \
+    ACTIONS_RESULTS_URL="http://127.0.0.1:$port/" \
+    GITHUB_STEP_SUMMARY="$summary" \
+    GITHUB_OUTPUT="$output" \
+    node "$B/action/index.js" > "$EVID/$label.stdout" 2> "$EVID/$label.stderr")
+  code=$?
+  set -e
+  printf '%s\n' "$code" > "$EVID/$label.exit"
+  kill -TERM "$FAKE_PID" 2>/dev/null || true
+  wait "$FAKE_PID" 2>/dev/null || true
+  FAKE_PID=""
+
+  status=$(output_value status "$output")
+  [ -n "$status" ] || status=missing
+  summary_state=no
+  grep -q 'capdelta:capability-report:v2' "$summary" 2>/dev/null && summary_state=yes
+  intel=$(intel_kinds "$EVID/$label.artifact.json")
+
+  state=ok
+  [ "$code" = "$want_exit" ] || state=MISMATCH
+  [ "$status" = "$want_status" ] || state=MISMATCH
+  [ "$summary_state" = "$want_summary" ] || state=MISMATCH
+  [ "$intel" = "$want_intel" ] || state=MISMATCH
+  if ! grep -q 'the token cannot write the PR comment' "$EVID/$label.stdout"; then
+    echo "           $label: the token refusal warning is missing from stdout" >&2
+    state=MISMATCH
+  fi
+  if ! grep -q 'POST /repos/acme/app/issues/1/comments -> 403' "$EVID/$label.server.log"; then
+    echo "           $label: the comment write was not refused" >&2
+    state=MISMATCH
+  fi
+  if [ "$intel" != none ] && ! grep -q 'meet the CRITICAL failure threshold' "$EVID/$label.stdout"; then
+    echo "           $label: the gate failure annotation is missing from stdout" >&2
+    state=MISMATCH
+  fi
+  if [ "$intel" != none ] && ! grep -q 'intel&#45;confirmed&#45;malicious' "$summary"; then
+    echo "           $label: the escaped finding kind is missing from the job summary" >&2
+    state=MISMATCH
+  fi
+  [ "$state" = ok ] || fails=$((fails + 1))
+  printf '%-10s %-18s exit %s (want %s) status %s (want %s) summary %s (want %s) intel %s (want %s)\n' \
+    "$state" "$label" "$code" "$want_exit" "$status" "$want_status" "$summary_state" "$want_summary" "$intel" "$want_intel"
+}
+
+run_case summary-fallback "" "$PORT" 0 passed none yes
+transition intel-confirmed '{"to":"under-review","reason":"triage"}'
+transition intel-confirmed '{"to":"confirmed-malicious","reason":"verify","validation":{"method":"verify","evidenceRefs":[0]}}'
+run_case intel-confirmed "$SERVICE_URL" "$((PORT + 1))" 1 failed intel-confirmed-malicious yes
+transition intel-retracted '{"to":"retracted","reason":"verify retract"}'
+run_case intel-retracted "$SERVICE_URL" "$((PORT + 2))" 0 passed none yes
+
+kill -INT "$PLATFORM_PID" 2>/dev/null || true
+wait "$PLATFORM_PID" 2>/dev/null || true
+PLATFORM_PID=""
+echo "evidence: $EVID"
+[ "$fails" = 0 ]

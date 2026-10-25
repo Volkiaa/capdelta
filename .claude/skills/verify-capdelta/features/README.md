@@ -35,4 +35,5 @@ index before driving, then use the matching feature file as the recipe.
 - [Allowlist and config](./allowlist-config.md): base-commit allowlists, `--config`.
 - [Edge paths](./edge-paths.md): unchanged lockfile, first-run mode, usage errors.
 - [Intelligence lookup](./intel-lookup.md): `--intel-url`, confirmed-malicious matches, outage handling.
+- [GitHub Action](./action.md): the bundle, summary fallback, intelligence gate.
 - [Platform service](./platform-service.md): `capdelta-platform` monitor, analyze, serve.

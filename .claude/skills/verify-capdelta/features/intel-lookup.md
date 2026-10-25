@@ -33,5 +33,6 @@ any mismatch. Evidence lands in `<evidence dir>/<run-id>/intel/`, including
 
 ## Not covered
 
-The Action path. `src/action/run-action.ts` has unit tests for the same wiring, and
+The Action path. `bin/action-drive` drives its confirmed and retracted states
+against the same service; `src/action/run-action.test.ts` covers the rest, and
 `dist/action/` must be rebuilt (`npm run package:action`) after any core change.
