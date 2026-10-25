@@ -27,7 +27,12 @@ The September 2025 chalk and debug compromise adds a `browser.js` that wraps `wi
 
 ## Evidence (Tier 2 checks)
 
-- to be filled by the orchestrator.
+- **Held-out corpus.** `scripts/m5-measure.ts run docs/heldout-2026-10-20/corpus-heldout.json` on main and on this branch, 2026-10-25. 45 pairs, 0 rows different, 0 new findings. New findings labelled: attack 0, noise 0, unknown 0. The three held-out chalk pairs stay clean.
+- **Reconstructions and golden fixtures.** Full suite passes (1398 tests). Only chalk-debug-2025 moved: CRITICAL 0 to 4, HIGH 2 to 0 (the two NET findings become shape participants). Nothing moved down, no `expected-*` golden file changed. The axios fixture has two Solana-shaped strings but no provider reference, so it stays inert.
+- **Real CLI drive.** Not possible for the attack case. The compromised chalk and debug releases are removed from the registry, and the CLI cannot fetch a fixture, so the reconstruction test drives the same pipeline and gate with a fake fetch. The 45 held-out pairs are real published bumps analyzed by the same code.
+- **Codex security review.** APPROVE (2026-10-25).
+- **Action bundle.** `npm run package:action` run and `dist/action/` committed.
+- **Not covered.** Hook detection (`window.fetch` assignment, `XMLHttpRequest`) is a separate ticket because of its false-positive risk. A wallet drainer that does not embed address literals is not detected.
 
 ## Alternatives rejected
 
