@@ -280,6 +280,10 @@ reviewers move findings through a verdict lifecycle (`suspected`, `under-review`
 `confirmed-malicious`, `benign`, `retracted`), and the CLI and Action can ask the
 service about the artifacts a bump changes.
 
+Each release analysis also covers up to eight dependencies the release newly
+declares, one level deep. An unresolvable child marks the record incomplete
+rather than dropping it.
+
 ```bash
 capdelta-platform monitor --data ./data --interval 60   # follow the registry
 capdelta-platform serve --data ./data --reviewers ./reviewers.json

@@ -1,9 +1,15 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { JobQueue } from "./job-queue.js";
+import { JsonStore } from "./json-store.js";
 import {
   CollectorError,
   candidatesForPackage,
   collectReleases,
 } from "./registry-collector.js";
+import type { ReleaseCandidate } from "./release-candidate.js";
 
 const REGISTRY = "https://registry.npmjs.org";
 const CHANGES = "https://replicate.npmjs.com/_changes";
@@ -13,6 +19,7 @@ interface FixtureVersion {
   publishedAt: string;
   integrity?: string | null;
   tarball?: string;
+  dependencies?: Readonly<Record<string, string>>;
 }
 
 function packument(name: string, versions: readonly FixtureVersion[]): unknown {
@@ -25,6 +32,9 @@ function packument(name: string, versions: readonly FixtureVersion[]): unknown {
     doc.versions[item.version] = {
       name,
       version: item.version,
+      ...(item.dependencies === undefined
+        ? {}
+        : { dependencies: item.dependencies }),
       dist: {
         ...(item.integrity === null
           ? {}
@@ -524,6 +534,320 @@ describe("candidatesForPackage", () => {
     expect(request?.init?.redirect).toBe("error");
     expect(request?.init?.signal).toBeInstanceOf(AbortSignal);
     expect(request?.init?.headers).toBeUndefined();
+  });
+});
+
+describe("dependency children", () => {
+  const PARENT_ROUTE = `${REGISTRY}/parent`;
+  const CHILD_ROUTE = `${REGISTRY}/child`;
+
+  function parentPackument(
+    latestDependencies: Readonly<Record<string, string>>,
+    previousDependencies: Readonly<Record<string, string>> = {},
+  ): unknown {
+    return packument("parent", [
+      {
+        version: "1.0.0",
+        publishedAt: "2024-01-01T00:00:00.000Z",
+        dependencies: previousDependencies,
+      },
+      {
+        version: "2.0.0",
+        publishedAt: "2024-02-01T00:00:00.000Z",
+        dependencies: latestDependencies,
+      },
+    ]);
+  }
+
+  it("resolves a dependency the new version newly declares", async () => {
+    const { fetchImpl, requested } = routedFetch(
+      new Map([
+        [PARENT_ROUTE, jsonResponse(parentPackument({ child: "^2.0.0" }))],
+        [
+          CHILD_ROUTE,
+          jsonResponse(
+            packument("child", [
+              { version: "2.0.0", publishedAt: "2024-01-01T00:00:00.000Z" },
+              { version: "2.1.0", publishedAt: "2024-02-01T00:00:00.000Z" },
+            ]),
+          ),
+        ],
+      ]),
+    );
+
+    const { candidates, skipped } = await candidatesForPackage("parent", {
+      fetchImpl,
+    });
+
+    const latest = candidates.at(-1);
+    expect(latest?.version).toBe("2.0.0");
+    expect(latest?.children).toEqual([
+      {
+        name: "child",
+        artifact: {
+          version: "2.1.0",
+          digest: "sha512-AAAA",
+          tarballUrl: `${REGISTRY}/child/-/2.1.0.tgz`,
+        },
+      },
+    ]);
+    expect(latest?.unresolvedChildren).toEqual([]);
+    expect(skipped).toEqual([]);
+    expect(requested).toContain(CHILD_ROUTE);
+  });
+
+  it("reports a resolved child lacking integrity instead of falling back", async () => {
+    const { fetchImpl } = routedFetch(
+      new Map([
+        [PARENT_ROUTE, jsonResponse(parentPackument({ child: "^2.0.0" }))],
+        [
+          CHILD_ROUTE,
+          jsonResponse(
+            packument("child", [
+              { version: "2.0.0", publishedAt: "2024-01-01T00:00:00.000Z" },
+              {
+                version: "2.1.0",
+                publishedAt: "2024-02-01T00:00:00.000Z",
+                integrity: null,
+              },
+            ]),
+          ),
+        ],
+      ]),
+    );
+
+    const { candidates } = await candidatesForPackage("parent", { fetchImpl });
+
+    const latest = candidates.at(-1);
+    expect(latest?.children).toEqual([]);
+    const unresolved = latest?.unresolvedChildren ?? [];
+    expect(unresolved).toHaveLength(1);
+    expect(unresolved[0]?.name).toBe("child");
+    expect(unresolved[0]?.reason).toContain("child");
+    expect(unresolved[0]?.reason).toContain("2.1.0");
+    expect(unresolved[0]?.reason).toMatch(/integrity/u);
+  });
+
+  it("reports a resolved child lacking a publish time instead of falling back", async () => {
+    const child = packument("child", [
+      { version: "2.0.0", publishedAt: "2024-01-01T00:00:00.000Z" },
+      { version: "2.1.0", publishedAt: "2024-02-01T00:00:00.000Z" },
+    ]);
+    delete (child as { time: Record<string, string> }).time["2.1.0"];
+    const { fetchImpl } = routedFetch(
+      new Map([
+        [PARENT_ROUTE, jsonResponse(parentPackument({ child: "^2.0.0" }))],
+        [CHILD_ROUTE, jsonResponse(child)],
+      ]),
+    );
+
+    const { candidates } = await candidatesForPackage("parent", { fetchImpl });
+
+    const latest = candidates.at(-1);
+    expect(latest?.children).toEqual([]);
+    const unresolved = latest?.unresolvedChildren ?? [];
+    expect(unresolved).toHaveLength(1);
+    expect(unresolved[0]?.name).toBe("child");
+    expect(unresolved[0]?.reason).toContain("child");
+    expect(unresolved[0]?.reason).toContain("2.1.0");
+    expect(unresolved[0]?.reason).toMatch(/publish time/u);
+  });
+
+  it("reports a resolved child lacking a tarball instead of falling back", async () => {
+    const { fetchImpl } = routedFetch(
+      new Map([
+        [PARENT_ROUTE, jsonResponse(parentPackument({ child: "^2.0.0" }))],
+        [
+          CHILD_ROUTE,
+          jsonResponse(
+            packument("child", [
+              { version: "2.0.0", publishedAt: "2024-01-01T00:00:00.000Z" },
+              {
+                version: "2.1.0",
+                publishedAt: "2024-02-01T00:00:00.000Z",
+                tarball: "",
+              },
+            ]),
+          ),
+        ],
+      ]),
+    );
+
+    const { candidates } = await candidatesForPackage("parent", { fetchImpl });
+
+    const latest = candidates.at(-1);
+    expect(latest?.children).toEqual([]);
+    const unresolved = latest?.unresolvedChildren ?? [];
+    expect(unresolved).toHaveLength(1);
+    expect(unresolved[0]?.name).toBe("child");
+    expect(unresolved[0]?.reason).toContain("child");
+    expect(unresolved[0]?.reason).toContain("2.1.0");
+    expect(unresolved[0]?.reason).toMatch(/tarball/u);
+  });
+
+  it("does not expand a dependency whose range only changed", async () => {
+    const { fetchImpl, requested } = routedFetch(
+      new Map([
+        [
+          PARENT_ROUTE,
+          jsonResponse(
+            parentPackument({ esbuild: "^0.21.0" }, { esbuild: "^0.20.0" }),
+          ),
+        ],
+      ]),
+    );
+
+    const { candidates } = await candidatesForPackage("parent", { fetchImpl });
+
+    const latest = candidates.at(-1);
+    expect(latest?.children ?? []).toEqual([]);
+    expect(latest?.unresolvedChildren ?? []).toEqual([]);
+    expect(requested).not.toContain(`${REGISTRY}/esbuild`);
+  });
+
+  it("reports a child the registry cannot serve without dropping the release", async () => {
+    const { fetchImpl, requested } = routedFetch(
+      new Map([
+        [PARENT_ROUTE, jsonResponse(parentPackument({ ghost: "^1.0.0" }))],
+        [`${REGISTRY}/ghost`, new Response("not found", { status: 404 })],
+      ]),
+    );
+
+    const { candidates } = await candidatesForPackage("parent", { fetchImpl });
+
+    const latest = candidates.at(-1);
+    expect(latest?.children ?? []).toEqual([]);
+    const unresolved = latest?.unresolvedChildren ?? [];
+    expect(unresolved).toHaveLength(1);
+    expect(unresolved[0]?.name).toBe("ghost");
+    expect(unresolved[0]?.reason).toContain("HTTP 404");
+    expect(requested).toContain(`${REGISTRY}/ghost`);
+  });
+
+  it("does not fetch an alias, URL, git or file specifier", async () => {
+    const { fetchImpl, requested } = routedFetch(
+      new Map([
+        [
+          PARENT_ROUTE,
+          jsonResponse(
+            parentPackument({
+              alias: "npm:real@^1.0.0",
+              archive: "https://example.invalid/archive.tgz",
+              fromgit: "github:owner/repo",
+              local: "file:../local",
+            }),
+          ),
+        ],
+      ]),
+    );
+
+    const { candidates } = await candidatesForPackage("parent", { fetchImpl });
+
+    const unresolved = candidates.at(-1)?.unresolvedChildren ?? [];
+    expect(unresolved.map((item) => item.name)).toEqual([
+      "alias",
+      "archive",
+      "fromgit",
+      "local",
+    ]);
+    expect(unresolved.every((item) => !item.reason.includes("HTTP"))).toBe(
+      true,
+    );
+    expect(requested).toEqual([PARENT_ROUTE]);
+  });
+
+  it("reports every new child over the 8-child cap", async () => {
+    const dependencies: Record<string, string> = {};
+    for (let index = 0; index < 9; index += 1) {
+      dependencies[`child-${String(index)}`] = "^1.0.0";
+    }
+    const { fetchImpl } = routedFetch(
+      new Map([[PARENT_ROUTE, jsonResponse(parentPackument(dependencies))]]),
+    );
+
+    const { candidates } = await candidatesForPackage("parent", { fetchImpl });
+
+    const latest = candidates.at(-1);
+    const unresolved = latest?.unresolvedChildren ?? [];
+    expect(unresolved).toHaveLength(9);
+    const capped = unresolved.find((item) => item.name === "child-8");
+    expect(capped?.reason).toContain("cap");
+  });
+
+  it("expands nothing for a first release", async () => {
+    const doc = packument("solo", [
+      {
+        version: "1.0.0",
+        publishedAt: "2024-01-01T00:00:00.000Z",
+        dependencies: { child: "^1.0.0" },
+      },
+    ]);
+    const { fetchImpl, requested } = routedFetch(
+      new Map([[`${REGISTRY}/solo`, jsonResponse(doc)]]),
+    );
+
+    const { candidates } = await candidatesForPackage("solo", { fetchImpl });
+
+    expect(candidates[0]?.children).toBeUndefined();
+    expect(candidates[0]?.unresolvedChildren).toBeUndefined();
+    expect(requested).toEqual([`${REGISTRY}/solo`]);
+  });
+
+  async function enqueueAndClaim(
+    candidate: ReleaseCandidate,
+  ): Promise<ReleaseCandidate> {
+    const base = await mkdtemp(join(tmpdir(), "capdelta-hostile-deps-"));
+    try {
+      const queue = new JobQueue(new JsonStore({ root: join(base, "root") }));
+      await expect(queue.enqueue(candidate)).resolves.toBe(true);
+      const job = await queue.claim();
+      if (job === null) {
+        throw new Error("the queue did not return the enqueued job");
+      }
+      return job.candidate;
+    } finally {
+      await rm(base, { recursive: true, force: true });
+    }
+  }
+
+  it("records an empty dependency name under a placeholder the queue accepts", async () => {
+    const { fetchImpl } = routedFetch(
+      new Map([[PARENT_ROUTE, jsonResponse(parentPackument({ "": "*" }))]]),
+    );
+
+    const { candidates } = await candidatesForPackage("parent", { fetchImpl });
+
+    const latest = candidates.at(-1);
+    const unresolved = latest?.unresolvedChildren ?? [];
+    expect(unresolved).toHaveLength(1);
+    expect(unresolved[0]?.name).toBe("invalid-dependency-name");
+    expect(unresolved[0]?.reason).toContain("package name is empty");
+    if (latest === undefined) throw new Error("no candidate was collected");
+
+    const enqueued = await enqueueAndClaim(latest);
+    expect(enqueued.unresolvedChildren).toEqual(unresolved);
+  });
+
+  it("records an over-long dependency name under a placeholder the queue accepts", async () => {
+    const longName = "a".repeat(300);
+    const { fetchImpl } = routedFetch(
+      new Map([
+        [PARENT_ROUTE, jsonResponse(parentPackument({ [longName]: "*" }))],
+      ]),
+    );
+
+    const { candidates } = await candidatesForPackage("parent", { fetchImpl });
+
+    const latest = candidates.at(-1);
+    const unresolved = latest?.unresolvedChildren ?? [];
+    expect(unresolved).toHaveLength(1);
+    expect(unresolved[0]?.name).toBe("invalid-dependency-name");
+    expect(unresolved[0]?.reason).toContain("exceeds 214 characters");
+    expect(unresolved[0]?.reason).not.toContain(longName);
+    if (latest === undefined) throw new Error("no candidate was collected");
+
+    const enqueued = await enqueueAndClaim(latest);
+    expect(enqueued.unresolvedChildren).toEqual(unresolved);
   });
 });
 

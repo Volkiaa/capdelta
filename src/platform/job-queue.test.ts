@@ -61,6 +61,35 @@ describe("JobQueue.enqueue", () => {
 
     await expect(queue.list()).resolves.toHaveLength(2);
   });
+
+  it("keeps resolved and unresolved children on the queued candidate", async () => {
+    const release: ReleaseCandidate = {
+      ...candidate("parent", "2.0.0"),
+      previous: {
+        version: "1.0.0",
+        digest: "sha512-parent-1.0.0",
+        tarballUrl: "https://registry.npmjs.org/parent/-/parent-1.0.0.tgz",
+      },
+      children: [
+        {
+          name: "child",
+          artifact: {
+            version: "1.2.0",
+            digest: "sha512-child-1.2.0",
+            tarballUrl: "https://registry.npmjs.org/child/-/child-1.2.0.tgz",
+          },
+        },
+      ],
+      unresolvedChildren: [
+        { name: "ghost", reason: 'no published version matches "^1.0.0"' },
+      ],
+    };
+
+    await queue.enqueue(release);
+    const claimed = await queue.claim();
+
+    expect(claimed?.candidate).toEqual(release);
+  });
 });
 
 describe("JobQueue.claim", () => {

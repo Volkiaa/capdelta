@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
+import type { ReleaseArtifact } from "./release-candidate.js";
 
 /** Test-only fake registry. Production code must never import this file. */
 export const REGISTRY_ORIGIN = "https://registry.test";
@@ -12,11 +13,16 @@ export interface FakePublishOptions {
   scripts?: Readonly<Record<string, string>>;
   indexJs?: string;
   publishedAt?: string;
+  dependencies?: Readonly<Record<string, string>>;
 }
 
 export interface FakeRegistry {
   fetchImpl: typeof fetch;
-  publish(name: string, version: string, options?: FakePublishOptions): void;
+  publish(
+    name: string,
+    version: string,
+    options?: FakePublishOptions,
+  ): ReleaseArtifact;
   requestCount(url: string): number;
   tarballRequestCount(): number;
   failNextTarballRequests(count: number): void;
@@ -26,10 +32,12 @@ interface FakeVersion {
   publishedAt: string;
   integrity: string;
   fileName: string;
+  dependencies?: Readonly<Record<string, string>>;
 }
 
 interface FakePackage {
   name: string;
+  latest: string;
   versions: Map<string, FakeVersion>;
 }
 
@@ -80,6 +88,9 @@ export function createFakeRegistry(): FakeRegistry {
       versions[version] = {
         name,
         version,
+        ...(entry.dependencies === undefined
+          ? {}
+          : { dependencies: entry.dependencies }),
         dist: {
           integrity: entry.integrity,
           tarball: `${REGISTRY_ORIGIN}/tarballs/${entry.fileName}`,
@@ -87,7 +98,12 @@ export function createFakeRegistry(): FakeRegistry {
       };
       time[version] = entry.publishedAt;
     }
-    return json({ name, versions, time });
+    return json({
+      name,
+      versions,
+      time,
+      "dist-tags": { latest: pkg.latest },
+    });
   }
 
   function tarball(fileName: string): Response {
@@ -115,12 +131,25 @@ export function createFakeRegistry(): FakeRegistry {
         .digest("base64")}`;
       let pkg = packages.get(name);
       if (pkg === undefined) {
-        pkg = { name, versions: new Map() };
+        pkg = { name, latest: version, versions: new Map() };
         packages.set(name, pkg);
       }
-      pkg.versions.set(version, { publishedAt, integrity, fileName });
+      pkg.versions.set(version, {
+        publishedAt,
+        integrity,
+        fileName,
+        ...(options.dependencies === undefined
+          ? {}
+          : { dependencies: options.dependencies }),
+      });
+      pkg.latest = version;
       lastSeq += 1;
       changes.push({ seq: lastSeq, id: name });
+      return {
+        version,
+        digest: integrity,
+        tarballUrl: `${REGISTRY_ORIGIN}/tarballs/${fileName}`,
+      };
     },
     requestCount(url) {
       return requests.get(url) ?? 0;
@@ -198,6 +227,9 @@ function buildTarball(
     main: "index.js",
   };
   if (options.scripts !== undefined) manifest.scripts = options.scripts;
+  if (options.dependencies !== undefined) {
+    manifest.dependencies = options.dependencies;
+  }
   const entries = [
     {
       path: "package/package.json",
