@@ -19,6 +19,7 @@ Autonomy section lets you decide.
 - Explicit error handling. No silent failures, no bare try-catch. Every catch
   either recovers meaningfully or rethrows with context. "Degrade loudly" is a
   core product principle (PLAN §2) and applies to the code itself.
+- A ticket that adds user-facing behavior commits its drive script under `.claude/skills/verify-capdelta/bin/` in the same PR, so the proof outlives the session.
 - Tests accompany code. Every component lands with its unit tests. Golden
   fixtures per PLAN §7. If something is hard to test, that's a design smell.
   Raise it.
