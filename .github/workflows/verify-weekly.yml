@@ -1,0 +1,45 @@
+# Weekly proof that the built CLI still works against the live registry:
+# a risky bump fails the gate, and the intelligence lookup walks every verdict.
+# Failures here mean a regression or a registry change, not a code change.
+name: Weekly verification
+
+on:
+  schedule:
+    - cron: "43 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Live registry drives
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - name: Risky bump fails the gate
+        run: |
+          set -u
+          R="$(.claude/skills/verify-capdelta/bin/scenario bcrypt 5.1.1 6.0.0)"
+          cd "$R"
+          set +e
+          node "$GITHUB_WORKSPACE/dist/cli.js" --base HEAD --fail-on CRITICAL > out.txt 2> err.txt
+          code=$?
+          set -e
+          echo "exit $code"
+          test "$code" = 1
+          grep -q 'install hook changed' out.txt
+      - name: Intelligence lookup walks every verdict
+        run: .claude/skills/verify-capdelta/bin/intel-drive
