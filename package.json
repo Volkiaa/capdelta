@@ -35,7 +35,7 @@
     "typecheck": "tsc --noEmit",
     "test": "npm run build && vitest run",
     "prepack": "npm run build",
-    "check:deps": "node scripts/check-dep-budget.mjs",
+    "check:deps": "node scripts/check-dep-budget.mjs && node scripts/check-docs.mjs",
     "fp-check": "tsx scripts/fp-check.ts",
     "eval": "tsx scripts/eval-corpus.ts",
     "eval:build": "tsx scripts/eval-build-corpus.ts",
