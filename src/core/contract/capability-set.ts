@@ -105,6 +105,8 @@ export interface SignalFileObservation {
   byteLength: number;
   entropyMilliBitsPerByte: number | null;
   parseState: SignalParseState;
+  /** Line of a loop at module scope that has no exit condition. */
+  topLevelLoop?: { line: number };
 }
 
 export type SignalEndpointType = "domain" | "ipv4" | "ipv6";

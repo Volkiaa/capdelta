@@ -218,7 +218,10 @@ function validateSignals(
       (file.entropyMilliBitsPerByte !== null &&
         (!Number.isSafeInteger(file.entropyMilliBitsPerByte) ||
           file.entropyMilliBitsPerByte < 0 ||
-          file.entropyMilliBitsPerByte > 8_000))
+          file.entropyMilliBitsPerByte > 8_000)) ||
+      (file.topLevelLoop !== undefined &&
+        (!Number.isSafeInteger(file.topLevelLoop.line) ||
+          file.topLevelLoop.line <= 0))
     ) {
       throw contractError(side, "invalid signal file observation");
     }

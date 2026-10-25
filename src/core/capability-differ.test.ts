@@ -12,6 +12,7 @@ import type {
 } from "./contract/capability-set.js";
 import {
   CapabilityDifferContractError,
+  diffCapabilities,
   diffManifestCapabilities,
 } from "./capability-differ.js";
 
@@ -356,5 +357,30 @@ describe("diffManifestCapabilities", () => {
     expect(result.findings).toMatchObject([
       { capability: { kind: "PROCESS" }, severity: "CRITICAL" },
     ]);
+  });
+});
+
+describe("signal contract validation", () => {
+  it("rejects a module-scope loop line that is not a positive integer", () => {
+    const invalid: CapabilitySet = {
+      ...set("2.0.0", []),
+      signals: {
+        sourceFiles: [
+          {
+            file: "index.js",
+            byteLength: 10,
+            entropyMilliBitsPerByte: 0,
+            parseState: "parsed",
+            topLevelLoop: { line: 0 },
+          },
+        ],
+        endpoints: [],
+        obfuscationPatterns: [],
+      },
+    };
+
+    expect(() => diffCapabilities(null, invalid)).toThrow(
+      CapabilityDifferContractError,
+    );
   });
 });

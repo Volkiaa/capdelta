@@ -1817,3 +1817,68 @@ describe("extractNpmJavaScriptCapabilities worker start (ADR-025)", () => {
     );
   });
 });
+
+describe("module-scope unbounded loop signal", () => {
+  it.each([
+    ["a for with no test", "for (;;) {\n}", 1],
+    ["a while with a literal true test", "while (true) {\n}", 1],
+    ["a do-while with a truthy literal test", "do {\n} while (1);", 1],
+    [
+      "a loop after another statement",
+      "const value = 1;\nfor (;;) {\n  console.log(value);\n}\n",
+      2,
+    ],
+  ])("records %s and its line", async (_label, source, line) => {
+    await withPackage({ "index.js": source }, async (root) => {
+      const result = await extractNpmJavaScriptCapabilities(
+        { root },
+        manifestSet,
+      );
+      expect(result.signals?.sourceFiles[0]?.topLevelLoop).toEqual({ line });
+    });
+  });
+
+  it.each([
+    ["a loop inside a function", "function spin() {\n  for (;;) {\n  }\n}\n"],
+    [
+      "a loop inside an arrow function",
+      "const spin = () => {\n  while (true) {\n  }\n};\n",
+    ],
+    ["a bounded for loop", "for (let index = 0; index < 3; index += 1) {\n}\n"],
+    [
+      "a loop with a non-literal test",
+      "let running = true;\nwhile (running) {\n}\n",
+    ],
+    ["a loop with a break", "while (true) {\n  break;\n}\n"],
+    [
+      "a labelled break out of the loop",
+      "outer: for (;;) {\n  break outer;\n}\n",
+    ],
+  ])("does not record %s", async (_label, source) => {
+    await withPackage({ "index.js": source }, async (root) => {
+      const result = await extractNpmJavaScriptCapabilities(
+        { root },
+        manifestSet,
+      );
+      expect(result.signals?.sourceFiles[0]?.topLevelLoop).toBeUndefined();
+    });
+  });
+
+  it("keeps the loop when a switch break stays inside it", async () => {
+    await withPackage(
+      {
+        "index.js":
+          "for (;;) {\n  switch (1) {\n    case 1:\n      break;\n  }\n}\n",
+      },
+      async (root) => {
+        const result = await extractNpmJavaScriptCapabilities(
+          { root },
+          manifestSet,
+        );
+        expect(result.signals?.sourceFiles[0]?.topLevelLoop).toEqual({
+          line: 1,
+        });
+      },
+    );
+  });
+});
