@@ -36,6 +36,7 @@ Autonomy section lets you decide.
   list it at the end under "Noticed, not touched" instead of fixing it in the
   same PR. In an autonomous run, a noticed item may become its own ticket and PR.
 - Git: conventional commits, imperative mood. Do not add yourself as co-author.
+- Issue first. Open a GitHub issue for each piece of work before its PR: the problem, the tier and the acceptance checks. The PR body says `Closes #N`. Drafts and follow-ups too.
 - No timeline estimates.
 - Keep a comment that states a security reason for a gate, policy, extraction or fetch rule. Comment audits and `/correct` passes must not delete or shorten it.
 - When you verify a fact from the plan or from code, cite it (file:line or
