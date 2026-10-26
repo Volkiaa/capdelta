@@ -38,6 +38,8 @@ export interface CollectorOptions {
   maxPackumentBytes?: number;
   /** `_changes` page size, default 100. */
   limit?: number;
+  /** When set, feed ids outside this map are counted and not fetched. */
+  watchlist?: ReadonlyMap<string, number>;
 }
 
 export interface CollectorSkipped {
@@ -54,6 +56,8 @@ export interface CandidatesResult {
 export interface CollectResult extends CandidatesResult {
   /** The cursor to persist after the candidates are queued. */
   nextSince: string;
+  /** Feed ids the watchlist skipped before any packument fetch. */
+  unlisted: number;
 }
 
 const DEFAULT_REGISTRY_URL = "https://registry.npmjs.org";
@@ -110,7 +114,14 @@ export async function collectReleases(
 
   const candidates: ReleaseCandidate[] = [];
   const skipped: CollectorSkipped[] = [];
+  let unlisted = 0;
   for (const name of feed.ids) {
+    // Checking the watchlist first is the point: an unlisted id pays no
+    // packument request, which is most of the monitor's cost.
+    if (options.watchlist !== undefined && !options.watchlist.has(name)) {
+      unlisted += 1;
+      continue;
+    }
     const result = await candidatesForPackage(name, options);
     // Loops, not spread: a packument with 100k versions would overflow the call stack.
     for (const candidate of result.candidates) candidates.push(candidate);
@@ -120,6 +131,7 @@ export async function collectReleases(
     candidates,
     nextSince: String(feed.lastSeq),
     skipped,
+    unlisted,
   };
 }
 
@@ -721,7 +733,7 @@ function encodePackageName(name: string): string {
     .join("%2f");
 }
 
-function nameProblem(name: string): string | null {
+export function nameProblem(name: string): string | null {
   if (name.length === 0) return "package name is empty";
   if (Array.from(name).length > MAX_PACKAGE_NAME_CHARS) {
     return `package name exceeds ${String(MAX_PACKAGE_NAME_CHARS)} characters`;

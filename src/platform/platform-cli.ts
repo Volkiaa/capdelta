@@ -14,6 +14,7 @@ import {
 } from "./intel/reviewers.js";
 import type { CollectorOptions } from "./registry-collector.js";
 import { analyzeOne, monitorOnce, openService } from "./service.js";
+import { readWatchlist, WatchlistError } from "./watchlist.js";
 import { MAX_CONCURRENCY } from "./worker.js";
 
 export interface PlatformCliIo {
@@ -28,7 +29,7 @@ const USAGE = [
   "usage: capdelta-platform <command> [options]",
   "",
   "Commands:",
-  "  monitor --data <dir> [--interval <seconds>] [--concurrency <n>] [--registry <url>] [--changes <url>]",
+  "  monitor --data <dir> [--interval <seconds>] [--concurrency <n>] [--registry <url>] [--changes <url>] [--watchlist <file>]",
   "      Run one monitor cycle, or repeat every interval until stopped.",
   "  analyze --data <dir> --package <name> --version <version> [--concurrency <n>] [--registry <url>]",
   "      Analyze one release now, without the change feed.",
@@ -74,6 +75,7 @@ async function runMonitor(args: string[], io: PlatformCliIo): Promise<number> {
     concurrency: { type: "string" },
     registry: { type: "string" },
     changes: { type: "string" },
+    watchlist: { type: "string" },
   });
   if (!parsed.ok) return usageError(io, parsed.message);
   const data = requireData(parsed.values, "monitor");
@@ -84,9 +86,24 @@ async function runMonitor(args: string[], io: PlatformCliIo): Promise<number> {
   }
   const concurrency = parseConcurrency(parsed.values.concurrency);
   if (concurrency === null) return usageError(io, CONCURRENCY_USAGE);
+  let watchlist: ReadonlyMap<string, number> | undefined;
+  if (parsed.values.watchlist !== undefined) {
+    try {
+      watchlist = await readWatchlist(parsed.values.watchlist);
+    } catch (error: unknown) {
+      // A watchlist that cannot be read stops the monitor; it never falls
+      // back to watching every feed id (ADR-047).
+      if (error instanceof WatchlistError) {
+        return usageError(io, error.message);
+      }
+      throw error;
+    }
+  }
+  const collector = collectorOptions(parsed.values);
+  if (watchlist !== undefined) collector.watchlist = watchlist;
   const config = {
     dataDir: data.data,
-    collector: collectorOptions(parsed.values),
+    collector,
     ...(concurrency === undefined ? {} : { concurrency }),
     onEvent: (message: string) => {
       io.stderr(`${message}\n`);
@@ -96,7 +113,7 @@ async function runMonitor(args: string[], io: PlatformCliIo): Promise<number> {
   const cycle = async (): Promise<void> => {
     const result = await monitorOnce(config);
     io.stdout(
-      `monitor: enqueued ${String(result.enqueued)}, skipped ${String(result.skipped)}, analyzed ${String(result.done)}, failed ${String(result.failed)}, cursor ${result.cursor}\n`,
+      `monitor: enqueued ${String(result.enqueued)}, skipped ${String(result.skipped)}, unlisted ${String(result.unlisted ?? 0)}, analyzed ${String(result.done)}, failed ${String(result.failed)}, cursor ${result.cursor}\n`,
     );
   };
 

@@ -70,6 +70,8 @@ export async function monitorOnce(config: ServiceConfig): Promise<{
   done: number;
   failed: number;
   cursor: string;
+  /** Present only when the collector has a watchlist. */
+  unlisted?: number;
 }> {
   const handles = openService(config);
   await handles.queue.recover();
@@ -86,6 +88,7 @@ export async function monitorOnce(config: ServiceConfig): Promise<{
       done: drained.done,
       failed: drained.failed,
       cursor,
+      ...unlistedField(config, 0),
     };
   }
   const since = stored;
@@ -115,6 +118,7 @@ export async function monitorOnce(config: ServiceConfig): Promise<{
     done: drained.done,
     failed: drained.failed,
     cursor,
+    ...unlistedField(config, collected.unlisted),
   };
 }
 
@@ -253,6 +257,17 @@ function emit(config: ServiceConfig, message: string): void {
 
 function identity(name: string, version: string): string {
   return `${truncate(name, MAX_IDENTITY_CHARS)}@${truncate(version, MAX_IDENTITY_CHARS)}`;
+}
+
+/**
+ * A monitor without a watchlist keeps its previous result shape; the CLI
+ * prints zero when the field is absent.
+ */
+function unlistedField(
+  config: ServiceConfig,
+  unlisted: number,
+): { unlisted?: number } {
+  return config.collector.watchlist === undefined ? {} : { unlisted };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
