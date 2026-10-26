@@ -33,7 +33,14 @@ npm ci
 npm run build
 ```
 
-Before opening a pull request, run the same checks as CI:
+Before opening a pull request, run `npm run verify`, the one command that runs
+the same checks as CI, in the same order:
+
+```bash
+npm run verify
+```
+
+The individual checks it chains are:
 
 ```bash
 npm run lint
