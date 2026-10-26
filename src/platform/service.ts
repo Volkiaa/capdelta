@@ -70,6 +70,8 @@ export async function monitorOnce(config: ServiceConfig): Promise<{
   done: number;
   failed: number;
   cursor: string;
+  /** True when the feed page was full, so the next cycle should start now. */
+  behind: boolean;
   /** Present only when the collector has a watchlist. */
   unlisted?: number;
 }> {
@@ -88,6 +90,7 @@ export async function monitorOnce(config: ServiceConfig): Promise<{
       done: drained.done,
       failed: drained.failed,
       cursor,
+      behind: false,
       ...unlistedField(config, 0),
     };
   }
@@ -118,6 +121,7 @@ export async function monitorOnce(config: ServiceConfig): Promise<{
     done: drained.done,
     failed: drained.failed,
     cursor,
+    behind: collected.behind,
     ...unlistedField(config, collected.unlisted),
   };
 }

@@ -21,6 +21,8 @@ export interface PlatformCliIo {
   stdout(s: string): void;
   stderr(s: string): void;
   signal?: AbortSignal;
+  /** Injected only so tests can drive the interval loop without waiting. */
+  delay?: (ms: number, signal: AbortSignal | undefined) => Promise<void>;
 }
 
 type CommandOptions = NonNullable<ParseArgsConfig["options"]>;
@@ -29,7 +31,7 @@ const USAGE = [
   "usage: capdelta-platform <command> [options]",
   "",
   "Commands:",
-  "  monitor --data <dir> [--interval <seconds>] [--concurrency <n>] [--registry <url>] [--changes <url>] [--watchlist <file>]",
+  "  monitor --data <dir> [--interval <seconds>] [--concurrency <n>] [--page-size <n>] [--registry <url>] [--changes <url>] [--watchlist <file>]",
   "      Run one monitor cycle, or repeat every interval until stopped.",
   "  analyze --data <dir> --package <name> --version <version> [--concurrency <n>] [--registry <url>]",
   "      Analyze one release now, without the change feed.",
@@ -47,6 +49,8 @@ const USAGE = [
 const DEFAULT_PORT = 8787;
 const DEFAULT_HOST = "127.0.0.1";
 const CONCURRENCY_USAGE = `--concurrency must be an integer between 1 and ${String(MAX_CONCURRENCY)}`;
+const MAX_PAGE_SIZE = 1000;
+const PAGE_SIZE_USAGE = `--page-size must be an integer between 1 and ${String(MAX_PAGE_SIZE)}`;
 
 export async function runPlatformCli(
   argv: string[],
@@ -73,6 +77,7 @@ async function runMonitor(args: string[], io: PlatformCliIo): Promise<number> {
     data: { type: "string" },
     interval: { type: "string" },
     concurrency: { type: "string" },
+    "page-size": { type: "string" },
     registry: { type: "string" },
     changes: { type: "string" },
     watchlist: { type: "string" },
@@ -86,6 +91,8 @@ async function runMonitor(args: string[], io: PlatformCliIo): Promise<number> {
   }
   const concurrency = parseConcurrency(parsed.values.concurrency);
   if (concurrency === null) return usageError(io, CONCURRENCY_USAGE);
+  const pageSize = parsePageSize(parsed.values["page-size"]);
+  if (pageSize === null) return usageError(io, PAGE_SIZE_USAGE);
   let watchlist: ReadonlyMap<string, number> | undefined;
   if (parsed.values.watchlist !== undefined) {
     try {
@@ -99,8 +106,7 @@ async function runMonitor(args: string[], io: PlatformCliIo): Promise<number> {
       throw error;
     }
   }
-  const collector = collectorOptions(parsed.values);
-  if (watchlist !== undefined) collector.watchlist = watchlist;
+  const collector = monitorCollector(parsed.values, pageSize, watchlist);
   const config = {
     dataDir: data.data,
     collector,
@@ -110,11 +116,12 @@ async function runMonitor(args: string[], io: PlatformCliIo): Promise<number> {
     },
   };
 
-  const cycle = async (): Promise<void> => {
+  const cycle = async (): Promise<boolean> => {
     const result = await monitorOnce(config);
     io.stdout(
-      `monitor: enqueued ${String(result.enqueued)}, skipped ${String(result.skipped)}, unlisted ${String(result.unlisted ?? 0)}, analyzed ${String(result.done)}, failed ${String(result.failed)}, cursor ${result.cursor}\n`,
+      `monitor: enqueued ${String(result.enqueued)}, skipped ${String(result.skipped)}, unlisted ${String(result.unlisted ?? 0)}, analyzed ${String(result.done)}, failed ${String(result.failed)}, cursor ${result.cursor}${result.behind ? ", behind" : ""}\n`,
     );
+    return result.behind;
   };
 
   if (seconds === undefined) {
@@ -128,13 +135,16 @@ async function runMonitor(args: string[], io: PlatformCliIo): Promise<number> {
 
   for (;;) {
     if (io.signal?.aborted === true) return 0;
+    let behind: boolean;
     try {
-      await cycle();
+      behind = await cycle();
     } catch (error) {
       return failure(io, error);
     }
+    // A full page means the feed may hold more, so read the next page now.
+    if (behind) continue;
     try {
-      await delay(seconds * 1000, undefined, signalOption(io.signal));
+      await waitInterval(io, seconds * 1000);
     } catch (error) {
       if (isAbort(error)) return 0;
       return failure(io, error);
@@ -318,6 +328,13 @@ function parseConcurrency(
     : null;
 }
 
+function parsePageSize(value: string | undefined): number | undefined | null {
+  if (value === undefined) return undefined;
+  if (!/^\d+$/u.test(value)) return null;
+  const pageSize = Number(value);
+  return pageSize >= 1 && pageSize <= MAX_PAGE_SIZE ? pageSize : null;
+}
+
 function parsePort(value: string | undefined): number | null {
   if (value === undefined) return DEFAULT_PORT;
   if (!/^\d+$/u.test(value)) return null;
@@ -334,10 +351,26 @@ function collectorOptions(
   return options;
 }
 
+function monitorCollector(
+  values: Record<string, string | undefined>,
+  pageSize: number | undefined,
+  watchlist: ReadonlyMap<string, number> | undefined,
+): CollectorOptions {
+  const collector = collectorOptions(values);
+  if (pageSize !== undefined) collector.limit = pageSize;
+  if (watchlist !== undefined) collector.watchlist = watchlist;
+  return collector;
+}
+
 function signalOption(
   signal: AbortSignal | undefined,
 ): { signal: AbortSignal } | Record<string, never> {
   return signal === undefined ? {} : { signal };
+}
+
+function waitInterval(io: PlatformCliIo, ms: number): Promise<void> {
+  if (io.delay !== undefined) return io.delay(ms, io.signal);
+  return delay(ms, undefined, signalOption(io.signal));
 }
 
 function isAbort(error: unknown): boolean {

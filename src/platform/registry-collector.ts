@@ -58,6 +58,8 @@ export interface CollectResult extends CandidatesResult {
   nextSince: string;
   /** Feed ids the watchlist skipped before any packument fetch. */
   unlisted: number;
+  /** True when the feed returned a full page, so more events may follow. */
+  behind: boolean;
 }
 
 const DEFAULT_REGISTRY_URL = "https://registry.npmjs.org";
@@ -132,6 +134,7 @@ export async function collectReleases(
     nextSince: String(feed.lastSeq),
     skipped,
     unlisted,
+    behind: feed.pageSize >= resolved.limit,
   };
 }
 
@@ -525,6 +528,8 @@ function artifact(entry: VersionEntry): ReleaseArtifact {
 interface ChangeFeed {
   ids: string[];
   lastSeq: number | string;
+  /** Rows the feed returned, before design-doc filtering and deduplication. */
+  pageSize: number;
 }
 
 function changeFeed(feed: unknown): ChangeFeed {
@@ -543,7 +548,7 @@ function changeFeed(feed: unknown): ChangeFeed {
     if (item.id.startsWith("_design/")) continue;
     ids.add(item.id);
   }
-  return { ids: [...ids], lastSeq };
+  return { ids: [...ids], lastSeq, pageSize: feed.results.length };
 }
 
 /**

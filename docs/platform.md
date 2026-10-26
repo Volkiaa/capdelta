@@ -15,7 +15,7 @@ npm ci --ignore-scripts
 npm run build
 ```
 
-`monitor` reads the npm change feed, analyzes the new releases it finds, and stores the results. The first cycle stores the current feed position and analyzes nothing. Without `--interval` it runs one cycle and exits. With `--interval` it repeats until you stop it or a cycle fails:
+`monitor` reads the npm change feed, analyzes the new releases it finds, and stores the results. The first cycle stores the current feed position and analyzes nothing. Without `--interval` it runs one cycle and exits. With `--interval` it repeats until you stop it or a cycle fails. When a page is full, more events may follow, so the next cycle starts immediately instead of waiting for the interval:
 
 ```sh
 capdelta-platform monitor --data /var/lib/capdelta
@@ -27,6 +27,7 @@ Options for `monitor`:
 - `--registry <url>` sets the registry base URL. The default is `https://registry.npmjs.org`.
 - `--changes <url>` sets the change feed URL. The default is `https://replicate.npmjs.com/_changes`.
 - `--interval <seconds>` repeats the cycle every N seconds.
+- `--page-size <n>` reads n change feed ids per cycle, from 1 to 1000, and defaults to 100.
 - `--concurrency <n>` keeps up to N release analyses in flight. The default is 1 and the maximum is 16. Analysis already uses parser worker threads, so 2 to 3 is the useful range on 2 cores; measure before raising it.
 - `--watchlist <file>` analyzes only the packages named in the file. Without it, `monitor` watches every feed id.
 

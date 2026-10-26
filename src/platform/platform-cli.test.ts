@@ -333,6 +333,228 @@ describe("runPlatformCli", () => {
     expect(requested).toEqual([`${CHANGES}?since=100&limit=100`]);
   });
 
+  it("rejects an invalid --page-size before starting a cycle", async () => {
+    let requests = 0;
+    vi.stubGlobal("fetch", () => {
+      requests += 1;
+      throw new Error("the monitor must not start");
+    });
+
+    for (const value of ["0", "1001", "1.5", "abc"]) {
+      const { io, stdout, stderr } = capture();
+      const code = await runPlatformCli(
+        ["monitor", "--data", dataDir, "--page-size", value],
+        io,
+      );
+
+      expect(code).toBe(2);
+      expect(stdout).toEqual([]);
+      expect(stderr.join("")).toContain(
+        "--page-size must be an integer between 1 and 1000",
+      );
+    }
+
+    expect(requests).toBe(0);
+    await expect(stat(dataDir)).rejects.toThrow();
+  });
+
+  it("passes --page-size to the change feed", async () => {
+    const store = new JsonStore({ root: dataDir });
+    await store.put("cursor", "npm-changes", { since: "100" });
+    const watchlist = join(base, "watchlist.txt");
+    await writeFile(watchlist, "alpha\n", "utf8");
+    const requested: string[] = [];
+    const fetchImpl: typeof fetch = (input) => {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.href
+            : input.url;
+      requested.push(url);
+      if (url === `${CHANGES}?since=100&limit=7`) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              results: [{ seq: 101, id: "beta" }],
+              last_seq: 101,
+            }),
+          ),
+        );
+      }
+      throw new Error(`unexpected request: ${url}`);
+    };
+    vi.stubGlobal("fetch", fetchImpl);
+    const { io, stdout, stderr } = capture();
+
+    const code = await runPlatformCli(
+      [
+        "monitor",
+        "--data",
+        dataDir,
+        "--page-size",
+        "7",
+        "--watchlist",
+        watchlist,
+      ],
+      io,
+    );
+
+    expect(code).toBe(0);
+    expect(stderr).toEqual([]);
+    expect(stdout).toEqual([
+      "monitor: enqueued 0, skipped 0, unlisted 1, analyzed 0, failed 0, cursor 101\n",
+    ]);
+    expect(requested).toEqual([`${CHANGES}?since=100&limit=7`]);
+  });
+
+  it("starts the next cycle without waiting when the page is full", async () => {
+    const store = new JsonStore({ root: dataDir });
+    await store.put("cursor", "npm-changes", { since: "100" });
+    const watchlist = join(base, "watchlist.txt");
+    await writeFile(watchlist, "alpha\n", "utf8");
+    const controller = new AbortController();
+    const pages: string[] = [];
+    const fetchImpl: typeof fetch = (input) => {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.href
+            : input.url;
+      pages.push(url);
+      if (url === `${CHANGES}?since=100&limit=2`) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              results: [
+                { seq: 101, id: "beta" },
+                { seq: 102, id: "gamma" },
+              ],
+              last_seq: 102,
+            }),
+          ),
+        );
+      }
+      if (url === `${CHANGES}?since=102&limit=2`) {
+        controller.abort();
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              results: [
+                { seq: 103, id: "delta" },
+                { seq: 104, id: "epsilon" },
+              ],
+              last_seq: 104,
+            }),
+          ),
+        );
+      }
+      throw new Error(`unexpected request: ${url}`);
+    };
+    vi.stubGlobal("fetch", fetchImpl);
+    const { io, stdout } = capture(controller.signal);
+    let waits = 0;
+    io.delay = () => {
+      waits += 1;
+      throw new Error("the monitor must not wait after a full page");
+    };
+
+    const code = await runPlatformCli(
+      [
+        "monitor",
+        "--data",
+        dataDir,
+        "--interval",
+        "60",
+        "--page-size",
+        "2",
+        "--watchlist",
+        watchlist,
+      ],
+      io,
+    );
+
+    expect(code).toBe(0);
+    expect(waits).toBe(0);
+    expect(pages).toHaveLength(2);
+    expect(stdout).toHaveLength(2);
+    for (const line of stdout) expect(line).toMatch(/, behind\n$/u);
+  });
+
+  it("waits for the interval after a short page", async () => {
+    const store = new JsonStore({ root: dataDir });
+    await store.put("cursor", "npm-changes", { since: "100" });
+    const watchlist = join(base, "watchlist.txt");
+    await writeFile(watchlist, "alpha\n", "utf8");
+    const controller = new AbortController();
+    const pages: string[] = [];
+    const fetchImpl: typeof fetch = (input) => {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.href
+            : input.url;
+      pages.push(url);
+      if (url === `${CHANGES}?since=100&limit=2`) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              results: [
+                { seq: 101, id: "beta" },
+                { seq: 102, id: "gamma" },
+              ],
+              last_seq: 102,
+            }),
+          ),
+        );
+      }
+      if (url === `${CHANGES}?since=102&limit=2`) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              results: [{ seq: 103, id: "delta" }],
+              last_seq: 103,
+            }),
+          ),
+        );
+      }
+      throw new Error(`unexpected request: ${url}`);
+    };
+    vi.stubGlobal("fetch", fetchImpl);
+    const { io, stdout } = capture(controller.signal);
+    const waits: number[] = [];
+    io.delay = (ms) => {
+      waits.push(ms);
+      controller.abort();
+      return Promise.resolve();
+    };
+
+    const code = await runPlatformCli(
+      [
+        "monitor",
+        "--data",
+        dataDir,
+        "--interval",
+        "60",
+        "--page-size",
+        "2",
+        "--watchlist",
+        watchlist,
+      ],
+      io,
+    );
+
+    expect(code).toBe(0);
+    expect(waits).toEqual([60_000]);
+    expect(pages).toHaveLength(2);
+    expect(stdout).toEqual([
+      "monitor: enqueued 0, skipped 0, unlisted 2, analyzed 0, failed 0, cursor 102, behind\n",
+      "monitor: enqueued 0, skipped 0, unlisted 1, analyzed 0, failed 0, cursor 103\n",
+    ]);
+  });
+
   it("rejects a missing watchlist before starting a cycle", async () => {
     let requests = 0;
     vi.stubGlobal("fetch", () => {
