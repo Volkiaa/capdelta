@@ -27,6 +27,7 @@ Options for `monitor`:
 - `--registry <url>` sets the registry base URL. The default is `https://registry.npmjs.org`.
 - `--changes <url>` sets the change feed URL. The default is `https://replicate.npmjs.com/_changes`.
 - `--interval <seconds>` repeats the cycle every N seconds.
+- `--concurrency <n>` keeps up to N release analyses in flight. The default is 1 and the maximum is 16. Analysis already uses parser worker threads, so 2 to 3 is the useful range on 2 cores; measure before raising it.
 
 `analyze` analyzes one named version now, without waiting for the feed. Use it for a version the feed has already passed:
 
@@ -34,7 +35,7 @@ Options for `monitor`:
 capdelta-platform analyze --data /var/lib/capdelta --package left-pad --version 1.3.0
 ```
 
-`analyze` also accepts `--registry <url>`.
+`analyze` also accepts `--registry <url>` and `--concurrency <n>`.
 
 `serve` starts the HTTP API. It does not collect or analyze; run `monitor` or `analyze` in another process:
 

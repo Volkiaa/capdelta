@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createReviewers, hashToken } from "./intel/reviewers.js";
 import { runPlatformCli, type PlatformCliIo } from "./platform-cli.js";
+import { createFakeRegistry, REGISTRY_ORIGIN } from "./test-registry.js";
 
 const REGISTRY = "https://registry.npmjs.org";
 
@@ -227,5 +228,64 @@ describe("runPlatformCli", () => {
       expect(code).toBe(2);
       expect(stdout).toEqual([]);
     }
+  });
+
+  it("rejects an invalid --concurrency on monitor and analyze", async () => {
+    for (const command of ["monitor", "analyze"]) {
+      for (const value of ["0", "17", "1.5", "NaN"]) {
+        const { io, stdout, stderr } = capture();
+        const args =
+          command === "monitor"
+            ? [command, "--data", dataDir, "--concurrency", value]
+            : [
+                command,
+                "--data",
+                dataDir,
+                "--package",
+                "alpha",
+                "--version",
+                "1.0.0",
+                "--concurrency",
+                value,
+              ];
+
+        const code = await runPlatformCli(args, io);
+
+        expect(code).toBe(2);
+        expect(stdout).toEqual([]);
+        expect(stderr.join("")).toContain(
+          "--concurrency must be an integer between 1 and 16",
+        );
+      }
+    }
+  });
+
+  it("analyzes with --concurrency 2 through the test registry", async () => {
+    const registry = createFakeRegistry();
+    registry.publish("alpha", "1.0.0");
+    vi.stubGlobal("fetch", registry.fetchImpl);
+    const { io, stdout, stderr } = capture();
+
+    const code = await runPlatformCli(
+      [
+        "analyze",
+        "--data",
+        dataDir,
+        "--package",
+        "alpha",
+        "--version",
+        "1.0.0",
+        "--concurrency",
+        "2",
+        "--registry",
+        REGISTRY_ORIGIN,
+      ],
+      io,
+    );
+
+    expect(code).toBe(0);
+    expect(stderr).toEqual([]);
+    expect(stdout.join("")).toBe("analyze: analyzed 1, failed 0\n");
+    expect(registry.tarballRequestCount()).toBe(1);
   });
 });
