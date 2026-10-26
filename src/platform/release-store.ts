@@ -25,6 +25,7 @@ export class ReleaseStoreError extends NamedError {}
 const RELEASE_KIND = "release";
 const VERSION_INDEX_KIND = "release-by-version";
 const DIGEST_INDEX_KIND = "release-by-digest";
+const MAX_RECENT_RECORDS = 1000;
 
 export function releaseKey(
   c: Pick<ReleaseCandidate, "name" | "version" | "digest" | "previous">,
@@ -84,6 +85,29 @@ export class ReleaseStore {
     return this.store.list(RELEASE_KIND);
   }
 
+  /**
+   * The most recently analyzed releases among at most the 1000 newest record
+   * files by modification time. Memory is bounded by the cap and each request
+   * lstats every record file once;
+   * `analyzedAt` decides the order the caller sees.
+   */
+  async listRecent(limit: number): Promise<ReleaseRecord[]> {
+    const files = await this.store.listWithTimes(
+      RELEASE_KIND,
+      MAX_RECENT_RECORDS,
+    );
+    const records: ReleaseRecord[] = [];
+    for (const file of files) {
+      const record = await this.get(file.key);
+      if (record !== null) records.push(record);
+    }
+    // Sort is stable, so records with the same analyzedAt keep mtime order.
+    records.sort(
+      (left, right) => timestamp(right.analyzedAt) - timestamp(left.analyzedAt),
+    );
+    return records.slice(0, limit);
+  }
+
   private async find(kind: string, key: string): Promise<ReleaseRecord[]> {
     const keys = await this.readIndex(kind, key);
     const records: ReleaseRecord[] = [];
@@ -125,6 +149,12 @@ export class ReleaseStore {
     this.indexQueue = run.catch(() => undefined);
     return run;
   }
+}
+
+/** ISO timestamps sort by text when they are well formed; parse to be sure. */
+function timestamp(value: string): number {
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? 0 : parsed;
 }
 
 function toCandidate(

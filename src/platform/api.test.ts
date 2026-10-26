@@ -1,4 +1,5 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { mkdir, mkdtemp, rm, utimes, writeFile } from "node:fs/promises";
 import type { Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -26,6 +27,11 @@ import {
   ReleaseStoreError,
   type ReleaseRecord,
 } from "./release-store.js";
+import {
+  STATUS_PAGE_HTML,
+  STATUS_PAGE_SCRIPT,
+  STATUS_PAGE_STYLE,
+} from "./ui-page.js";
 
 const FINDING_TIME = new Date("2026-10-01T00:00:00.000Z");
 
@@ -265,6 +271,10 @@ async function errorBody(response: Response): Promise<string> {
   return body.error;
 }
 
+function sha256(source: string): string {
+  return createHash("sha256").update(source, "utf8").digest("base64");
+}
+
 interface FeedBody {
   entries: { sequence: number; finding: IntelFinding }[];
   lastSequence: number;
@@ -283,6 +293,31 @@ interface JobsResponse {
     attempts: number;
     lastError: string | null;
   }[];
+}
+
+interface RecentReleaseRow {
+  name: string;
+  version: string;
+  previousVersion: string | null;
+  digest: string;
+  analyzedAt: string;
+  status: "complete" | "incomplete";
+  incompleteReasons: number;
+  bySeverity: {
+    CRITICAL: number;
+    HIGH: number;
+    MEDIUM: number;
+    LOW: number;
+    INFO: number;
+  };
+}
+
+interface RecentReleasesBody {
+  releases: RecentReleaseRow[];
+}
+
+interface RecentFindingsBody {
+  findings: IntelFinding[];
 }
 
 async function jobsBody(response: Response): Promise<JobsResponse> {
@@ -390,6 +425,336 @@ describe("GET /v1/artifacts/<digest>", () => {
 
     expect(response.status).toBe(404);
     await expect(response.json()).resolves.toEqual({ error: "not found" });
+  });
+});
+
+describe("GET /v1/recent/releases", () => {
+  it("returns compact rows ordered by analyzedAt", async () => {
+    await start();
+    const newer: ReleaseRecord = {
+      ...makeRecord("beta", "2.0.0", "sha512-beta"),
+      previousVersion: "1.0.0",
+      previousDigest: "sha512-old",
+      analyzedAt: "2026-02-01T00:00:00.000Z",
+      status: "incomplete",
+      incompleteReasons: ["dependency analysis failed", "child skipped"],
+    };
+    const older: ReleaseRecord = {
+      ...makeRecord("alpha", "1.0.0", "sha512-alpha"),
+      analyzedAt: "2026-01-01T00:00:00.000Z",
+    };
+    // The older analysis is written last, so mtime alone would pick it first.
+    await seedRelease(newer);
+    await seedRelease(older);
+
+    const response = await get("/v1/recent/releases");
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      releases: [
+        {
+          name: "beta",
+          version: "2.0.0",
+          previousVersion: "1.0.0",
+          digest: "sha512-beta",
+          analyzedAt: "2026-02-01T00:00:00.000Z",
+          status: "incomplete",
+          incompleteReasons: 2,
+          bySeverity: {
+            CRITICAL: 0,
+            HIGH: 0,
+            MEDIUM: 0,
+            LOW: 0,
+            INFO: 0,
+          },
+        },
+        {
+          name: "alpha",
+          version: "1.0.0",
+          previousVersion: null,
+          digest: "sha512-alpha",
+          analyzedAt: "2026-01-01T00:00:00.000Z",
+          status: "complete",
+          incompleteReasons: 0,
+          bySeverity: {
+            CRITICAL: 0,
+            HIGH: 0,
+            MEDIUM: 0,
+            LOW: 0,
+            INFO: 0,
+          },
+        },
+      ],
+    });
+  });
+
+  it("honors limit and returns an empty list when there are no releases", async () => {
+    await start();
+    await seedRelease({
+      ...makeRecord("alpha", "1.0.0", "sha512-a"),
+      analyzedAt: "2026-01-01T00:00:00.000Z",
+    });
+    await seedRelease({
+      ...makeRecord("beta", "2.0.0", "sha512-b"),
+      analyzedAt: "2026-02-01T00:00:00.000Z",
+    });
+
+    const limited = (await (
+      await get("/v1/recent/releases?limit=1")
+    ).json()) as RecentReleasesBody;
+    expect(limited.releases.map((row) => row.name)).toEqual(["beta"]);
+    expect((await get("/v1/recent/releases?limit=200")).status).toBe(200);
+
+    await rm(join(base, "root", "release"), { recursive: true, force: true });
+    const empty = (await (
+      await get("/v1/recent/releases")
+    ).json()) as RecentReleasesBody;
+    expect(empty).toEqual({ releases: [] });
+  });
+
+  it("rejects a limit that is not an integer from 1 to 200", async () => {
+    await start();
+
+    for (const limit of [
+      "0",
+      "201",
+      "-1",
+      "1.5",
+      "abc",
+      "1e2",
+      "99999999999999999999",
+    ]) {
+      const response = await get(`/v1/recent/releases?limit=${limit}`);
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toEqual({ error: "bad request" });
+    }
+  });
+
+  it("returns not found for an unknown recent resource", async () => {
+    await start();
+
+    expect((await get("/v1/recent")).status).toBe(404);
+    expect((await get("/v1/recent/unknown")).status).toBe(404);
+    expect((await get("/v1/recent/releases/extra")).status).toBe(404);
+  });
+});
+
+describe("GET /v1/recent/findings", () => {
+  it("returns the stored findings with evidence and history, newest updated first", async () => {
+    await start();
+    const older = await seedFinding();
+    const newer = await seedFinding({ name: "beta", digest: "sha512-beta" });
+    const transitioned = await findings.transition(
+      newer.id,
+      { to: "under-review", actor: "alice", reason: "triage" },
+      new Date("2026-10-02T00:00:00.000Z"),
+    );
+
+    const response = await get("/v1/recent/findings");
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as RecentFindingsBody;
+    expect(body.findings.map((finding) => finding.id)).toEqual([
+      newer.id,
+      older.id,
+    ]);
+    expect(body.findings[0]).toEqual(transitioned);
+    expect(body.findings[1]).toEqual(older);
+    expect(body.findings[0]?.evidence).toEqual(newer.evidence);
+    expect(body.findings[0]?.history).toHaveLength(1);
+  });
+
+  it("filters by verdict and honors limit", async () => {
+    await start();
+    const suspected = await seedFinding();
+    const reviewed = await seedFinding({
+      name: "beta",
+      digest: "sha512-beta",
+    });
+    await findings.transition(
+      reviewed.id,
+      { to: "under-review", actor: "alice", reason: "triage" },
+      new Date("2026-10-02T00:00:00.000Z"),
+    );
+
+    const underReview = (await (
+      await get("/v1/recent/findings?verdict=under-review")
+    ).json()) as RecentFindingsBody;
+    expect(underReview.findings.map((finding) => finding.id)).toEqual([
+      reviewed.id,
+    ]);
+
+    const onlySuspected = (await (
+      await get("/v1/recent/findings?verdict=suspected&limit=1")
+    ).json()) as RecentFindingsBody;
+    expect(onlySuspected.findings.map((finding) => finding.id)).toEqual([
+      suspected.id,
+    ]);
+
+    const every = (await (
+      await get("/v1/recent/findings?limit=200")
+    ).json()) as RecentFindingsBody;
+    expect(every.findings).toHaveLength(2);
+  });
+
+  it("rejects an unknown verdict or an out-of-range limit", async () => {
+    await start();
+
+    for (const query of [
+      "verdict=exploded",
+      "verdict=",
+      "limit=0",
+      "limit=201",
+      "limit=abc",
+    ]) {
+      const response = await get(`/v1/recent/findings?${query}`);
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toEqual({ error: "bad request" });
+    }
+  });
+
+  it("reads only the 1000 newest record files by modification time", async () => {
+    await start();
+    const directory = join(base, "root", "finding");
+    await mkdir(directory, { recursive: true });
+    for (let index = 0; index < 1001; index += 1) {
+      const id = `CDI-${String(index).padStart(20, "0")}`;
+      const record: IntelFinding = {
+        ...baseFinding(),
+        id,
+        name: `pkg-${String(index)}`,
+        updatedAt:
+          index === 0 ? "2030-01-01T00:00:00.000Z" : "2026-01-01T00:00:00.000Z",
+        verdict: index === 0 ? "benign" : "suspected",
+      };
+      const path = join(directory, `${id}.json`);
+      await writeFile(path, `${JSON.stringify(record)}\n`);
+      const time = new Date(
+        index === 0 ? "1999-01-01T00:00:00.000Z" : "2026-01-01T00:00:00.000Z",
+      );
+      await utimes(path, time, time);
+    }
+
+    const excluded = await get("/v1/recent/findings?verdict=benign&limit=1");
+    expect(excluded.status).toBe(200);
+    await expect(excluded.json()).resolves.toEqual({ findings: [] });
+
+    const included = (await (
+      await get("/v1/recent/findings?verdict=suspected&limit=1")
+    ).json()) as RecentFindingsBody;
+    expect(included.findings).toHaveLength(1);
+  }, 30_000);
+});
+
+describe("GET /", () => {
+  it("serves the page with a CSP whose hashes cover the served bytes and no cookie", async () => {
+    await start();
+
+    const response = await get("/");
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe(
+      "text/html; charset=utf-8",
+    );
+    expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(response.headers.get("set-cookie")).toBeNull();
+    const body = await response.text();
+    expect(body).toBe(STATUS_PAGE_HTML);
+    const script = between(body, "<script>", "</script>");
+    const style = between(body, "<style>", "</style>");
+    expect(script).toBe(STATUS_PAGE_SCRIPT);
+    expect(style).toBe(STATUS_PAGE_STYLE);
+    expect(response.headers.get("content-security-policy")).toBe(
+      `default-src 'none'; script-src 'sha256-${sha256(script ?? "")}'; style-src 'sha256-${sha256(style ?? "")}'; connect-src 'self'; base-uri 'none'; form-action 'none'`,
+    );
+  });
+
+  it("answers HEAD with the page headers and no body", async () => {
+    await start();
+
+    const response = await get("/", { method: "HEAD" });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe(
+      "text/html; charset=utf-8",
+    );
+    expect(response.headers.get("set-cookie")).toBeNull();
+    await expect(response.text()).resolves.toBe("");
+  });
+
+  it("serves HTML at no other path", async () => {
+    await start();
+
+    for (const path of ["/index.html", "/status", "//"]) {
+      const response = await get(path);
+
+      expect(response.status).toBe(404);
+      expect(response.headers.get("content-type")).toBe(
+        "application/json; charset=utf-8",
+      );
+    }
+
+    expect((await get("/v1/recent/releases")).headers.get("content-type")).toBe(
+      "application/json; charset=utf-8",
+    );
+  });
+
+  it("keeps attacker-controlled names, versions and evidence out of the page", async () => {
+    await start();
+    const image = "<img src=x onerror=alert(1)>";
+    const closing = "</script>";
+    const name = image + closing;
+    const version = `1.0.0${closing}${image}`;
+    const release: ReleaseRecord = {
+      ...makeRecord(name, version, "sha512-xss"),
+      previousVersion: name,
+      previousDigest: "sha512-previous",
+    };
+    await seedRelease(release);
+    const finding = await seedFinding({
+      name: image,
+      version: closing,
+      digest: "sha512-xss",
+      summary: image + closing,
+      evidence: [{ file: image, line: 9, excerpt: closing + image }],
+    });
+
+    const releasesText = await (await get("/v1/recent/releases")).text();
+    const findingsText = await (await get("/v1/recent/findings")).text();
+
+    // JSON is not HTML: the bytes stay as the store returned them.
+    expect(releasesText).toContain(image);
+    expect(releasesText).toContain(closing);
+    expect(findingsText).toContain(image);
+    expect(findingsText).toContain(closing);
+    const releaseBody = JSON.parse(releasesText) as RecentReleasesBody;
+    expect(releaseBody.releases[0]?.name).toBe(name);
+    expect(releaseBody.releases[0]?.version).toBe(version);
+    const findingBody = JSON.parse(findingsText) as RecentFindingsBody;
+    expect(findingBody.findings[0]?.name).toBe(image);
+    expect(findingBody.findings[0]?.summary).toBe(image + closing);
+    expect(findingBody.findings[0]?.evidence[0]?.file).toBe(image);
+    expect(findingBody.findings[0]?.evidence[0]?.excerpt).toBe(closing + image);
+
+    const page = await (await get("/")).text();
+    expect(page).not.toContain(image);
+    expect(page).not.toContain(name);
+    expect(page).not.toContain(version);
+    expect(page).not.toContain(closing + image);
+    // The only closing script tag is the page's own.
+    expect(page.split(closing)).toHaveLength(2);
+    expect(page).not.toContain(finding.id);
+    expect(STATUS_PAGE_HTML).not.toContain(image);
+    expect(STATUS_PAGE_HTML).not.toContain(name);
+    expect(STATUS_PAGE_HTML).not.toContain(version);
+    expect(STATUS_PAGE_HTML).not.toContain(closing + image);
+    expect(STATUS_PAGE_HTML.split(closing)).toHaveLength(2);
+    // The page ships empty mount points, not a server-side row template.
+    expect(STATUS_PAGE_HTML).toContain('<tbody id="releases-body"></tbody>');
+    expect(STATUS_PAGE_HTML).toContain('<tbody id="findings-body"></tbody>');
+    expect(STATUS_PAGE_HTML).toContain('<ol id="feed-list" class="feed"></ol>');
   });
 });
 
@@ -1028,3 +1393,16 @@ describe("POST /v1/findings/<id>/transitions", () => {
     expect(JSON.stringify(errors)).not.toContain(ALICE_TOKEN);
   });
 });
+
+/** The text between the first open tag and the next close tag, or undefined. */
+function between(
+  text: string,
+  open: string,
+  close: string,
+): string | undefined {
+  const start = text.indexOf(open);
+  if (start === -1) return undefined;
+  const end = text.indexOf(close, start + open.length);
+  if (end === -1) return undefined;
+  return text.slice(start + open.length, end);
+}

@@ -1,10 +1,11 @@
 import { createHash, randomBytes } from "node:crypto";
-import { constants, type Dirent, type Stats } from "node:fs";
+import { constants, type Dir, type Dirent, type Stats } from "node:fs";
 import {
   link,
   lstat,
   mkdir,
   open,
+  opendir,
   readdir,
   rename,
   unlink,
@@ -19,6 +20,12 @@ export class JsonStoreCorruptError extends JsonStoreError {}
 
 export interface JsonStoreOptions {
   root: string;
+}
+
+export interface StoreFile {
+  key: string;
+  /** File modification time in milliseconds since the epoch. */
+  modifiedAt: number;
 }
 
 const KIND_PATTERN = /^[a-z][a-z0-9-]{0,31}$/;
@@ -167,6 +174,52 @@ export class JsonStore {
       })
       .map((entry) => entry.name.slice(0, -RECORD_SUFFIX.length))
       .sort();
+  }
+
+  /**
+   * Keys of one kind with their file modification times, newest first. An
+   * absent kind directory lists as empty. A symlink or a non-record file is
+   * skipped, and each entry is lstat'ed under the kind directory so a record
+   * swapped for a symlink after the directory read is not followed. The call
+   * keeps at most `max` entries in memory (the newest), but still lstats every
+   * record once.
+   */
+  async listWithTimes(kind: string, max: number): Promise<StoreFile[]> {
+    requireKind(kind);
+    await this.inspectKindDirectory(kind, undefined);
+
+    let directory: Dir;
+    try {
+      directory = await opendir(this.contain(kind));
+    } catch (error) {
+      if (hasCode(error, "ENOENT")) return [];
+      throw wrap("list", kind, undefined, error);
+    }
+
+    let files: StoreFile[] = [];
+    try {
+      // Stream the directory so memory stays bounded however many records exist.
+      for await (const entry of directory) {
+        if (!entry.isFile() || !entry.name.endsWith(RECORD_SUFFIX)) continue;
+        const key = entry.name.slice(0, -RECORD_SUFFIX.length);
+        let stats: Stats;
+        try {
+          stats = await lstat(this.contain(kind, entry.name));
+        } catch (error) {
+          // The record disappeared between the directory read and the stat.
+          if (hasCode(error, "ENOENT")) continue;
+          throw wrap("inspect", kind, key, error);
+        }
+        if (!stats.isFile()) continue;
+        files.push({ key, modifiedAt: stats.mtimeMs });
+        if (files.length >= 2 * max) files = newestFirst(files).slice(0, max);
+      }
+    } catch (error) {
+      if (error instanceof JsonStoreError) throw error;
+      throw wrap("list", kind, undefined, error);
+    }
+
+    return newestFirst(files).slice(0, max);
   }
 
   /** Removes a record. A missing record is not an error. */
@@ -381,4 +434,13 @@ function hasCode(error: unknown, code: string): boolean {
   return (
     error instanceof Error && (error as NodeJS.ErrnoException).code === code
   );
+}
+
+function newestFirst(files: StoreFile[]): StoreFile[] {
+  return files.sort((left, right) => {
+    if (left.modifiedAt !== right.modifiedAt) {
+      return right.modifiedAt - left.modifiedAt;
+    }
+    return left.key < right.key ? -1 : left.key > right.key ? 1 : 0;
+  });
 }

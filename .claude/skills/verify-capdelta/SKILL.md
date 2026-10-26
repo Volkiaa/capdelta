@@ -115,6 +115,17 @@ Details are in `features/intel-lookup.md`.
 .claude/skills/verify-capdelta/bin/intel-drive
 ```
 
+## Status page
+
+`bin/status-page-drive` starts a real `serve` with two stored releases and one
+finding, then fetches `/`, `/v1/recent/releases`, `/v1/recent/findings` and two
+rejected requests. It exits 1 when a route, the page CSP or a row count is wrong.
+Details are in `features/platform-service.md`.
+
+```sh
+.claude/skills/verify-capdelta/bin/status-page-drive
+```
+
 ## Tier 2 evidence
 
 A change that only makes the gate stricter needs the held-out measurement before and

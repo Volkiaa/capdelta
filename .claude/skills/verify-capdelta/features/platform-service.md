@@ -12,9 +12,13 @@
 - `src/platform/intel-e2e.test.ts` covers findings, reviewer transitions and the feed.
 - `bin/intel-drive` proves the CLI against a real `serve` process (see
   [Intelligence lookup](./intel-lookup.md)).
+- `bin/status-page-drive` seeds two releases and one finding, starts a real
+  `serve`, and checks `/`, `/v1/recent/releases` and `/v1/recent/findings`,
+  including the CSP hash header and the rejected requests.
 
 ```sh
-npx vitest run src/platform/e2e.test.ts src/platform/intel-e2e.test.ts
+npx vitest run src/platform/e2e.test.ts src/platform/intel-e2e.test.ts src/platform/api.test.ts
+.claude/skills/verify-capdelta/bin/status-page-drive
 ```
 
 ## Live registry check

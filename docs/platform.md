@@ -88,7 +88,13 @@ Every write goes to a temporary file and then an atomic rename or link puts it i
 
 ## API
 
-The API answers `GET` and `HEAD`. It also answers `POST` on the transition route, and only when the service started with a reviewers file. Every other method returns 405. Every response is JSON with `content-type: application/json; charset=utf-8`.
+The API answers `GET` and `HEAD`. It also answers `POST` on the transition route, and only when the service started with a reviewers file. Every other method returns 405. Every JSON response carries `content-type: application/json; charset=utf-8`. `GET /` is the only HTML response.
+
+`GET /` returns one self-contained status page. The page calls `/v1/jobs`, `/v1/recent/releases`, `/v1/recent/findings` and `/v1/feed` from the same origin, refreshes every 15 seconds, and has no write controls. The response carries `X-Content-Type-Options: nosniff` and a content security policy that allows only its inline style and script, identified by sha256 hashes, plus same-origin fetches:
+
+```sh
+curl -sS http://127.0.0.1:8787/
+```
 
 `GET /healthz` reports that the server is up:
 
@@ -124,6 +130,20 @@ capdelta-platform analyze --data /var/lib/capdelta --package <name> --version <v
 ```
 
 The `id` field in the failed list is the file name to delete. There is no automatic retry for a failed job in phase 1.
+
+`GET /v1/recent/releases?limit=N` returns the most recently analyzed releases, newest first. Each row has `name`, `version`, `previousVersion`, `digest`, `analyzedAt`, `status`, `incompleteReasons` as a count, and the report's `bySeverity` counts. The report body is not included:
+
+```sh
+curl -sS "http://127.0.0.1:8787/v1/recent/releases?limit=20"
+```
+
+`GET /v1/recent/findings?limit=N&verdict=V` returns the most recently updated findings, newest first, with `evidence` and `history`. The optional `verdict` filter accepts `suspected`, `under-review`, `confirmed-malicious`, `benign` or `retracted`:
+
+```sh
+curl -sS "http://127.0.0.1:8787/v1/recent/findings?limit=20&verdict=confirmed-malicious"
+```
+
+Both routes default `limit` to 50 and accept 1 to 200. A non-integer, a limit outside that range, or an unknown verdict returns 400. They read at most the 1000 newest record files by modification time, then order the rows by `analyzedAt` or `updatedAt`.
 
 `GET /v1/findings` returns the findings for one package version or one artifact digest. Supply `ecosystem=npm` and either `name` with an optional `version`, or `digest`. Every verdict is visible, including `suspected`:
 
@@ -194,6 +214,7 @@ The feed is for mirrors and other consumers that replay each published change wi
 
 - The data directory belongs to the operator. The store rejects keys that would escape the directory and refuses to follow symlinks, but a local user who can write inside the directory can replace records. Protect the directory with file permissions.
 - The read API has no authentication and binds `127.0.0.1` by default. If you pass `--host 0.0.0.0`, every host that can reach the port can read every stored report and finding.
+- The status page at `GET /` has the same exposure as the read API: unauthenticated, read-only, and serving the same records from the same origin. Its content security policy allows only its inline script and style, named by hash, and same-origin fetches. It sets no cookie.
 - The service speaks plain HTTP and has no TLS. Put a reverse proxy in front of it that terminates TLS and authenticates readers before you expose it beyond localhost.
 - The service reads reviewer tokens at startup from the reviewers file. Restart the service to add or revoke a reviewer. The file stores sha256 hashes, so a copy of the file does not carry a usable token.
 - Registry and package strings are untrusted. The service truncates them to the report limits before storing or serving them and never turns them into links.
@@ -205,3 +226,4 @@ The feed is for mirrors and other consumers that replay each published change wi
 - The file store writes one JSON file per record and lists a directory to find jobs and records. Job listing reads every job file, so the store does not scale past one host and a large job count. ADR-038 says to replace it when the record count passes what a directory listing handles.
 - One process should own a data directory. Two `monitor` processes would race on the same queue and cursor.
 - The API rejects a URL over 2048 characters and a name or version over 214 characters. The failed job list is capped at 100.
+- The recent list routes scan at most the 1000 newest record files and return at most 200 rows.

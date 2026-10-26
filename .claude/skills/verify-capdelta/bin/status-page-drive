@@ -1,0 +1,174 @@
+#!/usr/bin/env bash
+# Starts a real platform service with two releases and one finding, then fetches
+# the status page and the two recent list routes. Evidence stays on disk.
+set -u
+BIN="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(cd "$BIN/../../../.." && pwd)"
+RUN_ID="${CAPDELTA_VERIFY_RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
+PORT="${STATUS_PAGE_DRIVE_PORT:-18812}"
+EVID="${CAPDELTA_VERIFY_EVIDENCE:-$HOME/.local/state/capdelta-verify}/$RUN_ID/status-page"
+B="$ROOT/dist"
+[ -f "$B/platform-cli.js" ] || { echo "status-page-drive: run npm run build first" >&2; exit 1; }
+D="$(mktemp -d "${TMPDIR:-/tmp}/capdelta-verify-$RUN_ID-status-page-XXXXXX")"
+mkdir -p "$EVID"
+P=""
+cleanup() {
+  [ -n "$P" ] && kill -INT "$P" 2>/dev/null
+  rm -rf "$D"
+}
+trap cleanup EXIT
+
+cat > "$D/seed.mjs" <<JS
+import { JsonStore } from "$B/platform/json-store.js";
+import { ReleaseStore } from "$B/platform/release-store.js";
+import { FindingStore } from "$B/platform/intel/finding-store.js";
+import { createFinding } from "$B/platform/intel/finding.js";
+import { buildRunReport } from "$B/core/report-builder.js";
+
+const store = new JsonStore({ root: "$D/data" });
+const releases = new ReleaseStore(store);
+const findings = new FindingStore(store);
+
+function release(name, version, digest, analyzedAt, previousVersion) {
+  const changed = {
+    name: name,
+    // The report is a first-release report; the record still carries the
+    // previous version that the status page displays.
+    oldVersion: null,
+    newVersion: version,
+    oldIntegrity: null,
+    newIntegrity: digest,
+    oldResolvedUrl: null,
+    resolvedUrl: "https://registry.npmjs.org/" + name + "/-/" + version + ".tgz",
+  };
+  const run = {
+    firstRun: false,
+    summary: { changed: 1, analyzed: 1, unavailable: 0, skipped: 0 },
+    packages: [{
+      status: "analyzed",
+      changedPackage: changed,
+      diff: {
+        baseline: null,
+        subject: { ecosystem: "npm", name: name, version: version },
+        newPackage: true,
+        findings: [],
+        diagnostics: [],
+      },
+      issues: [],
+      baselineFailures: [],
+    }],
+    lockfileFindings: [],
+    skipped: [],
+  };
+  return {
+    schemaVersion: 1,
+    ecosystem: "npm",
+    name: name,
+    version: version,
+    digest: digest,
+    previousVersion: previousVersion,
+    previousDigest: previousVersion === null ? null : "sha512-previous",
+    analyzerVersion: "status-page-drive",
+    analyzedAt: analyzedAt,
+    status: previousVersion === null ? "complete" : "incomplete",
+    incompleteReasons: previousVersion === null ? [] : ["dependency analysis failed"],
+    report: buildRunReport(run),
+  };
+}
+
+await releases.putIfAbsent(
+  release("left-pad", "1.3.0", "sha512-leftpad", "2026-01-01T00:00:00.000Z", null),
+);
+await releases.putIfAbsent(
+  release("tinycolor", "4.1.1", "sha512-tinycolor", "2026-01-02T00:00:00.000Z", "4.1.0"),
+);
+const finding = createFinding(
+  {
+    ecosystem: "npm",
+    name: "tinycolor",
+    version: "4.1.1",
+    digest: "sha512-tinycolor",
+    analyzerVersion: "status-page-drive",
+    ruleKey: "verify:status-page",
+    summary: "adds network access",
+    severity: "HIGH",
+    confidence: "medium",
+    evidence: [{ file: "index.js", line: 3, excerpt: "fetch('https://example.test')" }],
+  },
+  new Date("2026-01-03T00:00:00.000Z"),
+);
+await findings.putIfAbsent(finding);
+console.log(finding.id);
+JS
+node "$D/seed.mjs" > "$D/finding-id" || { echo "status-page-drive: seeding failed" >&2; exit 1; }
+ID="$(cat "$D/finding-id")"
+
+node "$B/platform-cli.js" serve --data "$D/data" --port "$PORT" > "$EVID/service.log" 2>&1 &
+P=$!
+U="http://127.0.0.1:$PORT"
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+  curl -sf "$U/healthz" >/dev/null 2>&1 && break
+  sleep 1
+done
+
+fails=0
+check() {
+  label=$1
+  path=$2
+  want=$3
+  code=$(curl -sS -o "$EVID/$label.out" -D "$EVID/$label.headers" -w "%{http_code}" "$U$path")
+  if [ "$code" = "$want" ]; then s=ok; else s=MISMATCH; fails=$((fails + 1)); fi
+  printf '%-10s %-34s HTTP %s (want %s)\n' "$s" "$path" "$code" "$want"
+}
+
+check page "/" 200
+check releases "/v1/recent/releases" 200
+check findings "/v1/recent/findings?verdict=suspected" 200
+check bad-limit "/v1/recent/releases?limit=201" 400
+check bad-verdict "/v1/recent/findings?verdict=exploded" 400
+
+grep -q '<title>capdelta platform</title>' "$EVID/page.out" || {
+  echo "status-page-drive: page title missing" >&2
+  fails=$((fails + 1))
+}
+grep -qi '^content-security-policy: .*sha256-' "$EVID/page.headers" || {
+  echo "status-page-drive: page CSP missing" >&2
+  fails=$((fails + 1))
+}
+if grep -qi '^set-cookie:' "$EVID/page.headers"; then
+  echo "status-page-drive: page set a cookie" >&2
+  fails=$((fails + 1))
+fi
+
+python3 -I - "$EVID" "$ID" <<'PY'
+import json
+import pathlib
+import sys
+
+evidence = pathlib.Path(sys.argv[1])
+expected_id = sys.argv[2].strip()
+releases = json.loads((evidence / "releases.out").read_text())
+findings = json.loads((evidence / "findings.out").read_text())
+ok = (
+    len(releases["releases"]) == 2
+    and len(findings["findings"]) == 1
+    and findings["findings"][0]["id"] == expected_id
+    and findings["findings"][0]["evidence"][0]["excerpt"]
+)
+print(
+    ("ok        " if ok else "MISMATCH  ")
+    + "rows releases="
+    + str(len(releases["releases"]))
+    + " findings="
+    + str(len(findings["findings"]))
+)
+raise SystemExit(0 if ok else 1)
+PY
+[ $? -eq 0 ] || fails=$((fails + 1))
+
+if [ "$fails" -eq 0 ]; then
+  echo "status-page-drive: ok (evidence $EVID)"
+  exit 0
+fi
+echo "status-page-drive: $fails check(s) failed (evidence $EVID)" >&2
+exit 1
