@@ -126,6 +126,39 @@ describe("signal extractor", () => {
     ).toBe(true);
   });
 
+  it("does not report an all-single-digit array as a charcode array (ADR-048)", () => {
+    const luhn = [0, 2, 4, 6, 8, 1, 3, 5, 7, 9];
+    const twelve = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1];
+    const result = buildSignalSet([
+      source("luhn.js", `const table=[${luhn.join(",")}];`),
+      source("digits.js", `const table=[${twelve.join(",")}];`),
+    ]);
+
+    expect(result.obfuscationPatterns).toEqual([]);
+  });
+
+  it("keeps a charcode array that spells text (ADR-048)", () => {
+    const text = [104, 116, 116, 112, 115, 58, 47, 47];
+    const result = buildSignalSet([
+      source("payload.js", `const table=[${text.join(",")}];`),
+    ]);
+
+    expect(result.obfuscationPatterns.map((item) => item.pattern)).toEqual([
+      "charcode-array",
+    ]);
+  });
+
+  it("keeps a single-digit array with one two-digit element (ADR-048)", () => {
+    const mixed = [0, 2, 4, 6, 8, 1, 3, 5, 7, 10];
+    const result = buildSignalSet([
+      source("payload.js", `const table=[${mixed.join(",")}];`),
+    ]);
+
+    expect(result.obfuscationPatterns.map((item) => item.pattern)).toEqual([
+      "charcode-array",
+    ]);
+  });
+
   it("retains unreadable files as signal data instead of dropping them", () => {
     const result = buildSignalSet([
       observeSignalSource({
