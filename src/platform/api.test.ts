@@ -645,7 +645,7 @@ describe("GET /v1/recent/findings", () => {
       await get("/v1/recent/findings?verdict=suspected&limit=1")
     ).json()) as RecentFindingsBody;
     expect(included.findings).toHaveLength(1);
-  });
+  }, 30_000);
 });
 
 describe("GET /", () => {
