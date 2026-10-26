@@ -205,7 +205,55 @@ describe("collectReleases", () => {
       nextSince: "9",
       skipped: [],
       unlisted: 0,
+      behind: false,
     });
+  });
+
+  it("reports behind when the page holds as many ids as the limit", async () => {
+    const { fetchImpl } = routedFetch(
+      new Map([
+        [
+          `${CHANGES}?since=0&limit=2`,
+          jsonResponse({
+            results: [
+              { seq: 1, id: "alpha" },
+              { seq: 2, id: "beta" },
+            ],
+            last_seq: 2,
+          }),
+        ],
+      ]),
+    );
+
+    const result = await collectReleases("0", {
+      fetchImpl,
+      limit: 2,
+      watchlist: new Map<string, number>(),
+    });
+
+    expect(result.behind).toBe(true);
+  });
+
+  it("does not report behind for a short page", async () => {
+    const { fetchImpl } = routedFetch(
+      new Map([
+        [
+          `${CHANGES}?since=0&limit=2`,
+          jsonResponse({
+            results: [{ seq: 1, id: "alpha" }],
+            last_seq: 1,
+          }),
+        ],
+      ]),
+    );
+
+    const result = await collectReleases("0", {
+      fetchImpl,
+      limit: 2,
+      watchlist: new Map<string, number>(),
+    });
+
+    expect(result.behind).toBe(false);
   });
 
   it("throws CollectorError when the change feed fails", async () => {

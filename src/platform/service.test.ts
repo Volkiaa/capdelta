@@ -159,6 +159,7 @@ describe("monitorOnce", () => {
       done: 0,
       failed: 0,
       cursor: "100",
+      behind: false,
     });
     const handles = openService(config(fetchImpl));
     await expect(handles.store.get("cursor", "npm-changes")).resolves.toEqual(
@@ -195,6 +196,7 @@ describe("monitorOnce", () => {
       done: 1,
       failed: 0,
       cursor: "101",
+      behind: false,
     });
     expect(calls).toHaveLength(1);
     const handles = openService(service);
@@ -211,6 +213,29 @@ describe("monitorOnce", () => {
     await expect(handles.store.get("cursor", "npm-changes")).resolves.toEqual(
       cursorValue("101"),
     );
+  });
+
+  it("reports behind when the feed page is full", async () => {
+    const { fetchImpl } = routedFetch((url) => {
+      if (url === FEED_ROOT) {
+        return jsonResponse({ update_seq: 100 });
+      }
+      if (url === `${CHANGES}?since=100&limit=1`) {
+        return jsonResponse({
+          results: [{ seq: 101, id: "alpha" }],
+          last_seq: 101,
+        });
+      }
+      return undefined;
+    });
+    const service = config(fetchImpl, {
+      collector: { fetchImpl, limit: 1, watchlist: new Map<string, number>() },
+    });
+
+    await monitorOnce(service);
+    const result = await monitorOnce(service);
+
+    expect(result.behind).toBe(true);
   });
 
   it("replays the same feed page without a duplicate job or record", async () => {
