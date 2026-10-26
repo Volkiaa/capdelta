@@ -662,8 +662,8 @@ describe("GET /", () => {
     expect(response.headers.get("set-cookie")).toBeNull();
     const body = await response.text();
     expect(body).toBe(STATUS_PAGE_HTML);
-    const script = /<script>([\s\S]*)<\/script>/u.exec(body)?.[1];
-    const style = /<style>([\s\S]*)<\/style>/u.exec(body)?.[1];
+    const script = between(body, "<script>", "</script>");
+    const style = between(body, "<style>", "</style>");
     expect(script).toBe(STATUS_PAGE_SCRIPT);
     expect(style).toBe(STATUS_PAGE_STYLE);
     expect(response.headers.get("content-security-policy")).toBe(
@@ -1393,3 +1393,16 @@ describe("POST /v1/findings/<id>/transitions", () => {
     expect(JSON.stringify(errors)).not.toContain(ALICE_TOKEN);
   });
 });
+
+/** The text between the first open tag and the next close tag, or undefined. */
+function between(
+  text: string,
+  open: string,
+  close: string,
+): string | undefined {
+  const start = text.indexOf(open);
+  if (start === -1) return undefined;
+  const end = text.indexOf(close, start + open.length);
+  if (end === -1) return undefined;
+  return text.slice(start + open.length, end);
+}
