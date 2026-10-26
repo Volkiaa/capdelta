@@ -1,12 +1,14 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createReviewers, hashToken } from "./intel/reviewers.js";
+import { JsonStore } from "./json-store.js";
 import { runPlatformCli, type PlatformCliIo } from "./platform-cli.js";
 import { createFakeRegistry, REGISTRY_ORIGIN } from "./test-registry.js";
 
 const REGISTRY = "https://registry.npmjs.org";
+const CHANGES = "https://replicate.npmjs.com/_changes";
 
 let base: string;
 let dataDir: string;
@@ -287,5 +289,121 @@ describe("runPlatformCli", () => {
     expect(stderr).toEqual([]);
     expect(stdout.join("")).toBe("analyze: analyzed 1, failed 0\n");
     expect(registry.tarballRequestCount()).toBe(1);
+  });
+
+  it("prints unlisted in the monitor summary and skips unlisted feed ids", async () => {
+    const store = new JsonStore({ root: dataDir });
+    await store.put("cursor", "npm-changes", { since: "100" });
+    const watchlist = join(base, "watchlist.txt");
+    await writeFile(watchlist, "alpha\n", "utf8");
+    const requested: string[] = [];
+    const fetchImpl: typeof fetch = (input) => {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.href
+            : input.url;
+      requested.push(url);
+      if (url === `${CHANGES}?since=100&limit=100`) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              results: [{ seq: 101, id: "beta" }],
+              last_seq: 101,
+            }),
+          ),
+        );
+      }
+      throw new Error(`unexpected request: ${url}`);
+    };
+    vi.stubGlobal("fetch", fetchImpl);
+    const { io, stdout, stderr } = capture();
+
+    const code = await runPlatformCli(
+      ["monitor", "--data", dataDir, "--watchlist", watchlist],
+      io,
+    );
+
+    expect(code).toBe(0);
+    expect(stderr).toEqual([]);
+    expect(stdout.join("")).toBe(
+      "monitor: enqueued 0, skipped 0, unlisted 1, analyzed 0, failed 0, cursor 101\n",
+    );
+    expect(requested).toEqual([`${CHANGES}?since=100&limit=100`]);
+  });
+
+  it("rejects a missing watchlist before starting a cycle", async () => {
+    let requests = 0;
+    vi.stubGlobal("fetch", () => {
+      requests += 1;
+      throw new Error("the monitor must not start");
+    });
+    const { io, stdout, stderr } = capture();
+    const watchlist = join(base, "missing.txt");
+
+    const code = await runPlatformCli(
+      ["monitor", "--data", dataDir, "--watchlist", watchlist],
+      io,
+    );
+
+    expect(code).toBe(2);
+    expect(stdout).toEqual([]);
+    expect(stderr.join("")).toContain("missing.txt");
+    expect(stderr.join("")).toContain("usage: capdelta-platform");
+    expect(requests).toBe(0);
+    await expect(stat(dataDir)).rejects.toThrow();
+  });
+
+  it("rejects an invalid watchlist line and does not start a cycle", async () => {
+    let requests = 0;
+    vi.stubGlobal("fetch", () => {
+      requests += 1;
+      throw new Error("the monitor must not start");
+    });
+    const watchlist = join(base, "watchlist.txt");
+    await writeFile(watchlist, "alpha\nbad name\n", "utf8");
+    const { io, stdout, stderr } = capture();
+
+    const code = await runPlatformCli(
+      ["monitor", "--data", dataDir, "--watchlist", watchlist],
+      io,
+    );
+
+    expect(code).toBe(2);
+    expect(stdout).toEqual([]);
+    expect(stderr.join("")).toContain("line 2");
+    expect(stderr.join("")).toContain("whitespace");
+    expect(requests).toBe(0);
+  });
+
+  it("watches every feed id when no watchlist is given", async () => {
+    const registry = createFakeRegistry();
+    vi.stubGlobal("fetch", registry.fetchImpl);
+    const first = capture();
+    const args = [
+      "monitor",
+      "--data",
+      dataDir,
+      "--registry",
+      REGISTRY_ORIGIN,
+      "--changes",
+      `${REGISTRY_ORIGIN}/_changes`,
+    ];
+
+    const firstCode = await runPlatformCli(args, first.io);
+    registry.publish("alpha", "1.0.0");
+    const second = capture();
+    const secondCode = await runPlatformCli(args, second.io);
+
+    expect(firstCode).toBe(0);
+    expect(secondCode).toBe(0);
+    expect(first.stdout.join("")).toContain("unlisted 0");
+    expect(second.stdout.join("")).toMatch(
+      /^monitor: enqueued 1, skipped 0, unlisted 0, analyzed 1, failed 0, cursor \d+\n$/u,
+    );
+    expect(registry.requestCount(`${REGISTRY_ORIGIN}/alpha`)).toBeGreaterThan(
+      0,
+    );
   });
 });

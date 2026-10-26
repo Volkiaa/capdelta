@@ -292,6 +292,39 @@ describe("monitorOnce", () => {
     await expect(handles.releases.listKeys()).resolves.toHaveLength(1);
   });
 
+  it("counts and skips feed ids outside the watchlist", async () => {
+    const { fetchImpl, requested } = routedFetch((url) => {
+      if (url === FEED_ROOT) {
+        return jsonResponse({ update_seq: 100 });
+      }
+      if (url === `${CHANGES}?since=100&limit=100`) {
+        return jsonResponse({
+          results: [
+            { seq: 101, id: "alpha" },
+            { seq: 102, id: "beta" },
+          ],
+          last_seq: 102,
+        });
+      }
+      if (url === `${REGISTRY}/alpha`) {
+        return jsonResponse(packument("alpha", ["1.0.0"]));
+      }
+      return undefined;
+    });
+    const { analyze, calls } = fakeAnalyze();
+    const service = config(fetchImpl, {
+      analyze,
+      collector: { fetchImpl, watchlist: new Map([["alpha", 0]]) },
+    });
+
+    await monitorOnce(service);
+    const result = await monitorOnce(service);
+
+    expect(result.unlisted).toBe(1);
+    expect(calls.map((call) => call.name)).toEqual(["alpha"]);
+    expect(requested).not.toContain(`${REGISTRY}/beta`);
+  });
+
   it("rejects a feed cursor that is unsafe to store or request", async () => {
     const { fetchImpl } = routedFetch((url) => {
       if (url === FEED_ROOT) {

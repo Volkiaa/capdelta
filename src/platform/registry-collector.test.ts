@@ -153,6 +153,40 @@ describe("collectReleases", () => {
     expect(result.skipped[0]?.reason).toContain("\\ud800");
   });
 
+  it("skips unlisted feed ids without requesting their packuments", async () => {
+    const listed = packument("listed", [
+      { version: "1.0.0", publishedAt: "2024-01-01T00:00:00.000Z" },
+    ]);
+    const { fetchImpl, requested } = routedFetch(
+      new Map([
+        [
+          `${CHANGES}?since=1&limit=100`,
+          jsonResponse({
+            results: [
+              { seq: 2, id: "listed" },
+              { seq: 3, id: "unlisted-a" },
+              { seq: 4, id: "unlisted-b" },
+            ],
+            last_seq: 4,
+          }),
+        ],
+        [`${REGISTRY}/listed`, jsonResponse(listed)],
+      ]),
+    );
+
+    const result = await collectReleases("1", {
+      fetchImpl,
+      watchlist: new Map([["listed", 0]]),
+    });
+
+    expect(result.candidates.map((item) => item.name)).toEqual(["listed"]);
+    expect(result.unlisted).toBe(2);
+    expect(result.skipped).toEqual([]);
+    expect(requested.filter((url) => url.startsWith(`${REGISTRY}/`))).toEqual([
+      `${REGISTRY}/listed`,
+    ]);
+  });
+
   it("passes the caller's since and limit to the change feed", async () => {
     const { fetchImpl, requested } = routedFetch(
       new Map([
@@ -166,7 +200,12 @@ describe("collectReleases", () => {
     const result = await collectReleases("7", { fetchImpl, limit: 5 });
 
     expect(requested).toEqual([`${CHANGES}?since=7&limit=5`]);
-    expect(result).toEqual({ candidates: [], nextSince: "9", skipped: [] });
+    expect(result).toEqual({
+      candidates: [],
+      nextSince: "9",
+      skipped: [],
+      unlisted: 0,
+    });
   });
 
   it("throws CollectorError when the change feed fails", async () => {

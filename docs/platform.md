@@ -28,6 +28,21 @@ Options for `monitor`:
 - `--changes <url>` sets the change feed URL. The default is `https://replicate.npmjs.com/_changes`.
 - `--interval <seconds>` repeats the cycle every N seconds.
 - `--concurrency <n>` keeps up to N release analyses in flight. The default is 1 and the maximum is 16. Analysis already uses parser worker threads, so 2 to 3 is the useful range on 2 cores; measure before raising it.
+- `--watchlist <file>` analyzes only the packages named in the file. Without it, `monitor` watches every feed id.
+
+## Watchlist
+
+The watchlist file has one package name per line in rank order. The first name is rank 0. Blank lines and lines whose first non-space character is `#` are ignored. An invalid name, a duplicate name, and a file over the line limit report the line number. The reader rejects a file larger than 1 MiB or longer than 100,000 lines, and it rejects an empty list. A watchlist that cannot be read stops the monitor; it never falls back to watching everything.
+
+The collector checks each feed id against the list before it fetches the packument. An unlisted id costs no request, and the monitor summary reports those ids as `unlisted <n>`. An unlisted release is never analyzed in this mode. `analyze` ignores the watchlist, so naming a release still analyzes it when the release is not on the list.
+
+Create or refresh the list with:
+
+```sh
+node scripts/fetch-watchlist.mjs --top 5000 -o /etc/capdelta/watchlist.txt
+```
+
+The script downloads the `npm-high-impact` package with `npm pack --ignore-scripts`, reads `lib/top.js` as text, and writes the first N names to a temporary file before it renames that file into place. It never executes package code and fails when the source holds fewer than 1000 names.
 
 `analyze` analyzes one named version now, without waiting for the feed. Use it for a version the feed has already passed:
 
