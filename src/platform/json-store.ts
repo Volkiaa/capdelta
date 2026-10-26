@@ -1,10 +1,11 @@
 import { createHash, randomBytes } from "node:crypto";
-import { constants, type Dirent, type Stats } from "node:fs";
+import { constants, type Dir, type Dirent, type Stats } from "node:fs";
 import {
   link,
   lstat,
   mkdir,
   open,
+  opendir,
   readdir,
   rename,
   unlink,
@@ -187,29 +188,35 @@ export class JsonStore {
     requireKind(kind);
     await this.inspectKindDirectory(kind, undefined);
 
-    let entries: Dirent[];
+    let directory: Dir;
     try {
-      entries = await readdir(this.contain(kind), { withFileTypes: true });
+      directory = await opendir(this.contain(kind));
     } catch (error) {
       if (hasCode(error, "ENOENT")) return [];
       throw wrap("list", kind, undefined, error);
     }
 
     let files: StoreFile[] = [];
-    for (const entry of entries) {
-      if (!entry.isFile() || !entry.name.endsWith(RECORD_SUFFIX)) continue;
-      const key = entry.name.slice(0, -RECORD_SUFFIX.length);
-      let stats: Stats;
-      try {
-        stats = await lstat(this.contain(kind, entry.name));
-      } catch (error) {
-        // The record disappeared between the directory read and the stat.
-        if (hasCode(error, "ENOENT")) continue;
-        throw wrap("inspect", kind, key, error);
+    try {
+      // Stream the directory so memory stays bounded however many records exist.
+      for await (const entry of directory) {
+        if (!entry.isFile() || !entry.name.endsWith(RECORD_SUFFIX)) continue;
+        const key = entry.name.slice(0, -RECORD_SUFFIX.length);
+        let stats: Stats;
+        try {
+          stats = await lstat(this.contain(kind, entry.name));
+        } catch (error) {
+          // The record disappeared between the directory read and the stat.
+          if (hasCode(error, "ENOENT")) continue;
+          throw wrap("inspect", kind, key, error);
+        }
+        if (!stats.isFile()) continue;
+        files.push({ key, modifiedAt: stats.mtimeMs });
+        if (files.length >= 2 * max) files = newestFirst(files).slice(0, max);
       }
-      if (!stats.isFile()) continue;
-      files.push({ key, modifiedAt: stats.mtimeMs });
-      if (files.length >= 2 * max) files = newestFirst(files).slice(0, max);
+    } catch (error) {
+      if (error instanceof JsonStoreError) throw error;
+      throw wrap("list", kind, undefined, error);
     }
 
     return newestFirst(files).slice(0, max);
