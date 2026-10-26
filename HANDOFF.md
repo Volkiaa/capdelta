@@ -1,7 +1,37 @@
 # HANDOFF
 
 Start here, then read CLAUDE.md. `docs/SESSIONS.md` has the history and
-docs/PLAN.md (rev. 3) is the spec. Last updated 2026-10-25.
+docs/PLAN.md (rev. 3) is the spec. Last updated 2026-10-26.
+
+## Triage 2026-10-26
+
+Merged #211 (a release's newly declared dependencies are analyzed, which closes
+the open ticket about walking a new package's tree) and #213 (`npm run verify`
+runs the six CI checks in order, Tier 1, issue #212).
+
+The maintainer closed the five overnight URL and IP evasion drafts: #161
+(ADR-032), #163 (ADR-033), #164 (ADR-034), #165 (ADR-035), #166 (ADR-036).
+Reason: each defends an exotic input form, Codex found one new case per round,
+and all five conflict with main. The branches stay (`Volkiaa/f4-cooked-ip`,
+`f1-scheme-forms`, `f2-userinfo`, `f5-feff`, `f7-unparseable-escapes`) and
+hold the only copy of ADR-032 to ADR-036. Reopen one only when the live
+monitor or the corpus shows a real case.
+
+Draft #204 (ADR-043, Tier 3, registry-hosts allowlist) is parked. It conflicts
+with main and CodeQL fails on it. No user has asked for mirror support.
+
+Still open for the maintainer:
+
+1. Whether to retag #157 to #159 (merged, established rules) as additive, or
+   revert them. They can hide a new host behind an old spurious one (see
+   ADR-037). Revert commits: 03a4696, 419a4b0, 6444fcb.
+2. Cut v0.1.0 and un-park the blog (see Next, in order).
+3. Deploy the platform behind TLS, then point the dogfood workflow at it.
+
+The maintainer asked for a plain-language model of how a bump becomes a
+verdict. Next session: trace one finding from report field to source line
+(`run-severity.ts`, `capability-differ.ts`, `signal-extractor.ts`) and write
+`docs/how-it-works.md`.
 
 ## Follow-up batch (2026-10-25, after phase 3)
 
@@ -24,13 +54,11 @@ Merged: #192 to #203 and #205. Draft: #204.
 - **CodeQL** ignores `test/fixtures/reconstructions` only (#199), because the
   inert attack fixtures model the flows it reports.
 
-**Decide.** Draft #204 (ADR-043, Tier 3) adds a base-commit `registry-hosts`
+**Decided 2026-10-26: parked.** Draft #204 (ADR-043, Tier 3) adds a base-commit `registry-hosts`
 allowlist for internal mirrors. Held-out unchanged with no config, Codex APPROVE.
 It is not measured on a repository that uses a mirror.
 
-**Open tickets.** Walking a new package's dependency tree needs a design call
-first: the release path has no baseline, so expanding children would flag vetted
-install-hook packages as new. Hook detection (`window.fetch` assignment,
+**Open tickets.** Hook detection (`window.fetch` assignment,
 `XMLHttpRequest`) has false-positive risk and needs its own held-out run. The
 dogfood workflow still pins a pre-v2 Action revision without `intel-url`. Deploy
 the service behind TLS, then point the dogfood workflow at it.
@@ -64,9 +92,8 @@ synthetic reconstructions. Nothing was tuned on the held-out entries.
 
 **Decide first.**
 
-1. The overnight drafts #161, #163 to #166 (ADR-032 to ADR-036) are still open
-   and `main`'s old HANDOFF decision list below still applies to them. They
-   predate this work.
+1. The overnight drafts #161, #163 to #166 were closed on 2026-10-26 (see
+   Triage).
 2. Phase 4 (sandboxed dynamic analysis) and phase 5 are not started. The
    roadmap marks them post-MVP.
 3. The platform has no TLS and no rate limiting by design. Put a reverse proxy
@@ -74,9 +101,8 @@ synthetic reconstructions. Nothing was tuned on the held-out entries.
 
 **Known gaps worth a ticket.** The lockfile differ accepts only
 `registry.npmjs.org` unless draft #204 lands, so mirrors are skipped as
-private. A feed event queues the 3 newest versions of a package. The analyzer
-cannot yet analyze a new package's dependency tree, which is why `node-ipc`
-11.0.0 is missed.
+private. A feed event queues the 3 newest versions of a package. #211 added analysis
+of newly declared dependencies; recheck whether `node-ipc` 11.0.0 is now caught.
 
 **Lessons.** Run the built tool on the real service before calling it done:
 the live feed rejected `since=now`, which a fake registry had accepted, and
@@ -89,7 +115,7 @@ the blocking bar, so each review prompt names it.
 
 ## Where main stands
 
-main includes #154, and CI is green on it. No draft PR is open. The decision
+main includes #154, and CI is green on it. The decision
 log for the last runs is `.scratch/next/decisions.tsv` (gitignored, main
 checkout), from its `run4 start` row on.
 
