@@ -1,7 +1,51 @@
 # HANDOFF
 
 Start here, then read CLAUDE.md. `docs/SESSIONS.md` has the history and
-docs/PLAN.md (rev. 3) is the spec. Last updated 2026-10-26.
+docs/PLAN.md (rev. 3) is the spec. Last updated 2026-10-26 (evening).
+
+## VPS deployment and throughput (2026-10-26, evening)
+
+The platform runs on the maintainer's VPS (`ssh vps`, Tailscale host
+`hermes-vps.tailec084.ts.net`, 2 cores). It is reachable only on the tailnet:
+`tailscale serve` gives https, nothing is public. `~/capdelta-platform` holds a
+Dockerfile and `compose.yml` with `monitor` and `serve`. Redeploy by sending
+`git archive HEAD` plus those two files and the watchlist, then
+`docker compose up -d --build`. One reviewer (`e2e`) is in `reviewers.json`.
+Grafana was removed from the host; `ntfy` stays. The status page is at `/`
+(ADR-046, #220).
+
+Merged this session: #218 (HANDOFF), #220 (status page and recent routes),
+#222 (`--concurrency`), #225 (`--watchlist`, ADR-047), #227 (`--page-size` and
+catch-up), #229 (ADR-048, single-digit arrays are not charcode arrays, Tier 3,
+maintainer approved).
+
+The VPS monitor runs `--concurrency 3 --page-size 1000` on a top-5,000 list
+(`scripts/fetch-watchlist.mjs`). Measured: the feed produces about 266 events a
+minute, the old monitor read 100 per cycle and lagged by 32,000 events. With
+the watchlist and the catch-up loop it reached the live feed in two minutes.
+Only 6 of 1690 releases analyzed before the watchlist were in the top 17,338.
+Concurrency 3 gave about 1.5 to 1.8 times the throughput of 1 on 2 cores. The
+benchmark was noisy because each window saw different releases.
+
+**Decide.**
+
+1. #224 (priority by watchlist rank and a capped lane for unlisted packages) is
+   not started. Wait for a day of watchlist results before building it.
+2. A stub previous version (`0.0.0-stage`) inflates a package's first real
+   release to CRITICAL (xeorank, dsh-plugins-update and others). Do not lower
+   severity for it: an attacker can publish a stub first. The proposed fix is
+   triage context (package age, prior versions) that ranks the feed and moves
+   no gate. It needs its own ADR.
+3. Exempting `.invalid` hosts was rejected: the attack reconstructions use
+   `example.invalid`. A different defanging convention would let it be
+   reconsidered.
+4. The Action has not run against the VPS from a real GitHub runner. That needs
+   a public https URL with authentication in front. Not done.
+
+Open bugs worth a ticket: a throwing `done` event handler can move a completed
+job back to pending (worker.ts); a stored release without `summary.bySeverity`
+makes the recent-releases route return 500; `previousVersion` follows publish
+time, so a stable release can show a later nightly as its previous version.
 
 ## Triage 2026-10-26
 
