@@ -1,4 +1,7 @@
-import { readFile, stat } from "node:fs/promises";
+import {
+  readRegularFile,
+  type ReadRegularFileResult,
+} from "../core/read-regular-file.js";
 import { NamedError } from "../core/named-error.js";
 import {
   MAX_IDENTITY_CHARS,
@@ -68,36 +71,24 @@ export async function readWatchlist(
   path: string,
 ): Promise<ReadonlyMap<string, number>> {
   const label = JSON.stringify(truncate(path, MAX_IDENTITY_CHARS));
-  let size: number;
+  let read: ReadRegularFileResult;
   try {
-    const info = await stat(path);
-    if (!info.isFile()) {
-      throw new WatchlistError(`watchlist ${label} is not a regular file`);
-    }
-    size = info.size;
+    read = await readRegularFile(path, MAX_WATCHLIST_BYTES);
   } catch (error: unknown) {
-    if (error instanceof WatchlistError) throw error;
     throw new WatchlistError(
       `cannot read watchlist ${label}: ${errorText(error)}`,
       { cause: error },
     );
   }
-  if (size > MAX_WATCHLIST_BYTES) {
+  if (read.kind === "not-regular") {
+    throw new WatchlistError(`watchlist ${label} is not a regular file`);
+  }
+  if (read.kind === "too-large") {
     throw new WatchlistError(
       `watchlist ${label} is larger than ${String(MAX_WATCHLIST_BYTES)} bytes`,
     );
   }
-
-  let text: string;
-  try {
-    text = await readFile(path, "utf8");
-  } catch (error: unknown) {
-    throw new WatchlistError(
-      `cannot read watchlist ${label}: ${errorText(error)}`,
-      { cause: error },
-    );
-  }
-  return parseWatchlist(text);
+  return parseWatchlist(read.bytes.toString("utf8"));
 }
 
 function lineError(line: number, detail: string): WatchlistError {
