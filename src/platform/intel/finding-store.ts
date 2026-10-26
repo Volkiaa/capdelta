@@ -168,12 +168,12 @@ export class FindingStore {
 
   /**
    * The most recently updated findings among at most the 1000 newest record
-   * files by modification time, optionally filtered to one verdict. The mtime
-   * scan bounds the work per request; `updatedAt` decides the order.
+   * files by modification time, optionally filtered to one verdict. One
+   * lstat per record file bounds the record reads per request; `updatedAt` decides the order.
    */
   async listRecent(limit: number, verdict?: Verdict): Promise<IntelFinding[]> {
-    const files = (await this.store.listWithTimes(FINDING_KIND)).slice(
-      0,
+    const files = await this.store.listWithTimes(
+      FINDING_KIND,
       MAX_RECENT_RECORDS,
     );
     const findings: IntelFinding[] = [];

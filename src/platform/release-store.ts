@@ -87,12 +87,13 @@ export class ReleaseStore {
 
   /**
    * The most recently analyzed releases among at most the 1000 newest record
-   * files by modification time. The mtime scan bounds the work per request;
+   * files by modification time. Memory is bounded by the cap and each request
+   * lstats every record file once;
    * `analyzedAt` decides the order the caller sees.
    */
   async listRecent(limit: number): Promise<ReleaseRecord[]> {
-    const files = (await this.store.listWithTimes(RELEASE_KIND)).slice(
-      0,
+    const files = await this.store.listWithTimes(
+      RELEASE_KIND,
       MAX_RECENT_RECORDS,
     );
     const records: ReleaseRecord[] = [];

@@ -143,7 +143,7 @@ describe("JsonStore.listWithTimes", () => {
     await utimes(join(root, "reports", "old.json"), oldTime, oldTime);
     await utimes(join(root, "reports", "new.json"), newTime, newTime);
 
-    const entries = await store.listWithTimes("reports");
+    const entries = await store.listWithTimes("reports", 10);
 
     expect(entries.map((entry) => entry.key)).toEqual(["new", "old"]);
     expect(entries[0]?.modifiedAt).toBe(newTime.getTime());
@@ -158,13 +158,26 @@ describe("JsonStore.listWithTimes", () => {
     await writeFile(target, '{"outside":true}\n');
     await symlink(target, join(root, "reports", "linked.json"), "file");
 
-    await expect(store.listWithTimes("reports")).resolves.toEqual([
+    await expect(store.listWithTimes("reports", 10)).resolves.toEqual([
       expect.objectContaining({ key: "kept" }),
     ]);
   });
 
   it("returns an empty list for a missing kind", async () => {
-    await expect(store.listWithTimes("reports")).resolves.toEqual([]);
+    await expect(store.listWithTimes("reports", 10)).resolves.toEqual([]);
+  });
+
+  it("keeps only the newest max entries", async () => {
+    for (let index = 0; index < 7; index += 1) {
+      const key = `r${String(index)}`;
+      await store.put("reports", key, { index });
+      const time = new Date(Date.UTC(2026, 0, index + 1));
+      await utimes(join(root, "reports", `${key}.json`), time, time);
+    }
+
+    const entries = await store.listWithTimes("reports", 3);
+
+    expect(entries.map((entry) => entry.key)).toEqual(["r6", "r5", "r4"]);
   });
 });
 

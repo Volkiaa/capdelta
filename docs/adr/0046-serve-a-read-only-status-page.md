@@ -12,7 +12,7 @@ The platform API answers only lookups by name, version or digest. Nobody can see
 
 The service gains two read routes and one page, all GET, none authenticated (same trust model as the existing read API).
 
-- `GET /v1/recent/releases?limit=N` returns the N most recently analyzed releases, newest first, as compact rows: `name`, `version`, `previousVersion`, `digest`, `analyzedAt`, `status`, `incompleteReasons` (count only), and the report's `summary.bySeverity`. `limit` defaults to 50 and is capped at 200. The route orders records by `analyzedAt` after reading at most the 1000 newest record files by modification time, which bounds the work per request.
+- `GET /v1/recent/releases?limit=N` returns the N most recently analyzed releases, newest first, as compact rows: `name`, `version`, `previousVersion`, `digest`, `analyzedAt`, `status`, `incompleteReasons` (count only), and the report's `summary.bySeverity`. `limit` defaults to 50 and is capped at 200. The route lstats every record file once, keeps the 1000 newest by modification time in memory, reads only those, and orders them by `analyzedAt`. Memory and record reads are bounded; the lstat pass grows with the store.
 - `GET /v1/recent/findings?limit=N&verdict=V` returns the N most recently updated findings with the same bounds, optionally filtered to one verdict. Each row is the stored finding, including `evidence` and `history`.
 - `GET /` returns one self-contained HTML page. The page calls the routes above plus `/v1/jobs` and `/v1/feed` from the same origin, refreshes every 15 seconds, and shows job counts, recent releases, findings with evidence and history, and the feed. It has no write controls.
 - The HTML lives in a TypeScript module as a string constant, so `tsc` ships it with no copy step. The response carries `Content-Security-Policy: default-src 'none'; script-src 'sha256-<hash of the inline script>'; style-src 'sha256-<hash of the inline style>'; connect-src 'self'; base-uri 'none'; form-action 'none'` and `X-Content-Type-Options: nosniff`. The hashes are computed from the constants at module load.
@@ -26,7 +26,7 @@ The service gains two read routes and one page, all GET, none authenticated (sam
 
 ## Consequences
 
-The maintainer can watch the monitor work in a browser. The routes read the same records as the existing API and change no verdict, report or gate. The scan cost grows with the 1000-record bound, not with the store. Revisit when the store passes about 10,000 releases (add an index) or when reviewers want to act from the page (new ADR).
+The maintainer can watch the monitor work in a browser. The routes read the same records as the existing API and change no verdict, report or gate. Each request costs one directory read and one lstat per record, so the cost grows with the store while memory and record reads stay bounded. Codex flagged this in review; an index would remove it and was rejected for now. Revisit when the store passes about 10,000 releases (add an index) or when reviewers want to act from the page (new ADR).
 
 Git: conventional commits, imperative mood, no Co-Authored-By trailer. Never run package code. No new runtime dependency. Every catch recovers or rethrows with context. Keep any comment that states a security reason.
 

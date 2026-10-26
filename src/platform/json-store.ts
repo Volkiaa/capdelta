@@ -179,9 +179,11 @@ export class JsonStore {
    * Keys of one kind with their file modification times, newest first. An
    * absent kind directory lists as empty. A symlink or a non-record file is
    * skipped, and each entry is lstat'ed under the kind directory so a record
-   * swapped for a symlink after the directory read is not followed.
+   * swapped for a symlink after the directory read is not followed. The call
+   * keeps at most `max` entries in memory (the newest), but still lstats every
+   * record once.
    */
-  async listWithTimes(kind: string): Promise<StoreFile[]> {
+  async listWithTimes(kind: string, max: number): Promise<StoreFile[]> {
     requireKind(kind);
     await this.inspectKindDirectory(kind, undefined);
 
@@ -193,7 +195,7 @@ export class JsonStore {
       throw wrap("list", kind, undefined, error);
     }
 
-    const files: StoreFile[] = [];
+    let files: StoreFile[] = [];
     for (const entry of entries) {
       if (!entry.isFile() || !entry.name.endsWith(RECORD_SUFFIX)) continue;
       const key = entry.name.slice(0, -RECORD_SUFFIX.length);
@@ -207,14 +209,10 @@ export class JsonStore {
       }
       if (!stats.isFile()) continue;
       files.push({ key, modifiedAt: stats.mtimeMs });
+      if (files.length >= 2 * max) files = newestFirst(files).slice(0, max);
     }
 
-    return files.sort((left, right) => {
-      if (left.modifiedAt !== right.modifiedAt) {
-        return right.modifiedAt - left.modifiedAt;
-      }
-      return left.key < right.key ? -1 : left.key > right.key ? 1 : 0;
-    });
+    return newestFirst(files).slice(0, max);
   }
 
   /** Removes a record. A missing record is not an error. */
@@ -429,4 +427,13 @@ function hasCode(error: unknown, code: string): boolean {
   return (
     error instanceof Error && (error as NodeJS.ErrnoException).code === code
   );
+}
+
+function newestFirst(files: StoreFile[]): StoreFile[] {
+  return files.sort((left, right) => {
+    if (left.modifiedAt !== right.modifiedAt) {
+      return right.modifiedAt - left.modifiedAt;
+    }
+    return left.key < right.key ? -1 : left.key > right.key ? 1 : 0;
+  });
 }
