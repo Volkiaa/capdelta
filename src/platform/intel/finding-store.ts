@@ -22,6 +22,7 @@ const FEED_KIND = "feed";
 const FEED_META_KIND = "feed-meta";
 const FEED_HEAD_KEY = "head";
 const FEED_KEY_PATTERN = /^entry-(\d{12})$/;
+const MAX_RECENT_RECORDS = 1000;
 
 const SEVERITIES: readonly Severity[] = [
   "INFO",
@@ -163,6 +164,30 @@ export class FindingStore {
       if (finding !== null) matches.push(finding);
     }
     return matches;
+  }
+
+  /**
+   * The most recently updated findings among at most the 1000 newest record
+   * files by modification time, optionally filtered to one verdict. The mtime
+   * scan bounds the work per request; `updatedAt` decides the order.
+   */
+  async listRecent(limit: number, verdict?: Verdict): Promise<IntelFinding[]> {
+    const files = (await this.store.listWithTimes(FINDING_KIND)).slice(
+      0,
+      MAX_RECENT_RECORDS,
+    );
+    const findings: IntelFinding[] = [];
+    for (const file of files) {
+      const finding = await this.get(file.key);
+      if (finding === null) continue;
+      if (verdict !== undefined && finding.verdict !== verdict) continue;
+      findings.push(finding);
+    }
+    // Sort is stable, so findings with the same updatedAt keep mtime order.
+    findings.sort(
+      (left, right) => timestamp(right.updatedAt) - timestamp(left.updatedAt),
+    );
+    return findings.slice(0, limit);
   }
 
   async feedSince(sequence: number, limit: number): Promise<FeedPage> {
@@ -313,6 +338,12 @@ export class FindingStore {
 
 function feedKey(sequence: number): string {
   return `entry-${String(sequence).padStart(12, "0")}`;
+}
+
+/** ISO timestamps sort by text when they are well formed; parse to be sure. */
+function timestamp(value: string): number {
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? 0 : parsed;
 }
 
 function parseFinding(value: unknown, id: string): IntelFinding {

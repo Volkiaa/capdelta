@@ -12,5 +12,7 @@ docs/m5-2026-10-12/results.json
 # Worker briefs and notes, never formatted or committed.
 .task.md
 NOTES.md
+# ADR-046 is a verbatim copy of the ticket fixture, including its list numbers.
+docs/adr/0046-serve-a-read-only-status-page.md
 # Gitignored local scratch scripts.
 .scratch/

@@ -5,6 +5,7 @@ import {
   type ServerResponse,
 } from "node:http";
 import { NamedError } from "../core/named-error.js";
+import type { SeverityCounts } from "../core/report-contract.js";
 import {
   MAX_IDENTITY_CHARS,
   MAX_VALUE_CHARS,
@@ -20,6 +21,7 @@ import { toOsv } from "./intel/osv.js";
 import type { Reviewers } from "./intel/reviewers.js";
 import type { JobQueue } from "./job-queue.js";
 import type { ReleaseRecord, ReleaseStore } from "./release-store.js";
+import { STATUS_PAGE_CSP, STATUS_PAGE_HTML } from "./ui-page.js";
 
 export interface ApiDeps {
   releases: ReleaseStore;
@@ -39,6 +41,8 @@ const MAX_HEADERS_COUNT = 50;
 const MAX_QUERY_FINDINGS = 200;
 const DEFAULT_FEED_LIMIT = 100;
 const MAX_FEED_LIMIT = 500;
+const DEFAULT_RECENT_LIMIT = 50;
+const MAX_RECENT_LIMIT = 200;
 const MAX_TRANSITION_BODY_BYTES = 16 * 1024;
 const FINDING_ID_PATTERN = /^CDI-[0-9a-f]{20}$/u;
 const BEARER_PATTERN = /^Bearer +(\S+)$/iu;
@@ -56,6 +60,8 @@ const CONTROL_CHARACTER = /\p{Cc}/u;
 interface Reply {
   status: number;
   body: unknown;
+  /** When set, the response body is this text instead of the JSON body. */
+  html?: string;
   headers?: Record<string, string>;
 }
 
@@ -164,6 +170,7 @@ async function route(deps: ApiDeps, rawUrl: string): Promise<Reply> {
   }
   const [root, section, ...rest] = target.segments;
   if (root !== "") return notFound();
+  if (section === "" && rest.length === 0) return statusPage();
   if (section === "healthz" && rest.length === 0) {
     return { status: 200, body: { ok: true } };
   }
@@ -180,6 +187,7 @@ async function routeV1(
   if (resource === "releases") return releasesByVersion(deps.releases, rest);
   if (resource === "artifacts") return artifactsByDigest(deps.releases, rest);
   if (resource === "jobs") return jobsSummary(deps.queue, rest);
+  if (resource === "recent") return recentRoute(deps, rest, query);
   if (resource === "findings") {
     return findingsRoute(deps.findings, rest, query);
   }
@@ -222,6 +230,65 @@ interface FailedJob {
   version: string;
   attempts: number;
   lastError: string | null;
+}
+
+interface RecentReleaseRow {
+  name: string;
+  version: string;
+  previousVersion: string | null;
+  digest: string;
+  analyzedAt: string;
+  status: "complete" | "incomplete";
+  incompleteReasons: number;
+  bySeverity: SeverityCounts;
+}
+
+async function recentRoute(
+  deps: ApiDeps,
+  segments: string[],
+  query: URLSearchParams,
+): Promise<Reply> {
+  const [resource, ...rest] = segments;
+  if (rest.length !== 0) return notFound();
+  if (resource !== "releases" && resource !== "findings") return notFound();
+  const limit = count(query.get("limit"), DEFAULT_RECENT_LIMIT);
+  if (limit === null || limit < 1 || limit > MAX_RECENT_LIMIT) {
+    return badRequest();
+  }
+  if (resource === "releases") {
+    const records = await deps.releases.listRecent(limit);
+    return {
+      status: 200,
+      body: { releases: records.map(recentReleaseRow) },
+    };
+  }
+  const requested = query.get("verdict");
+  if (requested === null) {
+    return {
+      status: 200,
+      body: { findings: await deps.findings.listRecent(limit) },
+    };
+  }
+  const selected = verdict(requested);
+  if (selected === null) return badRequest();
+  return {
+    status: 200,
+    body: { findings: await deps.findings.listRecent(limit, selected) },
+  };
+}
+
+/** A list row, not the stored record: the report stays behind. */
+function recentReleaseRow(record: ReleaseRecord): RecentReleaseRow {
+  return {
+    name: record.name,
+    version: record.version,
+    previousVersion: record.previousVersion,
+    digest: record.digest,
+    analyzedAt: record.analyzedAt,
+    status: record.status,
+    incompleteReasons: record.incompleteReasons.length,
+    bySeverity: record.report.summary.bySeverity,
+  };
 }
 
 async function jobsSummary(
@@ -627,12 +694,24 @@ function notFound(): Reply {
   return { status: 404, body: { error: "not found" } };
 }
 
+function statusPage(): Reply {
+  return {
+    status: 200,
+    body: null,
+    html: STATUS_PAGE_HTML,
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+      "content-security-policy": STATUS_PAGE_CSP,
+    },
+  };
+}
+
 function write(
   request: IncomingMessage,
   response: ServerResponse,
   reply: Reply,
 ): void {
-  const body = JSON.stringify(reply.body);
+  const body = reply.html ?? JSON.stringify(reply.body);
   response.writeHead(reply.status, {
     "content-type": JSON_TYPE,
     "x-content-type-options": "nosniff",

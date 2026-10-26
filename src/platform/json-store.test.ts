@@ -6,6 +6,7 @@ import {
   readdir,
   rm,
   symlink,
+  utimes,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -130,6 +131,40 @@ describe("JsonStore.list", () => {
 
   it("returns an empty list for a missing kind", async () => {
     await expect(store.list("reports")).resolves.toEqual([]);
+  });
+});
+
+describe("JsonStore.listWithTimes", () => {
+  it("returns records newest first with their modification time", async () => {
+    await store.put("reports", "old", { count: 1 });
+    await store.put("reports", "new", { count: 2 });
+    const oldTime = new Date("2026-01-01T00:00:00.000Z");
+    const newTime = new Date("2026-02-01T00:00:00.000Z");
+    await utimes(join(root, "reports", "old.json"), oldTime, oldTime);
+    await utimes(join(root, "reports", "new.json"), newTime, newTime);
+
+    const entries = await store.listWithTimes("reports");
+
+    expect(entries.map((entry) => entry.key)).toEqual(["new", "old"]);
+    expect(entries[0]?.modifiedAt).toBe(newTime.getTime());
+    expect(entries[1]?.modifiedAt).toBe(oldTime.getTime());
+  });
+
+  it("skips symlinks, temp files and non-record files", async () => {
+    await store.put("reports", "kept", { count: 1 });
+    await writeFile(join(root, "reports", ".kept.abc123.tmp"), "{");
+    await writeFile(join(root, "reports", "notes.txt"), "not a record");
+    const target = join(base, "outside.json");
+    await writeFile(target, '{"outside":true}\n');
+    await symlink(target, join(root, "reports", "linked.json"), "file");
+
+    await expect(store.listWithTimes("reports")).resolves.toEqual([
+      expect.objectContaining({ key: "kept" }),
+    ]);
+  });
+
+  it("returns an empty list for a missing kind", async () => {
+    await expect(store.listWithTimes("reports")).resolves.toEqual([]);
   });
 });
 

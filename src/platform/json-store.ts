@@ -21,6 +21,12 @@ export interface JsonStoreOptions {
   root: string;
 }
 
+export interface StoreFile {
+  key: string;
+  /** File modification time in milliseconds since the epoch. */
+  modifiedAt: number;
+}
+
 const KIND_PATTERN = /^[a-z][a-z0-9-]{0,31}$/;
 const KEY_PATTERN = /^[A-Za-z0-9._-]{1,200}$/;
 const RECORD_SUFFIX = ".json";
@@ -167,6 +173,48 @@ export class JsonStore {
       })
       .map((entry) => entry.name.slice(0, -RECORD_SUFFIX.length))
       .sort();
+  }
+
+  /**
+   * Keys of one kind with their file modification times, newest first. An
+   * absent kind directory lists as empty. A symlink or a non-record file is
+   * skipped, and each entry is lstat'ed under the kind directory so a record
+   * swapped for a symlink after the directory read is not followed.
+   */
+  async listWithTimes(kind: string): Promise<StoreFile[]> {
+    requireKind(kind);
+    await this.inspectKindDirectory(kind, undefined);
+
+    let entries: Dirent[];
+    try {
+      entries = await readdir(this.contain(kind), { withFileTypes: true });
+    } catch (error) {
+      if (hasCode(error, "ENOENT")) return [];
+      throw wrap("list", kind, undefined, error);
+    }
+
+    const files: StoreFile[] = [];
+    for (const entry of entries) {
+      if (!entry.isFile() || !entry.name.endsWith(RECORD_SUFFIX)) continue;
+      const key = entry.name.slice(0, -RECORD_SUFFIX.length);
+      let stats: Stats;
+      try {
+        stats = await lstat(this.contain(kind, entry.name));
+      } catch (error) {
+        // The record disappeared between the directory read and the stat.
+        if (hasCode(error, "ENOENT")) continue;
+        throw wrap("inspect", kind, key, error);
+      }
+      if (!stats.isFile()) continue;
+      files.push({ key, modifiedAt: stats.mtimeMs });
+    }
+
+    return files.sort((left, right) => {
+      if (left.modifiedAt !== right.modifiedAt) {
+        return right.modifiedAt - left.modifiedAt;
+      }
+      return left.key < right.key ? -1 : left.key > right.key ? 1 : 0;
+    });
   }
 
   /** Removes a record. A missing record is not an error. */
