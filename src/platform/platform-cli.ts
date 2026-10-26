@@ -14,6 +14,7 @@ import {
 } from "./intel/reviewers.js";
 import type { CollectorOptions } from "./registry-collector.js";
 import { analyzeOne, monitorOnce, openService } from "./service.js";
+import { MAX_CONCURRENCY } from "./worker.js";
 
 export interface PlatformCliIo {
   stdout(s: string): void;
@@ -27,9 +28,9 @@ const USAGE = [
   "usage: capdelta-platform <command> [options]",
   "",
   "Commands:",
-  "  monitor --data <dir> [--interval <seconds>] [--registry <url>] [--changes <url>]",
+  "  monitor --data <dir> [--interval <seconds>] [--concurrency <n>] [--registry <url>] [--changes <url>]",
   "      Run one monitor cycle, or repeat every interval until stopped.",
-  "  analyze --data <dir> --package <name> --version <version> [--registry <url>]",
+  "  analyze --data <dir> --package <name> --version <version> [--concurrency <n>] [--registry <url>]",
   "      Analyze one release now, without the change feed.",
   "  serve --data <dir> [--port <port>] [--host <host>] [--reviewers <file>]",
   "      Serve stored releases and jobs over HTTP. With --reviewers, also",
@@ -44,6 +45,7 @@ const USAGE = [
 
 const DEFAULT_PORT = 8787;
 const DEFAULT_HOST = "127.0.0.1";
+const CONCURRENCY_USAGE = `--concurrency must be an integer between 1 and ${String(MAX_CONCURRENCY)}`;
 
 export async function runPlatformCli(
   argv: string[],
@@ -69,6 +71,7 @@ async function runMonitor(args: string[], io: PlatformCliIo): Promise<number> {
   const parsed = parse(args, {
     data: { type: "string" },
     interval: { type: "string" },
+    concurrency: { type: "string" },
     registry: { type: "string" },
     changes: { type: "string" },
   });
@@ -79,9 +82,12 @@ async function runMonitor(args: string[], io: PlatformCliIo): Promise<number> {
   if (seconds === null) {
     return usageError(io, "--interval must be a positive number of seconds");
   }
+  const concurrency = parseConcurrency(parsed.values.concurrency);
+  if (concurrency === null) return usageError(io, CONCURRENCY_USAGE);
   const config = {
     dataDir: data.data,
     collector: collectorOptions(parsed.values),
+    ...(concurrency === undefined ? {} : { concurrency }),
     onEvent: (message: string) => {
       io.stderr(`${message}\n`);
     },
@@ -124,6 +130,7 @@ async function runAnalyze(args: string[], io: PlatformCliIo): Promise<number> {
     data: { type: "string" },
     package: { type: "string" },
     version: { type: "string" },
+    concurrency: { type: "string" },
     registry: { type: "string" },
   });
   if (!parsed.ok) return usageError(io, parsed.message);
@@ -135,10 +142,16 @@ async function runAnalyze(args: string[], io: PlatformCliIo): Promise<number> {
   if (version === undefined) {
     return usageError(io, "analyze requires --version");
   }
+  const concurrency = parseConcurrency(parsed.values.concurrency);
+  if (concurrency === null) return usageError(io, CONCURRENCY_USAGE);
 
   try {
     const result = await analyzeOne(
-      { dataDir: data.data, collector: collectorOptions(parsed.values) },
+      {
+        dataDir: data.data,
+        collector: collectorOptions(parsed.values),
+        ...(concurrency === undefined ? {} : { concurrency }),
+      },
       name,
       version,
     );
@@ -275,6 +288,17 @@ function parseInterval(value: string | undefined): number | undefined | null {
   const seconds = Number(value);
   if (!Number.isFinite(seconds) || seconds <= 0) return null;
   return seconds;
+}
+
+function parseConcurrency(
+  value: string | undefined,
+): number | undefined | null {
+  if (value === undefined) return undefined;
+  if (!/^\d+$/u.test(value)) return null;
+  const concurrency = Number(value);
+  return concurrency >= 1 && concurrency <= MAX_CONCURRENCY
+    ? concurrency
+    : null;
 }
 
 function parsePort(value: string | undefined): number | null {

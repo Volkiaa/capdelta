@@ -406,4 +406,30 @@ describe("analyzeOne", () => {
     await expect(handles.queue.list()).resolves.toEqual([]);
     await expect(handles.releases.listKeys()).resolves.toEqual([]);
   });
+
+  it("reports the time the analysis took in the analyzed line", async () => {
+    const { fetchImpl } = routedFetch((url) => {
+      if (url === `${REGISTRY}/alpha`) {
+        return jsonResponse(packument("alpha", ["1.0.0"]));
+      }
+      return undefined;
+    });
+    const { analyze } = fakeAnalyze();
+    const events: string[] = [];
+
+    await analyzeOne(
+      config(fetchImpl, {
+        analyze,
+        onEvent: (message) => events.push(message),
+      }),
+      "alpha",
+      "1.0.0",
+    );
+
+    expect(
+      events.some((message) =>
+        /^analyzed alpha@1\.0\.0 in \d+ms$/u.test(message),
+      ),
+    ).toBe(true);
+  });
 });

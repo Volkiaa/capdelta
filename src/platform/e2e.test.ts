@@ -194,6 +194,26 @@ describe("platform end to end", () => {
     });
   });
 
+  it("analyzes several releases with the configured concurrency", async () => {
+    const registry = createFakeRegistry();
+    const service = serviceConfig(registry, { concurrency: 2 });
+    await monitorOnce(service);
+    for (const name of ["one", "two", "three"]) {
+      registry.publish(name, "1.0.0");
+    }
+
+    const cycle = await monitorOnce(service);
+
+    expect(cycle).toMatchObject({ enqueued: 3, done: 3, failed: 0 });
+    const handles = openService(service);
+    for (const name of ["one", "two", "three"]) {
+      await expect(
+        handles.releases.findByVersion(name, "1.0.0"),
+      ).resolves.toHaveLength(1);
+    }
+    await expect(handles.queue.list("done")).resolves.toHaveLength(3);
+  });
+
   it("analyzes a dependency the new release newly declares", async () => {
     const registry = createFakeRegistry();
     const service = serviceConfig(registry);

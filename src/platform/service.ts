@@ -32,6 +32,7 @@ export interface ServiceConfig {
   analyzeOptions?: CapabilityAnalysisOptions;
   analyze?: typeof analyzeChangedPackages;
   maxAttempts?: number;
+  concurrency?: number;
   now?: () => Date;
   onEvent?: (message: string) => void;
 }
@@ -175,6 +176,9 @@ function drain(
     ...(config.maxAttempts === undefined
       ? {}
       : { maxAttempts: config.maxAttempts }),
+    ...(config.concurrency === undefined
+      ? {}
+      : { concurrency: config.concurrency }),
     onEvent: (event) => {
       reportWorkerEvent(config, event);
     },
@@ -201,14 +205,17 @@ async function analyzeCandidate(
     handles.findings,
     config.now ?? (() => new Date()),
   );
-  emit(
-    config,
-    `analyzed ${identity(candidate.name, candidate.version)}${result.created ? "" : " (record already present)"}`,
-  );
   return { created: result.created };
 }
 
 function reportWorkerEvent(config: ServiceConfig, event: WorkerEvent): void {
+  if (event.kind === "done") {
+    emit(
+      config,
+      `analyzed ${identity(event.name, event.version)} in ${String(event.elapsedMs)}ms${event.created ? "" : " (record already present)"}`,
+    );
+    return;
+  }
   if (event.kind === "retry") {
     emit(
       config,
