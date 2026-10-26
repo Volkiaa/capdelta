@@ -86,6 +86,10 @@ const IP_LITERAL_ROWS: readonly IpLiteralRow[] = [
 const ARRAY_RE = /\x5b([^\x5b\x5d]{1,4096})\x5d/gu;
 const HEX_ELEMENT_RE = /^0x[0-9a-f]{1,2}$/iu;
 const CHARCODE_ELEMENT_RE = /^\d{1,3}$/u;
+// ADR-048: String.fromCharCode below 10 is a control character, so an array
+// of only single digits cannot spell readable text. At least one element must
+// have two or three digits; a Luhn checksum table has none.
+const MULTI_DIGIT_ELEMENT_RE = /^\d{2,3}$/u;
 
 const BASE58 = "[1-9A-HJ-NP-Za-km-z]";
 const BECH32 = "[02-9ac-hj-np-z]";
@@ -604,6 +608,7 @@ function arrayPattern(elements: readonly string[]): ObfuscationPattern | null {
   }
   if (
     elements.length >= MIN_OBFUSCATION_ARRAY_ELEMENTS &&
+    elements.some((element) => MULTI_DIGIT_ELEMENT_RE.test(element)) &&
     elements.every((element) => {
       if (!CHARCODE_ELEMENT_RE.test(element)) return false;
       const value = Number(element);

@@ -1489,6 +1489,78 @@ describe("destination swap inside text (ADR-024 boundary)", () => {
   });
 });
 
+// ADR-048: a new Luhn table beside a process import is not obfuscated execution.
+describe("single-digit charcode arrays on a dependency bump (ADR-048)", () => {
+  async function analyze(
+    files: Record<string, string>,
+    version: string,
+  ): Promise<CapabilitySet> {
+    let result: CapabilitySet | undefined;
+    await withPackage(files, async (root) => {
+      const manifest = await extractNpmManifestCapabilities(
+        { root },
+        { ecosystem: "npm", name: "fixture", version },
+      );
+      if (manifest.status !== "analyzed")
+        throw new Error("manifest unavailable");
+      result = mergeJavaScriptCapabilityLayer(
+        manifest.set,
+        await extractNpmJavaScriptCapabilities({ root }, manifest.set),
+      );
+    });
+    if (result === undefined) throw new Error("analysis did not run");
+    return result;
+  }
+
+  const withTable = (table: string): string =>
+    [
+      'const cp = require("node:child_process");',
+      `const table = [${table}];`,
+      "module.exports = () => cp.spawnSync(String.fromCharCode(...table));",
+      "",
+    ].join("\n");
+
+  it("does not pair a new Luhn table with process execution", async () => {
+    const base = await analyze(
+      { "index.js": "module.exports = 1;\n" },
+      "2.0.0",
+    );
+    const head = await analyze(
+      { "index.js": withTable("0, 2, 4, 6, 8, 1, 3, 5, 7, 9") },
+      "2.0.0",
+    );
+    const diff = diffManifestCapabilities(base, head);
+
+    expect(diff.findings.map((finding) => finding.capability.kind)).toEqual([
+      "PROCESS",
+    ]);
+    expect(diff.signalFindings).toEqual([]);
+    expect(diff.shapes).toEqual([]);
+  });
+
+  it("still pairs a real text charcode array with process execution", async () => {
+    const base = await analyze(
+      { "index.js": "module.exports = 1;\n" },
+      "2.0.0",
+    );
+    const head = await analyze(
+      { "index.js": withTable("104, 116, 116, 112, 115, 58, 47, 47") },
+      "2.0.0",
+    );
+    const diff = diffManifestCapabilities(base, head);
+
+    expect(diff.signalFindings).toEqual([
+      expect.objectContaining({
+        kind: "obfuscation-pattern-added",
+        severity: "CRITICAL",
+      }),
+    ]);
+    expect(diff.shapes?.map((shape) => shape.ruleId)).toEqual([
+      "obfuscated-execution",
+    ]);
+  });
+});
+
 describe("template element boundary (ADR-024)", () => {
   async function analyze(
     files: Record<string, string>,
