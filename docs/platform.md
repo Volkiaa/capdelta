@@ -107,7 +107,7 @@ Every write goes to a temporary file and then an atomic rename or link puts it i
 
 The API answers `GET` and `HEAD`. It also answers `POST` on the transition route, and only when the service started with a reviewers file. Every other method returns 405. Every JSON response carries `content-type: application/json; charset=utf-8`. `GET /` is the only HTML response.
 
-`GET /` returns one self-contained status page. The page calls `/v1/jobs`, `/v1/recent/releases`, `/v1/recent/findings` and `/v1/feed` from the same origin, refreshes every 15 seconds, and has no write controls. The response carries `X-Content-Type-Options: nosniff` and a content security policy that allows only its inline style and script, identified by sha256 hashes, plus same-origin fetches:
+`GET /` returns one self-contained status page. The page calls `/v1/jobs`, `/v1/recent/releases`, `/v1/recent/findings` and `/v1/feed` from the same origin, refreshes every 15 seconds, and has no write controls. It groups releases that have a CRITICAL or HIGH finding into a Flagged releases table and collapses a Probably noise group when the version starts with `0.0.0-` or every critical and high finding has its first evidence on a test path. The group is a display hint, not a verdict, and each row keeps its real severity. The response carries `X-Content-Type-Options: nosniff` and a content security policy that allows only its inline style and script, identified by sha256 hashes, plus same-origin fetches:
 
 ```sh
 curl -sS http://127.0.0.1:8787/
