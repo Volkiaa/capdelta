@@ -117,10 +117,12 @@ Details are in `features/intel-lookup.md`.
 
 ## Status page
 
-`bin/status-page-drive` starts a real `serve` with two stored releases and one
-finding, then fetches `/`, `/v1/recent/releases`, `/v1/recent/findings` and two
-rejected requests. It exits 1 when a route, the page CSP or a row count is wrong.
-Details are in `features/platform-service.md`.
+`bin/status-page-drive` starts a real `serve` with four stored releases and four
+findings, then fetches `/`, `/v1/recent/releases`, `/v1/recent/findings` and two
+rejected requests. It runs the page script against a fake DOM and prints the
+Flagged releases and Probably noise groups. It exits 1 when a route, the page
+CSP, a row count or a group is wrong. Details are in
+`features/platform-service.md`.
 
 ```sh
 .claude/skills/verify-capdelta/bin/status-page-drive

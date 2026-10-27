@@ -1,6 +1,187 @@
 import { createHash } from "node:crypto";
 
 /**
+ * A first-evidence path is a display hint, not a verdict. A path counts as a
+ * test path when a segment is exactly `test`, `tests`, `_test` or `__tests__`,
+ * or the basename matches `*.test.*`, `*.spec.*`, `*.bench.*` or `*.fuzz.*`.
+ *
+ * The status page embeds this function's source, so the unit-tested predicate
+ * and the browser code are the same code.
+ */
+export function isTestEvidencePath(file: string): boolean {
+  const segments = file.replace(/\\/g, "/").split("/");
+  const basename = segments[segments.length - 1] ?? "";
+  if (
+    segments.some(
+      (segment) =>
+        segment === "test" ||
+        segment === "tests" ||
+        segment === "_test" ||
+        segment === "__tests__",
+    )
+  ) {
+    return true;
+  }
+  return /\.(test|spec|bench|fuzz)\.[^/]+$/.test(basename);
+}
+
+export interface ReleaseGroupSource {
+  name?: unknown;
+  version?: unknown;
+  bySeverity?: Record<string, unknown> | null;
+}
+
+export interface FindingGroupSource {
+  name?: unknown;
+  version?: unknown;
+  severity?: unknown;
+  ruleKey?: unknown;
+  evidence?: readonly { file?: unknown }[] | null;
+}
+
+export interface ReleaseGroupRow {
+  name: string;
+  version: string;
+  severity: string;
+  findingCount: string;
+  reason: string;
+  noise: boolean;
+}
+
+/**
+ * Rows for the flagged releases table. Severity is the worst one the report
+ * counts or the loaded findings carry, so it is never lowered. The noise flag
+ * is a display hint only: the row keeps its real severity.
+ *
+ * The status page embeds this function's source for the same reason as
+ * `isTestEvidencePath`.
+ */
+export function groupFlaggedReleases(
+  releases: readonly ReleaseGroupSource[],
+  findings: readonly FindingGroupSource[],
+): ReleaseGroupRow[] {
+  const severities = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"];
+  const text = (value: unknown): string => {
+    if (
+      typeof value === "string" ||
+      typeof value === "number" ||
+      typeof value === "boolean"
+    ) {
+      return String(value);
+    }
+    return "";
+  };
+  const countOf = (
+    counts: Record<string, unknown> | null | undefined,
+    name: string,
+  ): number => {
+    if (counts === null || counts === undefined) return 0;
+    const count = Number(counts[name]);
+    return Number.isFinite(count) && count > 0 ? count : 0;
+  };
+  const countText = (
+    counts: Record<string, unknown> | null | undefined,
+  ): string =>
+    severities
+      .map((name) => name + " " + String(countOf(counts, name)))
+      .join(", ");
+  const kindOf = (ruleKey: unknown): string => {
+    const key = text(ruleKey);
+    const colon = key.indexOf(":");
+    return colon === -1 ? key : key.slice(colon + 1);
+  };
+  const reasonFor = (related: readonly FindingGroupSource[]): string => {
+    if (related.length === 0) return "no finding detail loaded";
+    const counts: Record<string, number> = {};
+    let best = "";
+    let bestCount = 0;
+    for (const finding of related) {
+      const kind = kindOf(finding.ruleKey);
+      if (kind === "") continue;
+      const count = (counts[kind] ?? 0) + 1;
+      counts[kind] = count;
+      if (
+        count > bestCount ||
+        (count === bestCount && (best === "" || kind < best))
+      ) {
+        best = kind;
+        bestCount = count;
+      }
+    }
+    return best === "" ? "no rule key" : best + " x" + String(bestCount);
+  };
+  const worstFor = (
+    counts: Record<string, unknown> | null | undefined,
+    related: readonly FindingGroupSource[],
+  ): string => {
+    let worst = severities.length;
+    for (let index = 0; index < severities.length; index += 1) {
+      const name = severities[index];
+      if (name !== undefined && countOf(counts, name) > 0) {
+        worst = index;
+        break;
+      }
+    }
+    for (const finding of related) {
+      const index = severities.indexOf(text(finding.severity));
+      if (index !== -1 && index < worst) worst = index;
+    }
+    return worst === severities.length ? "none" : (severities[worst] ?? "none");
+  };
+  const isNoise = (
+    release: ReleaseGroupSource,
+    related: readonly FindingGroupSource[],
+  ): boolean => {
+    if (text(release.version).startsWith("0.0.0-")) return true;
+    const high = related.filter((finding) => {
+      const severity = text(finding.severity);
+      return severity === "CRITICAL" || severity === "HIGH";
+    });
+    // An empty list would make every() true, so require a loaded finding.
+    if (high.length === 0) return false;
+    return high.every((finding) => {
+      const evidence: readonly { file?: unknown }[] = Array.isArray(
+        finding.evidence,
+      )
+        ? (finding.evidence as readonly { file?: unknown }[])
+        : [];
+      const first = evidence.length > 0 ? evidence[0] : undefined;
+      if (first === undefined) return false;
+      return isTestEvidencePath(text(first.file));
+    });
+  };
+
+  const rows: ReleaseGroupRow[] = [];
+  for (const release of releases) {
+    const name = text(release.name);
+    const version = text(release.version);
+    const related = findings.filter(
+      (finding) =>
+        text(finding.name) === name && text(finding.version) === version,
+    );
+    const counts = release.bySeverity ?? null;
+    const flagged =
+      countOf(counts, "CRITICAL") > 0 ||
+      countOf(counts, "HIGH") > 0 ||
+      related.some((finding) => {
+        const severity = text(finding.severity);
+        return severity === "CRITICAL" || severity === "HIGH";
+      });
+    if (!flagged) continue;
+    rows.push({
+      name,
+      version,
+      severity: worstFor(counts, related),
+      findingCount:
+        related.length > 0 ? String(related.length) : countText(counts),
+      reason: reasonFor(related),
+      noise: isNoise(release, related),
+    });
+  }
+  return rows;
+}
+
+/**
  * The page is static. The browser code reads the API with fetch and writes
  * every value with textContent, so a package name or evidence excerpt can
  * never become markup. The CSP below allows only these exact bytes.
@@ -110,6 +291,8 @@ pre {
 }
 .feed p { margin: 0.35rem 0 0; }
 .feed .meta { display: flex; flex-wrap: wrap; gap: 0.25rem 0.75rem; color: var(--muted); font-size: 0.85rem; }
+summary { margin: 0.75rem 0 0.5rem; cursor: pointer; font-weight: 600; }
+details .table-wrap { margin-top: 0.5rem; }
 @media (max-width: 640px) {
   main { gap: 1rem; padding: 0.75rem; }
   table, thead, tbody, tr, th, td { display: block; }
@@ -130,11 +313,18 @@ const FEED = "/v1/feed?limit=100";
 const STATES = ["pending", "running", "done", "failed"];
 const SEVERITIES = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"];
 
+${isTestEvidencePath.toString()}
+
+${groupFlaggedReleases.toString()}
+
 const nodes = {
   updated: document.getElementById("updated"),
   error: document.getElementById("error"),
   jobCounts: document.getElementById("job-counts"),
   releases: document.getElementById("releases-body"),
+  flagged: document.getElementById("flagged-body"),
+  noise: document.getElementById("noise-body"),
+  noiseSummary: document.getElementById("noise-summary"),
   findings: document.getElementById("findings-body"),
   detail: document.getElementById("finding-detail"),
   feed: document.getElementById("feed-list"),
@@ -226,6 +416,42 @@ function renderReleases(body) {
     );
     nodes.releases.append(row);
   }
+}
+
+function releaseGroupRow(row) {
+  const elementRow = element("tr");
+  elementRow.append(
+    cell("td", text(row.name), "Package"),
+    cell("td", text(row.version), "Version"),
+    cell("td", text(row.severity), "Worst severity"),
+    cell("td", text(row.findingCount), "Findings"),
+    cell("td", text(row.reason), "Reason"),
+  );
+  return elementRow;
+}
+
+function renderReleaseGroups(releasesBody, findingsBody) {
+  clear(nodes.flagged);
+  clear(nodes.noise);
+  const releases = releasesBody && Array.isArray(releasesBody.releases) ? releasesBody.releases : [];
+  const findings = findingsBody && Array.isArray(findingsBody.findings) ? findingsBody.findings : [];
+  const rows = groupFlaggedReleases(releases, findings);
+  let noiseCount = 0;
+  for (const row of rows) {
+    if (row.noise) {
+      noiseCount += 1;
+      nodes.noise.append(releaseGroupRow(row));
+    } else {
+      nodes.flagged.append(releaseGroupRow(row));
+    }
+  }
+  if (rows.length === noiseCount) {
+    emptyRow(nodes.flagged, 5, "No flagged releases.");
+  }
+  if (noiseCount === 0) {
+    emptyRow(nodes.noise, 5, "No releases in this group.");
+  }
+  nodes.noiseSummary.textContent = "Probably noise (" + String(noiseCount) + ")";
 }
 
 function showFinding(finding) {
@@ -335,6 +561,7 @@ async function refresh() {
     ]);
     renderJobs(results[0]);
     renderReleases(results[1]);
+    renderReleaseGroups(results[1], results[2]);
     renderFindings(results[2]);
     renderFeed(results[3]);
     nodes.error.textContent = "";
@@ -390,6 +617,30 @@ export const STATUS_PAGE_HTML = `<!doctype html>
 <tbody id="releases-body"></tbody>
 </table>
 </div>
+</section>
+<section>
+<h2>Flagged releases</h2>
+<p class="hint">Releases with a CRITICAL or HIGH finding. The worst severity is never lowered.</p>
+<div class="table-wrap">
+<table>
+<thead>
+<tr><th>Package</th><th>Version</th><th>Worst severity</th><th>Findings</th><th>Reason</th></tr>
+</thead>
+<tbody id="flagged-body"></tbody>
+</table>
+</div>
+<details>
+<summary id="noise-summary">Probably noise (0)</summary>
+<p class="hint">This group is a display hint, not a verdict. Each release keeps its real severity.</p>
+<div class="table-wrap">
+<table>
+<thead>
+<tr><th>Package</th><th>Version</th><th>Worst severity</th><th>Findings</th><th>Reason</th></tr>
+</thead>
+<tbody id="noise-body"></tbody>
+</table>
+</div>
+</details>
 </section>
 <section>
 <h2>Findings</h2>

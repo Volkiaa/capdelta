@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Starts a real platform service with two releases and one finding, then fetches
-# the status page and the two recent list routes. Evidence stays on disk.
+# Starts a real platform service with four releases and four findings, then
+# fetches the status page and the two recent list routes. It runs the page
+# script against a fake DOM and prints the two release groups. Evidence stays
+# on disk.
 set -u
 BIN="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$BIN/../../../.." && pwd)"
@@ -29,7 +31,17 @@ const store = new JsonStore({ root: "$D/data" });
 const releases = new ReleaseStore(store);
 const findings = new FindingStore(store);
 
-function release(name, version, digest, analyzedAt, previousVersion) {
+function signal(kind, severity, file) {
+  return {
+    kind: kind,
+    severity: severity,
+    change: "added",
+    detail: "seeded for the status page drive",
+    evidence: [{ file: file, line: 1, snippet: "// seeded evidence" }],
+  };
+}
+
+function release(name, version, digest, analyzedAt, previousVersion, signals) {
   const changed = {
     name: name,
     // The report is a first-release report; the record still carries the
@@ -52,6 +64,7 @@ function release(name, version, digest, analyzedAt, previousVersion) {
         subject: { ecosystem: "npm", name: name, version: version },
         newPackage: true,
         findings: [],
+        signalFindings: signals,
         diagnostics: [],
       },
       issues: [],
@@ -77,31 +90,57 @@ function release(name, version, digest, analyzedAt, previousVersion) {
 }
 
 await releases.putIfAbsent(
-  release("left-pad", "1.3.0", "sha512-leftpad", "2026-01-01T00:00:00.000Z", null),
+  release("ox", "0.0.0-alpha.2", "sha512-ox", "2026-01-04T00:00:00.000Z", "0.0.0-alpha.1", [
+    signal("wallet-address-swap", "CRITICAL", "test/address.test.js"),
+    signal("new-external-endpoint", "HIGH", "src/__tests__/net.js"),
+  ]),
 );
 await releases.putIfAbsent(
-  release("tinycolor", "4.1.1", "sha512-tinycolor", "2026-01-02T00:00:00.000Z", "4.1.0"),
+  release("test-only", "1.0.0", "sha512-test-only", "2026-01-03T00:00:00.000Z", null, [
+    signal("new-external-endpoint", "HIGH", "test/index.test.js"),
+  ]),
 );
-const finding = createFinding(
-  {
-    ecosystem: "npm",
-    name: "tinycolor",
-    version: "4.1.1",
-    digest: "sha512-tinycolor",
-    analyzerVersion: "status-page-drive",
-    ruleKey: "verify:status-page",
-    summary: "adds network access",
-    severity: "HIGH",
-    confidence: "medium",
-    evidence: [{ file: "index.js", line: 3, excerpt: "fetch('https://example.test')" }],
-  },
-  new Date("2026-01-03T00:00:00.000Z"),
+await releases.putIfAbsent(
+  release("tinycolor", "4.1.1", "sha512-tinycolor", "2026-01-02T00:00:00.000Z", "4.1.0", [
+    signal("new-external-endpoint", "HIGH", "index.js"),
+  ]),
 );
-await findings.putIfAbsent(finding);
-console.log(finding.id);
+await releases.putIfAbsent(
+  release("counts-only", "2.0.0", "sha512-counts-only", "2026-01-01T00:00:00.000Z", null, [
+    signal("wallet-address-swap", "CRITICAL", "index.js"),
+  ]),
+);
+
+function findingRecord(name, version, digest, severity, ruleKey, file) {
+  return createFinding(
+    {
+      ecosystem: "npm",
+      name: name,
+      version: version,
+      digest: digest,
+      analyzerVersion: "status-page-drive",
+      ruleKey: ruleKey,
+      summary: "seeded finding for the status page drive",
+      severity: severity,
+      confidence: "medium",
+      evidence: [{ file: file, line: 3, excerpt: "// seeded evidence" }],
+    },
+    new Date("2026-01-05T00:00:00.000Z"),
+  );
+}
+
+const records = [
+  findingRecord("ox", "0.0.0-alpha.2", "sha512-ox", "CRITICAL", "signal:wallet-address-swap", "test/address.test.js"),
+  findingRecord("ox", "0.0.0-alpha.2", "sha512-ox", "HIGH", "signal:new-external-endpoint", "src/__tests__/net.js"),
+  findingRecord("test-only", "1.0.0", "sha512-test-only", "HIGH", "signal:new-external-endpoint", "test/index.test.js"),
+  findingRecord("tinycolor", "4.1.1", "sha512-tinycolor", "HIGH", "signal:new-external-endpoint", "index.js"),
+];
+for (const record of records) {
+  await findings.putIfAbsent(record);
+  console.log(record.id);
+}
 JS
-node "$D/seed.mjs" > "$D/finding-id" || { echo "status-page-drive: seeding failed" >&2; exit 1; }
-ID="$(cat "$D/finding-id")"
+node "$D/seed.mjs" > "$D/finding-ids" || { echo "status-page-drive: seeding failed" >&2; exit 1; }
 
 node "$B/platform-cli.js" serve --data "$D/data" --port "$PORT" > "$EVID/service.log" 2>&1 &
 P=$!
@@ -139,21 +178,175 @@ if grep -qi '^set-cookie:' "$EVID/page.headers"; then
   echo "status-page-drive: page set a cookie" >&2
   fails=$((fails + 1))
 fi
+grep -q 'Flagged releases' "$EVID/page.out" || {
+  echo "status-page-drive: flagged releases section missing" >&2
+  fails=$((fails + 1))
+}
+grep -q 'display hint, not a verdict' "$EVID/page.out" || {
+  echo "status-page-drive: noise disclaimer missing" >&2
+  fails=$((fails + 1))
+}
 
-python3 -I - "$EVID" "$ID" <<'PY'
+# Run the page script against a fake DOM, with fetch pointed at the live
+# service, and read back the two release groups.
+cat > "$D/groups.mjs" <<JS
+import vm from "node:vm";
+import { STATUS_PAGE_SCRIPT } from "$B/platform/ui-page.js";
+
+const base = "http://127.0.0.1:$PORT";
+
+class FakeNode {
+  constructor(tag) {
+    this.tagName = tag;
+    this.children = [];
+    this.attributes = {};
+    this.text = "";
+    this.className = "";
+    this.hidden = false;
+    this.tabIndex = 0;
+    this.colSpan = 1;
+    this.firstChild = null;
+  }
+  set textContent(value) {
+    this.text = String(value);
+    this.children = [];
+    this.firstChild = null;
+  }
+  get textContent() {
+    if (this.children.length === 0) return this.text;
+    return this.text + this.children.map((child) => child.textContent).join("");
+  }
+  append() {
+    for (const node of arguments) this.children.push(node);
+    this.firstChild = this.children.length === 0 ? null : this.children[0];
+  }
+  removeChild(node) {
+    this.children = this.children.filter((child) => child !== node);
+    this.firstChild = this.children.length === 0 ? null : this.children[0];
+  }
+  setAttribute(name, value) {
+    this.attributes[name] = String(value);
+  }
+  addEventListener() {}
+}
+
+const ids = [
+  "updated",
+  "error",
+  "job-counts",
+  "releases-body",
+  "flagged-body",
+  "noise-body",
+  "noise-summary",
+  "findings-body",
+  "finding-detail",
+  "feed-list",
+];
+const registry = new Map(ids.map((id) => [id, new FakeNode("div")]));
+const document = {
+  getElementById: (id) => registry.get(id) ?? null,
+  createElement: (tag) => new FakeNode(tag),
+};
+const realFetch = globalThis.fetch;
+const fetch = (path, init) => realFetch(new URL(path, base), init);
+vm.runInContext(
+  STATUS_PAGE_SCRIPT,
+  vm.createContext({
+    document: document,
+    fetch: fetch,
+    setInterval: () => 0,
+    console: console,
+  }),
+);
+
+const errorNode = registry.get("error");
+const updatedNode = registry.get("updated");
+for (let attempt = 0; attempt < 50; attempt += 1) {
+  const ready =
+    updatedNode.textContent.indexOf("Updated ") === 0 ||
+    errorNode.textContent !== "";
+  if (ready) break;
+  await new Promise((resolve) => setTimeout(resolve, 100));
+}
+if (errorNode.textContent !== "") {
+  console.error("release groups: " + errorNode.textContent);
+  process.exit(1);
+}
+
+function rows(id) {
+  return registry.get(id).children.map((row) =>
+    row.children.map((item) => item.textContent.trim()),
+  );
+}
+function findRow(list, name) {
+  return list.find((row) => row[0] === name);
+}
+
+const flagged = rows("flagged-body");
+const noise = rows("noise-body");
+const summary = registry.get("noise-summary").textContent;
+console.log("Flagged releases");
+for (const row of flagged) console.log("  " + row.join(" | "));
+console.log(summary);
+for (const row of noise) console.log("  " + row.join(" | "));
+
+const problems = [];
+if (summary !== "Probably noise (2)") {
+  problems.push("noise summary is " + JSON.stringify(summary));
+}
+const tinycolor = findRow(flagged, "tinycolor");
+if (tinycolor === undefined) problems.push("tinycolor is not flagged");
+else if (tinycolor[2] !== "HIGH") problems.push("tinycolor severity is not HIGH");
+else if (tinycolor[3] !== "1") problems.push("tinycolor finding count is not 1");
+const countsOnly = findRow(flagged, "counts-only");
+if (countsOnly === undefined) problems.push("counts-only is not flagged");
+else if (countsOnly[2] !== "CRITICAL") {
+  problems.push("counts-only severity is not CRITICAL");
+} else if (countsOnly[3].indexOf("CRITICAL 1") === -1) {
+  problems.push("counts-only does not show its report counts");
+}
+const ox = findRow(noise, "ox");
+if (ox === undefined) problems.push("ox is not in probably noise");
+else if (ox[2] !== "CRITICAL") problems.push("ox severity is not CRITICAL");
+const testOnly = findRow(noise, "test-only");
+if (testOnly === undefined) problems.push("test-only is not in probably noise");
+else if (testOnly[2] !== "HIGH") problems.push("test-only severity is not HIGH");
+if (findRow(flagged, "ox") !== undefined) problems.push("ox is in flagged");
+if (findRow(flagged, "test-only") !== undefined) {
+  problems.push("test-only is in flagged");
+}
+
+if (problems.length > 0) {
+  for (const problem of problems) console.error("MISMATCH  " + problem);
+  process.exit(1);
+}
+console.log("release groups: ok");
+JS
+node "$D/groups.mjs" || fails=$((fails + 1))
+
+python3 -I - "$EVID" "$D/finding-ids" <<'PY'
 import json
 import pathlib
 import sys
 
 evidence = pathlib.Path(sys.argv[1])
-expected_id = sys.argv[2].strip()
+ids_file = pathlib.Path(sys.argv[2])
+expected_ids = sorted(
+    line.strip() for line in ids_file.read_text().splitlines() if line.strip()
+)
 releases = json.loads((evidence / "releases.out").read_text())
 findings = json.loads((evidence / "findings.out").read_text())
+by_name = {row["name"]: row for row in releases["releases"]}
+actual_ids = sorted(finding["id"] for finding in findings["findings"])
 ok = (
-    len(releases["releases"]) == 2
-    and len(findings["findings"]) == 1
-    and findings["findings"][0]["id"] == expected_id
-    and findings["findings"][0]["evidence"][0]["excerpt"]
+    len(releases["releases"]) == 4
+    and len(findings["findings"]) == 4
+    and actual_ids == expected_ids
+    and by_name["ox"]["bySeverity"]["CRITICAL"] == 1
+    and by_name["test-only"]["bySeverity"]["HIGH"] == 1
+    and by_name["tinycolor"]["bySeverity"]["HIGH"] == 1
+    and by_name["counts-only"]["bySeverity"]["CRITICAL"] == 1
+    and all(finding["evidence"][0]["excerpt"] for finding in findings["findings"])
 )
 print(
     ("ok        " if ok else "MISMATCH  ")
